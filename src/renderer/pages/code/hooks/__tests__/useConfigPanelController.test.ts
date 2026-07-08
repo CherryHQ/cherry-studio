@@ -293,4 +293,68 @@ describe('useConfigPanelController', () => {
       })
     })
   })
+
+  // Reviewer A3: the active-provider state must only change after the CLI files were actually
+  // rewritten. If the scrub/write fails, leaving `currentProvider` flipped would show the UI as
+  // switched/disabled while the CLI still holds the previous managed credentials.
+  describe('clear/write failure keeps the active-provider state (A3)', () => {
+    const ownLoginProvider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
+
+    it('does not clear the active provider when the disable scrub fails', async () => {
+      const options = { ...baseOptions(), currentProviderId: 'p1' }
+      mocks.clearCliConfig.mockReset()
+      mocks.clearCliConfig.mockRejectedValue(new Error('scrub failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const provider = { id: 'p1' } as Provider // current → disabling
+
+      await act(async () => {
+        result.current.onToggleCurrent(provider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.clearCliConfig).toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    it('does not switch to own login when the scrub fails', async () => {
+      const options = { ...baseOptions() } // currentProviderId 'p1' → toggling selects own login
+      mocks.clearCliConfig.mockReset()
+      mocks.clearCliConfig.mockRejectedValue(new Error('scrub failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.clearCliConfig).toHaveBeenCalled()
+      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    // The multi-file case the reviewer called out (e.g. Gemini): scrub succeeds but the tool-params
+    // write fails — the selection must not flip while the config is half-written.
+    it('does not switch to own login when the tool-params write fails after a successful scrub', async () => {
+      const options = { ...baseOptions() }
+      mocks.clearCliConfig.mockReset()
+      mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.writeOwnLoginCliConfigDraft.mockReset()
+      mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+  })
 })

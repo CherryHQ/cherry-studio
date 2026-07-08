@@ -24,6 +24,7 @@ import { promisify } from 'util'
 
 import { sanitizeEnvForLogging } from './envRedaction'
 import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
+import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -454,6 +455,15 @@ export class CodeCliService extends BaseService {
         logger.error(message, error as Error)
         return { success: false, message }
       }
+      // `model` is the only provider-derived value concatenated bare into the launch command (every
+      // other CLI writes the model into its own config file). Reject anything outside the model-id
+      // charset rather than launch, so a model id carrying shell metacharacters can't inject into the
+      // `sh -c` / AppleScript / `.bat` command this string is assembled into.
+      if (!isShellSafeModelId(model)) {
+        const message = `Unsupported model id for ${cliTool}: ${model}`
+        logger.error(message)
+        return { success: false, message }
+      }
       baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
@@ -483,8 +493,10 @@ export class CodeCliService extends BaseService {
 
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        // Combine directory change with the main command to ensure they execute in the same shell session
-        const fullCommand = `cd "${directory.replace(/"/g, '\\"')}" && clear && ${command}`
+        // Combine directory change with the main command to ensure they execute in the same shell session.
+        // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
+        // (double-quoting it only blocks `"`, leaving command substitution live).
+        const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
 
         const terminalConfig = await this.getTerminalConfig(options.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
@@ -658,7 +670,7 @@ export class CodeCliService extends BaseService {
         } else {
           // Default to xterm
           terminalCommand = 'xterm'
-          terminalArgs = ['-e', `cd "${directory}" && clear && ${command} && bash`]
+          terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
         }
         break
       }

@@ -181,23 +181,27 @@ export function useConfigPanelController({
                 configBlob: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID]?.config
               })
             }
+            // Only flip the active selection once the scrub/write actually succeeded, so the UI never
+            // shows own login as active while the CLI files still hold the previous managed credentials.
+            await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
+            setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
             toast.error(t('code.apply_failed'))
           }
-          await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
-          setCurrentCliConfigConnection(null)
           return
         }
         if (!isEnabling) {
           try {
             await clearCliConfig({ cliTool: selectedCliTool })
+            // Only clear the active selection after the scrub succeeded; otherwise the UI would show the
+            // provider disabled while the CLI config/credential files still retain its managed credentials.
+            await setCurrentProvider(null)
+            setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to clear CLI config on disable:', err as Error)
             toast.error(t('code.apply_failed'))
           }
-          await setCurrentProvider(null)
-          setCurrentCliConfigConnection(null)
           return
         }
 

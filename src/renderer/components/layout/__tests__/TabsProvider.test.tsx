@@ -30,6 +30,26 @@ const LEGACY_LIBRARY_PINNED_TAB: Tab = {
   isPinned: true
 }
 
+const PINNED_OPENCLAW_TAB: Tab = {
+  id: 'openclaw',
+  type: 'route',
+  url: '/app/openclaw',
+  title: 'OpenClaw',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
+const PINNED_CODE_TAB: Tab = {
+  id: 'code',
+  type: 'route',
+  url: '/app/code',
+  title: 'Code',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
 // Stable reference: re-renders are then driven only by the i18n.language change,
 // not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
 // i18n.language dependency in the tabs useMemo.
@@ -74,7 +94,7 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import { TabsProvider } from '../TabsProvider'
+import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
 function TabTitleWriter() {
   const { tabs, updateTab } = useTabsContext()
@@ -293,6 +313,35 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
   })
 
+  // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
+  // persisted OpenClaw pin must be redirected to /app/code on restore instead of resurrecting a dead
+  // route — and the reconciled list written back to the cache.
+  it('redirects a persisted OpenClaw pinned tab to the Code page on restore', async () => {
+    pinnedTabsValue = [PINNED_OPENCLAW_TAB, PINNED_FILES_TAB]
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <TabSnapshot />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
+    await waitFor(() =>
+      expect(setPinnedTabsMock).toHaveBeenCalledWith([
+        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' },
+        PINNED_FILES_TAB
+      ])
+    )
+  })
+
   it('closes active and adjacent tabs atomically when closing a batch', async () => {
     render(
       <TabsProvider
@@ -361,5 +410,37 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/agents')
     expect(screen.getByTestId('tab-urls')).not.toHaveTextContent('/app/launchpad')
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('agents')
+  })
+})
+
+describe('migratePinnedTabs', () => {
+  it('redirects an OpenClaw pin to the Code page and flags the change', () => {
+    const { tabs, changed } = migratePinnedTabs([PINNED_OPENCLAW_TAB, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([{ ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' }, PINNED_FILES_TAB])
+  })
+
+  it('drops the OpenClaw pin instead of duplicating an existing Code pin', () => {
+    const { tabs, changed } = migratePinnedTabs([PINNED_CODE_TAB, PINNED_OPENCLAW_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_CODE_TAB])
+  })
+
+  it('collapses two OpenClaw pins into a single Code pin', () => {
+    const { tabs } = migratePinnedTabs([PINNED_OPENCLAW_TAB, { ...PINNED_OPENCLAW_TAB, id: 'openclaw2' }])
+    expect(tabs).toEqual([{ ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' }])
+  })
+
+  it('drops legacy library pins', () => {
+    const { tabs, changed } = migratePinnedTabs([LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_FILES_TAB])
+  })
+
+  it('is a no-op when nothing needs migrating', () => {
+    const input = [PINNED_FILES_TAB, PINNED_CODE_TAB]
+    const { tabs, changed } = migratePinnedTabs(input)
+    expect(changed).toBe(false)
+    expect(tabs).toEqual(input)
   })
 })

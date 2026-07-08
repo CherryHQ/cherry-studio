@@ -1,5 +1,7 @@
 import { TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 
+import { escapeForDoubleQuotes, posixQuote } from './shellQuote'
+
 export const MACOS_TERMINALS: TerminalConfig[] = [
   {
     id: TerminalApp.SYSTEM_DEFAULT,
@@ -117,14 +119,18 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
 ]
 
 // Helper function to escape strings for AppleScript
-const escapeForAppleScript = (str: string): string => {
-  // In AppleScript strings, backslashes and double quotes need to be escaped
-  // When passed through osascript -e with single quotes, we need:
-  // 1. Backslash: \ -> \\
-  // 2. Double quote: " -> \"
+export const escapeForAppleScript = (str: string): string => {
+  // The string is embedded as an AppleScript literal ("…") which is itself embedded in an
+  // `osascript -e '…'` single-quoted argument, so it must be escaped for BOTH layers:
+  // 1. Backslash: \ -> \\        (AppleScript string literal)
+  // 2. Double quote: " -> \"     (AppleScript string literal)
+  // 3. Single quote: ' -> '\''   (closes the osascript -e '…' quote, emits a literal quote, reopens)
+  //    Without (3) a single quote in the command — e.g. from a single-quoted directory token — would
+  //    terminate the -e argument early and expose the rest to the outer `sh -c`.
   return str
     .replace(/\\/g, '\\\\') // Escape backslashes first
-    .replace(/"/g, '\\"') // Then escape double quotes
+    .replace(/"/g, '\\"') // Then escape double quotes (AppleScript layer)
+    .replace(/'/g, `'\\''`) // Finally escape single quotes for the osascript -e '…' layer
 }
 
 export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
@@ -160,7 +166,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `cd "${_directory}" && open -na kitty --args --directory="${_directory}" sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
+        `cd ${posixQuote(_directory)} && open -na kitty --args --directory=${posixQuote(_directory)} sh -c "${escapeForDoubleQuotes(fullCommand)}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
       ]
     })
   },
@@ -172,7 +178,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `open -na Alacritty --args --working-directory "${_directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
+        `open -na Alacritty --args --working-directory ${posixQuote(_directory)} -e sh -c "${escapeForDoubleQuotes(fullCommand)}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
       ]
     })
   },
@@ -184,7 +190,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `open -na WezTerm --args start --new-tab --cwd "${_directory}" -- sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
+        `open -na WezTerm --args start --new-tab --cwd ${posixQuote(_directory)} -- sh -c "${escapeForDoubleQuotes(fullCommand)}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
       ]
     })
   },
@@ -196,7 +202,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `cd "${_directory}" && open -na Ghostty --args --working-directory="${_directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
+        `cd ${posixQuote(_directory)} && open -na Ghostty --args --working-directory=${posixQuote(_directory)} -e sh -c "${escapeForDoubleQuotes(fullCommand)}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
       ]
     })
   },

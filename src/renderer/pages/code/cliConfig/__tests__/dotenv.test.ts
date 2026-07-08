@@ -84,6 +84,35 @@ describe('parseDotenv', () => {
   it('skips comment lines and blank lines', () => {
     expect(parseDotenv('# comment\n\nKEY=value\n')).toEqual(new Map([['KEY', 'value']]))
   })
+
+  // Reviewer A1: the old hand-rolled parser read `export GEMINI_API_KEY=…` as the key
+  // `export GEMINI_API_KEY`, so `clearCliConfig` (which deletes `GEMINI_API_KEY`) never scrubbed the
+  // export-form secret. Parsing now matches the real dotenv loader, which strips the `export ` prefix.
+  it.each([
+    ['export GEMINI_API_KEY=secret\n', 'GEMINI_API_KEY', 'secret'],
+    ['export GOOGLE_GEMINI_BASE_URL=https://x\n', 'GOOGLE_GEMINI_BASE_URL', 'https://x']
+  ])('parses the `export ` prefix form %j to the bare key', (line, key, value) => {
+    expect(parseDotenv(line)).toEqual(new Map([[key, value]]))
+    expect(parseDotenv(line).get(key)).toBe(parseWithRealDotenv(line)[key])
+  })
+
+  it('strips an inline comment from an unquoted value, matching the real dotenv package', () => {
+    const line = 'GEMINI_API_KEY=secret # my key\n'
+    expect(parseDotenv(line).get('GEMINI_API_KEY')).toBe('secret')
+    expect(parseDotenv(line).get('GEMINI_API_KEY')).toBe(parseWithRealDotenv(line).GEMINI_API_KEY)
+  })
+
+  it('preserves entry order while parsing (unlike the unordered dotenv object)', () => {
+    expect([...parseDotenv('export B=2\nA=1\nexport C=3\n').keys()]).toEqual(['B', 'A', 'C'])
+  })
+
+  // End-to-end residue check: an export-form managed secret is now keyed correctly, so scrubbing the
+  // managed keys and re-rendering leaves only the user's own entries — no leftover managed secret.
+  it('lets export-form managed secrets be scrubbed on rewrite (no residue)', () => {
+    const parsed = parseDotenv('export GEMINI_API_KEY=secret\nexport GOOGLE_GEMINI_BASE_URL=https://x\nUSER_KEY=keep\n')
+    for (const managed of ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']) parsed.delete(managed)
+    expect(renderDotenvFile(parsed)).toBe('USER_KEY=keep\n')
+  })
 })
 
 describe('round-trip', () => {
@@ -101,5 +130,24 @@ describe('round-trip', () => {
     const original = parseWithRealDotenv(handWritten).KEY
     const rewritten = renderDotenvFile(parseDotenv(handWritten))
     expect(parseWithRealDotenv(rewritten).KEY).toBe(original)
+  })
+
+  // Re-review scenario: `clearCliConfig` blind-rewrites the whole .env. Parsing the whole content at
+  // once (not line by line) reads a multi-line quoted value correctly, and quoting it on render keeps
+  // it from being split across physical lines — so scrubbing a managed secret must not silently
+  // corrupt an adjacent user multi-line value on disk.
+  it('parses a multi-line quoted value spanning physical lines like the real loader', () => {
+    const content = 'GEMINI_API_KEY=secret\nUSER_PEM="a\nb\nc"\nUSER_PLAIN=keep\n'
+    expect(parseDotenv(content).get('USER_PEM')).toBe('a\nb\nc')
+    expect(parseDotenv(content).get('USER_PEM')).toBe(parseWithRealDotenv(content).USER_PEM)
+  })
+
+  it('scrubs the managed key without corrupting a user multi-line value on rewrite', () => {
+    const parsed = parseDotenv('GEMINI_API_KEY=secret\nUSER_PEM="a\nb\nc"\nUSER_PLAIN=keep\n')
+    parsed.delete('GEMINI_API_KEY')
+    const rewritten = renderDotenvFile(parsed)
+    expect(parseWithRealDotenv(rewritten).GEMINI_API_KEY).toBeUndefined()
+    expect(parseWithRealDotenv(rewritten).USER_PEM).toBe('a\nb\nc')
+    expect(parseWithRealDotenv(rewritten).USER_PLAIN).toBe('keep')
   })
 })

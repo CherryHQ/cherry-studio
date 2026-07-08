@@ -213,6 +213,62 @@ describe('CodeCliService', () => {
         message: expect.stringContaining('OpenCode provider not found: ghost')
       })
     })
+
+    // OpenCode is the one CLI that concatenates `model` straight into the launch command, so a model
+    // id carrying shell metacharacters ($(), backticks, ;, quotes, spaces) is rejected before the
+    // command is ever assembled — it can't inject into the sh -c / AppleScript / .bat string.
+    it.each(['gpt-4o; rm -rf ~', 'gpt$(reboot)', 'gpt`whoami`', "gpt'x", 'gpt 4o'])(
+      'rejects a model id carrying shell metacharacters (%j)',
+      async (badModel) => {
+        providerServiceMock.getByProviderId.mockReturnValue({ id: 'deepseek', name: 'DeepSeek' })
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run(CodeCli.OPEN_CODE, badModel, 'deepseek', '/tmp/project')
+
+        expect(result).toEqual({
+          success: false,
+          message: expect.stringContaining('Unsupported model id')
+        })
+      }
+    )
+  })
+
+  // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
+  // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
+  describe('run (launch command shell-quotes the directory)', () => {
+    beforeEach(async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    it('single-quotes a directory containing spaces and $() in the assembled command', async () => {
+      // Fake timers swallow the terminal-availability probe's 5s race timeouts (nothing the launch
+      // awaits depends on them — the mocked probe resolves via microtasks).
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        // loginFlow exempts Claude Code from the provider/model requirement, so control reaches the
+        // command assembly + spawn without needing a provider.
+        const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/$(reboot) proj', {
+          loginFlow: true
+        })
+
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        const script = (call![1] as string[]).join(' ')
+        // posixQuote wraps the directory in single quotes; the Terminal.app adapter then rewrites those
+        // quotes to the sh-safe '\'' form for its `osascript -e '…'` layer. Either way $(reboot) sits
+        // inside the quotes as inert data — never a substitution.
+        expect(script).toContain("cd '\\''/tmp/$(reboot) proj'\\''")
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('run (provider/model validation is owned solely by the service)', () => {
