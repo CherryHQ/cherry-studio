@@ -9,6 +9,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,11 +40,11 @@ const YuqueSettings: FC = () => {
 
   const handleYuqueConnectionCheck = async () => {
     if (!yuqueToken) {
-      window.toast.error(t('settings.data.yuque.check.empty_token'))
+      toast.error(t('settings.data.yuque.check.empty_token'))
       return
     }
     if (!yuqueUrl) {
-      window.toast.error(t('settings.data.yuque.check.empty_repo_url'))
+      toast.error(t('settings.data.yuque.check.empty_repo_url'))
       return
     }
 
@@ -55,7 +56,7 @@ const YuqueSettings: FC = () => {
       })
 
       if (!response.ok) {
-        window.toast.error(t('settings.data.yuque.check.fail'))
+        toast.error(t('settings.data.yuque.check.fail'))
         return
       }
       const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
@@ -65,20 +66,20 @@ const YuqueSettings: FC = () => {
         }
       })
       if (!repoIDResponse.ok) {
-        window.toast.error(t('settings.data.yuque.check.fail'))
+        toast.error(t('settings.data.yuque.check.fail'))
         return
       }
       const data = (await repoIDResponse.json()) as unknown
       if (!isYuqueRepoResponse(data)) {
         logger.error('Invalid Yuque repo response')
-        window.toast.error(t('settings.data.yuque.check.fail'))
+        toast.error(t('settings.data.yuque.check.fail'))
         return
       }
       await setYuqueRepoId(String(data.data.id))
-      window.toast.success(t('settings.data.yuque.check.success'))
+      toast.success(t('settings.data.yuque.check.success'))
     } catch (error) {
       logger.error('Failed to check Yuque connection', error as Error)
-      window.toast.error(formatErrorMessage(error) || t('settings.data.yuque.check.fail'))
+      toast.error(formatErrorMessage(error) || t('settings.data.yuque.check.fail'))
     }
   }
 

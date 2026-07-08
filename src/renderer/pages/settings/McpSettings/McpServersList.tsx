@@ -14,6 +14,7 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
+import { toast } from '@renderer/services/toast'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -117,14 +118,14 @@ const McpServersList: FC = () => {
       isActive: false
     })
     void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
-    window.toast.success(t('settings.mcp.addSuccess'))
+    toast.success(t('settings.mcp.addSuccess'))
   }, [addMcpServer, navigate, t])
 
   const handleAddServerSuccess = useCallback(
     async (dto: CreateMcpServerDto): Promise<McpServer> => {
       const created = await addMcpServer(dto)
       setIsAddModalVisible(false)
-      window.toast.success(t('settings.mcp.addSuccess'))
+      toast.success(t('settings.mcp.addSuccess'))
       return created
     },
     [addMcpServer, t]

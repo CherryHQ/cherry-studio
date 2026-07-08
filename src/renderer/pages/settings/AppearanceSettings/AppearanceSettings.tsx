@@ -30,6 +30,8 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n/resolver'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -82,38 +84,38 @@ const languagesOptions: { value: LanguageVarious; label: string; flag: string }[
   { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
 ]
 
-export function confirmMenuPresentationModeChange({
+export async function confirmMenuPresentationModeChange({
   currentMode,
   mode,
   setMenuPresentationMode,
   setTimeoutTimer,
   t
-}: MenuPresentationModeChangeOptions): void {
+}: MenuPresentationModeChangeOptions): Promise<void> {
   if (mode === currentMode) return
 
-  void window.modal.confirm({
+  const confirmed = await popup.confirm({
     title: t('settings.general.common.menu.presentation_mode.restart.title'),
     content: t('settings.general.common.menu.presentation_mode.restart.content'),
     okText: t('common.confirm'),
     cancelText: t('common.cancel'),
-    centered: true,
-    async onOk() {
-      try {
-        await setMenuPresentationMode(mode)
-      } catch (error) {
-        window.toast.error(formatErrorMessage(error))
-        throw error
-      }
-
-      setTimeoutTimer(
-        'handleMenuPresentationModeChange',
-        () => {
-          void window.api.application.relaunch()
-        },
-        500
-      )
-    }
+    centered: true
   })
+  if (!confirmed) return
+
+  try {
+    await setMenuPresentationMode(mode)
+  } catch (error) {
+    toast.error(formatErrorMessage(error))
+    throw error
+  }
+
+  setTimeoutTimer(
+    'handleMenuPresentationModeChange',
+    () => {
+      void window.api.application.relaunch()
+    },
+    500
+  )
 }
 
 const AppearanceSettings: FC = () => {
@@ -240,7 +242,7 @@ const AppearanceSettings: FC = () => {
 
   const handleMenuPresentationModeChange = useCallback(
     (mode: MenuPresentationMode) => {
-      confirmMenuPresentationModeChange({
+      void confirmMenuPresentationModeChange({
         currentMode: menuPresentationMode,
         mode,
         setMenuPresentationMode,
@@ -251,30 +253,30 @@ const AppearanceSettings: FC = () => {
     [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
   )
 
-  const handleUseSystemTitleBarChange = (checked: boolean) => {
-    void window.modal.confirm({
+  const handleUseSystemTitleBarChange = async (checked: boolean) => {
+    const confirmed = await popup.confirm({
       title: t('settings.use_system_title_bar.confirm.title'),
       content: t('settings.use_system_title_bar.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      async onOk() {
-        try {
-          await setUseSystemTitleBar(checked)
-        } catch (error) {
-          window.toast.error(formatErrorMessage(error))
-          throw error
-        }
-
-        setTimeoutTimer(
-          'handleUseSystemTitleBarChange',
-          () => {
-            void window.api.application.relaunch()
-          },
-          500
-        )
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    try {
+      await setUseSystemTitleBar(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+      throw error
+    }
+
+    setTimeoutTimer(
+      'handleUseSystemTitleBarChange',
+      () => {
+        void window.api.application.relaunch()
+      },
+      500
+    )
   }
 
   const handleZoomFactor = async (delta: number, reset: boolean = false) => {

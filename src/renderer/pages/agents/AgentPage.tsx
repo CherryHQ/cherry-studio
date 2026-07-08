@@ -31,6 +31,7 @@ import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutR
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
@@ -514,7 +515,7 @@ const AgentPage = () => {
         }
       } catch (err) {
         logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingClassicEmptySessionRef.current = false
       }
@@ -789,7 +790,7 @@ const AgentPage = () => {
         setLastUsedAgentId(agentId)
         setActiveSessionId(null)
       } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         setReplacingDraftAgent(false)
       }
@@ -829,7 +830,7 @@ const AgentPage = () => {
         setActiveSessionId(null)
       } catch (err) {
         logger.error('Failed to replace draft workspace', err as Error, { workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         setReplacingDraftWorkspace(false)
       }
@@ -936,7 +937,7 @@ const AgentPage = () => {
       logger.error('Failed to create empty agent session from classic-layout composer', err as Error, {
         agentId: activeResourceAgentId
       })
-      window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
     } finally {
       isCreatingClassicEmptySessionRef.current = false
     }

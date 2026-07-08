@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,9 +90,6 @@ const models = [
 describe('ModelListGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
   })
 
   it('runs the group bulk action without toggling the group open state', () => {
@@ -152,7 +150,7 @@ describe('ModelListGroup', () => {
         error
       })
     })
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('renders the group bulk action as a switch', () => {
@@ -267,7 +265,7 @@ describe('ModelListGroup', () => {
         error
       })
     })
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('shows a localized knowledge base in-use message when deleting a group fails', async () => {
@@ -297,7 +295,7 @@ describe('ModelListGroup', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })[0])
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
     })
   })
 

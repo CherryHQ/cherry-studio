@@ -46,6 +46,7 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
@@ -1028,7 +1029,7 @@ const TasksSettings: FC = () => {
       setAgents(agentList.map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id })))
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
-      window.toast.error(t('agent.tasks.error.loadFailed'))
+      toast.error(t('agent.tasks.error.loadFailed'))
     } finally {
       setLoading(false)
     }

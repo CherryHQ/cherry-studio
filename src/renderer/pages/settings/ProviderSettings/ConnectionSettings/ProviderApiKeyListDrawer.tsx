@@ -2,6 +2,7 @@ import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
@@ -92,7 +93,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         return true
       } catch (error) {
         logger.error('Failed to persist provider API keys', { providerId, error })
-        window.toast.error(t('settings.provider.api_key.save_failed'))
+        toast.error(t('settings.provider.api_key.save_failed'))
         return false
       } finally {
         savingRef.current = false
@@ -106,13 +107,13 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     (nextDraft: DraftState) => {
       const key = normalizeApiKeyValue(nextDraft.key)
       if (!key) {
-        window.toast.warning(t('settings.provider.api.key.error.empty'))
+        toast.warning(t('settings.provider.api.key.error.empty'))
         return null
       }
 
       const isDuplicate = apiKeys.some((item) => item.id !== nextDraft.id && item.key.trim() === key)
       if (isDuplicate) {
-        window.toast.warning(t('settings.provider.api.key.error.duplicate'))
+        toast.warning(t('settings.provider.api.key.error.duplicate'))
         return null
       }
 

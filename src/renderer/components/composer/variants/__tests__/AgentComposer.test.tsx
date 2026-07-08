@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -20,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  toastError: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   createInternalEntry: vi.fn(),
@@ -449,8 +449,6 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.toastError.mockReset()
-    window.toast = { ...window.toast, error: mocks.toastError }
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -1525,7 +1523,7 @@ describe('AgentComposer', () => {
     )
     expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
