@@ -6,6 +6,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { checkApi as runCheckApi } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
+import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
@@ -68,7 +69,7 @@ export function useProviderConnectionCheck(providerId: string) {
     }
 
     if (isEmpty(checkableApiKeys)) {
-      window.toast.error(i18n.t('message.error.enter.api.label'))
+      toast.error(i18n.t('message.error.enter.api.label'))
       return
     }
 
@@ -78,12 +79,12 @@ export function useProviderConnectionCheck(providerId: string) {
   const startConnectionCheck = useCallback(
     async ({ model, apiKey }: { model?: Model; apiKey: string }) => {
       if (!provider || !model) {
-        window.toast.error(i18n.t('message.error.enter.model'))
+        toast.error(i18n.t('message.error.enter.model'))
         return
       }
 
       if (!apiKey) {
-        window.toast.error(i18n.t('message.error.enter.api.label'))
+        toast.error(i18n.t('message.error.enter.api.label'))
         return
       }
 
@@ -123,7 +124,7 @@ export function useProviderConnectionCheck(providerId: string) {
         // was superseded or aborted before touching success state.
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        window.toast.success({
+        toast.success({
           timeout: 2000,
           title: i18n.t('message.api.connection.success')
         })
@@ -147,7 +148,7 @@ export function useProviderConnectionCheck(providerId: string) {
             error
           })
         }
-        window.toast.error({
+        toast.error({
           timeout: 8000,
           title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
         })
@@ -167,7 +168,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkApi = useCallback(async () => {
     if (isEmpty(checkableModels)) {
-      window.toast.error({
+      toast.error({
         timeout: 5000,
         title: t('settings.provider.no_models_for_check')
       })
@@ -176,7 +177,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
     const firstModel = checkableModels[0]
     if (!firstModel) {
-      window.toast.error(i18n.t('message.error.enter.model'))
+      toast.error(i18n.t('message.error.enter.model'))
       return
     }
 

@@ -1,4 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import { toast } from '@renderer/services/toast'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -15,15 +16,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('@data/hooks/useCache', () => ({
   useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
 }))
-
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn()
-}
-vi.stubGlobal('window', {
-  toast: mockToast,
-  api: {}
-})
 
 describe('useAgent', () => {
   beforeEach(() => {
@@ -180,7 +172,7 @@ describe('useAgents', () => {
       if (addResult.success) {
         expect(addResult.data).toEqual(mockAgent)
       }
-      expect(mockToast.success).toHaveBeenCalledWith('common.add_success')
+      expect(toast.success).toHaveBeenCalledWith('common.add_success')
     })
 
     it('returns failure result when createTrigger throws', async () => {
@@ -199,7 +191,7 @@ describe('useAgents', () => {
       )
 
       expect(addResult.success).toBe(false)
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
@@ -222,7 +214,7 @@ describe('useAgents', () => {
       await act(async () => result.current.deleteAgent('agent-1'))
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
-      expect(mockToast.success).toHaveBeenCalledWith('common.delete_success')
+      expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 
     it('shows error toast when deleteTrigger throws', async () => {
@@ -233,7 +225,7 @@ describe('useAgents', () => {
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 })
@@ -264,7 +256,7 @@ describe('useUpdateAgent', () => {
       expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' }, body: { name: 'Updated' } })
       expect(updated).toBeDefined()
       expect(updated?.id).toBe('agent-1')
-      expect(mockToast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
+      expect(toast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
     })
 
     it('does not show success toast when showSuccessToast is false', async () => {
@@ -283,7 +275,7 @@ describe('useUpdateAgent', () => {
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }, { showSuccessToast: false }))
 
-      expect(mockToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
 
     it('shows error toast and returns undefined on failure', async () => {
@@ -294,7 +286,7 @@ describe('useUpdateAgent', () => {
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Fail' }))
 
       expect(updated).toBeUndefined()
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 

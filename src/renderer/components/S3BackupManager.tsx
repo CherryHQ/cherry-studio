@@ -11,6 +11,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { restoreFromS3 } from '@renderer/services/BackupService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import type { S3Config } from '@shared/types/backup'
 import dayjs from 'dayjs'
@@ -47,7 +49,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const fetchBackupFiles = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
+      toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -67,7 +69,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       })
       setBackupFiles(files)
     } catch (error: any) {
-      window.toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
     } finally {
       setLoading(false)
     }
@@ -110,117 +112,117 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      window.toast.warning(t('settings.data.s3.manager.select.warning'))
+      toast.warning(t('settings.data.s3.manager.select.warning'))
       return
     }
 
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
+      toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
       okText: t('settings.data.s3.manager.delete.confirm.title'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          // 依次删除选中的文件
-          for (const key of selectedRowKeys) {
-            await window.api.backup.deleteS3File(key.toString(), {
-              ...s3Config,
-              endpoint,
-              region,
-              bucket,
-              accessKeyId,
-              secretAccessKey,
-              skipBackupFile: false,
-              autoSync: false,
-              syncInterval: 0,
-              maxBackups: 0
-            })
-          }
-          window.toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
-          setSelectedRowKeys([])
-          await fetchBackupFiles()
-        } catch (error: any) {
-          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      // 依次删除选中的文件
+      for (const key of selectedRowKeys) {
+        await window.api.backup.deleteS3File(key.toString(), {
+          ...s3Config,
+          endpoint,
+          region,
+          bucket,
+          accessKeyId,
+          secretAccessKey,
+          skipBackupFile: false,
+          autoSync: false,
+          syncInterval: 0,
+          maxBackups: 0
+        })
+      }
+      toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
+      setSelectedRowKeys([])
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleDeleteSingle = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
+      toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.manager.delete.confirm.single', { fileName }),
       okText: t('settings.data.s3.manager.delete.confirm.title'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          await window.api.backup.deleteS3File(fileName, {
-            ...s3Config,
-            endpoint,
-            region,
-            bucket,
-            accessKeyId,
-            secretAccessKey,
-            skipBackupFile: false,
-            autoSync: false,
-            syncInterval: 0,
-            maxBackups: 0
-          })
-          window.toast.success(t('settings.data.s3.manager.delete.success.single'))
-          await fetchBackupFiles()
-        } catch (error: any) {
-          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      await window.api.backup.deleteS3File(fileName, {
+        ...s3Config,
+        endpoint,
+        region,
+        bucket,
+        accessKeyId,
+        secretAccessKey,
+        skipBackupFile: false,
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 0
+      })
+      toast.success(t('settings.data.s3.manager.delete.success.single'))
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleRestore = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
+      toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.s3.restore.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.restore.confirm.content'),
       okText: t('settings.data.s3.restore.confirm.ok'),
       cancelText: t('settings.data.s3.restore.confirm.cancel'),
-      centered: true,
-      onOk: async () => {
-        setRestoring(true)
-        try {
-          await (restoreMethod || restoreFromS3)(fileName)
-          window.toast.success(t('settings.data.s3.restore.success'))
-          onClose() // 关闭模态框
-        } catch (error: any) {
-          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
-        } finally {
-          setRestoring(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setRestoring(true)
+    try {
+      await (restoreMethod || restoreFromS3)(fileName)
+      toast.success(t('settings.data.s3.restore.success'))
+      onClose() // 关闭模态框
+    } catch (error: any) {
+      toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+    } finally {
+      setRestoring(false)
+    }
   }
 
   const columns: ColumnDef<BackupFile>[] = [

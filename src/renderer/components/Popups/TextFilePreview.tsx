@@ -1,42 +1,22 @@
 import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useRef, useState } from 'react'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
-import { TopView } from '../TopView/TopView'
-
-const CLOSE_ANIMATION_MS = 200
-
-interface Props {
+interface OwnProps {
   text: string
   title: string
   extension?: string
-  resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
-  const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
+type Props = OwnProps & PopupInjectedProps<void>
+
+const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve }) => {
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
 
-  const closePopup = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => resolve({}), CLOSE_ANIMATION_MS)
-  }
-
-  const onOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      closePopup()
-    }
-  }
-
-  TextFilePreviewPopup.hide = closePopup
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
       <DialogContent className="h-[80vh] max-h-[calc(100vh-2rem)] max-w-[700px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] p-0 sm:max-w-[700px]">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>{title}</DialogTitle>
@@ -66,25 +46,16 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
   )
 }
 
-export default class TextFilePreviewPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('TextFilePreviewPopup')
-  }
-  static show(text: string, title: string, extension?: string) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          text={text}
-          title={title}
-          extension={extension}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide('TextFilePreviewPopup')
-          }}
-        />,
-        'TextFilePreviewPopup'
-      )
-    })
-  }
+const TextFilePreviewPopupHandle = createPopup<OwnProps, void>(PopupContainer)
+
+/**
+ * Adapter preserving the popup's positional call form `show(text, title, extension?)`
+ * over the createPopup handle, whose `show` takes a single props object.
+ */
+const TextFilePreviewPopup = {
+  show: (text: string, title: string, extension?: string): Promise<void> =>
+    TextFilePreviewPopupHandle.show({ text, title, extension }),
+  hide: (): void => TextFilePreviewPopupHandle.hide()
 }
+
+export default TextFilePreviewPopup

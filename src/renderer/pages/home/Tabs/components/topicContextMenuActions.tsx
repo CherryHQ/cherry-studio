@@ -141,6 +141,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-notes',
+  availability: ({ exportMenuOptions }) => ({
+    visible: exportMenuOptions.notes,
+    enabled: exportMenuOptions.notes
+  }),
   run: ({ onSaveToNotes, topic }) => onSaveToNotes(topic)
 })
 
@@ -196,6 +200,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.copy.image',
+  availability: ({ exportMenuOptions }) => ({
+    visible: exportMenuOptions.image,
+    enabled: exportMenuOptions.image
+  }),
   run: ({ onCopyImage, topic }) => onCopyImage(topic)
 })
 
@@ -206,6 +214,10 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.copy.plain-text',
+  availability: ({ exportMenuOptions }) => ({
+    visible: exportMenuOptions.plain_text,
+    enabled: exportMenuOptions.plain_text
+  }),
   run: ({ onCopyPlainText, topic }) => onCopyPlainText(topic)
 })
 

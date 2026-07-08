@@ -198,4 +198,131 @@ describe('useResizeDrag', () => {
     // A single mouseup fully ended the active drag — no leftover listener from drag #1.
     expect(onMove).toHaveBeenCalledTimes(1)
   })
+
+  it('does not call onEnd merely on drag start', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    expect(onEnd).not.toHaveBeenCalled()
+  })
+
+  it('calls onEnd exactly once when the drag ends via mouseup', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
+    })
+    expect(onEnd).not.toHaveBeenCalled()
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+    expect(onEnd).toHaveBeenCalledTimes(1)
+
+    // A later mouseup on an already-ended drag must not refire onEnd.
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd exactly once on window blur', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd exactly once when the document becomes hidden', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      value: true
+    })
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd exactly once when the pointer leaves the document', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mouseleave'))
+    })
+
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd exactly once on unmount', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result, unmount } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    act(() => {
+      unmount()
+    })
+
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd exactly once when onMove invokes the provided stop callback', () => {
+    const onEnd = vi.fn()
+    const onMove = vi.fn((_moveEvent: MouseEvent, stop: () => void) => stop())
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
+    })
+
+    expect(onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onEnd for the first drag when a new drag cleans it up', () => {
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
+
+    startDrag(result.current.startResizing)
+    startDrag(result.current.startResizing)
+
+    // Starting the second drag tore down the first one, which fires onEnd once.
+    expect(onEnd).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+
+    // The second (active) drag ending fires onEnd again — twice total.
+    expect(onEnd).toHaveBeenCalledTimes(2)
+  })
 })

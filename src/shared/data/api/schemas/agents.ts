@@ -252,6 +252,11 @@ export const DeleteAgentQuerySchema = z.strictObject({
 })
 export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
 
+export interface DeleteAgentResult {
+  deleted: boolean
+  deletedSessionIds?: string[]
+}
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -283,7 +288,7 @@ export type AgentSchemas = {
     DELETE: {
       params: { agentId: string }
       query?: DeleteAgentQueryParams
-      response: void
+      response: DeleteAgentResult
     }
   }
 

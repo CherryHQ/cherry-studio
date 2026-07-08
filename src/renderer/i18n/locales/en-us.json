@@ -505,6 +505,7 @@
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
       },
+      "auto_rename": "Generate task name",
       "create": {
         "error": {
           "failed": "Failed to add a session"
@@ -525,7 +526,7 @@
         "workdir": "Work directory"
       },
       "edit": {
-        "title": "Edit session"
+        "title": "Edit task name"
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
@@ -1452,7 +1453,7 @@
         "pause": "Pause auto-send",
         "remove": "Remove",
         "resume": "Resume auto-send",
-        "steer": "Send into current turn",
+        "steer": "steer",
         "title": "Queued ({{count}})"
       },
       "generate_image": "Generate image",
@@ -1724,6 +1725,7 @@
               "tip": "Conversation will be saved to knowledge base with complete context"
             }
           },
+          "source_fallback": "Conversation",
           "success": "Conversation successfully saved to knowledge base ({{count}} items)",
           "title": "Save Conversation to Knowledge Base"
         }
@@ -3766,6 +3768,7 @@
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
+      "collapse": "Collapse",
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
@@ -3810,6 +3813,7 @@
         "usingTools": "Working on the task"
       },
       "preview": "Preview",
+      "processed": "Processed",
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
       "runningHeader": "Working…",
@@ -4061,10 +4065,13 @@
     "drop_markdown_hint": "Drop .md files or folders here to import",
     "empty": "No notes available yet",
     "expand": "unfold",
+    "exportToPDF": "Export to PDF",
     "exportToWord": "Export to Word",
     "export_failed": "Failed to export to knowledge base",
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",
+    "export_to_pdf_failed": "Failed to export to PDF",
+    "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
     "folder": "folder",
     "load_failed": "Failed to load note",
@@ -4081,6 +4088,8 @@
     "no_valid_files": "No valid file was uploaded",
     "open_folder": "Open an external folder",
     "open_outside": "Open from external",
+    "print": "Print",
+    "print_failed": "Failed to print note",
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "rename_failed": "Failed to rename note",
@@ -5987,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "No custom tools yet. Add one to get started.",
@@ -6024,7 +6034,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Failed to check for updates"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
@@ -7286,6 +7297,7 @@
       "open_tab_in_new_window": "Open Tab in New Window",
       "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
+      "print": "Print",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Conversation",
       "reset": "Reset",

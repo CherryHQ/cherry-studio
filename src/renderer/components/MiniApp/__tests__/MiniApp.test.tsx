@@ -5,7 +5,7 @@ import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceType
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const calculatorApp: MiniAppType = {
   appId: 'calculator',
@@ -107,14 +107,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 import MiniApp from '../MiniApp'
-
-beforeEach(() => {
-  window.toast = {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn()
-  } as unknown as typeof window.toast
-})
 
 afterEach(() => {
   cleanup()

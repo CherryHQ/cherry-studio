@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
+import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
 import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -124,12 +125,12 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
         const { skill, error: installError } = await install(result.installSource)
         if (!skill) {
           const message = t('settings.skills.installFailed', { name: result.name })
-          window.toast.error(installError ? `${message}: ${installError}` : message)
+          toast.error(installError ? `${message}: ${installError}` : message)
           return
         }
 
         setInstalledSources((current) => new Set(current).add(result.installSource))
-        window.toast.success(t('settings.skills.installSuccess', { name: skill.name }))
+        toast.success(t('settings.skills.installSuccess', { name: skill.name }))
         onInstalled?.()
       } finally {
         pendingInstallSourcesRef.current.delete(result.installSource)

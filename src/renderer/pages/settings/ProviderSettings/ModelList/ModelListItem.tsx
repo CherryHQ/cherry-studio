@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { getModelLogo } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -29,7 +30,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
 
   const handleDelete = useCallback(() => {
     void onDelete(model).catch((error) => {
-      window.toast.error(
+      toast.error(
         getModelOperationErrorMessage(error, {
           fallback: t('settings.models.manage.operation_failed'),
           modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base'),
@@ -42,7 +43,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
   const handleToggleEnabled = useCallback(
     (enabled: boolean) => {
       void onToggleEnabled(model, enabled).catch(() => {
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [model, onToggleEnabled, t]
