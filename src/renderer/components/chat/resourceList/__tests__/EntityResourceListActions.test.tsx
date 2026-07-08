@@ -282,11 +282,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/resourceList/topicsHelpers', () => ({
+vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
   sortTopicsForDisplayGroups: (topics: unknown[]) => topics
 }))
 
-vi.mock('@renderer/components/chat/resourceList/sessionListHelpers', () => ({
+vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
 }))
 

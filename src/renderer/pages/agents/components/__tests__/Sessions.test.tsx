@@ -580,7 +580,7 @@ import {
   SESSION_AGENT_SECTION_ID,
   SESSION_PINNED_SECTION_ID,
   SESSION_WORKDIR_SECTION_ID
-} from '@renderer/components/chat/resourceList/sessionListHelpers'
+} from '@renderer/utils/chat/sessionListHelpers'
 
 import Sessions from '../Sessions'
 

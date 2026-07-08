@@ -23,26 +23,24 @@ describe('useConversationCenterSurface', () => {
       })
     )
 
-    expect(result.current.activeSurface).toBeNull()
+    expect(result.current.activeResourceKind).toBeNull()
+    expect(result.current.historyActive).toBe(false)
     expect(result.current.resourceMenuItems?.[0]?.active).toBe(false)
 
     act(() => {
       void result.current.resourceMenuItems?.[0]?.onSelect()
     })
 
-    expect(result.current.activeSurface).toEqual({
-      conversationKey: 'session:one',
-      kind: 'agent',
-      type: 'resource'
-    })
     expect(result.current.activeResourceKind).toBe('agent')
+    expect(result.current.historyActive).toBe(false)
     expect(result.current.resourceMenuItems?.[0]?.active).toBe(true)
 
     act(() => {
       void result.current.resourceMenuItems?.[0]?.onSelect()
     })
 
-    expect(result.current.activeSurface).toBeNull()
+    expect(result.current.activeResourceKind).toBeNull()
+    expect(result.current.historyActive).toBe(false)
     expect(result.current.resourceMenuItems?.[0]?.active).toBe(false)
   })
 
@@ -55,7 +53,7 @@ describe('useConversationCenterSurface', () => {
     )
 
     act(() => {
-      result.current.openHistory()
+      result.current.toggleHistory()
     })
 
     expect(result.current.historyActive).toBe(true)
@@ -79,7 +77,8 @@ describe('useConversationCenterSurface', () => {
       result.current.toggleHistory()
     })
 
-    expect(result.current.activeSurface).toBeNull()
+    expect(result.current.historyActive).toBe(false)
+    expect(result.current.activeResourceKind).toBeNull()
   })
 
   it('invalidates the active surface when the conversation key changes', () => {
@@ -93,13 +92,14 @@ describe('useConversationCenterSurface', () => {
     )
 
     act(() => {
-      result.current.openHistory()
+      result.current.toggleHistory()
     })
     expect(result.current.historyActive).toBe(true)
 
     rerender({ conversationKey: 'session:two' })
 
-    expect(result.current.activeSurface).toBeNull()
+    expect(result.current.historyActive).toBe(false)
+    expect(result.current.activeResourceKind).toBeNull()
   })
 
   it('hides menu items and clears the active surface while disabled', () => {
@@ -120,7 +120,8 @@ describe('useConversationCenterSurface', () => {
 
     rerender({ disabled: true })
 
-    expect(result.current.activeSurface).toBeNull()
+    expect(result.current.activeResourceKind).toBeNull()
+    expect(result.current.historyActive).toBe(false)
     expect(result.current.resourceMenuItems).toBeUndefined()
   })
 })

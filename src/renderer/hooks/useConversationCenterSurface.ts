@@ -52,18 +52,6 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     setActive(null)
   }, [])
 
-  const openResource = useCallback(
-    (kind: TResourceKind) => {
-      if (disabled) {
-        setActive(null)
-        return
-      }
-
-      setActive({ conversationKey, kind, type: 'resource' })
-    },
-    [conversationKey, disabled]
-  )
-
   const toggleResource = useCallback(
     (kind: TResourceKind) => {
       if (disabled) {
@@ -79,15 +67,6 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     },
     [conversationKey, disabled]
   )
-
-  const openHistory = useCallback(() => {
-    if (disabled) {
-      setActive(null)
-      return
-    }
-
-    setActive({ conversationKey, type: 'history' })
-  }, [conversationKey, disabled])
 
   const toggleHistory = useCallback(() => {
     if (disabled) {
@@ -128,13 +107,9 @@ export function useConversationCenterSurface<TResourceKind extends string>({
 
   return {
     activeResourceKind,
-    activeSurface,
     closeSurface,
     historyActive,
-    openHistory,
-    openResource,
     resourceMenuItems,
-    toggleHistory,
-    toggleResource
+    toggleHistory
   }
 }

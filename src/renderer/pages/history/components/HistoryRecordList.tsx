@@ -92,11 +92,13 @@ export function HistoryRecordList<T>({
           onAction={rowActions.onAction}
           onOpen={() => descriptor.onOpen(item)}
           onSelectedChange={(checked) => onToggleSelection(id, checked)}
-          onTogglePin={() => {
-            // Pinning a selected row makes it unselectable, so drop it from the selection right away
+          onTogglePin={async () => {
+            // Pinning a selected row makes it unselectable, so drop it from the selection after success
             // (a no-op when unpinning, since pinned rows are never selected).
-            onToggleSelection(id, false)
-            return descriptor.onTogglePin(item)
+            const result = await descriptor.onTogglePin(item)
+            if (result !== false) {
+              onToggleSelection(id, false)
+            }
           }}
         />
       )

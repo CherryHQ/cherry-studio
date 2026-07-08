@@ -16,32 +16,6 @@ import {
   SESSION_DISPLAY_LABEL_KEYS,
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
-import {
-  type AgentSessionDisplayMode,
-  applyOptimisticSessionDisplayMove,
-  buildSessionAgentGroupDropAnchor,
-  buildSessionDropAnchor,
-  buildSessionWorkdirGroupDropAnchor,
-  canDropSessionItemInDisplayGroup,
-  createSessionDisplayGroupResolver,
-  createSessionWorkdirDisplayMaps,
-  getAgentIdFromSessionGroupId,
-  getWorkdirPathFromSessionGroupId,
-  isSystemWorkspaceSession,
-  moveSessionAgentGroupAfterDrop,
-  moveSessionWorkdirGroupAfterDrop,
-  normalizeSessionDropPayload,
-  SESSION_AGENT_SECTION_ID,
-  SESSION_NO_PROJECT_GROUP_ID,
-  SESSION_NO_PROJECT_SECTION_ID,
-  SESSION_NO_WORKDIR_GROUP_ID,
-  SESSION_PINNED_GROUP_ID,
-  SESSION_PINNED_SECTION_ID,
-  SESSION_UNKNOWN_AGENT_GROUP_ID,
-  SESSION_WORKDIR_SECTION_ID,
-  type SessionListItem,
-  sortSessionsForDisplayGroups
-} from '@renderer/components/chat/resourceList/sessionListHelpers'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -84,6 +58,32 @@ import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import {
+  type AgentSessionDisplayMode,
+  applyOptimisticSessionDisplayMove,
+  buildSessionAgentGroupDropAnchor,
+  buildSessionDropAnchor,
+  buildSessionWorkdirGroupDropAnchor,
+  canDropSessionItemInDisplayGroup,
+  createSessionDisplayGroupResolver,
+  createSessionWorkdirDisplayMaps,
+  getAgentIdFromSessionGroupId,
+  getWorkdirPathFromSessionGroupId,
+  isSystemWorkspaceSession,
+  moveSessionAgentGroupAfterDrop,
+  moveSessionWorkdirGroupAfterDrop,
+  normalizeSessionDropPayload,
+  SESSION_AGENT_SECTION_ID,
+  SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_NO_PROJECT_SECTION_ID,
+  SESSION_NO_WORKDIR_GROUP_ID,
+  SESSION_PINNED_GROUP_ID,
+  SESSION_PINNED_SECTION_ID,
+  SESSION_UNKNOWN_AGENT_GROUP_ID,
+  SESSION_WORKDIR_SECTION_ID,
+  type SessionListItem,
+  sortSessionsForDisplayGroups
+} from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'

@@ -159,7 +159,10 @@ const HistoryTopBar = ({
               setMoveDialogOpen(true)
             }}>
             <FolderInput className="size-3.5" />
-            <span>{t('history.records.bulkMove')}</span>
+            <span>
+              {t('history.records.bulkMove')}
+              {selectedCount > 0 ? ` (${selectedCount})` : ''}
+            </span>
           </Button>
         )}
         <Button
@@ -169,7 +172,10 @@ const HistoryTopBar = ({
           disabled={!canBulkDelete}
           onClick={() => setDeleteDialogOpen(true)}>
           <Trash2 className="size-3.5" />
-          <span>{t('history.records.bulkDelete')}</span>
+          <span>
+            {t('history.records.bulkDelete')}
+            {bulkDeleteCount > 0 ? ` (${bulkDeleteCount})` : ''}
+          </span>
         </Button>
 
         <div className="w-[220px] max-w-[38vw] [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group]]:h-8">

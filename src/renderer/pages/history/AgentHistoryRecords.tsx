@@ -1,20 +1,14 @@
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
-import {
-  createSessionActionContext,
-  useSessionMenuPreset
-} from '@renderer/components/chat/actions/useSessionMenuActions'
-import {
-  type SessionListItem,
-  sortSessionsForDisplayGroups
-} from '@renderer/components/chat/resourceList/sessionListHelpers'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +18,7 @@ import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
 import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import {
+  ALL_SOURCE_ID,
   buildAgentSources,
   buildAgentStatusItems,
   findAdjacentHistoryRecordAfterBulkDelete,
@@ -76,13 +71,22 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
 
   const unknownAgentLabel = t('agent.session.group.unknown_agent')
-  const statusItems = useMemo(
-    () => buildAgentStatusItems(sessions, streamStatusBySessionId, t),
-    [sessions, streamStatusBySessionId, t]
-  )
+  const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
   const agentSources = useMemo(
     () => buildAgentSources(sessionItems, agentById, agentRankById, unknownAgentLabel, t),
     [agentById, agentRankById, sessionItems, t, unknownAgentLabel]
+  )
+  const additionalAgentSourceItems = useMemo(
+    () =>
+      agentSources
+        .filter((source) => source.id !== ALL_SOURCE_ID && !agentById.has(source.id))
+        .map((source) => ({
+          id: source.id,
+          name: source.label,
+          editDisabled: true,
+          pinDisabled: true
+        })),
+    [agentById, agentSources]
   )
 
   const handleSessionSelect = useCallback(
@@ -139,7 +143,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     [sessions, t, updateSession]
   )
 
-  const handleToggleSessionPin = useCallback((sessionId: string) => void togglePin(sessionId), [togglePin])
+  const handleToggleSessionPin = useCallback((sessionId: string) => togglePin(sessionId), [togglePin])
 
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
@@ -149,7 +153,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           void handleDeleteSession(session.id)
         },
         onTogglePin: () => {
-          handleToggleSessionPin(session.id)
+          void handleToggleSessionPin(session.id)
         },
         pinned: isSessionPinned(session.id),
         sessionName: session.name ?? session.id,
@@ -224,24 +228,38 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       ),
     sources: agentSources,
     renderSourceFilter: (selectedId, onSelect) => {
+      const source = selectedId ? agentSources.find((candidate) => candidate.id === selectedId) : undefined
       const agent = selectedId ? agentById.get(selectedId) : undefined
       return (
         <HistorySourceFilterField
-          label={selectedId ? agent?.name || t('common.unnamed') : t('history.records.filter.selectAgent')}
+          label={
+            selectedId ? source?.label || agent?.name || t('common.unnamed') : t('history.records.filter.selectAgent')
+          }
           hasValue={!!selectedId}
           clearLabel={t('common.clear')}
           onClear={() => onSelect(null)}
           icon={
             selectedId ? (
-              <EmojiIcon
-                emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
-                size={16}
-                fontSize={10}
-                className="mr-0 text-foreground"
-              />
+              source?.icon ? (
+                source.icon
+              ) : (
+                <EmojiIcon
+                  emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                  size={16}
+                  fontSize={10}
+                  className="mr-0 text-foreground"
+                />
+              )
             ) : undefined
           }
-          selector={(trigger) => <AgentSelector value={selectedId} onChange={onSelect} trigger={trigger} />}
+          selector={(trigger) => (
+            <AgentSelector
+              value={selectedId}
+              onChange={onSelect}
+              trigger={trigger}
+              additionalItems={additionalAgentSourceItems}
+            />
+          )}
         />
       )
     },

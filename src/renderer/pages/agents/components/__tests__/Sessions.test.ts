@@ -1,4 +1,4 @@
-import type { SessionListItem } from '@renderer/components/chat/resourceList/sessionListHelpers'
+import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { describe, expect, it } from 'vitest'
 
 import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'

@@ -61,43 +61,25 @@ export function findAdjacentHistoryRecordAfterBulkDelete<T>(
   return undefined
 }
 
-export function buildAgentStatusItems(
-  sessions: readonly AgentSessionEntity[],
-  streamStatusBySessionId: ReadonlyMap<string, AgentSessionStreamState>,
-  t: TFunction
-): HistoryStatusOption[] {
-  const counts: Record<AgentHistorySessionStatus, number> = {
-    running: 0,
-    completed: 0,
-    failed: 0
-  }
-
-  for (const session of sessions) {
-    counts[getAgentHistoryStatus(streamStatusBySessionId.get(session.id))] += 1
-  }
-
+export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
+      label: t('common.all')
     },
     {
       id: 'running',
       label: t('history.records.status.running'),
-      count: counts.running,
       dotClassName: 'text-warning'
     },
     {
       id: 'completed',
       label: t('history.records.status.completed'),
-      count: counts.completed,
       dotClassName: 'text-success'
     },
     {
       id: 'failed',
       label: t('history.records.status.failed'),
-      count: counts.failed,
       dotClassName: 'text-destructive'
     }
   ]

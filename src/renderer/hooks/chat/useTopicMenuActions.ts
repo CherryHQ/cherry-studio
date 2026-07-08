@@ -1,4 +1,10 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import {
+  executeTopicMenuAction,
+  resolveTopicMenuActions,
+  type TopicActionContext,
+  type TopicExportMenuOptions
+} from '@renderer/components/chat/actions/topicContextMenuActions'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
@@ -19,13 +25,6 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
-
-import {
-  executeTopicMenuAction,
-  resolveTopicMenuActions,
-  type TopicActionContext,
-  type TopicExportMenuOptions
-} from './topicContextMenuActions'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 

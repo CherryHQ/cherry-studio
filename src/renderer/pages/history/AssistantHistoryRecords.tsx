@@ -3,11 +3,10 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { createTopicActionContext, useTopicMenuPreset } from '@renderer/components/chat/actions/useTopicMenuActions'
-import { sortTopicsForDisplayGroups } from '@renderer/components/chat/resourceList/topicsHelpers'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
+import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -24,6 +23,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
@@ -34,6 +34,7 @@ import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
 import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import {
+  ALL_SOURCE_ID,
   buildAssistantSources,
   findAdjacentHistoryRecordAfterBulkDelete,
   getTopicSourceId
@@ -127,6 +128,18 @@ const AssistantHistoryRecords = ({
     () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
     [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
   )
+  const additionalAssistantSourceItems = useMemo(
+    () =>
+      assistantSources
+        .filter((source) => source.id !== ALL_SOURCE_ID && !assistantById.has(source.id))
+        .map((source) => ({
+          id: source.id,
+          name: source.label,
+          editDisabled: true,
+          pinDisabled: true
+        })),
+    [assistantById, assistantSources]
+  )
   const bulkMoveTargets = useMemo<HistoryBulkMoveTarget[]>(
     () =>
       assistants.map((assistant) => ({
@@ -158,8 +171,10 @@ const AssistantHistoryRecords = ({
     async (topic: Pick<RendererTopic, 'id'>) => {
       try {
         await toggleTopicPin(topic.id)
+        return true
       } catch (err) {
         logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
+        return false
       }
     },
     [toggleTopicPin]
@@ -297,7 +312,9 @@ const AssistantHistoryRecords = ({
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
-        onPinTopic: handlePinTopic,
+        onPinTopic: async (topic) => {
+          await handlePinTopic(topic)
+        },
         onStartRename: () => undefined,
         notesPath,
         t,
@@ -367,18 +384,37 @@ const AssistantHistoryRecords = ({
       ),
     sources: assistantSources,
     renderSourceFilter: (selectedId, onSelect) => {
+      const source = selectedId ? assistantSources.find((candidate) => candidate.id === selectedId) : undefined
       const assistant = selectedId ? assistantById.get(selectedId) : undefined
       return (
         <HistorySourceFilterField
-          label={selectedId ? assistant?.name || t('common.unnamed') : t('history.records.filter.selectAssistant')}
+          label={
+            selectedId
+              ? source?.label || assistant?.name || t('common.unnamed')
+              : t('history.records.filter.selectAssistant')
+          }
           hasValue={!!selectedId}
           clearLabel={t('common.clear')}
           onClear={() => onSelect(null)}
           icon={
-            selectedId ? assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} /> : undefined
+            selectedId ? (
+              source?.icon ? (
+                source.icon
+              ) : assistant?.emoji ? (
+                <span aria-hidden>{assistant.emoji}</span>
+              ) : (
+                <Bot size={14} />
+              )
+            ) : undefined
           }
           selector={(trigger) => (
-            <AssistantSelector multi={false} value={selectedId} onChange={onSelect} trigger={trigger} />
+            <AssistantSelector
+              multi={false}
+              value={selectedId}
+              onChange={onSelect}
+              trigger={trigger}
+              additionalItems={additionalAssistantSourceItems}
+            />
           )}
         />
       )

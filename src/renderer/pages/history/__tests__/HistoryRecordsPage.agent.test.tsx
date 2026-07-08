@@ -58,6 +58,42 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const agents = hookMocks.useAgents()?.agents ?? []
+    const items = [...agents.map((agent: AgentEntity) => ({ id: agent.id, name: agent.name })), ...additionalItems]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  },
+  AssistantSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const assistants = hookMocks.useAssistants()?.assistants ?? []
+    const items = [
+      ...assistants.map((assistant: { id: string; name: string }) => ({ id: assistant.id, name: assistant.name })),
+      ...additionalItems
+    ]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => ['cherry', () => {}],
   useMultiplePreferences: hookMocks.useMultiplePreferences
@@ -383,11 +419,9 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
-    expect(screen.getByText('History')).toBeInTheDocument()
-    expect(screen.getByText('2 tasks')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
     expect(pinButton).toHaveAccessibleName('Unpin')
@@ -409,7 +443,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(within(alphaCells[2]).getByText('Alpha agent')).toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gamma agent/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
@@ -428,7 +462,7 @@ describe('HistoryRecordsPage agent mode', () => {
   it('filters sessions by selected agent source', () => {
     setupAgentHistory()
 
-    fireEvent.click(screen.getByRole('button', { name: /Beta agent 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -468,8 +502,8 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     expect(hookMocks.useDataApiQuery).not.toHaveBeenCalled()
-    const betaSource = screen.getByRole('button', { name: /Beta agent 1/ })
-    const alphaSource = screen.getByRole('button', { name: /Alpha agent 2/ })
+    const betaSource = screen.getByRole('button', { name: /Beta agent/ })
+    const alphaSource = screen.getByRole('button', { name: /Alpha agent/ })
     expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
@@ -486,12 +520,12 @@ describe('HistoryRecordsPage agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Running 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Failed 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: /Running 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Running$/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -504,16 +538,16 @@ describe('HistoryRecordsPage agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByRole('radio', { name: /Running 0/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Failed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: /Failed 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Failed$/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: /Completed 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Completed$/ }))
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
@@ -534,7 +568,7 @@ describe('HistoryRecordsPage agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()

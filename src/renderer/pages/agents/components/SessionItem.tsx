@@ -4,7 +4,6 @@ import type {
   SessionActionContext,
   SessionExportMenuOptions
 } from '@renderer/components/chat/actions/sessionItemActions'
-import { useSessionMenuActions } from '@renderer/components/chat/actions/useSessionMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceList,
@@ -13,6 +12,7 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'

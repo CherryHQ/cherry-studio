@@ -30,7 +30,8 @@ const SourceFilterTrigger = ({
     className={cn(
       'inline-flex h-8 w-fit min-w-[128px] max-w-[220px] items-center justify-between gap-2 whitespace-nowrap',
       'rounded-md border border-border bg-transparent px-3 font-normal text-foreground text-xs outline-none transition-colors',
-      'hover:bg-accent/40 data-[state=open]:border-primary data-[state=open]:ring-3 data-[state=open]:ring-primary/20',
+      'hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0',
+      'data-[state=open]:border-primary data-[state=open]:ring-3 data-[state=open]:ring-primary/20',
       className
     )}
     {...props}>

@@ -71,7 +71,7 @@ export interface HistoryRecordDescriptor<T> {
   /** Build the row's menu actions; `openRename` lets a menu item open the rename dialog. */
   getRowActions: (item: T, openRename: HistoryOpenRename) => HistoryRowActions
   onOpen: (item: T) => void
-  onTogglePin: (item: T) => void | Promise<void>
+  onTogglePin: (item: T) => boolean | void | Promise<boolean | void>
   /** Wrap a rendered row with its right-click context menu (returns the row unchanged if empty). */
   renderRowMenu: (item: T, row: ReactElement, actions: HistoryRowActions) => ReactElement
 

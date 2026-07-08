@@ -16,7 +16,6 @@ export interface HistorySourceOption {
 export interface HistoryStatusOption {
   id: HistorySourceStatus
   label: string
-  count: number
   dotClassName?: string
 }
 

@@ -70,6 +70,45 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const agents = hookMocks.useAgents()?.agents ?? []
+    const items = [
+      ...agents.map((agent: { id: string; name: string }) => ({ id: agent.id, name: agent.name })),
+      ...additionalItems
+    ]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  },
+  AssistantSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const assistants = hookMocks.useAssistants()?.assistants ?? []
+    const items = [
+      ...assistants.map((assistant: Assistant) => ({ id: assistant.id, name: assistant.name })),
+      ...additionalItems
+    ]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: hookMocks.useCache
 }))
@@ -393,11 +432,9 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
-    expect(screen.getByText('History')).toBeInTheDocument()
-    expect(screen.getByText('1 conversations')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getByTestId('history-pin-button')
     expect(pinButton).toHaveAccessibleName('Unpin Conversation')
@@ -828,9 +865,9 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    const alphaSource = screen.getByRole('button', { name: /Alpha assistant 2/ })
-    const betaSource = screen.getByRole('button', { name: /Beta assistant 1/ })
-    const gammaSource = screen.getByRole('button', { name: /Gamma assistant 0/ })
+    const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
+    const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
+    const gammaSource = screen.getByRole('button', { name: /Gamma assistant/ })
     expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(Boolean(betaSource.compareDocumentPosition(gammaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
@@ -867,8 +904,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant 2/ })
-    expect(screen.queryByRole('button', { name: /Default assistant/ })).not.toBeInTheDocument()
+    const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant/ })
 
     fireEvent.click(unlinkedSource)
 
@@ -963,6 +999,27 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
+  })
+
+  it('keeps a selected topic when pinning it from history fails', async () => {
+    hookMocks.togglePin.mockRejectedValueOnce(new Error('pin failed'))
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const checkbox = within(alphaRow).getByRole('checkbox')
+    fireEvent.click(checkbox)
+    expect(checkbox).toHaveAttribute('aria-checked', 'true')
+
+    await act(async () => {
+      fireEvent.click(within(alphaRow).getByTestId('history-pin-button'))
+      await flushAnimationFrame()
+    })
+
+    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 
   it('deletes a topic from the history row action column without selecting the row', async () => {
