@@ -285,7 +285,7 @@ describe('AiService.onInit', () => {
     mockReconcileSkills.mockResolvedValue(undefined)
   })
 
-  it('installs built-in skills before reconciling skills', async () => {
+  it('installs built-in skills before reconciling skills, without blocking init', async () => {
     const calls: string[] = []
     mockInstallBuiltinSkills.mockImplementation(async () => {
       calls.push('installBuiltinSkills')
@@ -295,18 +295,19 @@ describe('AiService.onInit', () => {
     })
     const service = createService()
 
+    // Fire-and-forget: _doInit resolves without waiting on this chain.
     await service._doInit()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
 
     expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
   })
 
-  it('logs and continues past init when installBuiltinSkills rejects', async () => {
+  it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
     mockInstallBuiltinSkills.mockRejectedValue(new Error('disk full'))
     const service = createService()
 
     await expect(service._doInit()).resolves.toBeUndefined()
-
-    expect(mockReconcileSkills).toHaveBeenCalled()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
   })
 })
 
