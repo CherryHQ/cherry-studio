@@ -1,4 +1,5 @@
 import type * as NotesQueryModule from '@renderer/hooks/useNotesQuery'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -103,10 +104,9 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/Popups/GeneralPopup', () => ({
+vi.mock('@renderer/components/Popups/ContentPopup', () => ({
   default: {
-    show: vi.fn(),
-    hide: vi.fn()
+    show: vi.fn()
   }
 }))
 
@@ -269,11 +269,6 @@ describe('NotesPage print payloads', () => {
     mocks.printShortcutLabel = 'Ctrl+P'
 
     Object.assign(window, {
-      toast: {
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn()
-      },
       api: {
         getAppInfo: vi.fn().mockResolvedValue({ notesPath: '/notes' }),
         setEnableSpellCheck: vi.fn().mockResolvedValue(undefined),
@@ -369,7 +364,7 @@ describe('NotesPage print payloads', () => {
     fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
 
     await waitFor(() => {
-      expect(window.toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
+      expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })

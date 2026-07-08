@@ -1,4 +1,7 @@
+import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -92,13 +95,34 @@ const notesSettingsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
+const imageCaptureTargetsMock = vi.hoisted(() => ({
+  targets: undefined as Array<{ requestId: number; target: unknown }> | undefined
+}))
+
+vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
+  const actual = await vi.importActual<typeof ImageCaptureTargetsHook>('@renderer/hooks/useImageCaptureTargets')
+
+  return {
+    ...actual,
+    useImageCaptureTargets: (options: Parameters<typeof actual.useImageCaptureTargets>[0]) => {
+      const actualResult = actual.useImageCaptureTargets(options)
+
+      return imageCaptureTargetsMock.targets
+        ? { ...actualResult, targets: imageCaptureTargetsMock.targets as typeof actualResult.targets }
+        : actualResult
+    }
+  }
+})
+
 const tabsContextMocks = vi.hoisted(() => ({
+  closeConversationTabs: vi.fn(),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => ({
     openTab: tabsContextMocks.openTab,
     setActiveTab: tabsContextMocks.setActiveTab,
@@ -109,6 +133,13 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
+vi.mock('@renderer/pages/home/messages/TopicImageCaptureHost', () => ({
+  __esModule: true,
+  default: ({ topic }: { topic: { id: string } }) => (
+    <div data-testid="topic-image-capture-host" data-topic-id={topic.id} />
+  )
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -203,6 +234,16 @@ vi.mock('@renderer/services/EventService', () => ({
     emit: vi.fn()
   }
 }))
+
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed).
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('@renderer/components/Popups/ObsidianExportPopup', () => ({
   default: { show: vi.fn() }
@@ -558,18 +599,6 @@ function clearTopicStreamCache(...topicIds: string[]) {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn().mockResolvedValue(true)
-      },
-      toast: {
-        error: vi.fn(),
-        closeToast: vi.fn(),
-        loading: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
@@ -577,6 +606,7 @@ describe('Topics', () => {
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     cacheHookMocks.values.clear()
+    imageCaptureTargetsMock.targets = undefined
     setTopicGroupExpansionCache(createExpandedTopicGroupExpansionFixture())
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'emoji',
@@ -597,7 +627,7 @@ describe('Topics', () => {
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
-    assistantMutationMocks.deleteAssistant.mockResolvedValue(undefined)
+    assistantMutationMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
@@ -1148,8 +1178,8 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Open in new tab')
   })
 
-  it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
-    const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
+  it('shows loading while exporting a right-clicked topic as an image without switching topics', async () => {
+    const { getByText, setActiveTopic } = renderTopicList()
     fireEvent.contextMenu(getByText('Gamma topic'))
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1165,7 +1195,7 @@ describe('Topics', () => {
     fireEvent.click(exportImageItem)
 
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(window.toast.loading).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
 
     await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
@@ -1174,28 +1204,23 @@ describe('Topics', () => {
       }
     })
 
-    expect(window.toast.loading).toHaveBeenCalledWith(
+    expect(toast.loading).toHaveBeenCalledWith(
       expect.objectContaining({
         key: expect.stringMatching(/^topic-image-export:/),
         promise: expect.any(Promise),
         title: 'Exporting image. Please stay on this page.'
       })
     )
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.EXPORT_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
-    )
-
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
     )
 
     const [request] = consumePendingTopicImageActions('topic-c', 'export')
     settleTopicImageActionRequest(request, Promise.resolve())
     await vi.waitFor(() => {
-      expect(window.toast.success).toHaveBeenCalledWith('Image saved successfully')
+      expect(toast.success).toHaveBeenCalledWith('Image saved successfully')
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1235,9 +1260,9 @@ describe('Topics', () => {
       }
     })
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(window.toast.loading).not.toHaveBeenCalled()
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.COPY_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
     )
@@ -1247,9 +1272,28 @@ describe('Topics', () => {
     settleTopicImageActionRequest(request, Promise.reject(new Error('copy failed')))
 
     await vi.waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('Copy failed')
+      expect(toast.error).toHaveBeenCalledWith('Copy failed')
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('keeps separate capture hosts for repeated image requests on the same topic', async () => {
+    imageCaptureTargetsMock.targets = [
+      {
+        requestId: 1,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      },
+      {
+        requestId: 2,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      }
+    ]
+
+    renderTopicList()
+
+    const hosts = screen.getAllByTestId('topic-image-capture-host')
+    expect(hosts).toHaveLength(2)
+    expect(hosts.map((host) => host.getAttribute('data-topic-id'))).toEqual(['topic-c', 'topic-c'])
   })
 
   it('autofocuses inline rename when double-clicking a topic title', () => {
@@ -1270,15 +1314,14 @@ describe('Topics', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    // Deletion is gated behind a confirm popup (command-menu items have no inline dialog).
+    // Deletion is delegated to ConfirmActionPopup, which gates the action behind its own confirm
+    // dialog (that "don't run until confirmed" gate is covered by ConfirmActionPopup's unit test).
+    // The default mock confirms and runs the gated action, so the topic is deleted.
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+      expect(confirmActionShow).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Delete Conversations', action: expect.any(Function) })
+      )
     )
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
-    await confirmOptions?.onOk?.()
-
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })
 
@@ -2288,7 +2331,7 @@ describe('Topics', () => {
     fireEvent.click(deleteAssistantChatsButton)
 
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(
+      expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'Delete all assistant conversations?',
           title: 'Clear conversations'
@@ -2337,7 +2380,7 @@ describe('Topics', () => {
     fireEvent.click(deleteAssistantButton)
 
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(
+      expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'Delete this assistant and its conversations?',
           title: 'Delete Assistant'
@@ -2352,7 +2395,7 @@ describe('Topics', () => {
     )
     expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(window.toast.success).toHaveBeenCalledWith('Deleted')
+    expect(toast.success).toHaveBeenCalledWith('Deleted')
   })
 
   it('blocks concurrent assistant group delete confirmations', async () => {
@@ -2360,10 +2403,7 @@ describe('Topics', () => {
     const confirmPromise = new Promise<boolean>((resolve) => {
       resolveConfirm = resolve
     })
-    const confirm = vi.fn().mockReturnValue(confirmPromise)
-    Object.assign(window, {
-      modal: { confirm }
-    })
+    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
@@ -2381,7 +2421,7 @@ describe('Topics', () => {
       within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
     fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
     const betaDeleteButton = within(betaHeader as HTMLElement).getByRole('button', {
       name: 'Delete all assistant conversations'
@@ -2389,7 +2429,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(betaDeleteButton).toBeDisabled())
     fireEvent.click(betaDeleteButton)
 
-    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
     expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -2523,12 +2563,12 @@ describe('Topics', () => {
       within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(window.modal.confirm).toHaveBeenCalled())
+    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('keeps assistant pin reads disabled outside assistant display mode', () => {
@@ -2610,9 +2650,7 @@ describe('Topics', () => {
       }
     })
 
-    await vi.waitFor(() =>
-      expect(window.toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed')
-    )
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed'))
     expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
   })
 

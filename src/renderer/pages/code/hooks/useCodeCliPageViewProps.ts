@@ -1,6 +1,7 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
@@ -62,7 +63,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const handleReorderError = useCallback(
     (error: unknown) => {
       logger.error('Failed to reorder CLI providers:', error as Error)
-      window.toast.error(t('code.apply_failed'))
+      toast.error(t('code.apply_failed'))
     },
     [t]
   )

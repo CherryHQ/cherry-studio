@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { Copy } from 'lucide-react'
 import type { CSSProperties, FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,10 +32,10 @@ const CopyButton: FC<CopyButtonProps> = ({
     navigator.clipboard
       .writeText(textToCopy)
       .then(() => {
-        window.toast?.success(t('message.copy.success'))
+        toast.success(t('message.copy.success'))
       })
       .catch(() => {
-        window.toast?.error(t('message.copy.failed'))
+        toast.error(t('message.copy.failed'))
       })
   }
 

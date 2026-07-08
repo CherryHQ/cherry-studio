@@ -1,4 +1,5 @@
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -137,7 +138,7 @@ export function useConfigPanelController({
           setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject CLI config on edit:', err as Error)
-          window.toast.error(t('code.apply_failed'))
+          toast.error(t('code.apply_failed'))
         }
       }
     },
@@ -160,7 +161,7 @@ export function useConfigPanelController({
       // installed — nudge the user to install it instead of marking a provider "enabled" that can
       // never launch. Disabling (scrubbing config) stays allowed regardless.
       if (isEnabling && !isToolInstalled) {
-        window.toast.error(t('code.install_tool_first', { toolName }))
+        toast.error(t('code.install_tool_first', { toolName }))
         return
       }
       // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
@@ -182,7 +183,7 @@ export function useConfigPanelController({
             }
           } catch (err) {
             logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
-            window.toast.error(t('code.apply_failed'))
+            toast.error(t('code.apply_failed'))
           }
           await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
           setCurrentCliConfigConnection(null)
@@ -193,7 +194,7 @@ export function useConfigPanelController({
             await clearCliConfig({ cliTool: selectedCliTool })
           } catch (err) {
             logger.error('Failed to clear CLI config on disable:', err as Error)
-            window.toast.error(t('code.apply_failed'))
+            toast.error(t('code.apply_failed'))
           }
           await setCurrentProvider(null)
           setCurrentCliConfigConnection(null)
@@ -208,7 +209,7 @@ export function useConfigPanelController({
           await upsertProviderConfig(provider.id, { modelId: '' })
           pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
-          window.toast.error(t('code.launch.validation_error'))
+          toast.error(t('code.launch.validation_error'))
           return
         }
         if (!cliConfigContext) {
@@ -230,7 +231,7 @@ export function useConfigPanelController({
           setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
-          window.toast.error(t('code.apply_failed'))
+          toast.error(t('code.apply_failed'))
         }
       })().finally(() => {
         inFlightToolsRef.current.delete(selectedCliTool)
@@ -267,7 +268,7 @@ export function useConfigPanelController({
           setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject own-login config on edit:', err as Error)
-          window.toast.error(t('code.apply_failed'))
+          toast.error(t('code.apply_failed'))
         }
       }
     },

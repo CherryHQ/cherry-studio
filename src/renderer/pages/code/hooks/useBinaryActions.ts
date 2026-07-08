@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
 import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
@@ -37,11 +38,11 @@ export function useBinaryActions() {
             tool: cliPreset.miseTool,
             ...(version ? { version } : {})
           })
-          window.toast.success(t(messages.successKey))
+          toast.success(t(messages.successKey))
         }
       } catch (error) {
         logger.error(messages.logLabel, error as Error)
-        window.toast.error(t(messages.errorKey))
+        toast.error(t(messages.errorKey))
       } finally {
         setBusy((prev) => {
           const next = new Set(prev)
@@ -82,11 +83,11 @@ export function useBinaryActions() {
     async (toolId: CodeCli): Promise<boolean> => {
       try {
         await ipcApi.request('binary.remove_tool', CLI_BINARY_NAMES[toolId])
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
         return true
       } catch (error) {
         logger.error('Failed to remove:', error as Error)
-        window.toast.error(t('common.delete_failed'))
+        toast.error(t('common.delete_failed'))
         return false
       }
     },

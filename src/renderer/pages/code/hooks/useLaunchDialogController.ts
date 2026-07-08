@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
@@ -71,7 +72,7 @@ export function useLaunchDialogController({
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
     if (!directory || (!runWithoutProvider && !enabledProvider)) {
-      window.toast.error(t('code.folder_placeholder'))
+      toast.error(t('code.folder_placeholder'))
       return
     }
     if (runWithoutProvider) {
@@ -85,13 +86,13 @@ export function useLaunchDialogController({
           options: { terminal: selectedTerminal ?? undefined, ownLogin: isOwnLoginSelected || undefined }
         })
         if (!runResult.success) {
-          window.toast.error(runResult.message)
+          toast.error(runResult.message)
           return
         }
         setLaunchOpen(false)
       } catch (err) {
         logger.error('Failed to launch CLI tool:', err as Error)
-        window.toast.error(t('code.launch.error'))
+        toast.error(t('code.launch.error'))
       } finally {
         setLaunching(false)
       }
@@ -111,7 +112,7 @@ export function useLaunchDialogController({
         await upsertProviderConfig(enabledProvider.id, { modelId: '' })
       }
       await setCurrentProvider(null)
-      window.toast.error(t('code.launch.validation_error'))
+      toast.error(t('code.launch.validation_error'))
       return
     }
 
@@ -125,13 +126,13 @@ export function useLaunchDialogController({
         options: { terminal: selectedTerminal ?? undefined }
       })
       if (!runResult.success) {
-        window.toast.error(runResult.message)
+        toast.error(runResult.message)
       } else {
         setLaunchOpen(false)
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
-      window.toast.error(t('code.launch.error'))
+      toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
     }

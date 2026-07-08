@@ -9,6 +9,7 @@ import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -186,7 +187,7 @@ export default function LaunchpadPage() {
       const nextItems = arrayMove(orderedMiniApps, oldIndex, newIndex)
       setOrderedMiniApps(nextItems)
       reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
-        window.toast?.error(t('miniApp.reorder_failed'))
+        toast.error(t('miniApp.reorder_failed'))
       })
     },
     [orderedMiniApps, reorderMiniAppsByStatus, t]

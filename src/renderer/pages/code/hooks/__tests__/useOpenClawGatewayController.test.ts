@@ -38,7 +38,6 @@ describe('useOpenClawGatewayController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.gatewayPort = undefined
-    window.toast = { error: vi.fn() } as any
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })

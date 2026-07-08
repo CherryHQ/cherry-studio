@@ -2,6 +2,7 @@ import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip }
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { Wand2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -39,7 +40,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     try {
       onChange(files.map((file) => (file.target === activeFile.target ? formatCliConfigDraftFile(file) : file)))
     } catch {
-      window.toast.error(t('code.cli_config.format_failed'))
+      toast.error(t('code.cli_config.format_failed'))
     }
   }
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
@@ -61,7 +62,6 @@ describe('useConfigPanelController', () => {
     mocks.isOwnLoginConfigurable.mockImplementation((tool: string) => tool === CodeCli.CLAUDE_CODE)
     // Identity sanitize: keep the blob as-is so assertions can match the input.
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
-    window.toast = { error: vi.fn() } as any
   })
 
   describe('onToggleCurrent in-flight guard', () => {
@@ -151,7 +151,7 @@ describe('useConfigPanelController', () => {
         await flushMicrotasks()
       })
 
-      expect(window.toast.error).toHaveBeenCalledWith('code.install_tool_first')
+      expect(toast.error).toHaveBeenCalledWith('code.install_tool_first')
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
@@ -168,7 +168,7 @@ describe('useConfigPanelController', () => {
 
       expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
       expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
-      expect(window.toast.error).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
     })
   })
 

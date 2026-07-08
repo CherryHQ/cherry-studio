@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +29,6 @@ describe('useBinaryActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequestMock.mockResolvedValue({ version: '1.0.0' })
-    window.toast = { error: vi.fn(), success: vi.fn() } as unknown as typeof window.toast
   })
 
   it('installs a CLI tool without pinning a version', async () => {
@@ -42,7 +42,7 @@ describe('useBinaryActions', () => {
       name: 'claude',
       tool: 'claude'
     })
-    expect(window.toast.success).toHaveBeenCalledWith('code.install_success')
+    expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
 
   it('upgrades a CLI tool by pinning the detected latest version', async () => {
@@ -57,7 +57,7 @@ describe('useBinaryActions', () => {
       tool: 'claude',
       version: '1.2.3'
     })
-    expect(window.toast.success).toHaveBeenCalledWith('code.upgrade_success')
+    expect(toast.success).toHaveBeenCalledWith('code.upgrade_success')
     await waitFor(() => expect(result.current.upgradingTools.has(CodeCli.CLAUDE_CODE)).toBe(false))
   })
 })

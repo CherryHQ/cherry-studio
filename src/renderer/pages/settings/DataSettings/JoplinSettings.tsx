@@ -10,6 +10,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,11 +44,11 @@ const JoplinSettings: FC = () => {
   const handleJoplinConnectionCheck = async () => {
     try {
       if (!joplinToken) {
-        window.toast.error(t('settings.data.joplin.check.empty_token'))
+        toast.error(t('settings.data.joplin.check.empty_token'))
         return
       }
       if (!joplinUrl) {
-        window.toast.error(t('settings.data.joplin.check.empty_url'))
+        toast.error(t('settings.data.joplin.check.empty_url'))
         return
       }
 
@@ -56,14 +57,14 @@ const JoplinSettings: FC = () => {
       const data = await response.json()
 
       if (!response.ok || data?.error) {
-        window.toast.error(t('settings.data.joplin.check.fail'))
+        toast.error(t('settings.data.joplin.check.fail'))
         return
       }
 
-      window.toast.success(t('settings.data.joplin.check.success'))
+      toast.success(t('settings.data.joplin.check.success'))
     } catch (error) {
       logger.error('Failed to check Joplin connection', error as Error)
-      window.toast.error(`${t('settings.data.joplin.check.fail')}: ${formatErrorMessage(error)}`)
+      toast.error(`${t('settings.data.joplin.check.fail')}: ${formatErrorMessage(error)}`)
     }
   }
 

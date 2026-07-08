@@ -21,6 +21,7 @@
  */
 
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -151,7 +152,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         const errorPrefixI18nKey = opts?.errorPrefixI18nKey ?? 'translate.error.failed'
         loggerService.withContext(opts?.loggerContext ?? 'useTranslate').error('Translation failed', error as Error)
         if (showErrorToast) {
-          window.toast?.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
+          toast.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
         }
         if (opts?.rethrowError) throw error
         return undefined

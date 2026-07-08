@@ -398,7 +398,6 @@ describe('CodeCliPage', () => {
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
-    Object.assign(window, { toast: { error: vi.fn() } })
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {

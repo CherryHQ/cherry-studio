@@ -22,7 +22,7 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'no_version_log',
-      details: { requiredVersion: '1.9.0' }
+      details: { requiredVersion: '1.9.12' }
     })
   })
 
@@ -31,7 +31,7 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v1_too_old',
-      details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+      details: { previousVersion: '1.5.0', requiredVersion: '1.9.12' }
     })
   })
 
@@ -40,35 +40,35 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v1_too_old',
-      details: { previousVersion: '1.8.0', requiredVersion: '1.9.0' }
+      details: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
     })
   })
 
-  it('#4 passes when previous version is exactly at V1_REQUIRED (1.9.0)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.0' })
+  it('#4 passes when previous version is exactly at V1_REQUIRED (1.9.12)', () => {
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
   it('#5 passes when current version is a pre-release coerced to 2.0.0', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.0-alpha' })
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.0-alpha' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#6 blocks when v2 gateway is skipped (1.9.0 -> 2.1.0)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.1.0' })
+  it('#6 blocks when v2 gateway is skipped (1.9.12 -> 2.1.0)', () => {
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.1.0' })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.0', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '1.9.12', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
     })
   })
 
   it('#7 blocks when current is v2.0.1 (strict v2.0.0 requirement)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.1' })
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.1' })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.0', currentVersion: '2.0.1', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '1.9.12', currentVersion: '2.0.1', gatewayVersion: '2.0.0' }
     })
   })
 
@@ -91,8 +91,8 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#11 passes when previous version is above V1_REQUIRED (1.9.5)', () => {
-    const result = check({ previousVersion: '1.9.5', versionLogExists: true, currentAppVersion: '2.0.0' })
+  it('#11 passes when previous version is above V1_REQUIRED (1.9.13)', () => {
+    const result = check({ previousVersion: '1.9.13', versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 })
