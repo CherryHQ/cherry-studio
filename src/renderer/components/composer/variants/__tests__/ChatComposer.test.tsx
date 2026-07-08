@@ -4,7 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -56,11 +56,14 @@ const mocks = vi.hoisted(() => ({
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
   topicLayout: undefined as string | undefined,
-  inputAdapterFocus: vi.fn(),
-  saveInputHistoryTrigger: vi.fn()
+  inputAdapterFocus: vi.fn()
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
+
+const seedInputHistory = (items: string[]) => {
+  MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
+}
 
 const serializeComposerToken = (token: ComposerSurfaceProps['tokens'][number]) => ({
   ...token,
@@ -397,9 +400,14 @@ vi.mock('@renderer/utils/model', () => ({
   MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: (key: string) => (key === 'chat.multi_select_mode' ? [false] : [false, vi.fn()])
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: (key: string) => (key === 'chat.multi_select_mode' ? [false] : [false, vi.fn()])
+  }
+})
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -660,11 +668,7 @@ describe('ChatComposer', () => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
     })
-    MockUseDataApiUtils.resetMocks()
-    MockUseDataApiUtils.mockQueryData('/input-history', [])
-    mocks.saveInputHistoryTrigger.mockReset()
-    mocks.saveInputHistoryTrigger.mockResolvedValue({})
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', mocks.saveInputHistoryTrigger)
+    MockUseCacheUtils.resetMocks()
     Object.defineProperty(window, 'electron', {
       configurable: true,
       value: {
@@ -1390,7 +1394,7 @@ describe('ChatComposer', () => {
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
-    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
   describe('input history', () => {
@@ -1405,7 +1409,7 @@ describe('ChatComposer', () => {
 
       // saveHistory fires after onSend resolves; wait for the awaited promise to settle.
       await waitFor(() => {
-        expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'final message' } })
+        expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['final message'])
       })
     })
 
@@ -1419,7 +1423,7 @@ describe('ChatComposer', () => {
       })
 
       // onSend rejected → saveHistory must NOT have been called.
-      expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     })
 
     it('does NOT save input history for queued steer follow-ups during streaming', async () => {
@@ -1435,7 +1439,7 @@ describe('ChatComposer', () => {
       // The follow-up is queued (not actually sent), so history must stay clean.
       // onSend should also NOT have been called directly — it goes through the dock.
       expect(onSend).not.toHaveBeenCalled()
-      expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
 
       // Manually draining the dock via the queue's onSteer should send through onSend
       // AND save history. This proves the history write happens only at the real-send moment.
@@ -1447,7 +1451,7 @@ describe('ChatComposer', () => {
 
       await waitFor(() => {
         expect(onSend).toHaveBeenCalled()
-        expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'queued steer' } })
+        expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['queued steer'])
       })
     })
   })
@@ -1476,14 +1480,7 @@ describe('ChatComposer', () => {
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
-    MockUseDataApiUtils.mockQueryData('/input-history', [
-      {
-        id: '019b0000-0000-7000-8000-000000000001',
-        content: 'previous chat prompt',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ])
+    seedInputHistory(['previous chat prompt'])
 
     // getDraft() is called by handleInputHistoryNavigate to snapshot the entry
     // draft. Default vi.fn() returns undefined, which would cause useInputHistory
@@ -1506,14 +1503,7 @@ describe('ChatComposer', () => {
   })
 
   it('wires ArrowDown input history navigation to restore the entry draft', async () => {
-    MockUseDataApiUtils.mockQueryData('/input-history', [
-      {
-        id: '019b0000-0000-7000-8000-000000000001',
-        content: 'history entry',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ])
+    seedInputHistory(['history entry'])
 
     // Mirror the live draft on every getDraft() call so navigateHistory can snapshot it.
     mocks.getDraft.mockImplementation(() => ({
@@ -1545,14 +1535,7 @@ describe('ChatComposer', () => {
     // Without that, recalling a history item, sending it, then pressing ArrowDown
     // would restore the already-sent draft instead of staying on the fresh empty
     // composer; ArrowUp would also resume from the stale index.
-    MockUseDataApiUtils.mockQueryData('/input-history', [
-      {
-        id: '019b0000-0000-7000-8000-000000000001',
-        content: 'sent history entry',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ])
+    seedInputHistory(['sent history entry'])
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
       tokens: []
@@ -1588,14 +1571,7 @@ describe('ChatComposer', () => {
   })
 
   it('preserves in-progress draftTokens when navigating to history (does not clear them)', async () => {
-    MockUseDataApiUtils.mockQueryData('/input-history', [
-      {
-        id: '019b0000-0000-7000-8000-000000000001',
-        content: 'history entry',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ])
+    seedInputHistory(['history entry'])
 
     // The entry draft must carry a non-empty token array so we can verify the round-trip
     // restores it. getDraft() is what handleInputHistoryNavigate calls to snapshot the
@@ -1639,14 +1615,7 @@ describe('ChatComposer', () => {
   })
 
   it('clears chat tool state while previewing plain-text history and restores the entry draft tools', async () => {
-    MockUseDataApiUtils.mockQueryData('/input-history', [
-      {
-        id: '019b0000-0000-7000-8000-000000000001',
-        content: 'history entry',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ])
+    seedInputHistory(['history entry'])
     const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any
     const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
     mocks.files = [file]
@@ -1715,7 +1684,7 @@ describe('ChatComposer', () => {
 
     expect(forkAndResend).toHaveBeenCalled()
     // Edits do not represent new "things the user said" — they should not enter history.
-    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
   it('restores file and quote tokens with attached files from the global draft cache', async () => {

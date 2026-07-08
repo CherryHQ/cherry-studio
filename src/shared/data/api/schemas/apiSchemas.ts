@@ -27,7 +27,6 @@ import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AssistantSchemas } from './assistants'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
-import type { InputHistorySchemas } from './inputHistory'
 import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
 import type { McpServerSchemas } from './mcpServers'
@@ -75,7 +74,6 @@ export type ApiSchemas = AssertValidSchemas<
     TagSchemas &
     PromptSchemas &
     GroupSchemas &
-    InputHistorySchemas &
     PinSchemas &
     AgentSchemas &
     SkillSchemas &

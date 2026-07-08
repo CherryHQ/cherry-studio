@@ -1,15 +1,13 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getNextInputHistoryIndex, shouldHandleInputHistoryNavigation } from '../inputHistoryNavigation'
 import type { ComposerSerializedDraft } from '../tokens'
-import { useInputHistory } from '../useInputHistory'
+import { INPUT_HISTORY_LIMIT, useInputHistory } from '../useInputHistory'
 
 beforeEach(() => {
-  MockUseDataApiUtils.resetMocks()
-  MockUseDataApiUtils.mockQueryData('/input-history', [])
-  MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', vi.fn())
+  MockUseCacheUtils.resetMocks()
   vi.clearAllMocks()
 })
 
@@ -240,18 +238,17 @@ describe('shouldHandleInputHistoryNavigation', () => {
   })
 })
 
-const sampleHistoryEntry = (index: number) => ({
-  id: `019b0000-0000-7000-8000-00000000000${index}`,
-  content: `history-${index}`,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-})
+const sampleHistoryEntry = (index: number) => `history-${index}`
+
+const seedHistory = (items: string[]) => {
+  MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
+}
 
 const draftWithText = (text: string): ComposerSerializedDraft => ({ text, tokens: [] })
 
 describe('useInputHistory', () => {
   it('restores the draft that was active before entering history navigation', () => {
-    MockUseDataApiUtils.mockQueryData('/input-history', [sampleHistoryEntry(1)])
+    seedHistory([sampleHistoryEntry(1)])
     const draftBeforeHistory: ComposerSerializedDraft = {
       text: 'current draft',
       tokens: [
@@ -284,10 +281,7 @@ describe('useInputHistory', () => {
   })
 
   describe('saveHistory', () => {
-    it('persists non-empty content via the mutation trigger', async () => {
-      const trigger = vi.fn().mockResolvedValue({ success: true })
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', trigger)
-
+    it('persists non-empty content in the renderer persist cache', async () => {
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
@@ -298,13 +292,10 @@ describe('useInputHistory', () => {
         await result.current.saveHistory('hello world')
       })
 
-      expect(trigger).toHaveBeenCalledWith({ body: { content: 'hello world' } })
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['hello world'])
     })
 
     it('trims surrounding whitespace before persisting', async () => {
-      const trigger = vi.fn().mockResolvedValue({ success: true })
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', trigger)
-
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
@@ -315,13 +306,10 @@ describe('useInputHistory', () => {
         await result.current.saveHistory('  hello  ')
       })
 
-      expect(trigger).toHaveBeenCalledWith({ body: { content: 'hello' } })
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['hello'])
     })
 
-    it('short-circuits without calling the trigger for whitespace-only content', async () => {
-      const trigger = vi.fn().mockResolvedValue({ success: true })
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', trigger)
-
+    it('short-circuits without changing cache for whitespace-only content', async () => {
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
@@ -332,13 +320,11 @@ describe('useInputHistory', () => {
         await result.current.saveHistory('     ')
       })
 
-      expect(trigger).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     })
 
-    it('propagates errors from the mutation trigger to the caller', async () => {
-      const failure = new Error('network down')
-      const trigger = vi.fn().mockRejectedValueOnce(failure)
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', trigger)
+    it('moves duplicate content to the latest position', async () => {
+      seedHistory(['repeat', 'other'])
 
       const { result } = renderHook(() =>
         useInputHistory({
@@ -346,13 +332,36 @@ describe('useInputHistory', () => {
         })
       )
 
-      await expect(result.current.saveHistory('hello')).rejects.toBe(failure)
+      await act(async () => {
+        await result.current.saveHistory('other')
+      })
+
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['other', 'repeat'])
+    })
+
+    it('keeps only the configured number of recent entries', async () => {
+      seedHistory(Array.from({ length: INPUT_HISTORY_LIMIT }, (_, index) => `content-${index}`))
+
+      const { result } = renderHook(() =>
+        useInputHistory({
+          applyDraft: () => undefined
+        })
+      )
+
+      await act(async () => {
+        await result.current.saveHistory('newest')
+      })
+
+      const history = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')
+      expect(history).toHaveLength(INPUT_HISTORY_LIMIT)
+      expect(history[0]).toBe('newest')
+      expect(history).not.toContain(`content-${INPUT_HISTORY_LIMIT - 1}`)
     })
   })
 
   describe('navigateHistory return value', () => {
     it('returns false when there is no history at all', () => {
-      MockUseDataApiUtils.mockQueryData('/input-history', [])
+      seedHistory([])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result } = renderHook(() =>
@@ -368,7 +377,7 @@ describe('useInputHistory', () => {
     })
 
     it('returns false at the oldest boundary when pressing ArrowUp repeatedly', () => {
-      MockUseDataApiUtils.mockQueryData('/input-history', [sampleHistoryEntry(0)])
+      seedHistory([sampleHistoryEntry(0)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result } = renderHook(() =>
@@ -389,7 +398,7 @@ describe('useInputHistory', () => {
     })
 
     it('returns false when pressing ArrowDown from the draft state', () => {
-      MockUseDataApiUtils.mockQueryData('/input-history', [sampleHistoryEntry(0)])
+      seedHistory([sampleHistoryEntry(0)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result } = renderHook(() =>
@@ -407,11 +416,7 @@ describe('useInputHistory', () => {
 
   describe('entry snapshot (draftBeforeHistoryRef)', () => {
     it('snapshots the entry draft only on the first ArrowUp, not on subsequent presses', () => {
-      MockUseDataApiUtils.mockQueryData('/input-history', [
-        sampleHistoryEntry(0),
-        sampleHistoryEntry(1),
-        sampleHistoryEntry(2)
-      ])
+      seedHistory([sampleHistoryEntry(0), sampleHistoryEntry(1), sampleHistoryEntry(2)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result } = renderHook(() =>
@@ -450,7 +455,7 @@ describe('useInputHistory', () => {
   describe('navigateHistory safety with mismatched history', () => {
     it('does not clear the composer when the history is empty even if a previous navigation set a non-trivial index', () => {
       // Render with a non-empty history, enter navigation.
-      MockUseDataApiUtils.mockQueryData('/input-history', [sampleHistoryEntry(0)])
+      seedHistory([sampleHistoryEntry(0)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result, rerender } = renderHook(() =>
@@ -464,8 +469,8 @@ describe('useInputHistory', () => {
       })
       expect(appliedDrafts).toEqual([{ text: 'history-0', tokens: [] }])
 
-      // Simulate a refetch that empties the list.
-      MockUseDataApiUtils.mockQueryData('/input-history', [])
+      // Simulate an external cache update that empties the list.
+      seedHistory([])
       rerender()
 
       // navigateHistory must return false (no transition possible) AND not clear
@@ -479,7 +484,7 @@ describe('useInputHistory', () => {
 
   describe('resetHistoryIndex', () => {
     it('returns to draft state and clears the snapshot, so a later ArrowUp snapshots the new draft', () => {
-      MockUseDataApiUtils.mockQueryData('/input-history', [sampleHistoryEntry(0)])
+      seedHistory([sampleHistoryEntry(0)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
       const { result } = renderHook(() =>

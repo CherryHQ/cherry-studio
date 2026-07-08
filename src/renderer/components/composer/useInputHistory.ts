@@ -1,8 +1,10 @@
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCallback, useRef, useState } from 'react'
 
 import { getNextInputHistoryIndex, type InputHistoryDirection } from './inputHistoryNavigation'
 import type { ComposerSerializedDraft } from './tokens'
+
+export const INPUT_HISTORY_LIMIT = 20
 
 interface UseInputHistoryApplyOptions {
   source: 'history' | 'draft'
@@ -15,10 +17,7 @@ interface UseInputHistoryOptions {
 export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const draftBeforeHistoryRef = useRef<ComposerSerializedDraft | null>(null)
-  const { data: history = [] } = useQuery('/input-history')
-  const { trigger: saveInputHistory } = useMutation('POST', '/input-history', {
-    refresh: ['/input-history']
-  })
+  const [history, setHistory] = usePersistCache('ui.composer.input_history')
 
   const applyHistoryIndex = useCallback(
     (nextIndex: number) => {
@@ -37,7 +36,7 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
         return
       }
 
-      applyDraft({ text: historyItem.content, tokens: [] }, { source: 'history' })
+      applyDraft({ text: historyItem, tokens: [] }, { source: 'history' })
     },
     [applyDraft, history]
   )
@@ -75,9 +74,11 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
         return
       }
 
-      await saveInputHistory({ body: { content: normalizedContent } })
+      setHistory((prev) =>
+        [normalizedContent, ...prev.filter((item) => item !== normalizedContent)].slice(0, INPUT_HISTORY_LIMIT)
+      )
     },
-    [saveInputHistory]
+    [setHistory]
   )
 
   return {
