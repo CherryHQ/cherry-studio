@@ -1,6 +1,7 @@
 import type * as ModelModule from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ModelListSyncDrawer from '../ModelListSyncDrawer'
@@ -76,6 +77,7 @@ const allModels: Model[] = [
     providerId: 'openai',
     apiModelId: 'gpt-5',
     name: 'GPT 5',
+    description: 'GPT 5 model description',
     group: 'OpenAI',
     capabilities: [],
     supportsStreaming: true,
@@ -128,8 +130,13 @@ function renderDrawer(props: Partial<React.ComponentProps<typeof ModelListSyncDr
       localModels={[...localModels]}
       isLoading={false}
       isApplying={false}
+      loadErrorMessage={null}
+      staleModelCount={0}
+      staleModelIds={[]}
+      onRetryLoadModels={vi.fn()}
       onAddModels={vi.fn()}
       onRemoveModels={vi.fn()}
+      onCleanStaleModels={vi.fn()}
       onClose={vi.fn()}
       {...props}
     />
@@ -205,6 +212,71 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
 
     expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('cleans stale models from the title action', () => {
+    const onCleanStaleModels = vi.fn()
+    renderDrawer({ staleModelCount: 1, onCleanStaleModels })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.clean_stale_models' }))
+
+    expect(onCleanStaleModels).toHaveBeenCalled()
+  })
+
+  it('hides stale cleanup action when there are no stale models', () => {
+    renderDrawer({ staleModelCount: 0 })
+
+    expect(screen.queryByRole('button', { name: 'settings.models.manage.clean_stale_models' })).not.toBeInTheDocument()
+  })
+
+  it('marks stale models in the list', () => {
+    renderDrawer({ staleModelIds: ['openai::legacy-model'] })
+
+    expect(screen.getByText('settings.models.manage.stale_badge')).toBeInTheDocument()
+  })
+
+  it('moves model descriptions into tooltip triggers', () => {
+    renderDrawer()
+
+    expect(screen.queryByText('GPT 5 model description')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('GPT 5 model description')).toBeInTheDocument()
+  })
+
+  it('shows load errors in the drawer with a refresh action', () => {
+    const onRetryLoadModels = vi.fn()
+    renderDrawer({
+      loadErrorMessage: 'settings.models.manage.sync_pull_failed',
+      onRetryLoadModels
+    })
+
+    expect(screen.queryByText('settings.models.manage.sync_pull_failed')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toBeInTheDocument()
+    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_pull_failed' }))
+
+    expect(onRetryLoadModels).toHaveBeenCalled()
+  })
+
+  it('keeps bulk actions available when a reload fails but local content is visible', () => {
+    renderDrawer({
+      loadErrorMessage: 'settings.models.manage.sync_pull_failed'
+    })
+
+    expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).not.toBeDisabled()
+  })
+
+  it('filters stale models from the filter tabs', async () => {
+    const user = userEvent.setup()
+    renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
+
+    await user.click(screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.queryByText('claude-sonnet')).not.toBeInTheDocument()
   })
 
   it('keeps search available and disables bulk action while applying', () => {

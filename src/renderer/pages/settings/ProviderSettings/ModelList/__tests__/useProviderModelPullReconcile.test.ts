@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
 
+const { reconcileTriggerMock } = vi.hoisted(() => ({
+  reconcileTriggerMock: vi.fn()
+}))
 const createModelsMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
@@ -19,6 +22,13 @@ const toCreateModelDtoMock = vi.fn((providerId, model) => ({
 const updateProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useMutation: () => ({
+    trigger: reconcileTriggerMock,
+    isLoading: false
+  })
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelMutations: () => ({
@@ -81,6 +91,7 @@ describe('useProviderModelPullReconcile', () => {
     vi.clearAllMocks()
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
+    reconcileTriggerMock.mockResolvedValue([])
     enableProviderWhenModelsAvailableMock.mockResolvedValue(false)
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
     fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
@@ -102,6 +113,8 @@ describe('useProviderModelPullReconcile', () => {
     await waitFor(() => {
       expect(result.current.allModels).toEqual([catalogModel, fetchedModel, localModel])
     })
+    expect(result.current.staleModelCount).toBe(1)
+    expect(result.current.staleModelIds).toEqual(['openai::local-model'])
     expect(fetchProviderCatalogModelsMock).toHaveBeenCalledWith('openai')
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
   })
@@ -156,7 +169,33 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
   })
 
-  it('shows an error toast when loading provider models fails', async () => {
+  it('cleans stale models through reconcile', async () => {
+    reconcileTriggerMock.mockResolvedValueOnce([catalogModel, fetchedModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'openai' },
+      body: {
+        toAdd: [],
+        toRemove: ['openai::local-model']
+      }
+    })
+    expect(toast.success).toHaveBeenCalledWith('settings.models.manage.clean_stale_success')
+  })
+
+  it('keeps load failures in drawer state instead of showing a toast', async () => {
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('boom'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
@@ -165,7 +204,8 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+      expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
     })
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
   })
 })

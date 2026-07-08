@@ -7,16 +7,20 @@ const pullReconcileState = vi.hoisted(() => ({
   value: {
     addModels: vi.fn(),
     allModels: [],
+    cleanStaleModels: vi.fn(),
     closePullReconcile: vi.fn(),
     isApplyingPullReconcile: false,
     isBusy: false,
     isLoadingModels: false,
+    loadErrorMessage: null,
     localModels: [],
     openPullReconcile: vi.fn(),
     provider: { id: 'openai', name: 'OpenAI' },
     pullReconcileDrawerOpen: false,
     reloadModels: vi.fn(),
-    removeModels: vi.fn()
+    removeModels: vi.fn(),
+    staleModelCount: 0,
+    staleModelIds: []
   }
 }))
 

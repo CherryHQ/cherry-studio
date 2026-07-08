@@ -59,15 +59,20 @@ type CalculateModelListDerivedStateInput = {
   modelStatuses: ModelWithStatus[]
 }
 
-function getFallbackGroupName(model: Model): string {
+function getModelIdGroupName(model: Model): string | undefined {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : model.providerId
+  const pathParts = modelId.split('/')
+  if (pathParts.length > 1) {
+    return pathParts[0]
+  }
+
+  const familyName = modelId.split('-')[0]?.trim()
+  return familyName !== modelId ? familyName : undefined
 }
 
 export const groupModels = (models: Model[], preserveGroupOrder = false): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const groupName = normalizeModelGroupName(model.group, getFallbackGroupName(model))
+    const groupName = normalizeModelGroupName(getModelIdGroupName(model), model.group ?? model.providerId)
     if (!acc[groupName]) {
       acc[groupName] = []
     }

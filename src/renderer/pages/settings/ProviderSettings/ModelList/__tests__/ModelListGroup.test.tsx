@@ -46,17 +46,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('../ModelListItem', () => ({
-  default: ({ model, onDelete }: any) => (
-    <div data-testid={`model-${model.id}`}>
-      {model.name}
-      <button type="button" onClick={() => onDelete(model)}>
-        delete-{model.id}
-      </button>
-    </div>
-  )
-}))
-
 const models = [
   {
     id: 'openai::alpha',
@@ -87,35 +76,12 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
       />
     )
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
-  })
-
-  it('passes delete actions to model rows', () => {
-    const onDeleteModel = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <ModelListGroup
-        groupName="chat"
-        items={models.map((model: any) => ({ model }))}
-        defaultOpen
-        disabled={false}
-        pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={onDeleteModel}
-        onDeleteModels={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'delete-openai::alpha' }))
-
-    expect(onDeleteModel).toHaveBeenCalledWith(models[0])
+    expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('deletes all models in the group from the header action', () => {
@@ -128,8 +94,6 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
       />
     )
@@ -153,8 +117,6 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
       />
     )
@@ -184,8 +146,6 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
       />
     )
@@ -198,6 +158,7 @@ describe('ModelListGroup', () => {
   })
 
   it('toggles the group body from the title row while keeping the action separate', () => {
+    const onToggleOpen = vi.fn()
     render(
       <ModelListGroup
         groupName="chat"
@@ -205,67 +166,60 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
+        onToggleOpen={onToggleOpen}
       />
     )
 
     const header = screen.getByRole('button', { name: 'chat' })
     fireEvent.click(header)
 
-    expect(header).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+    expect(onToggleOpen).toHaveBeenCalled()
+    expect(header).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
-  it('applies list-level expansion commands', () => {
+  it('reflects controlled open state', () => {
     const { rerender } = render(
       <ModelListGroup
         groupName="chat"
         items={models.map((model: any) => ({ model }))}
         defaultOpen
+        open
         disabled={false}
         pendingModelIds={new Set()}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
       />
     )
 
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'true')
 
     rerender(
       <ModelListGroup
         groupName="chat"
         items={models.map((model: any) => ({ model }))}
         defaultOpen
+        open={false}
         disabled={false}
         pendingModelIds={new Set()}
-        expansionCommand={{ expanded: false, version: 1 }}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
       />
     )
 
     expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
 
     rerender(
       <ModelListGroup
         groupName="chat"
         items={models.map((model: any) => ({ model }))}
         defaultOpen
+        open
         disabled={false}
         pendingModelIds={new Set()}
-        expansionCommand={{ expanded: true, version: 2 }}
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
       />
     )
 
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'true')
   })
 })

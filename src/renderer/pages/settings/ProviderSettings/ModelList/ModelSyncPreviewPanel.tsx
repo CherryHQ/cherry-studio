@@ -4,7 +4,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { ChevronRight, Minus, Plus } from 'lucide-react'
+import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,7 @@ import type { ModelGroups } from './modelListDerivedState'
 interface ModelSyncPreviewPanelProps {
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
+  staleModelIds: Set<UniqueModelId>
   isLoading: boolean
   isApplying: boolean
   searchActive?: boolean
@@ -62,12 +63,14 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
 const ManageModelRow = memo(function ManageModelRow({
   model,
   isAdded,
+  isStale,
   isApplying,
   onAddModels,
   onRemoveModels
 }: {
   model: Model
   isAdded: boolean
+  isStale: boolean
   isApplying: boolean
   onAddModels: (models: Model[]) => void | Promise<void>
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
@@ -78,8 +81,21 @@ const ManageModelRow = memo(function ManageModelRow({
     <div className={modelSyncClasses.manageRow} data-added={isAdded}>
       <ModelGlyph model={model} />
       <div className="min-w-0 flex-1">
-        <p className={modelSyncClasses.manageRowTitle}>{modelIdLine(model)}</p>
-        {model.description ? <p className={modelSyncClasses.manageRowDescription}>{model.description}</p> : null}
+        <div className={modelSyncClasses.manageRowTitleLine}>
+          <p className={modelSyncClasses.manageRowTitle}>{modelIdLine(model)}</p>
+          {model.description ? (
+            <Tooltip content={model.description} placement="top">
+              <span tabIndex={0} aria-label={model.description} className={modelSyncClasses.manageRowDescriptionHelp}>
+                <CircleHelp aria-hidden className="size-3" />
+              </span>
+            </Tooltip>
+          ) : null}
+          {isStale ? (
+            <Badge variant="secondary" className={modelSyncClasses.manageStaleBadge}>
+              {t('settings.models.manage.stale_badge')}
+            </Badge>
+          ) : null}
+        </div>
       </div>
       <div className={modelSyncClasses.fetchCapabilityStrip}>
         <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={12} style={{ flexWrap: 'nowrap' }} />
@@ -103,6 +119,7 @@ const ManageModelRow = memo(function ManageModelRow({
 export default function ModelSyncPreviewPanel({
   modelGroups,
   localModelIds,
+  staleModelIds,
   isLoading,
   isApplying,
   searchActive = false,
@@ -248,6 +265,7 @@ export default function ModelSyncPreviewPanel({
             <ManageModelRow
               model={row.model}
               isAdded={localModelIds.has(row.model.id)}
+              isStale={staleModelIds.has(row.model.id)}
               isApplying={isApplying}
               onAddModels={onAddModels}
               onRemoveModels={onRemoveModels}

@@ -4,7 +4,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
@@ -31,7 +30,6 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   const { provider } = useProvider(providerId)
   const { theme } = useTheme()
 
-  useProviderAutoModelSync(providerId)
   useProviderOnboardingAutoEnable({
     providerId,
     isOnboarding

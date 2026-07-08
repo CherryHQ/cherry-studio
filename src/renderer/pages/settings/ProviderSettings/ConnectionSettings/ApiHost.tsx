@@ -7,7 +7,6 @@ import { useProviderEndpointActions } from '../hooks/providerSetting/useProvider
 import { useProviderEndpoints } from '../hooks/providerSetting/useProviderEndpoints'
 import { useProviderHostPreview } from '../hooks/providerSetting/useProviderHostPreview'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
-import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import { AnthropicApiHostField, ApiHostField, ApiHostSection, AzureApiVersionField } from './ApiHostFields'
 import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
 
@@ -22,7 +21,6 @@ export default function ApiHost({ providerId }: ApiHostProps) {
   const meta = useProviderMeta(providerId)
   const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
     useProviderEndpoints(provider)
-  const { syncProviderModels } = useProviderModelSync(providerId)
   const topology = getProviderHostTopology(provider)
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   const hostPreview = useProviderHostPreview({
@@ -39,8 +37,7 @@ export default function ApiHost({ providerId }: ApiHostProps) {
     anthropicApiHost,
     setAnthropicApiHost,
     apiVersion,
-    patchProvider: updateProvider,
-    syncProviderModels
+    patchProvider: updateProvider
   })
 
   if (!provider) {

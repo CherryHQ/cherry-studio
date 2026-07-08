@@ -267,13 +267,15 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         disabled={dragging}
         onValueChange={setSearchText}
         trailing={
-          <ProviderListHeaderFilterMenu
-            filterMode={filterMode}
-            disabled={dragging}
-            triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
-            onFilterChange={setFilterMode}
-          />
+          searchText ? null : (
+            <ProviderListHeaderFilterMenu
+              filterMode={filterMode}
+              disabled={dragging}
+              triggerClassName={providerListClasses.searchInlineAddButton}
+              triggerIconSize={13}
+              onFilterChange={setFilterMode}
+            />
+          )
         }
       />
       <div className={providerListClasses.addWrap}>

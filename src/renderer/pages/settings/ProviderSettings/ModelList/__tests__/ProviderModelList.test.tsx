@@ -24,6 +24,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: ({ list, children, className, getItemKey }: any) => (
+    <div className={className}>
+      {list.map((item: unknown, index: number) => (
+        <div key={getItemKey?.(index) ?? index}>{children(item, index)}</div>
+      ))}
+    </div>
+  )
+}))
+
 vi.mock('../ModelDrawer', () => ({
   EditModelDrawer: () => null
 }))
@@ -87,14 +97,14 @@ describe('ProviderModelList', () => {
     expect(screen.queryByRole('button', { name: 'settings.models.more_actions' })).not.toBeInTheDocument()
   })
 
-  it('passes the header expansion command to model groups', () => {
+  it('passes collapsed state to model groups from the header toggle', () => {
     render(<ProviderModelList providerId="openai" disabled={false} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
 
     expect(modelListGroupMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        expansionCommand: { expanded: false, version: 1 }
+        open: false
       }),
       undefined
     )
@@ -107,7 +117,7 @@ describe('ProviderModelList', () => {
 
     expect(modelListGroupMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        expansionCommand: { expanded: false, version: 1 }
+        open: false
       }),
       undefined
     )
@@ -117,7 +127,7 @@ describe('ProviderModelList', () => {
 
     expect(modelListGroupMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        expansionCommand: { expanded: true, version: 2 }
+        open: true
       }),
       undefined
     )

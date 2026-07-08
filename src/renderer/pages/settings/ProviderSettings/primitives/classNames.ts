@@ -65,6 +65,8 @@ export const providerListClasses = {
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
+  searchClearButton:
+    'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   scroller: 'min-h-0 flex-1 px-2.5 pb-2',
   sectionStack: 'space-y-3',
   section: 'space-y-2',
@@ -153,7 +155,7 @@ export const drawerClasses = {
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
   valueSuffix: 'shrink-0 text-xs leading-tight text-foreground-muted',
   divider: 'h-px bg-border-muted',
-  switchCard: 'rounded-md border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
+  switchCard: 'rounded-lg border border-border bg-background px-3 py-3',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
@@ -232,6 +234,10 @@ export const modelListClasses = {
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
+  virtualGroupRow: '',
+  virtualGroupRowCollapsed: 'mb-2.5',
+  virtualModelRow: 'border-x border-border-subtle bg-transparent',
+  virtualModelRowLast: 'mb-2.5 rounded-b-lg border-b border-border-subtle pb-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -261,6 +267,7 @@ export const modelListClasses = {
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard: 'group/modelGroup min-w-0 w-full overflow-hidden rounded-lg border border-border-subtle bg-transparent',
+  groupCardOpen: 'rounded-b-none border-b-0',
   groupHeader:
     'group/groupRow flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-4 text-left outline-none focus-visible:outline-none',
   groupHeaderOpen: '[border-bottom:0.5px_solid_var(--color-border-subtle)]',
@@ -374,6 +381,10 @@ export const modelSyncClasses = {
   manageTitleCountBadge: 'h-5 rounded-md px-1.5 py-0 text-xs leading-5 tabular-nums',
   manageTitleActionButton:
     'h-8 rounded-lg px-2.5 text-xs text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageTitleErrorRetryButton:
+    'relative size-7 shrink-0 rounded-lg p-0 text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageTitleErrorDot:
+    'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error-base ring-1 ring-card',
   manageStickyHeader: 'sticky top-0 z-10 shrink-0 bg-card pt-1 pb-3',
   manageToolbar: 'mb-2.5 flex items-center gap-2',
   manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60',
@@ -401,8 +412,12 @@ export const modelSyncClasses = {
   manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
   manageRow:
     'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success/5',
+  manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
-  manageRowDescription: 'mt-0.5 line-clamp-1 text-xs leading-4 text-muted-foreground',
+  manageRowDescriptionHelp:
+    'inline-flex size-4 shrink-0 items-center justify-center rounded text-icon outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
+  manageStaleBadge:
+    'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
   manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 

@@ -38,8 +38,13 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         localModels={[...pullReconcile.localModels]}
         isLoading={pullReconcile.isLoadingModels}
         isApplying={pullReconcile.isApplyingPullReconcile}
+        loadErrorMessage={pullReconcile.loadErrorMessage}
+        staleModelCount={pullReconcile.staleModelCount}
+        staleModelIds={pullReconcile.staleModelIds}
+        onRetryLoadModels={pullReconcile.reloadModels}
         onAddModels={pullReconcile.addModels}
         onRemoveModels={pullReconcile.removeModels}
+        onCleanStaleModels={pullReconcile.cleanStaleModels}
         onClose={pullReconcile.closePullReconcile}
       />
     </>

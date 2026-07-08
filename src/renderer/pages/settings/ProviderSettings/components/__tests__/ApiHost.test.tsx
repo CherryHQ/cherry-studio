@@ -8,11 +8,9 @@ const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const useProviderMetaMock = vi.fn()
-const useProviderModelSyncMock = vi.fn()
 const useProviderHostPreviewMock = vi.fn()
 const useProviderEndpointActionsMock = vi.fn()
 const updateProviderMock = vi.fn()
-const syncProviderModelsMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -53,10 +51,6 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
 
 vi.mock('../../hooks/providerSetting/useProviderEndpointActions', () => ({
   useProviderEndpointActions: (...args: any[]) => useProviderEndpointActionsMock(...args)
-}))
-
-vi.mock('../../hooks/useProviderModelSync', () => ({
-  useProviderModelSync: (...args: any[]) => useProviderModelSyncMock(...args)
 }))
 
 vi.mock('../../primitives/ProviderField', () => ({
@@ -110,9 +104,6 @@ describe('ApiHost', () => {
       isAzureOpenAI: false,
       isCherryIN: false,
       isChineseUser: false
-    })
-    useProviderModelSyncMock.mockReturnValue({
-      syncProviderModels: syncProviderModelsMock
     })
   })
 

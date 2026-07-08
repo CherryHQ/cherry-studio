@@ -6687,6 +6687,8 @@
           "label": "Add all models"
         },
         "add_whole_group": "Add the whole group",
+        "clean_stale_models": "Clean stale models",
+        "clean_stale_success": "Cleaned {{count}} stale model(s)",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6714,6 +6716,8 @@
         "remove_whole_group": "Delete group",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Stale",
+        "stale_filter": "Stale",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",

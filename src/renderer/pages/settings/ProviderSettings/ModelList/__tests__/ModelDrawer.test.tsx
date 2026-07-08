@@ -9,7 +9,6 @@ import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
 const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
-const deleteModelMock = vi.fn()
 const updateModelMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -44,21 +43,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {String(checked)}
       </button>
     ),
-    DescriptionSwitch: ({ label, description, checked, onCheckedChange, ...props }: any) => (
-      <label>
-        <span>{label}</span>
-        {description ? <span>{description}</span> : null}
-        <button
-          type="button"
-          role="switch"
-          aria-label={label}
-          aria-checked={checked}
-          onClick={() => onCheckedChange(!checked)}
-          {...props}>
-          {String(checked)}
-        </button>
-      </label>
-    ),
+    Tooltip: ({ children, content }: any) => <span aria-label={content}>{children}</span>,
     WarnTooltip: () => <span>warn</span>
   }
 })
@@ -71,7 +56,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModel: (...args: any[]) => createModelMock(...args),
-    deleteModel: (...args: any[]) => deleteModelMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
 }))
@@ -112,16 +96,6 @@ vi.mock('@renderer/components/tags/Model', () => ({
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
   default: () => <span>copy-icon</span>
 }))
-
-// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
-// the gated action (as if the user confirmed) and assert the delete flow.
-const { confirmActionShow } = vi.hoisted(() => ({
-  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
-    await options?.action?.()
-    return true
-  })
-}))
-vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, children, footer }: any) =>
@@ -235,7 +209,7 @@ describe('Model drawers', () => {
     expect(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i })).not.toBeDisabled()
   })
 
-  it('loads edit values, expands more settings, and keeps save plus auto-save on the existing mutation path', async () => {
+  it('loads edit values, shows more settings, and auto-saves edits on the existing mutation path', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -263,11 +237,14 @@ describe('Model drawers', () => {
     )
 
     expect(screen.getByLabelText('settings.models.add.model_name.label')).toHaveValue('claude-4-sonnet')
+    const modelIdInput = screen.getByLabelText('settings.models.add.model_id.label')
+    expect(modelIdInput).toHaveValue('claude-4-sonnet')
+    expect(modelIdInput).toHaveAttribute('readonly')
+    expect(modelIdInput).not.toBeDisabled()
     expect(screen.getByTestId('provider-settings-model-edit-drawer-content')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /common\.save/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /common\.cancel/i })).not.toBeInTheDocument()
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /settings\.moresetting\.label/i }))
-    })
     expect(screen.getByTestId('provider-settings-model-more-settings')).toBeInTheDocument()
 
     await act(async () => {
@@ -299,19 +276,22 @@ describe('Model drawers', () => {
     )
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('settings.models.add.model_name.label'), {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, {
         target: { value: 'Claude 4 Sonnet Updated' }
       })
+      fireEvent.blur(modelName)
     })
-    const callsBeforeSave = updateModelMock.mock.calls.length
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /common\.save/i }))
-    })
-
-    expect(updateModelMock.mock.calls.length).toBeGreaterThan(callsBeforeSave)
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'openai',
+      'claude-4-sonnet',
+      expect.objectContaining({
+        name: 'Claude 4 Sonnet Updated'
+      })
+    )
   })
 
-  it('writes cherryin endpoint type back through the edit drawer save path', async () => {
+  it('auto-saves cherryin endpoint type changes from the edit drawer', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
     })
@@ -340,86 +320,15 @@ describe('Model drawers', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+      fireEvent.click(screen.getByRole('button', { name: 'endpoint_type.openai' }))
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
       'cherryin',
       'claude-4-sonnet',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
     )
-  })
-
-  it('shows delete only for disabled models and deletes after confirmation', async () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
-    })
-
-    const onClose = vi.fn()
-
-    render(
-      <EditModelDrawer
-        providerId="openai"
-        open
-        onClose={onClose}
-        model={
-          {
-            id: 'openai::claude-4-sonnet',
-            providerId: 'openai',
-            name: 'claude-4-sonnet',
-            group: 'Anthropic',
-            capabilities: [],
-            isEnabled: false,
-            supportsStreaming: true,
-            pricing: {
-              input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
-            }
-          } as any
-        }
-      />
-    )
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /common\.delete/i }))
-    })
-
-    expect(confirmActionShow).toHaveBeenCalledTimes(1)
-    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'claude-4-sonnet')
-    expect(toast.success).toHaveBeenCalledWith('common.delete_success')
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('does not show delete action for enabled models', () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
-    })
-
-    render(
-      <EditModelDrawer
-        providerId="openai"
-        open
-        onClose={vi.fn()}
-        model={
-          {
-            id: 'openai::claude-4-sonnet',
-            providerId: 'openai',
-            name: 'claude-4-sonnet',
-            group: 'Anthropic',
-            capabilities: [],
-            isEnabled: true,
-            supportsStreaming: true,
-            pricing: {
-              input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
-            }
-          } as any
-        }
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: /common\.delete/i })).not.toBeInTheDocument()
   })
 })

@@ -6687,6 +6687,8 @@
           "label": "新增全部模型"
         },
         "add_whole_group": "新增整個分組",
+        "clean_stale_models": "清理失效模型",
+        "clean_stale_success": "已清理 {{count}} 個失效模型",
         "drawer_title": "模型管理",
         "fetch_deselect_all_add": "取消全選",
         "fetch_deselect_all_remove": "取消全選",
@@ -6714,6 +6716,8 @@
         "remove_whole_group": "刪除分組",
         "search_models_placeholder": "搜尋模型…",
         "select_none": "取消全選",
+        "stale_badge": "失效",
+        "stale_filter": "失效",
         "status_all": "全部",
         "status_disabled": "未啟用",
         "status_enabled": "已啟用",

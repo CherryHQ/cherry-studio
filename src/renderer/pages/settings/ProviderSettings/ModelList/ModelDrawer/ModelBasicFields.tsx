@@ -16,7 +16,9 @@ interface ModelBasicFieldsProps {
   endpointTypeError?: string
   onModelIdChange: (value: string) => void
   onNameChange: (value: string) => void
+  onNameBlur?: () => void
   onGroupChange: (value: string) => void
+  onGroupBlur?: () => void
   onEndpointTypesChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
@@ -28,7 +30,9 @@ export function ModelBasicFields({
   endpointTypeError,
   onModelIdChange,
   onNameChange,
+  onNameBlur,
   onGroupChange,
+  onGroupBlur,
   onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
@@ -46,7 +50,8 @@ export function ModelBasicFields({
             maxLength={200}
             aria-label={t('settings.models.add.model_id.label')}
             value={values.modelId}
-            disabled={modelIdDisabled}
+            readOnly={modelIdDisabled}
+            aria-readonly={modelIdDisabled}
             placeholder={t('settings.models.add.model_id.placeholder')}
             className={cn(drawerClasses.input, modelIdDisabled && drawerClasses.inputDisabled)}
             onChange={(event) => onModelIdChange(event.target.value)}
@@ -66,6 +71,7 @@ export function ModelBasicFields({
           placeholder={t('settings.models.add.model_name.placeholder')}
           className={drawerClasses.input}
           onChange={(event) => onNameChange(event.target.value)}
+          onBlur={onNameBlur}
         />
       </ProviderField>
 
@@ -80,6 +86,7 @@ export function ModelBasicFields({
           placeholder={t('settings.models.add.group_name.placeholder')}
           className={drawerClasses.input}
           onChange={(event) => onGroupChange(event.target.value)}
+          onBlur={onGroupBlur}
         />
       </ProviderField>
 

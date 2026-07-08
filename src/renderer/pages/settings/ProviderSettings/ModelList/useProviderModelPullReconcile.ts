@@ -1,3 +1,4 @@
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -63,17 +64,34 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [catalogModels, setCatalogModels] = useState<Model[]>([])
   const [fetchedModels, setFetchedModels] = useState<Model[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [hasLoadedRemoteModels, setHasLoadedRemoteModels] = useState(false)
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   const { provider, updateProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
+  const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
+    'POST',
+    '/providers/:providerId/models:reconcile',
+    { refresh: ['/models'] }
+  )
 
   const allModels = useMemo(
     () => uniqueById([...catalogModels, ...fetchedModels, ...models]),
     [catalogModels, fetchedModels, models]
   )
+  const staleModels = useMemo(() => {
+    if (!hasLoadedRemoteModels) {
+      return []
+    }
+
+    const remoteIds = new Set([...catalogModels, ...fetchedModels].map((model) => model.id))
+    return models.filter((model) => !remoteIds.has(model.id))
+  }, [catalogModels, fetchedModels, hasLoadedRemoteModels, models])
 
   const loadModels = useCallback(async () => {
     setIsLoadingModels(true)
+    setHasLoadedRemoteModels(false)
+    setLoadErrorMessage(null)
     try {
       const [catalog, fetched] = await Promise.all([
         fetchProviderCatalogModels(providerId),
@@ -81,9 +99,10 @@ export function useProviderModelPullReconcile(providerId: string) {
       ])
       setCatalogModels(catalog.filter((model) => model.name?.trim()))
       setFetchedModels(fetched.filter((model) => model.name?.trim()))
+      setHasLoadedRemoteModels(true)
     } catch (error) {
       logger.error('Failed to load provider models for manage drawer', { providerId, error })
-      toast.error(t('settings.models.manage.sync_pull_failed'))
+      setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
     } finally {
       setIsLoadingModels(false)
     }
@@ -146,18 +165,54 @@ export function useProviderModelPullReconcile(providerId: string) {
     [deleteModels, providerId, t]
   )
 
+  const cleanStaleModels = useCallback(async () => {
+    const staleIds = staleModels.map((model) => model.id)
+    if (staleIds.length === 0) {
+      return
+    }
+
+    try {
+      const reconciledModels = await reconcileModels({
+        params: { providerId },
+        body: {
+          toAdd: [],
+          toRemove: staleIds
+        }
+      })
+      const reconciledIds = new Set((reconciledModels as Model[]).map((model) => model.id))
+      const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
+
+      if (skippedCount > 0) {
+        toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
+      } else {
+        toast.success(t('settings.models.manage.clean_stale_success', { count: staleIds.length }))
+      }
+    } catch (error) {
+      logger.error('Failed to clean stale provider models from manage drawer', {
+        providerId,
+        count: staleIds.length,
+        error
+      })
+      toast.error(t('settings.models.manage.operation_failed'))
+    }
+  }, [providerId, reconcileModels, staleModels, t])
+
   return {
     allModels,
     provider,
     localModels: models,
+    staleModelCount: staleModels.length,
+    staleModelIds: staleModels.map((model) => model.id),
     openPullReconcile,
     closePullReconcile,
     reloadModels: loadModels,
     pullReconcileDrawerOpen,
     addModels,
     removeModels,
+    cleanStaleModels,
     isLoadingModels,
-    isApplyingPullReconcile: isCreating || isDeleting || isBulkDeleting,
-    isBusy: isLoadingModels || isCreating || isDeleting || isBulkDeleting
+    loadErrorMessage,
+    isApplyingPullReconcile: isCreating || isDeleting || isBulkDeleting || isReconciling,
+    isBusy: isLoadingModels || isCreating || isDeleting || isBulkDeleting || isReconciling
   }
 }
