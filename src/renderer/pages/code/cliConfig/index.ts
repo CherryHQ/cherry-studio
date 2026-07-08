@@ -1,3 +1,4 @@
+export { sanitizeCliConfigBlob } from './adapters'
 export { parseConfiguredModelId, resolveCliConfigApplyContext } from './applyContext'
 export {
   CLAUDE_DETAILED_MODEL_ENV_KEYS,
@@ -9,7 +10,6 @@ export {
 } from './claudeModels'
 export { clearCliConfig } from './clear'
 export {
-  type CliConfigWriteArgs,
   isOwnLoginConfigurable,
   readCliConfigDraft,
   readCliConfigFiles,
@@ -31,5 +31,10 @@ export {
   QWEN_APPROVAL_MODES
 } from './permissionModes'
 export { cliConfigConnectionMatchesProvider } from './providerMatching'
-export { sanitizeCliConfigBlob } from './sanitize'
-export type { CliConfigConnection, CliConfigFileDraft, CliConfigLanguage, CliConfigTarget } from './types'
+export type {
+  CliConfigConnection,
+  CliConfigFileDraft,
+  CliConfigLanguage,
+  CliConfigTarget,
+  CliConfigWriteArgs
+} from './types'

@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { CodeCli } from '@shared/types/codeCli'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readOwnLoginCliConfigDraft } from '../index'
 import {
   buildCodexOwnLoginConfig,
   buildGeminiOwnLoginSettings,
@@ -111,5 +113,42 @@ describe('ownLogin builders', () => {
       expect(result.thinking).toBeUndefined()
       expect(result.userKey).toBe('keep')
     })
+  })
+})
+
+describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
+        file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
+      }
+    })
+  })
+
+  // The raw builder tests above don't exercise the adapter glue: which target file each own-login
+  // tool reads from disk, and whether it renders JSON vs TOML. Pin that. OpenCode has no own-login
+  // config panel and must throw.
+  const cases: Array<[string, CodeCli, string, 'json' | 'toml']> = [
+    ['claude', CodeCli.CLAUDE_CODE, 'claude-settings', 'json'],
+    ['codex', CodeCli.OPENAI_CODEX, 'codex-config', 'toml'],
+    ['gemini', CodeCli.GEMINI_CLI, 'gemini-settings', 'json'],
+    ['qwen', CodeCli.QWEN_CODE, 'qwen-settings', 'json'],
+    ['kimi', CodeCli.KIMI_CODE, 'kimi-config', 'toml']
+  ]
+
+  it.each(cases)('builds the %s own-login draft for its target', async (_n, cliTool, target, language) => {
+    const files = await readOwnLoginCliConfigDraft({ cliTool, configBlob: {} })
+    expect(files).toHaveLength(1)
+    expect(files[0].target).toBe(target)
+    expect(files[0].language).toBe(language)
+    if (language === 'json') expect(() => JSON.parse(files[0].content)).not.toThrow()
+  })
+
+  it('throws for OpenCode, which has no own-login config panel', async () => {
+    await expect(readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, configBlob: {} })).rejects.toThrow(
+      /not supported/i
+    )
   })
 })

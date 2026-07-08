@@ -40,6 +40,9 @@ const CLI_CONFIG_TARGETS = {
   [CodeCli.KIMI_CODE]: ['kimi-config']
 } as const satisfies Partial<Record<CodeCli, readonly CliConfigTarget[]>>
 
+/** The file-based CLI tools — the exact key set of `CLI_CONFIG_TARGETS`. */
+export type FileConfiguredCli = keyof typeof CLI_CONFIG_TARGETS
+
 /** CLI tools that write on-disk config files (the ones with targets above). */
 export const FILE_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set(Object.keys(CLI_CONFIG_TARGETS))
 

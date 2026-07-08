@@ -1,8 +1,8 @@
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
+import { sanitizeCliConfigBlob } from './adapters'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from './claudeModels'
-import { sanitizeCliConfigBlob } from './sanitize'
 
 export function parseConfiguredModelId(modelId: string | undefined): { providerId: string; modelId: string } | null {
   const result = UniqueModelIdSchema.safeParse(modelId)

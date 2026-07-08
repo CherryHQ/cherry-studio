@@ -1,7 +1,7 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeCliConfigBlob } from '../sanitize'
+import { sanitizeCliConfigBlob } from '../adapters'
 
 describe('sanitizeCliConfigBlob (codex)', () => {
   // `commonConfig` was a dead toggle (buildCodexConfig/parser.ts never read or wrote it) and was

@@ -186,6 +186,26 @@ describe('extractConfigFromCliConfigDraft', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
   })
 
+  // OpenCode's extractConfig is bespoke (re-derives autoCompact/permissionMode from the nested
+  // provider/model shape) rather than delegating to a sanitize* helper — pin its round-trip.
+  it('round-trips opencode managed settings from the config blob', async () => {
+    const blob = { autoCompact: true, permissionMode: 'ask' }
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual(blob)
+  })
+
+  it('round-trips qwen managed settings from the config blob', async () => {
+    const blob = { tools: { approvalMode: 'plan' }, permissions: { autoMode: { classifyAllShell: true } } }
+    const files = await buildDraft(CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.QWEN_CODE, files)).toEqual(blob)
+  })
+
+  it('round-trips kimi managed settings from the config blob', async () => {
+    const blob = { default_permission_mode: 'auto' }
+    const files = await buildDraft(CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.KIMI_CODE, files)).toEqual(blob)
+  })
+
   it('returns null when a draft file is malformed', () => {
     const badKimi: CliConfigFileDraft = {
       target: 'kimi-config' as CliConfigTarget,

@@ -28,6 +28,36 @@ const responsesProvider = {
   name: 'DeepSeek',
   endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' } }
 } as unknown as Provider
+const anthropicProvider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+} as unknown as Provider
+const chatProvider = {
+  id: 'deepseek',
+  name: 'DeepSeek',
+  endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com/v1' } }
+} as unknown as Provider
+const geminiProvider = {
+  id: 'gemini',
+  name: 'Gemini',
+  endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+} as unknown as Provider
+
+/** Build a managed draft via readCliConfigDraft (same builders the write path uses). */
+async function buildDraft(
+  cliTool: CodeCli,
+  provider: Provider,
+  model: string,
+  configBlob: Record<string, unknown> = {}
+): Promise<CliConfigFileDraft[]> {
+  mockGet({
+    [`/providers/${provider.id}/api-keys`]: () => ({ keys: [enabledKey] }),
+    [`/providers/${provider.id}`]: () => provider,
+    '/models/': () => null
+  })
+  return readCliConfigDraft({ cliTool, modelId: `${provider.id}::${model}`, configBlob })
+}
 
 beforeEach(() => {
   Object.defineProperty(window, 'api', {
@@ -111,4 +141,39 @@ describe('updateCliConfigDraftConfig', () => {
     ]
     expect(updateCliConfigDraftConfig('unknown-tool', files, { goalMode: true })).toBe(files)
   })
+
+  // Parity across every file-based CLI (the previous cases only covered Codex): a config-only
+  // update must (1) leave the connection untouched and (2) land the same managed config the write
+  // path would have produced for that blob. Comparing against a freshly built draft avoids
+  // hard-coding each tool's managed shape while still catching a mis-extracted adapter branch.
+  const parityCases: Array<[string, CodeCli, Provider, string, Record<string, unknown>]> = [
+    [
+      'claude',
+      CodeCli.CLAUDE_CODE,
+      anthropicProvider,
+      'claude-sonnet-4-5',
+      { effortLevel: 'high', permissions: { defaultMode: 'plan' } }
+    ],
+    ['codex', CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', { goalMode: true, permissionMode: 'workspace' }],
+    ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', { autoCompact: true, permissionMode: 'ask' }],
+    ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', { general: { defaultApprovalMode: 'plan' } }],
+    ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', { tools: { approvalMode: 'plan' } }],
+    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', { default_permission_mode: 'auto' }]
+  ]
+
+  it.each(parityCases)(
+    'preserves the connection and applies config for %s',
+    async (_n, tool, provider, model, blob) => {
+      const files = await buildDraft(tool, provider, model)
+      const before = extractConnectionFromCliConfigDraft(tool, files)
+
+      const updated = updateCliConfigDraftConfig(tool, files, blob)
+
+      expect(extractConnectionFromCliConfigDraft(tool, updated)).toEqual(before)
+      const freshlyBuilt = await buildDraft(tool, provider, model, blob)
+      expect(extractConfigFromCliConfigDraft(tool, updated)).toEqual(
+        extractConfigFromCliConfigDraft(tool, freshlyBuilt)
+      )
+    }
+  )
 })

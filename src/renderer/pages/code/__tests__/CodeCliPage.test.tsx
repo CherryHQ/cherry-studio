@@ -201,7 +201,11 @@ vi.mock('../cliConfig/providerMatching', () => ({
   cliConfigConnectionMatchesProvider: () => true
 }))
 
-vi.mock('../cliConfig/sanitize', () => ({
+// `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
+// Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
+// still resolves; override only the sanitizer this test asserts on.
+vi.mock('../cliConfig/adapters', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../cliConfig/adapters')>()),
   sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {}
 }))
 

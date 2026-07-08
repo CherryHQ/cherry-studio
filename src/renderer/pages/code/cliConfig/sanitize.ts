@@ -1,5 +1,3 @@
-import { CodeCli } from '@shared/types/codeCli'
-
 import {
   GEMINI_WRITABLE_SETTINGS_KEYS,
   KIMI_WRITABLE_SECTION_KEYS,
@@ -106,26 +104,4 @@ export function sanitizeKimiConfigBlob(configBlob: Record<string, unknown> | und
     delete next.default_permission_mode
   }
   return next
-}
-
-export function sanitizeCliConfigBlob(
-  cliTool: string,
-  configBlob: Record<string, unknown> | undefined
-): Record<string, any> {
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      return sanitizeClaudeConfigBlob(configBlob)
-    case CodeCli.OPENAI_CODEX:
-      return sanitizeCodexConfigBlob(configBlob)
-    case CodeCli.OPEN_CODE:
-      return sanitizeOpenCodeConfigBlob(configBlob)
-    case CodeCli.GEMINI_CLI:
-      return sanitizeGeminiConfigBlob(configBlob)
-    case CodeCli.QWEN_CODE:
-      return sanitizeQwenConfigBlob(configBlob)
-    case CodeCli.KIMI_CODE:
-      return sanitizeKimiConfigBlob(configBlob)
-    default:
-      return asRecord(configBlob)
-  }
 }

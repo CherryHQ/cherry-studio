@@ -1,37 +1,18 @@
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
-import { formatApiHost } from '@shared/utils/api'
 
-import { OPEN_CODE_ENDPOINTS } from './constants'
-import { resolveClaudeBaseUrl, resolveCodexBaseUrl, resolveGeminiBaseUrl, resolveOpenAIBaseUrl } from './resolvers'
+import { getAdapter } from './adapters'
 import type { CliConfigConnection } from './types'
 import { normalizeUrl } from './values'
 
 function providerBaseUrls(provider: Provider, cliTool: string): string[] {
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      return [normalizeUrl(resolveClaudeBaseUrl(provider))].filter(Boolean)
-    case CodeCli.OPENAI_CODEX:
-      return [normalizeUrl(resolveCodexBaseUrl(provider))].filter(Boolean)
-    case CodeCli.OPEN_CODE:
-      return OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
-        const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
-        return baseUrl ? [baseUrl] : []
-      })
-    case CodeCli.GEMINI_CLI:
-      return [normalizeUrl(resolveGeminiBaseUrl(provider))].filter(Boolean)
-    case CodeCli.QWEN_CODE:
-    case CodeCli.KIMI_CODE:
-      return [normalizeUrl(resolveOpenAIBaseUrl(provider))].filter(Boolean)
-    default: {
-      const baseUrls: string[] = []
-      for (const config of Object.values(provider.endpointConfigs ?? {})) {
-        const baseUrl = normalizeUrl(config?.baseUrl)
-        if (baseUrl) baseUrls.push(baseUrl)
-      }
-      return baseUrls
-    }
+  const adapter = getAdapter(cliTool)
+  if (adapter) return adapter.providerBaseUrls(provider)
+  const baseUrls: string[] = []
+  for (const config of Object.values(provider.endpointConfigs ?? {})) {
+    const baseUrl = normalizeUrl(config?.baseUrl)
+    if (baseUrl) baseUrls.push(baseUrl)
   }
+  return baseUrls
 }
 
 export function cliConfigConnectionMatchesProvider(

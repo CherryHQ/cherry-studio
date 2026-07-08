@@ -1,52 +1,16 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { formatApiHost } from '@shared/utils/api'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
-import { stringify as stringifyToml } from 'smol-toml'
 
-import {
-  buildClaudeConfig,
-  buildCodexAuthConfig,
-  buildCodexConfig,
-  buildGeminiEnvConfig,
-  buildGeminiSettingsConfig,
-  buildKimiConfig,
-  buildOpenCodeConfig,
-  buildQwenConfig
-} from './builders'
-import { CHERRY_PROVIDER_PREFIX } from './constants'
-import { parseDotenv, renderDotenvFile } from './dotenv'
-import { makeDraftFile, readAndParseDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import {
-  parseJsonOrThrow,
-  parseTomlOrThrow,
-  readExternalOrNull,
-  renderJsonFile,
-  resolveAbs,
-  writeExternalConfigFile
-} from './file'
-import {
-  buildCodexOwnLoginConfig,
-  buildGeminiOwnLoginSettings,
-  buildKimiOwnLoginConfig,
-  buildQwenOwnLoginConfig
-} from './ownLogin'
-import {
-  modelSupportsReasoningEffort,
-  resolveClaudeBaseUrl,
-  resolveCodexBaseUrl,
-  resolveGeminiBaseUrl,
-  resolveOpenAIBaseUrl,
-  resolveOpenCodeNpmInfo
-} from './resolvers'
-import { sanitizeCliConfigBlob } from './sanitize'
+import { getAdapter, sanitizeCliConfigBlob } from './adapters'
+import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
+import { readExternalOrNull, resolveAbs, writeExternalConfigFile } from './file'
 import { CLI_CONFIG_FILE_SPECS, FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from './targets'
-import type { CliConfigFileDraft } from './types'
-import { asRecord, firstApiKey, sanitizeProviderName } from './values'
+import type { CliConfigDraftBuildArgs, CliConfigFileDraft, CliConfigWriteArgs, ResolvedCliConfigContext } from './types'
+import { firstApiKey } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
@@ -60,16 +24,6 @@ const logger = loggerService.withContext('writeCliConfigDraft')
  * There is no namespace-resolve IPC, so the renderer resolves the paths via
  * `window.api.resolvePath` instead of `application.getPath`.
  */
-export interface CliConfigWriteArgs {
-  cliTool: string
-  /** Unique model id ("providerId::modelId"). */
-  modelId: string
-  /** User-edited config blob (claude-code / codex / opencode consume it). */
-  configBlob?: Record<string, unknown>
-  /** Claude Code only: whether to write env.ANTHROPIC_MODEL. */
-  writePrimaryModel?: boolean
-}
-
 interface FileSnapshot {
   path: string
   existed: boolean
@@ -79,14 +33,6 @@ interface FileSnapshot {
 async function snapshotFile(path: string): Promise<FileSnapshot> {
   const previousContent = await readExternalOrNull(path)
   return { path, existed: previousContent !== null, previousContent: previousContent ?? '' }
-}
-
-interface ResolvedCliConfigContext {
-  provider: Provider
-  apiKey: string
-  model: string
-  modelRecord: Model | null
-  configBlob: Record<string, any>
 }
 
 /**
@@ -140,130 +86,17 @@ export async function readCliConfigFiles(
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 
-export async function readCliConfigDraft(
-  args: CliConfigWriteArgs & { files?: CliConfigFileDraft[] }
-): Promise<CliConfigFileDraft[]> {
+export async function readCliConfigDraft(args: CliConfigDraftBuildArgs): Promise<CliConfigFileDraft[]> {
   const context = await resolveContext(args)
   if (!context) return []
   return buildCliConfigDraftFiles(args, context)
 }
 
 async function buildCliConfigDraftFiles(
-  args: CliConfigWriteArgs & { files?: CliConfigFileDraft[] },
+  args: CliConfigDraftBuildArgs,
   context: ResolvedCliConfigContext
 ): Promise<CliConfigFileDraft[]> {
-  const { cliTool, files } = args
-  const { provider, apiKey, model, modelRecord, configBlob } = context
-
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE: {
-      const existing = await readAndParseDraftFile('claude-settings', parseJsonOrThrow, files)
-      const baseUrl = resolveClaudeBaseUrl(provider)
-      return [
-        await makeDraftFile(
-          'claude-settings',
-          renderJsonFile(
-            buildClaudeConfig(existing, configBlob, {
-              apiKey,
-              baseUrl,
-              model,
-              writePrimaryModel: args.writePrimaryModel
-            })
-          )
-        )
-      ]
-    }
-    case CodeCli.OPENAI_CODEX: {
-      const responsesUrl = resolveCodexBaseUrl(provider)
-      if (!responsesUrl) {
-        throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
-      }
-      const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow, files)
-      const auth = await readAndParseDraftFile('codex-auth', parseJsonOrThrow, files)
-      const providerName = sanitizeProviderName(provider.name, provider.id)
-      return [
-        await makeDraftFile(
-          'codex-config',
-          stringifyToml(buildCodexConfig(config, { baseUrl: responsesUrl, providerName, model }, configBlob))
-        ),
-        await makeDraftFile('codex-auth', renderJsonFile(buildCodexAuthConfig(auth, apiKey)))
-      ]
-    }
-    case CodeCli.OPEN_CODE: {
-      const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
-      const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-      const existing = await readAndParseDraftFile('opencode-config', parseJsonOrThrow, files)
-      const env = asRecord(configBlob.env)
-      return [
-        await makeDraftFile(
-          'opencode-config',
-          renderJsonFile(
-            buildOpenCodeConfig(
-              existing,
-              provider,
-              npmInfo,
-              { apiKey, baseUrl, model },
-              {
-                reasoning: env.OPENCODE_REASONING === 'true',
-                supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-                autoCompact: configBlob.autoCompact === true,
-                permissionMode: configBlob.permissionMode
-              }
-            )
-          )
-        )
-      ]
-    }
-    case CodeCli.GEMINI_CLI: {
-      const envMap = parseDotenv(await readDraftFileText('gemini-env', files))
-      const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, files)
-      const baseUrl = resolveGeminiBaseUrl(provider)
-      return [
-        await makeDraftFile('gemini-env', renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl }))),
-        await makeDraftFile(
-          'gemini-settings',
-          renderJsonFile(buildGeminiSettingsConfig(settings, { model }, configBlob))
-        )
-      ]
-    }
-    case CodeCli.QWEN_CODE: {
-      const baseUrl = resolveOpenAIBaseUrl(provider)
-      const existing = await readAndParseDraftFile('qwen-settings', parseJsonOrThrow, files)
-      return [
-        await makeDraftFile(
-          'qwen-settings',
-          renderJsonFile(
-            buildQwenConfig(existing, { apiKey, baseUrl, model, modelLabel: modelRecord?.name ?? model }, configBlob)
-          )
-        )
-      ]
-    }
-    case CodeCli.KIMI_CODE: {
-      const baseUrl = resolveOpenAIBaseUrl(provider)
-      const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow, files)
-      const providerName = sanitizeProviderName(provider.name, provider.id)
-      return [
-        await makeDraftFile(
-          'kimi-config',
-          stringifyToml(
-            buildKimiConfig(
-              existing,
-              {
-                apiKey,
-                baseUrl,
-                model,
-                modelKey: `${CHERRY_PROVIDER_PREFIX}${providerName}`,
-                maxContextSize: modelRecord?.contextWindow ?? 128000
-              },
-              configBlob
-            )
-          )
-        )
-      ]
-    }
-    default:
-      return []
-  }
+  return (await getAdapter(args.cliTool)?.buildDraft(args, context)) ?? []
 }
 
 /**
@@ -273,34 +106,7 @@ async function buildCliConfigDraftFiles(
  * around them, so it must never call this.
  */
 function assertCliConfigCredentials(cliTool: string, context: ResolvedCliConfigContext): void {
-  const { provider, apiKey, modelRecord } = context
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      if (!apiKey) throw new Error('Claude Code config is missing the API key')
-      return
-    case CodeCli.OPENAI_CODEX:
-      if (!apiKey) throw new Error('Codex config is missing the API key')
-      return
-    case CodeCli.OPEN_CODE: {
-      const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
-      const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-      if (!apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
-      return
-    }
-    case CodeCli.GEMINI_CLI:
-      if (!apiKey) throw new Error('Gemini CLI config is missing the API key')
-      return
-    case CodeCli.QWEN_CODE:
-      if (!apiKey) throw new Error('Qwen Code config is missing the API key')
-      if (!resolveOpenAIBaseUrl(provider)) throw new Error('Qwen Code config is missing the OpenAI endpoint base URL')
-      return
-    case CodeCli.KIMI_CODE:
-      if (!apiKey) throw new Error('Kimi CLI config is missing the API key')
-      if (!resolveOpenAIBaseUrl(provider)) throw new Error('Kimi CLI config is missing the OpenAI endpoint base URL')
-      return
-    default:
-      return
-  }
+  getAdapter(cliTool)?.assertCredentials(context)
 }
 
 export async function writeCliConfigDraft(args: {
@@ -370,19 +176,12 @@ export async function writeCliConfigDraft(args: {
 
 /**
  * Login-capable tools whose "own login" entry also exposes a config panel (tool
- * params only, no model/credentials). Each must have a `buildOwnLoginConfigDraftFiles`
- * case. Qoder / GitHub Copilot are fully provider-less and never reach here.
+ * params only, no model/credentials) expose a `buildOwnLoginDraft` on their
+ * adapter. Qoder / GitHub Copilot are fully provider-less and never reach here;
+ * OpenCode has no own-login config panel.
  */
-const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
-  CodeCli.CLAUDE_CODE,
-  CodeCli.OPENAI_CODEX,
-  CodeCli.GEMINI_CLI,
-  CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
-])
-
 export function isOwnLoginConfigurable(cliTool: string): boolean {
-  return OWN_LOGIN_CONFIGURABLE_TOOLS.has(cliTool)
+  return Boolean(getAdapter(cliTool)?.buildOwnLoginDraft)
 }
 
 /**
@@ -397,38 +196,11 @@ async function buildOwnLoginConfigDraftFiles(
   cliTool: string,
   configBlob: Record<string, unknown>
 ): Promise<CliConfigFileDraft[]> {
-  const blob = sanitizeCliConfigBlob(cliTool, configBlob)
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE: {
-      const existing = await readAndParseDraftFile('claude-settings', parseJsonOrThrow)
-      return [
-        await makeDraftFile(
-          'claude-settings',
-          renderJsonFile(
-            buildClaudeConfig(existing, blob, { apiKey: '', baseUrl: '', model: '', writePrimaryModel: false })
-          )
-        )
-      ]
-    }
-    case CodeCli.OPENAI_CODEX: {
-      const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow)
-      return [await makeDraftFile('codex-config', stringifyToml(buildCodexOwnLoginConfig(config, blob)))]
-    }
-    case CodeCli.GEMINI_CLI: {
-      const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow)
-      return [await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiOwnLoginSettings(settings, blob)))]
-    }
-    case CodeCli.QWEN_CODE: {
-      const existing = await readAndParseDraftFile('qwen-settings', parseJsonOrThrow)
-      return [await makeDraftFile('qwen-settings', renderJsonFile(buildQwenOwnLoginConfig(existing, blob)))]
-    }
-    case CodeCli.KIMI_CODE: {
-      const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow)
-      return [await makeDraftFile('kimi-config', stringifyToml(buildKimiOwnLoginConfig(existing, blob)))]
-    }
-    default:
-      throw new Error(`Own-login config is not supported for ${cliTool}`)
+  const adapter = getAdapter(cliTool)
+  if (!adapter?.buildOwnLoginDraft) {
+    throw new Error(`Own-login config is not supported for ${cliTool}`)
   }
+  return adapter.buildOwnLoginDraft(sanitizeCliConfigBlob(cliTool, configBlob))
 }
 
 /**

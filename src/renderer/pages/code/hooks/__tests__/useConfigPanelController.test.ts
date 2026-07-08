@@ -35,7 +35,13 @@ vi.mock('../../cliConfig/applyContext', () => ({
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
 vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
-vi.mock('../../cliConfig/sanitize', () => ({ sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob }))
+// `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
+// Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
+// still resolves; override only the sanitizer this test asserts on.
+vi.mock('../../cliConfig/adapters', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../cliConfig/adapters')>()),
+  sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
+}))
 
 const { useConfigPanelController } = await import('../useConfigPanelController')
 
