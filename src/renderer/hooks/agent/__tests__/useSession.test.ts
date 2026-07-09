@@ -540,7 +540,7 @@ describe('useUpdateSession', () => {
         args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
         result: createSession()
       })
-    ).toEqual(['/agent-sessions', '/agent-sessions/latest', '/agent-sessions/session-1'])
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
   })
 
   it('refreshes workspaces through the dedicated workspace mutation', async () => {
@@ -567,7 +567,6 @@ describe('useUpdateSession', () => {
     }) => string[]
     expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
       '/agent-sessions',
-      '/agent-sessions/latest',
       '/agent-sessions/session-1',
       '/agent-workspaces'
     ])
@@ -630,7 +629,7 @@ describe('useAgentSessionAutoRenameSync', () => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
 
-    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/latest', '/agent-sessions/session-1'])
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
 
     unmount()
     expect(unsubscribe).toHaveBeenCalledOnce()

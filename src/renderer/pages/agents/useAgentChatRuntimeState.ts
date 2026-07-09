@@ -5,7 +5,6 @@ import {
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -130,7 +129,6 @@ export function useAgentChatRuntimeState({
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionId = session.id
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const invalidateCache = useInvalidateCache()
   const {
     messages: uiMessages,
     isLoading,
@@ -166,9 +164,7 @@ export function useAgentChatRuntimeState({
       trigger: 'submit-message',
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input)
-    }),
-    refreshMetadata: () =>
-      invalidateCache(['/agent-sessions', '/agent-sessions/latest', `/agent-sessions/${sessionId}`])
+    })
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {

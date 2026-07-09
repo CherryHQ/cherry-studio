@@ -67,10 +67,10 @@ const TopicBranchPanel: FC<Props> = ({
     query: { depth: -1 }
   })
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
-    refresh: [messagesCachePath, treeCachePath, '/topics/latest']
+    refresh: [messagesCachePath, treeCachePath]
   })
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
-    refresh: ['/topics', '/topics/latest']
+    refresh: ['/topics']
   })
 
   const tree = useMemo(

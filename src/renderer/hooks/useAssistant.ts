@@ -96,7 +96,7 @@ export function useAssistantMutations() {
     refresh: ({ args }) => [
       ...ASSISTANTS_REFRESH_KEYS,
       '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics', '/topics/latest'] as ConcreteApiPaths[]) : [])
+      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
     ]
   })
   const createTriggerRef = useRef(createTrigger)

@@ -2505,8 +2505,7 @@ describe('Sessions', () => {
     )
     expect(dataApiMocks.mutationOptions.get('PATCH /agent-workspaces/:workspaceId')?.refresh).toEqual([
       '/agent-workspaces',
-      '/agent-sessions',
-      '/agent-sessions/latest'
+      '/agent-sessions'
     ])
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
@@ -2575,7 +2574,6 @@ describe('Sessions', () => {
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([
       '/agent-sessions',
-      '/agent-sessions/latest',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'
@@ -2755,7 +2753,6 @@ describe('Sessions', () => {
     expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId')?.refresh).toEqual([
       '/agents',
       '/agent-sessions',
-      '/agent-sessions/latest',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'

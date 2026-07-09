@@ -912,14 +912,14 @@ const Sessions = ({
     'PATCH',
     '/agent-workspaces/:workspaceId',
     {
-      refresh: ['/agent-workspaces', '/agent-sessions', '/agent-sessions/latest']
+      refresh: ['/agent-workspaces', '/agent-sessions']
     }
   )
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-sessions/latest', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-sessions/latest', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })

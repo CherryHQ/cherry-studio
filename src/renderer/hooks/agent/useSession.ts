@@ -68,8 +68,13 @@ export const useSession = (sessionId: string | null) => {
  * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
  * last-touched session without waiting for the full session history to paginate
  * in and without depending on the `orderKey`-paged `/agent-sessions` list order.
- * `latestSession` is `undefined` while loading and when there are no sessions;
- * gate the restore decision on `isLoading`.
+ *
+ * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
+ * cache coherent would mean every updatedAt-bumping write invalidating it (an
+ * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
+ * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
+ * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * `latestSession` is `undefined` while loading and when there are no sessions.
  */
 export function useLatestSession(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
@@ -133,7 +138,7 @@ export const useSessions = (
     enabled
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions', { refresh: ['/agent-sessions/latest'] })
+  const { applyReorderedList } = useReorder('/agent-sessions')
 
   // AgentSessionService returns the persisted session order (`orderKey`, `id`).
   // The `/pins` map is composed in the renderer for row indicators, toggle
@@ -165,7 +170,7 @@ export const useSessions = (
   }, [hasMore, isLoadingMore, loadNext])
 
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-sessions/latest', '/agent-workspaces']
+    refresh: ['/agent-sessions', '/agent-workspaces']
   })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
@@ -198,11 +203,10 @@ export const useSessions = (
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    // Refresh `/agent-sessions/latest` so first-entry restore never resumes a just-deleted session.
-    refresh: ['/agent-sessions', '/agent-sessions/latest']
+    refresh: ['/agent-sessions']
   })
   const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-sessions/latest', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
@@ -244,7 +248,7 @@ export const useSessions = (
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
-    refresh: ['/agent-sessions', '/agent-sessions/latest']
+    refresh: ['/agent-sessions']
   })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
@@ -319,18 +323,13 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => [
-      '/agent-sessions',
-      '/agent-sessions/latest',
-      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
-    ]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
     refresh: ({ args }) => [
       '/agent-sessions',
-      '/agent-sessions/latest',
       `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
       '/agent-workspaces'
     ]
@@ -384,7 +383,7 @@ export function useAgentSessionAutoRenameSync() {
     const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
     if (!onAutoRenamed) return
     const unsubscribe = onAutoRenamed(({ sessionId }) => {
-      void invalidate(['/agent-sessions', '/agent-sessions/latest', `/agent-sessions/${sessionId}`])
+      void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
     })
     return () => {
       unsubscribe()

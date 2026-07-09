@@ -67,9 +67,7 @@ export interface UseTopicMessagesCacheParams {
 export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
-  const latestTopicCachePath = '/topics/latest' as const
   const branchCachePaths = [messagesCachePath, treeCachePath]
-  const activeNodeCachePaths = [messagesCachePath, treeCachePath, latestTopicCachePath]
 
   /**
    * Apply a transform to every page's `items` — suits delete / edit / patch
@@ -164,19 +162,19 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   // `$inf$`-prefixed cache keys (see `findMatchingInfiniteKeys`), so a
   // path-based refresh option covers the infinite cache entry too.
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
-    refresh: activeNodeCachePaths
+    refresh: branchCachePaths
   })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
-    refresh: activeNodeCachePaths
+    refresh: branchCachePaths
   })
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
-    refresh: activeNodeCachePaths
+    refresh: branchCachePaths
   })
   const { trigger: clearTopicMessagesTrigger } = useMutation('DELETE', '/topics/:topicId/messages', {
-    refresh: [messagesCachePath, latestTopicCachePath]
+    refresh: [messagesCachePath]
   })
 
   return {

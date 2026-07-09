@@ -544,7 +544,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
-      await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`, '/topics/latest'])
+      await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
       const targetTabId = chatNav.openConversationTab(topic.id)
       if (!targetTabId) {
         logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, messageId, topicId })

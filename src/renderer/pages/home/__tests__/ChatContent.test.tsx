@@ -447,7 +447,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(mockInvalidateCache).toHaveBeenCalledWith(['/topics', '/topics/latest', '/topics/topic-1'])
+      expect(mockInvalidateCache).toHaveBeenCalledWith(['/topics', '/topics/topic-1'])
     })
   })
 
@@ -1079,7 +1079,7 @@ describe('ChatContent', () => {
       'POST',
       '/messages/:id/siblings',
       expect.objectContaining({
-        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree', '/topics/latest']
+        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
       })
     )
   })
