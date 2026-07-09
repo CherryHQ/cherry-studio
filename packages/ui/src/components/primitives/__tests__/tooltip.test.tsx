@@ -215,12 +215,20 @@ describe('Tooltip', () => {
   })
 
   describe('arrow rendering', () => {
-    it('renders an arrow by default for TooltipContent', () => {
+    it('renders a fused pseudo-element arrow by default for TooltipContent', () => {
       renderOpenTooltipContent('compound tip')
 
-      const arrow = getTooltipContentElement('compound tip').querySelector('svg')
-      expect(arrow).toBeInTheDocument()
-      expect(arrow).toHaveClass('fill-neutral-900', 'stroke-neutral-900', 'stroke-2')
+      const content = getTooltipContentElement('compound tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
+      expect(content.className).toContain("before:content-['']")
+      expect(content).toHaveClass(
+        'relative',
+        'before:absolute',
+        'before:size-2',
+        'before:rotate-45',
+        'before:bg-neutral-900'
+      )
+      expect(content.className).toContain('data-[side=bottom]:data-[align=start]:before:left-3')
     })
 
     it('passes showArrow through NormalTooltip', () => {
@@ -230,13 +238,17 @@ describe('Tooltip', () => {
         </NormalTooltip>
       )
 
-      expect(getTooltipContentElement('normal tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('normal tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
+      expect(content.className).not.toContain("before:content-['']")
     })
 
     it('omits the arrow when TooltipContent disables it', () => {
       renderOpenTooltipContent('compound tip', { showArrow: false })
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('compound tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
+      expect(content.className).not.toContain("before:content-['']")
     })
   })
 
