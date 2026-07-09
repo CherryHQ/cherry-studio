@@ -244,6 +244,7 @@ export default function ModelSyncPreviewPanel({
                 <button
                   type="button"
                   className={modelSyncClasses.manageGroupToggle}
+                  aria-expanded={!row.collapsed}
                   onClick={() => toggleGroup(row.groupName)}>
                   <ChevronRight
                     className={cn(modelSyncClasses.manageGroupChevron, !row.collapsed && 'rotate-90')}
