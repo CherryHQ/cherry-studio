@@ -1040,5 +1040,73 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(mocks.listToolsForSnapshot).not.toHaveBeenCalled()
     })
+
+    it('reconciles the session snapshot and tool metadata once a timed-out warm completes', async () => {
+      // The refresh outlives the 3s cap; the cache-only listTools stays cold until it lands. Once it
+      // does, the SDK bridge may expose the tools, so the session snapshot + metadata must follow.
+      let resolveRefresh!: (tools: unknown[]) => void
+      mocks.listToolsForSnapshot.mockReturnValue(
+        new Promise<unknown[]>((resolve) => {
+          resolveRefresh = resolve
+        })
+      )
+      let cachedTools: Array<Record<string, unknown>> = []
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') {
+          return { listTools: vi.fn(() => cachedTools), listToolsForSnapshot: mocks.listToolsForSnapshot }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      vi.useFakeTimers()
+      const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+      try {
+        await vi.advanceTimersByTimeAsync(3_000)
+      } finally {
+        vi.useRealTimers()
+      }
+      const settings = await build
+
+      // Built from the cold cache: metadata is an empty (shared-by-reference) map, snapshot untouched.
+      expect(settings.mcpToolMetadata).toEqual({})
+      expect(snapshot.update).not.toHaveBeenCalled()
+
+      // The in-flight refresh lands: the reconciliation rebuilds the snapshot from the live agent
+      // and fills the same metadata object the settings (and stream adapter) hold.
+      cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
+      resolveRefresh(cachedTools)
+      await vi.waitFor(() => {
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(settings.mcpToolMetadata).toMatchObject({
+          'mcp__srv-a__tool_x': expect.objectContaining({ name: 'tool_x', serverId: 'srv-a' })
+        })
+      })
+    })
+
+    it('registers no reconciliation when the warm completes within the cap', async () => {
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(snapshot.update).not.toHaveBeenCalled()
+      expect(settings.mcpToolMetadata).toBeUndefined()
+    })
   })
 })
