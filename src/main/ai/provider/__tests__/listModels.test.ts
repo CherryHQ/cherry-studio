@@ -262,6 +262,79 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
   })
 })
 
+describe('listModels — newApiFetcher endpoint types', () => {
+  it('maps supported_endpoint_types from NewAPI model responses', async () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://newapi.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'agent/deepseek-v3.2',
+            object: 'model',
+            created: 1626777600,
+            owned_by: 'custom',
+            supported_endpoint_types: [
+              'openai',
+              'openai-response',
+              'openai-response-compact',
+              'anthropic',
+              'gemini',
+              'jina-rerank',
+              'image-generation',
+              'image-edit'
+            ]
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'agent/deepseek-v3.2',
+      ownedBy: 'custom',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.JINA_RERANK,
+        ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      ]
+    })
+  })
+
+  it('routes aionly through the NewAPI-compatible model parser', async () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aionly.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'deepseek-v3.2',
+            supported_endpoint_types: ['anthropic']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+})
+
 describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
   function makeGatewayProvider() {
     return makeProvider({

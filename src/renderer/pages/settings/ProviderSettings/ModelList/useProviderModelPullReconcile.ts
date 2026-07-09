@@ -5,6 +5,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import {
   fetchProviderCatalogModels,
   fetchResolvedProviderModels,
+  resolveCreateModelEndpointTypes,
   toCreateModelDto
 } from '@renderer/pages/settings/ProviderSettings/utils/modelSync'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
@@ -126,7 +127,9 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       try {
-        await createModels(toAdd.map((model) => toCreateModelDto(providerId, model)))
+        await createModels(
+          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model)))
+        )
         await enableProviderWhenModelsAvailable(
           provider,
           updateProvider,

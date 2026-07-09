@@ -14,11 +14,13 @@ const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
 const fetchProviderCatalogModelsMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
-const toCreateModelDtoMock = vi.fn((providerId, model) => ({
+const resolveCreateModelEndpointTypesMock = vi.fn()
+const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
   providerId,
   modelId: model.apiModelId,
   name: model.name,
-  group: model.group
+  group: model.group,
+  endpointTypes
 }))
 const updateProviderMock = vi.fn()
 const useModelsMock = vi.fn()
@@ -42,7 +44,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/modelSync', () => ({
   fetchProviderCatalogModels: (providerId: string) => fetchProviderCatalogModelsMock(providerId),
   fetchResolvedProviderModels: (providerId: string) => fetchResolvedProviderModelsMock(providerId),
-  toCreateModelDto: (providerId: string, model: any) => toCreateModelDtoMock(providerId, model)
+  resolveCreateModelEndpointTypes: (...args: any[]) => resolveCreateModelEndpointTypesMock(...args),
+  toCreateModelDto: (providerId: string, model: any, endpointTypes: any) =>
+    toCreateModelDtoMock(providerId, model, endpointTypes)
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerEnablement', () => ({
@@ -91,6 +95,7 @@ describe('useProviderModelPullReconcile', () => {
     enableProviderWhenModelsAvailableMock.mockResolvedValue(false)
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
     fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
+    resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
     useModelsMock.mockReturnValue({ models: [localModel] })
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false },
@@ -127,9 +132,11 @@ describe('useProviderModelPullReconcile', () => {
         providerId: 'openai',
         modelId: 'fetched-model',
         name: 'Fetched Model',
-        group: 'OpenAI'
+        group: 'OpenAI',
+        endpointTypes: undefined
       }
     ])
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedModel)
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
       { id: 'openai', isEnabled: false },
       updateProviderMock,

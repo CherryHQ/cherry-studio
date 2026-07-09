@@ -4,6 +4,8 @@ import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('ProviderModelSync')
@@ -22,6 +24,22 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
+type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+
+export function resolveCreateModelEndpointTypes(
+  provider: ModelSyncProviderEndpointSource | null | undefined,
+  model: Pick<Model, 'endpointTypes'>
+): RuntimeEndpointType[] | undefined {
+  if (model.endpointTypes?.length) {
+    return [...model.endpointTypes]
+  }
+
+  if (!provider || !isNewApiProvider(provider as Provider)) {
+    return undefined
+  }
+
+  return provider.defaultChatEndpoint ? [provider.defaultChatEndpoint] : undefined
+}
 
 export function toCreateModelDto(
   providerId: string,
@@ -29,13 +47,14 @@ export function toCreateModelDto(
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
-    ...(endpointTypes ? { endpointTypes } : model.endpointTypes ? { endpointTypes: model.endpointTypes } : {})
+    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
 
@@ -98,6 +117,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
     const merged = { ...base }
     for (const field of REGISTRY_FIELDS) {
+      if (field === 'endpointTypes' && base.endpointTypes?.length) {
+        continue
+      }
+
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value

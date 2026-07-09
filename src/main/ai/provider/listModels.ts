@@ -15,7 +15,7 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
@@ -395,9 +395,40 @@ const togetherFetcher: ModelFetcher = {
   }
 }
 
+type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'][number]
+
+const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+}
+
+function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
+  if (!values?.length) {
+    return undefined
+  }
+
+  const endpointTypes = dedup(
+    values
+      .map((value) => ENDPOINT_TYPE_ALIASES[value.trim().toLowerCase()])
+      .filter((value): value is EndpointType => Boolean(value)),
+    (value) => value
+  )
+
+  return endpointTypes.length > 0 ? endpointTypes : undefined
+}
+
 const newApiFetcher: ModelFetcher = {
   match: (p) =>
-    p.id === SystemProviderIds['new-api'] || p.presetProviderId === 'new-api' || p.id === SystemProviderIds.cherryin,
+    p.id === SystemProviderIds['new-api'] ||
+    p.presetProviderId === 'new-api' ||
+    p.id === SystemProviderIds.cherryin ||
+    p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
@@ -406,7 +437,12 @@ const newApiFetcher: ModelFetcher = {
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) =>
+      toModel(m.id, provider, {
+        ownedBy: m.owned_by,
+        endpointTypes: normalizeEndpointTypes(m.supported_endpoint_types)
+      })
+    )
   }
 }
 
