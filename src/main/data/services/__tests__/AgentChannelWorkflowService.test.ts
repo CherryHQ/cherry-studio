@@ -20,13 +20,17 @@ const {
   getChannelMock,
   updateChannelMock,
   deleteChannelMock,
-  clearTaskSubscriptionsForChannelMock
+  clearTaskSubscriptionsForChannelMock,
+  getSubscribedTasksMock,
+  subscribeToTaskMock
 } = vi.hoisted(() => ({
   createChannelMock: vi.fn(),
   getChannelMock: vi.fn(),
   updateChannelMock: vi.fn(),
   deleteChannelMock: vi.fn(),
-  clearTaskSubscriptionsForChannelMock: vi.fn()
+  clearTaskSubscriptionsForChannelMock: vi.fn(),
+  getSubscribedTasksMock: vi.fn(),
+  subscribeToTaskMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -35,7 +39,9 @@ vi.mock('@data/services/AgentChannelService', () => ({
     getChannel: getChannelMock,
     updateChannel: updateChannelMock,
     deleteChannel: deleteChannelMock,
-    clearTaskSubscriptionsForChannel: clearTaskSubscriptionsForChannelMock
+    clearTaskSubscriptionsForChannel: clearTaskSubscriptionsForChannelMock,
+    getSubscribedTasks: getSubscribedTasksMock,
+    subscribeToTask: subscribeToTaskMock
   }
 }))
 
@@ -226,10 +232,11 @@ describe('AgentChannelWorkflowService', () => {
       )
     })
 
-    it('re-clears task subscriptions after rolling back a failed agentId rebind', async () => {
+    it('restores task subscriptions after rolling back a failed agentId rebind', async () => {
       const existing = makeChannel({ agentId: 'agent-1' })
       const updated = makeChannel({ agentId: 'agent-2' })
       getChannelMock.mockReturnValue(existing)
+      getSubscribedTasksMock.mockReturnValue(['task-1', 'task-2'])
       updateChannelMock.mockReturnValueOnce(updated).mockReturnValueOnce(existing)
       syncChannelMock.mockRejectedValue(new Error('sync failed'))
 
@@ -237,9 +244,32 @@ describe('AgentChannelWorkflowService', () => {
         'sync failed'
       )
 
+      expect(getSubscribedTasksMock).toHaveBeenCalledWith('ch-1')
       expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledTimes(2)
       expect(clearTaskSubscriptionsForChannelMock).toHaveBeenNthCalledWith(1, 'ch-1')
       expect(clearTaskSubscriptionsForChannelMock).toHaveBeenNthCalledWith(2, 'ch-1')
+      expect(subscribeToTaskMock).toHaveBeenCalledTimes(2)
+      expect(subscribeToTaskMock).toHaveBeenNthCalledWith(1, 'ch-1', 'task-1')
+      expect(subscribeToTaskMock).toHaveBeenNthCalledWith(2, 'ch-1', 'task-2')
+    })
+
+    it('keeps task subscriptions cleared when rollback row restore fails after agentId rebind', async () => {
+      const existing = makeChannel({ agentId: 'agent-1' })
+      const updated = makeChannel({ agentId: 'agent-2' })
+      getChannelMock.mockReturnValue(existing)
+      getSubscribedTasksMock.mockReturnValue(['task-1'])
+      updateChannelMock.mockReturnValueOnce(updated).mockImplementationOnce(() => {
+        throw new Error('restore failed')
+      })
+      syncChannelMock.mockRejectedValue(new Error('sync failed'))
+
+      await expect(agentChannelWorkflowService.updateChannel('ch-1', { agentId: 'agent-2' })).rejects.toThrow(
+        'sync failed'
+      )
+
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledTimes(1)
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledWith('ch-1')
+      expect(subscribeToTaskMock).not.toHaveBeenCalled()
     })
 
     it('rejects discord-shaped config when existing channel is telegram (cross-type guard)', async () => {
