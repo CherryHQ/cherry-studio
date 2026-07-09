@@ -1,10 +1,9 @@
 // PROMPTS backup contributor — owns the `prompt` table (uuid-v4 PK).
 //
 // Co-located in the prompts owning module (PromptService lives in this flat
-// data-services dir) per backup-architecture §7 / contributor-framework
-// "contributor placement" — domain facts stay with the domain, never centralized
-// in the backup module. Schema-only domain: no aggregate members, no operations
-// hooks, no file/JSON soft-refs (see openspec simple-domains.md "PROMPTS").
+// data-services dir) per backup-architecture §7 placement — domain facts stay
+// with the domain, never centralized in the backup module. Schema-only domain:
+// no aggregate members, no operations hooks, no file/JSON soft-refs.
 //
 // Preset: full + lite.
 

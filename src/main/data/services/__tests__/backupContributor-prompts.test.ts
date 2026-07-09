@@ -1,6 +1,5 @@
 // Unit tests for the PROMPTS contributor — pure declaration assertions (no DB),
-// co-located in the prompts owning module per contributor-testing.md
-// "contributor 单元测试（每域 __tests__/）".
+// co-located in the prompts owning module (per-domain __tests__ convention).
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 

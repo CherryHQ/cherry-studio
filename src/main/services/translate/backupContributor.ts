@@ -5,7 +5,7 @@
 // member relationship): translate_history rows carry their own uuid-v7 id and
 // may reference zero/one/two languages, so they are not owned by a langCode root
 // — treating them as a member would wrongly drop history rows on langCode-group
-// SKIP/FIELD_MERGE (see openspec simple-domains.md "TRANSLATE_HISTORY").
+// SKIP/FIELD_MERGE.
 //
 // Preset: full only (history excluded from lite).
 

@@ -6,8 +6,7 @@
 // the polymorphic `entity_tag` (composite [entityType, entityId, tagId]) and
 // `pin` tables — a RENAME clone would leave those polymorphic soft-refs pointing
 // at the old id (design §2.5: cross-aggregate polymorphic soft-refs are NOT
-// remapped), so RENAME degrades to SKIP (see openspec config-domains.md
-// "TAGS_GROUPS").
+// remapped), so RENAME degrades to SKIP.
 //
 // `entity_tag` is owned but intentionally NOT an aggregate member (polymorphic
 // junction; #25 exempts it from FK-declaration, #14 does not derive it as a
@@ -70,9 +69,9 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   // entityType) into topics/sessions/knowledge/file/painting. In lite restore —
   // TAGS_GROUPS included while KNOWLEDGE/FILE_STORAGE/PAINTINGS are excluded — the
   // importer MUST drop pin/entity_tag rows whose target domain is omitted, else
-  // tags/pins attach to non-existent entities (openspec config-domains.md
-  // "TAGS_GROUPS" selected-domain 过滤; the entityType→domain mapping must be
-  // exhaustive — a coverage/finalize check). Not a finalize concern; wired with the
+  // tags/pins attach to non-existent entities; the entityType→domain mapping must
+  // be exhaustive (a coverage/finalize check, plus selected-domain filtering on
+  // restore). Not a finalize concern; wired with the
   // C/D restore track.
   operations: undefined
 })

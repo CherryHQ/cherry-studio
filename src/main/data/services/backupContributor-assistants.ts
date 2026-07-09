@@ -8,8 +8,7 @@
 // config). The two junction tables are include members (via assistantId), NOT
 // junction references, because the assistantId side is the same-domain owning
 // leg that remaps on clone; their cross-domain legs (mcpServerId / knowledgeBaseId)
-// are declared as junction references (dual cascade-prune) — see openspec
-// config-domains.md "ASSISTANTS".
+// are declared as junction references (dual cascade-prune).
 //
 // Preset: full + lite.
 
