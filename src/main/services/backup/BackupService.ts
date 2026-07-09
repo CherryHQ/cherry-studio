@@ -69,7 +69,7 @@ export class BackupService extends BaseService {
   private readonly _onProgress = new Emitter<BackupProgressUpdate>()
   /** The single active export (null when idle). */
   private activeExport: ActiveExport | null = null
-  /** Service logger — Notes-root fallback warnings land here so they are observable. */
+  /** Service logger for backup lifecycle / export diagnostics. */
   private readonly logger = loggerService.withContext('backup')
 
   protected onInit(): void {
@@ -254,13 +254,13 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Resolve the effective Notes markdown root for backup. Mirrors the renderer's
-   * resolveNotesPath (NotesService.ts): the user-visible Notes dir is the
-   * feature.notes.path preference when set + valid, else the managed default
-   * (feature.notes.data, a static path namespace). Backup must scan the same root
-   * the user sees — hard-wiring the default would silently miss the notes of anyone
-   * who configured a custom dir (e.g. ~/Documents/MyNotes). Called per export so a
-   * mid-session preference change takes effect on the next backup.
+   * Resolve the effective Notes markdown root for backup. The user-visible Notes
+   * dir is `feature.notes.path` when set, else the managed default
+   * (`feature.notes.data`). Backup MUST scan the same root the user configured —
+   * falling back to the managed default when a custom path is set but unavailable
+   * would produce a successful archive whose `note` overlay rows still point at
+   * the custom `rootPath` while bodies came from the wrong tree. Called per export
+   * so a mid-session preference change takes effect on the next backup.
    */
   private resolveNotesRoot(): string {
     const defaultRoot = application.getPath('feature.notes.data')
@@ -270,24 +270,21 @@ export class BackupService extends BaseService {
     if (!pref) return defaultRoot
     const candidate = resolve(pref)
     if (candidate === defaultRoot) return defaultRoot
-    // Validate the custom dir exists, is a directory, and is readable. An
-    // inaccessible custom dir falls back to the managed default — matching the
-    // renderer, which shows the default Notes tree when the configured dir is
-    // unavailable. Warn so the fallback is observable rather than a silent
-    // partial backup. readdirSync catches mode-000 / EACCES dirs that still
-    // pass isDirectory() via stat.
+    // Custom path is set: require a readable directory. Do NOT fall back to the
+    // managed default — that would silently omit the user's real notes while
+    // still exporting note overlay rows keyed to the custom rootPath.
     try {
-      if (statSync(candidate).isDirectory()) {
-        readdirSync(candidate)
-        return candidate
+      if (!statSync(candidate).isDirectory()) {
+        throw new Error(`custom Notes root is not a directory: ${candidate}`)
       }
-    } catch {
-      // stat/readdir failed (missing / permission) — fall through to default + warn.
+      readdirSync(candidate)
+      return candidate
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(
+        `custom Notes root unavailable (${code ?? 'unknown'}): ${candidate} — ${detail}`
+      )
     }
-    this.logger.warn('custom Notes root unavailable, backing up the managed default', {
-      candidate,
-      defaultRoot
-    })
-    return defaultRoot
   }
 }

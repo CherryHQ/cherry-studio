@@ -9,7 +9,7 @@
 //   - feature.files.data         (internal blobs: <id>.<ext>)
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
-import { copyFile, cp, mkdir, rm, stat } from 'node:fs/promises'
+import { copyFile, cp, mkdir, realpath, rm, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
 import { loggerService } from '@logger'
@@ -240,6 +240,15 @@ export class SqliteFileStager implements FileStager {
     if (relPaths.size === 0) return { paths: [], missing: [] }
     await mkdir(destDir, { recursive: true })
 
+    // Canonical notes root for realpath containment — blocks copy through a
+    // junction/symlink whose lexical path is under notesRoot but resolves outside.
+    let realRoot: string
+    try {
+      realRoot = await realpath(notesRoot)
+    } catch {
+      realRoot = resolve(notesRoot)
+    }
+
     const staged: string[] = []
     const missing: string[] = []
     for (const rel of relPaths) {
@@ -254,6 +263,21 @@ export class SqliteFileStager implements FileStager {
         continue
       }
       const src = join(notesRoot, rel)
+      // realpath follows junctions/symlinks; refuse sources that land outside root.
+      try {
+        const realSrc = await realpath(src)
+        if (!isPathInside(realSrc, realRoot)) {
+          logger.warn('stageNotes: source realpath outside notes root skipped', {
+            rel,
+            realSrc,
+            notesRoot
+          })
+          missing.push(rel)
+          continue
+        }
+      } catch {
+        // Missing / unreadable — copyFile below classifies ENOENT vs hard errors.
+      }
       const dest = join(destDir, rel)
       // Ensure the destination sub-directory exists (rel may be `sub/note.md`).
       await mkdir(dirname(dest), { recursive: true })
