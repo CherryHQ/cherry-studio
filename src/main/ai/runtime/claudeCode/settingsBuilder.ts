@@ -77,6 +77,8 @@ const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
 const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
+const HEADLESS_INTERACTIVE_TOOL_DENIAL =
+  'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'rename',
   'add_channel',
@@ -255,7 +257,6 @@ async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
-  headless?: boolean
   thinkingOptions?: {
     effort?: 'low' | 'medium' | 'high' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
@@ -689,16 +690,14 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless interactive-tool denial at fire time.
+    // headless interactive-tool denial at fire time. Mirrored by `headlessInteractiveToolHook` so the
+    // denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`; this
+    // branch stays so an interactive follow-up on a warm connection can still reach the approval path.
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
     ) {
-      return {
-        behavior: 'deny',
-        message:
-          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
-      }
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
@@ -777,6 +776,24 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
+  // mode — the `canUseTool` branch above is skipped for auto-approved paths (bypassPermissions /
+  // acceptEdits), which a migrated autonomy agent may run in. Resolves headless state by session id at
+  // fire-time so a warm connection reused across interactive and headless turns is judged per-turn.
+  const headlessInteractiveToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+      }
+    }
+  }
+
   const headlessConfigMutationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
@@ -852,7 +869,16 @@ async function buildToolPermissions(
     canUseTool,
     hooks: {
       PreToolUse: [
-        { hooks: [headlessConfigMutationHook, disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }
+        {
+          hooks: [
+            headlessInteractiveToolHook,
+            headlessConfigMutationHook,
+            disabledToolHook,
+            dependencyIsolationHook,
+            rtkRewriteHook,
+            steerHook
+          ]
+        }
       ]
     },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative

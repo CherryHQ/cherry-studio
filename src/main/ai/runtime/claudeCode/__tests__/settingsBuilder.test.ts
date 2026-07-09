@@ -436,10 +436,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { headless: true })
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    // Busy interactive follow-ups may reuse a headless-created connection. Keep these denials in
-    // the per-turn canUseTool gate so the next interactive turn can recover without reconnecting.
+    // Busy interactive follow-ups may reuse a warm connection. Keep these denials in the per-turn
+    // canUseTool gate / PreToolUse hook so the next interactive turn can recover without reconnecting.
     expect(settings.disallowedTools ?? []).not.toEqual(
       expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
     )
@@ -474,6 +474,70 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     }
     expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+  })
+
+  it('denies interactive no-responder tools via PreToolUse so the gate fires under bypassPermissions', async () => {
+    // The SDK skips `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits), so the
+    // per-turn denial must also run as a PreToolUse hook (which fires in every permission mode) or a
+    // headless bypass run could reach AskUserQuestion / EnterPlanMode and stall on a prompt no one answers.
+    const isCurrentTurnHeadless = vi.fn(() => true)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    for (const toolName of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree']) {
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+      expect(results).toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+    }
+    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+  })
+
+  it('does not deny interactive tools via PreToolUse for the current interactive turn', async () => {
+    const isCurrentTurnHeadless = vi.fn(() => false)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const results = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: {} } as never,
+          'tool-use-1',
+          {} as never
+        )
+      )
+    )
+    expect(results).not.toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
   })
 
   it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
@@ -589,9 +653,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(5) // headlessConfigMutationHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(6)
 
-    const steerHook = preToolUse![4] as unknown as (input: {
+    const steerHook = preToolUse![5] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -623,7 +688,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![4] as unknown as (input: {
+    const steerHook = preToolUse![5] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()

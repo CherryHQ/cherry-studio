@@ -46,8 +46,7 @@ interface ClaudeCodeRuntimeRoute {
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
-  effectiveResume?: string,
-  sessionOptions: { headless?: boolean } = {}
+  effectiveResume?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -65,8 +64,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(session, provider, {
-      lastAgentSessionId: resumeSessionId,
-      headless: sessionOptions.headless === true
+      lastAgentSessionId: resumeSessionId
     }),
     route
   )

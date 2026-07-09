@@ -111,15 +111,10 @@ type AgentSessionRuntimeEntry = {
   agentId: string
   agentType: string
   modelId: UniqueModelId
-  headless?: boolean
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
-  /** The `headless` mode {@link connection} was built with. `beginTurn` compares it against an incoming
-   *  turn's headless flag to detect a baked-policy mismatch (a headless scheduled/channel run reusing a
-   *  primed non-headless connection whose Claude settings still allow AskUserQuestion) and rebuild. */
-  connectionHeadless?: boolean
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
@@ -230,37 +225,27 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (existing?.status === 'idle') {
-      const headless = input.headless === true
-      // The live (or in-flight) connection bakes `headless` into its Claude settings — notably the
-      // AskUserQuestion disallow for responder-less runs. A primed connection is always built
-      // non-headless, so a scheduled/channel run reusing an idle interactive session would inherit the
-      // permissive policy and could stall on AskUserQuestion. When the turn needs a different mode than
-      // the connection was built for, drop it and rebuild (fall through to fresh-entry creation) rather
-      // than reuse; the resume token is re-hydrated on reconnect, so conversation context survives.
-      const builtHeadless = existing.connection ? existing.connectionHeadless === true : existing.headless === true
-      const canReuse = !(existing.connection || existing.connecting) || builtHeadless === headless
+      // A warm connection is always safe to reuse: per-turn headless enforcement lives in `canUseTool`
+      // and PreToolUse hooks (resolved by session id at fire-time via `isCurrentTurnHeadless`), so the
+      // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
+      this.clearIdleTimer(existing)
+      existing.pendingTurns = []
+      existing.topicId = input.topicId
+      existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
+      existing.agentId = input.agentId
+      existing.agentType = input.agentType
+      existing.modelId = input.modelId
+      existing.status = 'active'
+      existing.currentTurn = turn
 
-      if (canReuse) {
-        this.clearIdleTimer(existing)
-        existing.pendingTurns = []
-        existing.topicId = input.topicId
-        existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
-        existing.agentId = input.agentId
-        existing.agentType = input.agentType
-        existing.modelId = input.modelId
-        existing.headless = headless
-        existing.status = 'active'
-        existing.currentTurn = turn
-
-        return {
-          listeners: [
-            this.createPersistenceListener(existing, userMessage),
-            new AgentSessionRuntimeTerminalListener(this, input.sessionId),
-            new TraceFlushListener(input.topicId)
-          ],
-          turnId,
-          abortController: turn.abortController
-        }
+      return {
+        listeners: [
+          this.createPersistenceListener(existing, userMessage),
+          new AgentSessionRuntimeTerminalListener(this, input.sessionId),
+          new TraceFlushListener(input.topicId)
+        ],
+        turnId,
+        abortController: turn.abortController
       }
     }
 
@@ -273,7 +258,6 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
-      headless: input.headless === true,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -652,7 +636,6 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: entry.agentId,
       modelId: entry.modelId,
       resumeToken: entry.lastResumeToken,
-      headless: entry.headless === true,
       trace: this.sessionTraceContext(entry)
     })
     if (!this.isCurrentEntry(entry)) {
@@ -663,13 +646,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
-    entry.connectionHeadless = entry.headless === true
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
         entry.connection = undefined
-        entry.connectionHeadless = undefined
       }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
@@ -1249,7 +1230,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     const connection = entry.connection
     entry.connection = undefined
-    entry.connectionHeadless = undefined
     entry.connectionLoop = undefined
     return connection
   }

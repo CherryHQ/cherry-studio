@@ -440,41 +440,17 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('rebuilds instead of reusing an idle non-headless connection for a headless run', () => {
-    // A primed/interactive connection is built non-headless (AskUserQuestion allowed). Reusing it for a
-    // headless (scheduled/channel) run would leave AskUserQuestion enabled and stall on a prompt no one
-    // answers. beginTurn must drop the stale connection and rebuild with the headless policy.
+  it('reuses an idle connection for a headless run regardless of the mode it was built in', () => {
+    // Per-turn headless enforcement lives in `canUseTool` / PreToolUse hooks (resolved by session id at
+    // fire-time via `isCurrentTurnHeadless`), so the warm connection's baked settings no longer vary by
+    // headless mode and never need a mismatch rebuild — an interactive-primed connection is safe to
+    // reuse for a scheduled/channel run, which keeps the resume token and avoids a reconnect.
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     const connection = { close: vi.fn(), send: vi.fn(), events: [] }
     entry.lastResumeToken = 'resume-1'
     entry.connection = connection
-    entry.connectionHeadless = false
-
-    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
-    const second = service.beginTurn({
-      ...baseTurnInput,
-      assistantMessageId: 'assistant-2',
-      userMessage: userMessage('user-2'),
-      headless: true
-    })
-
-    expect(second).not.toBe(first)
-    expect(connection.close).toHaveBeenCalledOnce()
-    const rebuilt = getEntry(service)
-    expect(rebuilt.connection).toBeUndefined() // torn down; ensureConnection rebuilds with headless baked in
-    expect(rebuilt.headless).toBe(true)
-  })
-
-  it('reuses an idle headless connection for another headless run', () => {
-    const service = new AgentSessionRuntimeService()
-    const first = service.beginTurn({ ...baseTurnInput, headless: true })
-    const entry = getEntry(service)
-    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
-    entry.lastResumeToken = 'resume-1'
-    entry.connection = connection
-    entry.connectionHeadless = true
 
     void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
     const second = service.beginTurn({
@@ -487,35 +463,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(second).not.toBe(first)
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
-    expect(getEntry(service).headless).toBe(true)
-  })
-
-  it('rebuilds instead of reusing an idle in-flight (connecting) non-headless connection for a headless run', () => {
-    // No live connection yet — a non-headless connect is still in flight (`connecting` set, `connection`
-    // undefined). A headless run must not latch onto that pending non-headless connection; it should tear
-    // the entry down and rebuild with the headless policy baked in.
-    const service = new AgentSessionRuntimeService()
-    const first = service.beginTurn(baseTurnInput)
-    const entry = getEntry(service)
-    entry.lastResumeToken = 'resume-1'
-
-    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
-    // Simulate primeConnection still mid-connect, built non-headless (never resolves in this test).
-    entry.connection = undefined
-    entry.connecting = new Promise<boolean>(() => {})
-    entry.headless = false
-
-    const second = service.beginTurn({
-      ...baseTurnInput,
-      assistantMessageId: 'assistant-2',
-      userMessage: userMessage('user-2'),
-      headless: true
-    })
-
-    expect(second).not.toBe(first)
-    const rebuilt = getEntry(service)
-    expect(rebuilt.connecting).toBeUndefined() // stale in-flight connect dropped; fresh entry rebuilds headless
-    expect(rebuilt.headless).toBe(true)
+    expect(getEntry(service).currentTurn.headless).toBe(true)
   })
 
   it('applies tool-policy updates when disabled tools change', async () => {
@@ -1339,7 +1287,6 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         resumeToken: undefined,
-        headless: false,
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -1392,7 +1339,6 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         resumeToken: 'resume-db',
-        headless: false,
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
