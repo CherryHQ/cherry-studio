@@ -156,4 +156,27 @@ describe('ActionRegistry', () => {
       { id: 'move-Gamma', label: 'Gamma' }
     ])
   })
+
+  it('executes command-backed dynamic nested actions from context', async () => {
+    const registry = createActionRegistry<TestContext & { targets: string[] }>()
+    const run = vi.fn()
+
+    registry.registerCommand({
+      id: 'move',
+      run: ({ run }) => run('move')
+    })
+    registry.registerAction({
+      id: 'move-menu',
+      label: 'Move',
+      children: ({ targets }) =>
+        targets.map((target) => ({
+          id: `move-${target}`,
+          commandId: 'move',
+          label: target
+        }))
+    })
+
+    await expect(registry.execute('move-Beta', { run, targets: ['Beta'] })).resolves.toBe(true)
+    expect(run).toHaveBeenCalledWith('move')
+  })
 })
