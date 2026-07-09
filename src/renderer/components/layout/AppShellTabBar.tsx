@@ -497,7 +497,10 @@ export const AppShellTabBar = ({
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          className={cn(
+            'flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden',
+            leftInset === 'platform' && 'pl-1'
+          )}>
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

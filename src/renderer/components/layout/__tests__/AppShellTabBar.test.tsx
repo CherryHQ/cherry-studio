@@ -268,9 +268,13 @@ describe('AppShellTabBar', () => {
     )
 
     const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
 
     expect(header).toHaveClass('pl-0')
     expect(header).not.toHaveClass('pl-3')
+    expect(tabStrip).toHaveClass('pr-1')
+    expect(tabStrip).not.toHaveClass('px-1')
+    expect(tabStrip).not.toHaveClass('pl-1')
   })
 
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
