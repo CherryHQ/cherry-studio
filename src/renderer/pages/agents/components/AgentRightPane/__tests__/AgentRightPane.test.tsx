@@ -272,9 +272,7 @@ describe('AgentRightPane', () => {
         id: 'm1',
         role: 'assistant',
         parts,
-        metadata: {},
-        createdAt: '2026-05-21T00:00:00.000Z',
-        updatedAt: '2026-05-21T00:00:00.000Z'
+        metadata: {}
       }
     ] as CherryUIMessage[]
 
