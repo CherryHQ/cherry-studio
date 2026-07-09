@@ -341,11 +341,9 @@ function ShellTabShortcut({
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
   const { state, actions } = useShell()
-  const { t } = useTranslation()
   const active = state.open && state.activeTab === tab
   const togglesActive = openBehavior === 'toggle-active'
-  const closeLabel = t('common.close_sidebar')
-  const ariaLabel = togglesActive && active ? closeLabel : label
+  const ariaLabel = label
   const tooltipContent = tooltip === false ? false : (tooltip ?? ariaLabel)
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -400,19 +398,53 @@ function ShellTabs({ children }: { children: ReactNode }) {
 }
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
-// `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
-// pane is open; ConversationShell hides its closed-state topbar cluster in that state so the
-// cluster doesn't sit on top of this header.
-function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
+// `extraTrailing` hosts pane-header-only controls. Consumers that keep pane entries outside the
+// pane can switch this header to title mode and leave the entry cluster in ConversationShell.
+function ShellTabList({
+  children,
+  extraTrailing,
+  title,
+  showTabs = true
+}: {
+  children: ReactNode
+  extraTrailing?: ReactNode
+  title?: ReactNode
+  showTabs?: boolean
+}) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
   const { mode } = useWindowFrame()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
+  const closeLabel = t('common.close_sidebar')
   // When the pane is maximized inside a sub-window, this header becomes the window's top edge
   // — clear the macOS traffic lights and let the user drag the window from the tab strip,
   // matching ConversationShellTopBar.
   const isWindowTopBar = state.maximized && mode === 'window'
+  const maximizeButton = (
+    <Tooltip content={maximizeLabel} delay={800}>
+      <NavbarIcon
+        tone="conversation"
+        className="[&_svg]:!size-3.5 shrink-0"
+        aria-label={maximizeLabel}
+        aria-pressed={state.maximized}
+        onClick={actions.toggleMaximized}>
+        <MaximizeIcon />
+      </NavbarIcon>
+    </Tooltip>
+  )
+  const closeButton = (
+    <Tooltip content={closeLabel} delay={800}>
+      <NavbarIcon
+        tone="conversation"
+        className="[&_svg]:!size-3.5 shrink-0"
+        aria-label={closeLabel}
+        onClick={() => actions.close()}>
+        <X />
+      </NavbarIcon>
+    </Tooltip>
+  )
+
   return (
     <div
       data-testid="shell-tab-list"
@@ -423,21 +455,30 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
         isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
       )}>
-      <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
-        <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
-      </HorizontalScrollContainer>
+      {showTabs ? (
+        <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
+          <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
+        </HorizontalScrollContainer>
+      ) : (
+        <div
+          data-testid="shell-tab-title"
+          className="min-w-0 flex-1 truncate px-1 font-medium text-foreground text-sm [-webkit-app-region:no-drag]">
+          {title}
+        </div>
+      )}
       <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-        <Tooltip content={maximizeLabel} delay={800}>
-          <NavbarIcon
-            tone="conversation"
-            className="[&_svg]:!size-3.5 shrink-0"
-            aria-label={maximizeLabel}
-            aria-pressed={state.maximized}
-            onClick={actions.toggleMaximized}>
-            <MaximizeIcon />
-          </NavbarIcon>
-        </Tooltip>
-        {extraTrailing}
+        {showTabs ? (
+          <>
+            {maximizeButton}
+            {extraTrailing}
+          </>
+        ) : (
+          <>
+            {extraTrailing}
+            {maximizeButton}
+            {closeButton}
+          </>
+        )}
       </div>
     </div>
   )

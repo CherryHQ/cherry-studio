@@ -523,7 +523,7 @@ describe('Shell.TabShortcut', () => {
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
   })
 
-  it('can stay visible while open and expose close semantics for the active tab', () => {
+  it('can stay visible while open and close the active tab without changing its view label', () => {
     render(
       <Shell defaultTab="files">
         <Shell.TabShortcut
@@ -539,10 +539,10 @@ describe('Shell.TabShortcut', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Files' }))
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
-    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'common.close_sidebar' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
     expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
@@ -667,6 +667,30 @@ describe('Shell.TabList', () => {
     expect(cluster).not.toBeNull()
     expect(cluster).toContainElement(maximize)
     expect(maximize.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders a title-mode header with pane-level maximize and close controls', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Tabs>
+          <Shell.TabList title="Files" showTabs={false}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Files')
+    expect(screen.queryByTestId('shell-tab-scroll-container')).toBeNull()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+
+    const closeButton = screen.getByRole('button', { name: 'common.close_sidebar' })
+    expect(closeButton).not.toHaveAttribute('data-shell-tab-shortcut')
+
+    fireEvent.click(closeButton)
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
   })
 
   it('promotes the header to a drag region when maximized inside a sub-window', () => {

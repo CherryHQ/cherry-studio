@@ -5,10 +5,10 @@ import {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneShortcut,
   ResourcePaneTab,
   Shell,
   type ShellTabShortcutOpenBehavior,
+  useResourcePane,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -137,6 +137,7 @@ function TopicRightPaneSurface({
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
+  const resourcePane = useResourcePane()
   const hasBranchPanel = !!topicId
   const branchLiveState = useTopicBranchLiveState(topicId ?? '')
   const { mode, chrome } = useWindowFrame()
@@ -149,21 +150,19 @@ function TopicRightPaneSurface({
     },
     [onLocateMessage]
   )
+  const activeTitle =
+    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
+      ? resourcePane.label
+      : shellState.activeTab === 'trace'
+        ? t('trace.label')
+        : t('chat.message.flow.title')
 
-  // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
-  // when we're in a sub-window, plus the tab shortcuts that also collapse the active pane. Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      <ResourcePaneShortcut openBehavior="toggle-active" />
-      <TopicRightPaneShortcuts topicId={topicId} openBehavior="toggle-active" />
-    </>
-  )
+  // In sub-windows the topbar is hidden by the maximized overlay, so the header owns trailing controls then.
+  const tabListTrailing = isWindow && shellState.maximized ? chrome?.titleTrailing : null
 
   return (
     <Shell.Tabs>
-      <Shell.TabList extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
         <ResourcePaneTab />
         {hasBranchPanel && (
           <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
@@ -219,7 +218,7 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
 
 function TopicRightPaneShortcuts({
   topicId,
-  openBehavior
+  openBehavior = 'toggle-active'
 }: {
   topicId?: string
   openBehavior?: ShellTabShortcutOpenBehavior

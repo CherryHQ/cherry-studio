@@ -1044,11 +1044,12 @@ function DraftWelcomeChat({
       topRightTool={
         resourcePane ? (
           <>
-            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
             <TopicRightPane.Shortcuts />
           </>
         ) : undefined
       }
+      showTopRightToolWhenPaneOpen
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }

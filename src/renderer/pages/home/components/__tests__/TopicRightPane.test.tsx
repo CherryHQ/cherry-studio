@@ -1,3 +1,4 @@
+import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -168,7 +169,8 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
-    expect(document.querySelector('[data-shell-tab-shortcut="resources"]')).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.topics.title')
+    expect(document.querySelector('[data-shell-tab-shortcut="resources"]')).not.toBeInTheDocument()
   })
 
   it('shows top shortcuts for the stable right-pane tabs while closed', () => {
@@ -193,7 +195,7 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeInTheDocument()
   })
 
-  it('collapses the active pane from the same tab shortcut without rendering the generic close toggle', () => {
+  it('collapses the active pane from the same tab shortcut while preserving the view label', () => {
     render(
       <TopicRightPane>
         <TopicRightPane.Shortcuts topicId="topic-a" />
@@ -204,15 +206,38 @@ describe('TopicRightPane', () => {
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute(
-      'data-shell-tab-shortcut',
-      'branch'
-    )
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
 
     const openStateShortcut = document.querySelector('[data-shell-tab-shortcut="branch"]')
     expect(openStateShortcut).toBeInTheDocument()
+    expect(openStateShortcut).toHaveAttribute('aria-label', 'chat.message.flow.title')
+    expect(screen.queryByRole('button', { name: 'common.close_sidebar' })).toBeInTheDocument()
 
     fireEvent.click(openStateShortcut as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <ResourcePaneCountButton label="chat.topics.title" count={3} openBehavior="toggle-active" />
+        <TopicRightPane.Shortcuts topicId="topic-a" />
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    const resourceEntry = screen.getByRole('button', { name: 'chat.topics.title 3' })
+
+    fireEvent.click(resourceEntry)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.topics.title')
+    expect(resourceEntry).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(resourceEntry)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
