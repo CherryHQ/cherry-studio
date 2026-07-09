@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest, writeManifest } from './manifest'
+import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest, writeManifest } from '../manifest'
 
 const SAMPLE: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,

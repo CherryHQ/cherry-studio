@@ -26,7 +26,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
-import { SqliteBackupStripper } from './ExcludedDomainStripper'
+import { SqliteBackupStripper } from '../ExcludedDomainStripper'
 
 /**
  * assistant.settings minimal valid shape (NOT NULL JSON column — must satisfy

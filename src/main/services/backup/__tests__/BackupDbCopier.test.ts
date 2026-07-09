@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
-import { type BackupDbCopier, SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
+import { type BackupDbCopier, SqliteBackupCopier, StubBackupCopier } from '../BackupDbCopier'
 
 describe('SqliteBackupCopier', () => {
   it('copies a live DB to dest with all rows + integrity_check ok (source stays open)', async () => {

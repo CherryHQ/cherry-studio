@@ -7,8 +7,8 @@ import { join } from 'node:path'
 import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
-import { assembleArchive } from './archive'
-import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
+import { assembleArchive } from '../archive'
+import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
 
 const MANIFEST_FULL: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,
