@@ -5,7 +5,7 @@ import {
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model } from '@shared/data/types/model'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +31,10 @@ export function BasicInfoStep({ form, portalContainer, fallbackAvatar, modelFilt
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
 
+  useEffect(() => {
+    form.setFocus('name')
+  }, [form])
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-[auto_1fr] items-start gap-3">
@@ -48,6 +52,7 @@ export function BasicInfoStep({ form, portalContainer, fallbackAvatar, modelFilt
           label={t('common.name')}
           placeholder={t('library.config.dialogs.create.name_placeholder')}
           required
+          autoFocus
         />
       </div>
 

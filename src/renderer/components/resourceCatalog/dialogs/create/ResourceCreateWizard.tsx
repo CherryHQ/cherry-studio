@@ -9,7 +9,8 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { Model } from '@shared/data/types/model'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -38,12 +39,15 @@ function getDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardFormValues {
+function getDefaultValues(
+  kind: ResourceCreateWizardKind,
+  modelId: UniqueModelId | null = null
+): ResourceCreateWizardFormValues {
   return {
     avatar: getDefaultAvatar(kind),
     name: '',
     description: '',
-    modelId: null,
+    modelId,
     prompt: '',
     knowledgeBaseIds: [],
     skillIds: []
@@ -139,6 +143,7 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
+  const { defaultModel } = useDefaultModel()
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
 
@@ -160,12 +165,24 @@ export function ResourceCreateWizard({
     return [basic, persona, last]
   }, [kind, t])
 
+  const defaultCreateModelId = useMemo<UniqueModelId | null>(() => {
+    if (!defaultModel) return null
+    if (modelFilter && !modelFilter(defaultModel)) return null
+    return defaultModel.id
+  }, [defaultModel, modelFilter])
+
   useEffect(() => {
     if (!open) return
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
+
+  useEffect(() => {
+    if (!open || !defaultCreateModelId) return
+    if (form.getValues('modelId')) return
+    form.setValue('modelId', defaultCreateModelId, { shouldDirty: false, shouldTouch: false })
+  }, [defaultCreateModelId, form, open])
 
   const isLast = stepIndex === steps.length - 1
 
