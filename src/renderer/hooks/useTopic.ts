@@ -435,10 +435,20 @@ export function useActiveTopic({
   setActiveTopicId,
   passive = false
 }: UseActiveTopicOptions) {
-  const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
-  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
-  // Holds the last Topic object passed to setActiveTopic, used as fallback when
-  // the newly-added topic is not yet in `topics` (SWR still refetching).
+  // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
+  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
+  // without waiting for the full topic history to paginate in. The rail keeps its own
+  // loadAll source; this hook only needs the one active row.
+  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
+    passive || !activeTopicId ? undefined : activeTopicId
+  )
+  const queryTopic = useMemo<RendererTopic | undefined>(
+    () =>
+      activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
+    [activeTopicId, apiActiveTopic]
+  )
+  // Holds the last Topic object passed to setActiveTopic, used as fallback while the
+  // by-id query for the newly-selected topic is still resolving.
   const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(() => initialTopic ?? undefined)
   const hasAppliedInitialTopicRef = useRef(false)
 
@@ -455,22 +465,21 @@ export function useActiveTopic({
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (passive) return undefined
     if (!activeTopicId) return pendingTopic
-    const fromList = topics.find((t) => t.id === activeTopicId)
-    if (fromList) return fromList
+    if (queryTopic) return queryTopic
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, passive, pendingTopic, topics])
+  }, [activeTopicId, passive, pendingTopic, queryTopic])
 
-  // Where the active topic resolved from. 'query' = persisted (in the DataApi
-  // list); 'pending' = optimistic / temporary topic not yet persisted. Mirrors
+  // Where the active topic resolved from. 'query' = persisted (fetched by id);
+  // 'pending' = optimistic / temporary topic not yet persisted. Mirrors
   // `useActiveSession`'s `sessionSource` so callers can gate "last used" writes
   // to persisted topics only.
   const topicSource: ActiveTopicSource = useMemo(() => {
     if (!activeTopic) return 'none'
-    if (topics.some((t) => t.id === activeTopic.id)) return 'query'
+    if (queryTopic?.id === activeTopic.id) return 'query'
     if (pendingTopic?.id === activeTopic.id) return 'pending'
     return 'none'
-  }, [activeTopic, pendingTopic, topics])
+  }, [activeTopic, pendingTopic, queryTopic])
 
   const setActiveTopic = useCallback(
     (next: RendererTopic) => {
@@ -500,5 +509,8 @@ export function useActiveTopic({
     }
   }, [activeTopic, passive])
 
+  // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
+  // pending fallback) we are no longer loading, even while a background revalidation runs.
+  const isLoading = !activeTopic && isActiveTopicQueryLoading
   return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
 }

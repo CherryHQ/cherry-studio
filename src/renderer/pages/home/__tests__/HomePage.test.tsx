@@ -1067,6 +1067,20 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('resumes the latest topic even while the assistants list is still loading', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // Assistants list has not resolved yet — restoring the latest topic must not wait for it (the chat
+    // center fetches its assistant by id). Mirrors the agent page's first-entry order.
+    homeMocks.assistantsLoading = true
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('restores the topic reported by the latest query even when it is outside the loaded first page', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')

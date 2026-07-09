@@ -1,10 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
+import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useLatestTopic, useTopicMutations } from '../useTopic'
+import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -109,6 +110,46 @@ describe('useLatestTopic', () => {
     const { result } = renderHook(() => useLatestTopic())
 
     expect(result.current.latestTopic?.id).toBe('topic-a')
+    expect(result.current.isLoading).toBe(true)
+  })
+})
+
+describe('useActiveTopic', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
+    // Core of the /latest fast path: with no active id yet the hook resolves the active
+    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // first-entry effect is free to resume the latest topic immediately.
+    const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
+
+    expect(result.current.activeTopic).toBeUndefined()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('renders the pending topic immediately while the by-id query is still loading', () => {
+    MockUseDataApiUtils.mockQueryLoading('/topics/topic-a')
+    const topic = { id: 'topic-a', name: 'A' } as unknown as Topic
+
+    const { result } = renderHook(() =>
+      useActiveTopic({ initialTopic: topic, activeTopicId: 'topic-a', setActiveTopicId: vi.fn() })
+    )
+
+    expect(result.current.activeTopic?.id).toBe('topic-a')
+    expect(result.current.topicSource).toBe('pending')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('stays loading while a specific active id resolves with no pending fallback (route/tab restore)', () => {
+    // The by-id gate is what keeps first-entry from overriding an in-flight route topic.
+    MockUseDataApiUtils.mockQueryLoading('/topics/topic-a')
+
+    const { result } = renderHook(() => useActiveTopic({ activeTopicId: 'topic-a', setActiveTopicId: vi.fn() }))
+
+    expect(result.current.activeTopic).toBeUndefined()
     expect(result.current.isLoading).toBe(true)
   })
 })

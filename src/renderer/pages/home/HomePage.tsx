@@ -5,7 +5,9 @@ import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -571,19 +573,23 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
-    if (!isAssistantListResolved) return
     if (!isLatestTopicReady) return
 
-    initialTopicStartStateRef.current.firstLaunchStarted = true
-
-    // Both layouts resume the globally most-recently-updated topic on entry; only a genuinely empty
-    // library falls through to creating a blank. A deep link that pins an assistant (`routeAssistantId`)
-    // skips resume and opens a fresh topic for that assistant instead.
+    // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
+    // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
+    // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
+    // for that assistant instead.
     if (!routeAssistantId && latestTopic) {
+      initialTopicStartStateRef.current.firstLaunchStarted = true
       setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
       return
     }
 
+    // Empty library / deep-link create: this path needs the assistants list resolved to pick the
+    // default (or pinned) assistant, so gate it here rather than blocking the resume above.
+    if (!isAssistantListResolved) return
+
+    initialTopicStartStateRef.current.firstLaunchStarted = true
     void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined).then((topic) => {
       if (!topic) initialTopicStartStateRef.current.firstLaunchStarted = false
     })
@@ -768,22 +774,21 @@ const HomePage: FC = () => {
   const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const shellPanePosition: ChatPanePosition = 'left'
 
-  if (!visibleTopic && !resourceCenter) {
-    if (isMessageOnlyView) {
-      return (
-        <Container id="home-page">
-          <ContentContainer>
-            <MessageOnlyStatus
-              loading={isRouteTopicLoading}
-              loadingLabel={t('common.loading')}
-              missingTitle={t('history.error.topic_not_found')}
-            />
-          </ContentContainer>
-        </Container>
-      )
-    }
-
-    return <Container id="home-page" />
+  // Message-only (detached) view has no rail: resolve its single target topic and show its own
+  // loading / not-found status. The normal view falls through to the loading shell below (which keeps
+  // the rail visible) instead of returning a blank frame.
+  if (isMessageOnlyView && !visibleTopic && !resourceCenter) {
+    return (
+      <Container id="home-page">
+        <ContentContainer>
+          <MessageOnlyStatus
+            loading={isRouteTopicLoading}
+            loadingLabel={t('common.loading')}
+            missingTitle={t('history.error.topic_not_found')}
+          />
+        </ContentContainer>
+      </Container>
+    )
   }
 
   // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
@@ -893,7 +898,27 @@ const HomePage: FC = () => {
   }
 
   const chatTopic = visibleTopic
-  if (!chatTopic) return <Container id="home-page" />
+  if (!chatTopic) {
+    // First-entry has not resolved a topic yet (waiting on `/latest`). Mirror AgentChat's
+    // `isInitializing` branch: keep the rail + shell and show a loading center rather than a blank frame.
+    return renderWithRightPane(
+      <Container id="home-page">
+        <ContentContainer $detached={isWindowFrame}>
+          <ConversationShell
+            id="chat"
+            pane={pane}
+            paneOpen={effectiveShowSidebar}
+            panePosition={shellPanePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            center={<ConversationCenterState state="loading" />}
+          />
+        </ContentContainer>
+        {assistantPickerDialog}
+        {historyRecordsOverlay}
+      </Container>
+    )
+  }
 
   return renderWithRightPane(
     <Container id="home-page">
