@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import { popup } from '@renderer/services/popup'
 import { FILE_TYPE, type FileType } from '@renderer/types/file'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +20,7 @@ export function useAttachment() {
         if (ext?.startsWith('.')) {
           ext = ext.replace('.', '')
         }
+        const { default: TextFilePreviewPopup } = await import('@renderer/components/Popups/TextFilePreview')
         void TextFilePreviewPopup.show(content, title, ext)
       } else {
         void window.api.file.openPath(path)
