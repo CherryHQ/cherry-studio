@@ -19,15 +19,11 @@ vi.mock('@cherrystudio/ui', () => {
         startContent,
         children
       ),
-    Combobox: ({ options = [], onChange, renderOption, renderValue, triggerProps, value }: any) =>
+    Combobox: ({ options = [], onChange, renderOption, renderValue, value }: any) =>
       React.createElement(
         'div',
         null,
-        React.createElement(
-          'button',
-          { ...triggerProps, 'data-testid': 'combobox-trigger', role: 'combobox', type: 'button' },
-          renderValue?.(value, options)
-        ),
+        React.createElement('div', { 'data-testid': 'combobox-trigger' }, renderValue?.(value, options)),
         options.map((option: any) =>
           React.createElement(
             'button',
@@ -130,7 +126,6 @@ describe('ProviderConnectionCheckDrawer', () => {
     expect(screen.getByRole('button', { name: /Alpha Model/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Beta Search Model/ })).toBeInTheDocument()
     expect(screen.getAllByTestId('model-icon-provider-a::alpha').length).toBeGreaterThan(0)
-    expect(screen.getByRole('combobox', { name: '选择模型' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Search Model/ }))
     fireEvent.click(screen.getByRole('button', { name: /Start|开始/ }))
@@ -150,8 +145,6 @@ describe('ProviderConnectionCheckDrawer', () => {
         onStart={onStart}
       />
     )
-
-    expect(screen.getByRole('combobox', { name: '选择要使用的 API 密钥：' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /sk.*nd/ }))
     fireEvent.click(screen.getByRole('button', { name: /Start|开始/ }))

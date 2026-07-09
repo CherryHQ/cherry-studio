@@ -137,7 +137,7 @@ describe('Combobox', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(screen.getByRole('button'))
     fireEvent.change(screen.getByPlaceholderText('Search descriptions'), { target: { value: 'third' } })
 
     await waitFor(() => {
@@ -145,22 +145,6 @@ describe('Combobox', () => {
     })
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
-  })
-
-  it('passes accessible label props to the single-select trigger', () => {
-    render(
-      <div>
-        <span id="model-label">Model</span>
-        <Combobox
-          options={options}
-          placeholder="Pick one"
-          emptyText="No results"
-          triggerProps={{ 'aria-labelledby': 'model-label' }}
-        />
-      </div>
-    )
-
-    expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument()
   })
 
   it('exposes selected multi-value removal as accessible controls', () => {

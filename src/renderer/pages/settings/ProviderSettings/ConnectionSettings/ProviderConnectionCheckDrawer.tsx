@@ -17,7 +17,7 @@ import { getModelLogo } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { sortBy } from 'es-toolkit/compat'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -73,8 +73,6 @@ export default function ProviderConnectionCheckDrawer({
   onOpenModelHealthCheck
 }: ProviderConnectionCheckDrawerProps) {
   const { t } = useTranslation()
-  const modelSelectLabelId = useId()
-  const apiKeySelectLabelId = useId()
   const sortedModels = useMemo(() => sortBy(models, 'name'), [models])
   const modelOptions = useMemo<ModelOption[]>(
     () => sortedModels.map((model) => ({ value: model.id, label: model.name, model })),
@@ -121,7 +119,7 @@ export default function ProviderConnectionCheckDrawer({
         <div className="space-y-4">
           <div className="space-y-3">
             <div>
-              <label id={modelSelectLabelId} className="mb-2.5 block font-medium text-[13px] text-foreground/85">
+              <label className="mb-2.5 block font-medium text-[13px] text-foreground/85">
                 {t('button.select_model')}
               </label>
               {sortedModels.length > 0 ? (
@@ -141,7 +139,6 @@ export default function ProviderConnectionCheckDrawer({
                     return option ? renderModelOptionContent(option.model) : null
                   }}
                   searchPlaceholder={t('common.search')}
-                  triggerProps={{ 'aria-labelledby': modelSelectLabelId }}
                 />
               ) : (
                 <div className={drawerClasses.emptyInline}>{t('settings.provider.no_models_for_check')}</div>
@@ -150,7 +147,7 @@ export default function ProviderConnectionCheckDrawer({
 
             {hasMultipleKeys ? (
               <div>
-                <label id={apiKeySelectLabelId} className="mb-2.5 block font-medium text-[13px] text-foreground/85">
+                <label className="mb-2.5 block font-medium text-[13px] text-foreground/85">
                   {t('settings.models.check.select_api_key')}
                 </label>
                 <Combobox
@@ -169,7 +166,6 @@ export default function ProviderConnectionCheckDrawer({
                     return option ? <span className="truncate font-mono text-[12px]">{option.label}</span> : null
                   }}
                   searchPlaceholder={t('common.search')}
-                  triggerProps={{ 'aria-labelledby': apiKeySelectLabelId }}
                 />
               </div>
             ) : (
