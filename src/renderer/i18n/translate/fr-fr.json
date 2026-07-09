@@ -6649,14 +6649,16 @@
       },
       "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",
-      "list_title": "Model list",
+      "list_title": "Modèles",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
+          "label": "Ajouter tous les modèles"
         },
         "add_whole_group": "Ajouter tout le groupe",
+        "clean_stale_models": "Nettoyer les modèles obsolètes",
+        "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6678,11 +6680,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Supprimer un modèle de la liste",
+        "remove_listed": "Supprimer tous les modèles",
         "remove_model": "Supprimer le modèle",
+        "remove_skipped_default_in_use": "{{count}} modèle(s) par défaut ignoré(s)",
         "remove_whole_group": "Supprimer tout le groupe",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsolète",
+        "stale_filter": "Obsolète",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6834,6 +6839,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Ajouter un fournisseur",
         "name": {
           "label": "Nom du fournisseur",
           "placeholder": "Par exemple OpenAI",

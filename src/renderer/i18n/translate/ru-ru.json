@@ -6649,14 +6649,16 @@
       },
       "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",
-      "list_title": "Model list",
+      "list_title": "Модели",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Вы уверены, что хотите добавить все модели в список?",
-          "label": "Добавить в список"
+          "label": "Добавить все модели"
         },
         "add_whole_group": "Добавить всю группу",
+        "clean_stale_models": "Очистить устаревшие модели",
+        "clean_stale_success": "Очищено устаревших моделей: {{count}}",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6678,11 +6680,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Повторное получение списка моделей",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Удалить из списка",
+        "remove_listed": "Удалить все модели",
         "remove_model": "Удалить модель",
+        "remove_skipped_default_in_use": "Пропущено моделей по умолчанию: {{count}}",
         "remove_whole_group": "Удалить всю группу",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Устаревшая",
+        "stale_filter": "Устаревшая",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6834,6 +6839,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Добавить провайдера",
         "name": {
           "label": "Имя провайдера",
           "placeholder": "Пример: OpenAI",

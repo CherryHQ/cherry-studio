@@ -6649,14 +6649,16 @@
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",
-      "list_title": "Model list",
+      "list_title": "モデル",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
-          "label": "リストにモデルを追加"
+          "label": "すべてのモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
+        "clean_stale_models": "無効なモデルをクリーンアップ",
+        "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6678,11 +6680,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",
-        "remove_listed": "リストからモデルを削除",
+        "remove_listed": "すべてのモデルを削除",
         "remove_model": "モデルを削除",
+        "remove_skipped_default_in_use": "{{count}} 個のデフォルトモデルをスキップしました",
         "remove_whole_group": "グループ全体を削除",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "無効",
+        "stale_filter": "無効",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6834,6 +6839,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "プロバイダーを追加",
         "name": {
           "label": "プロバイダー名",
           "placeholder": "例：OpenAI",
