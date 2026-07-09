@@ -6047,12 +6047,14 @@
       "remove": "移除工具",
       "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
       "removeConfirmTitle": "移除工具",
+      "runtimeDeps": "运行依赖",
       "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "source": {
         "bundled": "内置",
         "system": "系统"
       },
+      "thirdPartyCli": "第三方 CLI",
       "title": "环境依赖",
       "tools": {
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
@@ -6070,7 +6072,6 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
-      "toolsGroup": "工具",
       "update": "更新到最新版本",
       "updateCheckFailed": "检查更新失败"
     },

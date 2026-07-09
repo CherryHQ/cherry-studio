@@ -19,13 +19,18 @@ export function validateManagedBinary(tool: ManagedBinary): void {
   }
 }
 
+// Which dependencies-page group a preset belongs to:
+// - runtime: bundled tools the app itself needs (no user install action)
+// - agent: coding agents, openable in the Code Tools launcher
+// - cli: optional third-party CLIs, alongside user-defined custom tools
+export type BinaryToolCategory = 'runtime' | 'agent' | 'cli'
+
 export interface BinaryToolPreset extends ManagedBinary {
   displayName: string
   icon?: string
   repoUrl: string
   homepage?: string
-  /** Groups the tool under "Coding Agents" in the dependencies UI. */
-  isAgent?: boolean
+  category: BinaryToolCategory
   /** Launcher id, when this agent can be opened in the Code Tools page. */
   codeCli?: CodeCli
 }
@@ -37,7 +42,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'uv',
     icon: 'simple-icons:uv',
     repoUrl: 'https://github.com/astral-sh/uv',
-    homepage: 'https://docs.astral.sh/uv/'
+    homepage: 'https://docs.astral.sh/uv/',
+    category: 'runtime'
   },
   {
     name: 'bun',
@@ -45,33 +51,38 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'bun',
     icon: 'simple-icons:bun',
     repoUrl: 'https://github.com/oven-sh/bun',
-    homepage: 'https://bun.sh'
-  },
-  {
-    name: 'fd',
-    displayName: 'fd',
-    tool: 'fd',
-    repoUrl: 'https://github.com/sharkdp/fd'
+    homepage: 'https://bun.sh',
+    category: 'runtime'
   },
   {
     name: 'rg',
     displayName: 'ripgrep',
     tool: 'rg',
-    repoUrl: 'https://github.com/BurntSushi/ripgrep'
+    repoUrl: 'https://github.com/BurntSushi/ripgrep',
+    category: 'runtime'
+  },
+  {
+    name: 'fd',
+    displayName: 'fd',
+    tool: 'fd',
+    repoUrl: 'https://github.com/sharkdp/fd',
+    category: 'cli'
   },
   {
     name: 'rtk',
     displayName: 'RTK',
     tool: 'rtk',
     repoUrl: 'https://github.com/rtk-ai/rtk',
-    homepage: 'https://www.rtk-ai.app/'
+    homepage: 'https://www.rtk-ai.app/',
+    category: 'cli'
   },
   {
     name: 'lark-cli',
     displayName: 'Lark CLI',
     tool: 'github:larksuite/cli',
     icon: 'simple-icons:lark',
-    repoUrl: 'https://github.com/larksuite/cli'
+    repoUrl: 'https://github.com/larksuite/cli',
+    category: 'cli'
   },
   {
     name: 'gh',
@@ -79,7 +90,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'gh',
     icon: 'simple-icons:github',
     repoUrl: 'https://github.com/cli/cli',
-    homepage: 'https://cli.github.com'
+    homepage: 'https://cli.github.com',
+    category: 'cli'
   },
   {
     name: 'ntn',
@@ -87,7 +99,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'npm:ntn',
     icon: 'simple-icons:notion',
     repoUrl: 'https://github.com/makenotion/cli',
-    homepage: 'https://ntn.dev'
+    homepage: 'https://ntn.dev',
+    category: 'cli'
   },
   {
     name: 'claude',
@@ -96,7 +109,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     icon: 'simple-icons:claude',
     repoUrl: 'https://github.com/anthropics/claude-code',
     homepage: 'https://docs.anthropic.com/en/docs/claude-code',
-    isAgent: true,
+    category: 'agent',
     codeCli: CodeCli.CLAUDE_CODE
   },
   {
@@ -105,7 +118,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'codex',
     icon: 'simple-icons:openai',
     repoUrl: 'https://github.com/openai/codex',
-    isAgent: true,
+    category: 'agent',
     codeCli: CodeCli.OPENAI_CODEX
   },
   {
@@ -114,7 +127,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'pi',
     repoUrl: 'https://github.com/earendil-works/pi',
     homepage: 'https://pi.dev',
-    isAgent: true
+    category: 'agent'
   },
   {
     name: 'opencode',
@@ -122,7 +135,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'opencode',
     repoUrl: 'https://github.com/anomalyco/opencode',
     homepage: 'https://opencode.ai',
-    isAgent: true,
+    category: 'agent',
     codeCli: CodeCli.OPEN_CODE
   },
   {
@@ -131,7 +144,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'pipx:hermes-agent',
     repoUrl: 'https://github.com/NousResearch/hermes-agent',
     homepage: 'https://hermes-agent.nousresearch.com',
-    isAgent: true
+    category: 'agent'
   },
   {
     name: 'openclaw',
@@ -139,6 +152,6 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'npm:openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw',
     homepage: 'https://docs.openclaw.ai',
-    isAgent: true
+    category: 'agent'
   }
 ]

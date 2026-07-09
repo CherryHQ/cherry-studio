@@ -6047,12 +6047,14 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "runtimeDeps": "[to be translated]:Runtime Dependencies",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
         "bundled": "bundled",
         "system": "[to be translated]:System"
       },
+      "thirdPartyCli": "[to be translated]:Third-party CLI",
       "title": "Εξαρτήσεις Περιβάλλοντος",
       "tools": {
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
@@ -6070,7 +6072,6 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "toolsGroup": "[to be translated]:Tools",
       "update": "Update to latest version",
       "updateCheckFailed": "[to be translated]:Failed to check for updates"
     },

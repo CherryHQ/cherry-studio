@@ -125,13 +125,14 @@ Presets for the URL fields (a short, opt-in, cheaply-updatable list — Cherry n
      tool: 'gh',           // mise tool spec — registry entry, npm:..., pipx:..., etc.
      icon: 'simple-icons:github', // optional iconify id
      repoUrl: 'https://github.com/cli/cli',
-     homepage: 'https://cli.github.com/' // optional
+     homepage: 'https://cli.github.com/', // optional
+     category: 'cli'       // 'runtime' | 'agent' | 'cli' — which dependencies-page group
    }
    ```
 2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
 3. No code change in BinaryManager — the renderer picks it up via the preset list.
 
-   For a **coding agent**, also set `isAgent: true` (groups it under "Coding Agents" in the dependencies UI) and, when the agent is launchable from the Code Tools page, `codeCli: CodeCli.<ID>` — that wires an "Open in Code Tools" button on the card once the agent is available.
+   `category` places the tool in one of the three collapsible dependencies groups: `runtime` (bundled deps the app needs — no user install action), `agent` (coding agents), or `cli` (optional third-party CLIs, shown alongside custom tools). For a **coding agent** (`category: 'agent'`) that is launchable from the Code Tools page, also set `codeCli: CodeCli.<ID>` — that wires an "Open in Code Tools" button on the card (which deep-links to the tool's launch dialog) once the agent is available.
 
 **Custom (user-added from the settings UI):**
 

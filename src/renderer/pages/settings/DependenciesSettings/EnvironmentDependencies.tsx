@@ -1,4 +1,8 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Badge,
   Button,
   ConfirmDialog,
@@ -78,13 +82,21 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
+const GroupHeading: FC<{ label: string; count: number }> = ({ label, count }) => (
+  <span className="flex items-center gap-2">
+    <span className="font-semibold text-foreground">{label}</span>
+    <span className="font-normal text-muted-foreground/50 text-xs">{count}</span>
+  </span>
+)
+
 type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 
-// Split the preset catalog into the two UI groups. Coding agents get their own
-// section (and an "open in Code Tools" affordance once installed); everything
-// else stays under the general tools group.
-const AGENT_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => tool.isAgent)
-const GENERAL_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => !tool.isAgent)
+// Split the preset catalog into the three collapsible UI groups. Runtime deps are
+// app-managed (no install action); coding agents get an "open in Code Tools"
+// affordance; third-party CLIs sit alongside user-defined custom tools.
+const RUNTIME_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => tool.category === 'runtime')
+const AGENT_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => tool.category === 'agent')
+const CLI_PRESET_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => tool.category === 'cli')
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -278,6 +290,29 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         onOpenPath={() => openToolDir(tool.name)}
         onRemove={() => setDeleteTarget(tool.name)}
         onOpen={codeCli && source !== 'none' ? () => openInCodeTools(codeCli) : undefined}
+        // Runtime deps are bundled and app-managed — no user install action.
+        showInstall={tool.category !== 'runtime'}
+      />
+    )
+  }
+
+  const renderCustomCard = (tool: ManagedBinary) => {
+    const installed = binaryState?.tools[tool.name]
+    const installedVersion = installed?.version
+    const latestVersion = latestVersions?.[tool.name]
+    const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
+    return (
+      <CustomToolCard
+        key={tool.name}
+        tool={tool}
+        installed={!!installed}
+        installedVersion={installedVersion}
+        latestVersion={hasUpdate ? latestVersion : undefined}
+        installing={installingTools.has(tool.name)}
+        onInstall={() => installTool(tool)}
+        onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+        onOpenPath={() => openToolDir(tool.name)}
+        onRemove={() => setDeleteTarget(tool.name)}
       />
     )
   }
@@ -336,64 +371,50 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
 
-      <div className="min-w-0">
-        <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
-          {t('settings.dependencies.toolsGroup')}
-        </h2>
-        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {GENERAL_TOOLS.map(renderPresetCard)}
-        </div>
-      </div>
+      <Accordion type="multiple" defaultValue={['runtime', 'agents', 'cli']} className="min-w-0">
+        <AccordionItem value="runtime">
+          <AccordionTrigger className="text-[15px] leading-6">
+            <GroupHeading label={t('settings.dependencies.runtimeDeps')} count={RUNTIME_TOOLS.length} />
+          </AccordionTrigger>
+          <AccordionContent>
+            <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {RUNTIME_TOOLS.map(renderPresetCard)}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      <div className="min-w-0">
-        <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
-          {t('settings.dependencies.codingAgents')}
-        </h2>
-        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {AGENT_TOOLS.map(renderPresetCard)}
-        </div>
-      </div>
+        <AccordionItem value="agents">
+          <AccordionTrigger className="text-[15px] leading-6">
+            <GroupHeading label={t('settings.dependencies.codingAgents')} count={AGENT_TOOLS.length} />
+          </AccordionTrigger>
+          <AccordionContent>
+            <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {AGENT_TOOLS.map(renderPresetCard)}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center justify-between">
-          <h2 className="font-semibold text-[15px] text-foreground leading-6">
-            {t('settings.dependencies.customTools')}
-          </h2>
-          <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
-            <Plus className="size-3.5" />
-            {t('settings.dependencies.addTool')}
-          </Button>
-        </div>
-      </div>
-
-      {customTools.length > 0 ? (
-        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {customTools.map((tool) => {
-            const installed = binaryState?.tools[tool.name]
-            const installedVersion = installed?.version
-            const latestVersion = latestVersions?.[tool.name]
-            const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
-            return (
-              <CustomToolCard
-                key={tool.name}
-                tool={tool}
-                installed={!!installed}
-                installedVersion={installedVersion}
-                latestVersion={hasUpdate ? latestVersion : undefined}
-                installing={installingTools.has(tool.name)}
-                onInstall={() => installTool(tool)}
-                onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-                onOpenPath={() => openToolDir(tool.name)}
-                onRemove={() => setDeleteTarget(tool.name)}
-              />
-            )
-          })}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
-          {t('settings.dependencies.customToolsEmpty')}
-        </div>
-      )}
+        <AccordionItem value="cli">
+          <AccordionTrigger className="text-[15px] leading-6">
+            <GroupHeading
+              label={t('settings.dependencies.thirdPartyCli')}
+              count={CLI_PRESET_TOOLS.length + customTools.length}
+            />
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="mb-3 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
+                <Plus className="size-3.5" />
+                {t('settings.dependencies.addTool')}
+              </Button>
+            </div>
+            <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {CLI_PRESET_TOOLS.map(renderPresetCard)}
+              {customTools.map(renderCustomCard)}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
 
@@ -425,6 +446,7 @@ const BinaryToolPresetCard: FC<{
   onOpenPath: () => void
   onRemove: () => void
   onOpen?: () => void
+  showInstall: boolean
 }> = ({
   tool,
   source,
@@ -436,7 +458,8 @@ const BinaryToolPresetCard: FC<{
   onUpdate,
   onOpenPath,
   onRemove,
-  onOpen
+  onOpen,
+  showInstall
 }) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
@@ -524,8 +547,8 @@ const BinaryToolPresetCard: FC<{
         {/* Already available (bundled or system): the tool works as-is, so the
             optional mise-managed copy is a low-key icon action, not a CTA that
             would read as "not installed". The tooltip explains why an install
-            still shows up for an already-available tool. */}
-        {(isBundled || isSystem) && (
+            still shows up for an already-available tool. Runtime deps opt out. */}
+        {showInstall && (isBundled || isSystem) && (
           <NormalTooltip content={t('settings.dependencies.installManagedHint')} side="top" align="end">
             <Button
               variant="ghost"
@@ -578,9 +601,9 @@ const BinaryToolPresetCard: FC<{
       </div>
 
       {/* The bottom bar is reserved for a real action: run an available agent, or
-          install a tool that's genuinely missing. Available non-agent tools show
-          no bar — their status badges already say everything. */}
-      {(source === 'none' || onOpen) && (
+          install a tool that's genuinely missing. Available non-agent tools and
+          runtime deps show no bar — their status badges already say everything. */}
+      {((showInstall && source === 'none') || onOpen) && (
         <div className="mt-3 flex items-center gap-2 border-border border-t pt-3">
           {onOpen && (
             <Button variant="default" size="sm" className="h-7 flex-1 gap-1 font-medium text-xs" onClick={onOpen}>
@@ -588,7 +611,7 @@ const BinaryToolPresetCard: FC<{
               {t('settings.dependencies.openInCodeTools')}
             </Button>
           )}
-          {source === 'none' && (
+          {showInstall && source === 'none' && (
             <Button
               variant="outline"
               size="sm"

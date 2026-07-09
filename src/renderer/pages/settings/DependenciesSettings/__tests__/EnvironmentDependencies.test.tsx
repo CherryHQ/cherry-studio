@@ -102,6 +102,11 @@ vi.mock('@cherrystudio/ui', () => {
       title?: string
     }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
     ConfirmDialog: childrenOnly,
+    // Accordion groups always render their content in tests (no collapse behavior).
+    Accordion: childrenOnly,
+    AccordionItem: childrenOnly,
+    AccordionTrigger: childrenOnly,
+    AccordionContent: childrenOnly,
     // Render the trigger (its child) directly; the tooltip content is irrelevant here.
     NormalTooltip: ({ children }: { children?: React.ReactNode }) => children,
     Dialog: childrenOnly,
@@ -188,23 +193,22 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.getToolDir.mockResolvedValue('/dir')
   })
 
-  it('renders preset tools and the empty custom-tools state', async () => {
+  it('renders preset tools across the runtime and CLI groups', async () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    // Preset displayNames render regardless of install state.
+    // Runtime-group displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
-    // No custom tools → empty-state hint.
-    expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
+    // Third-party CLI preset also renders.
+    expect(screen.getByText('GitHub CLI')).toBeInTheDocument()
   })
 
-  it('renders a persisted custom tool instead of the empty state', async () => {
+  it('renders a persisted custom tool in the third-party CLI group', async () => {
     customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
-    expect(screen.queryByText('settings.dependencies.customToolsEmpty')).not.toBeInTheDocument()
   })
 
   it('shows an uninstall action for a mise-managed preset tool', async () => {
@@ -225,16 +229,29 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('marks a system-PATH preset tool as available with only the low-key managed install', async () => {
-    // uv found on the user's PATH (source 'system') → "System" badge and a low-key
-    // icon action to pull in a Cherry-managed copy — never the prominent install CTA.
-    ipcMocks.probeSystem.mockResolvedValue({ uv: '/usr/local/bin/uv' })
+  it('marks a system-PATH CLI preset as available with only the low-key managed install', async () => {
+    // fd (third-party CLI) found on the user's PATH (source 'system') → "System"
+    // badge and a low-key icon to pull in a Cherry-managed copy — never the CTA.
+    // (Runtime deps like uv show no install action at all; CLIs still can.)
+    ipcMocks.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
+    const fdCard = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+    expect(within(fdCard).getByText('settings.dependencies.source.system')).toBeInTheDocument()
+    expect(within(fdCard).getByLabelText('settings.dependencies.installManaged')).toBeInTheDocument()
+    expect(within(fdCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
+  })
+
+  it('shows no install action for a runtime dependency that is only bundled', async () => {
+    // uv is a runtime dep → its card never offers install/managed-copy actions,
+    // even when present only as bundled.
+    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(uvCard).getByText('settings.dependencies.source.system')).toBeInTheDocument()
-    expect(within(uvCard).getByLabelText('settings.dependencies.installManaged')).toBeInTheDocument()
+    expect(within(uvCard).queryByLabelText('settings.dependencies.installManaged')).not.toBeInTheDocument()
     expect(within(uvCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
   })
 

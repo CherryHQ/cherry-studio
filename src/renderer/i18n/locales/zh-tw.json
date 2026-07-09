@@ -6047,12 +6047,14 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "runtimeDeps": "執行依賴",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
         "bundled": "內建",
         "system": "[to be translated]:System"
       },
+      "thirdPartyCli": "第三方 CLI",
       "title": "環境依賴",
       "tools": {
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
@@ -6070,7 +6072,6 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
-      "toolsGroup": "[to be translated]:Tools",
       "update": "更新到最新版本",
       "updateCheckFailed": "檢查更新失敗"
     },
