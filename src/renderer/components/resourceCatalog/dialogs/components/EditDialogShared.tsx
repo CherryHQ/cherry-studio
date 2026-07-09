@@ -572,7 +572,7 @@ export function CompactModelField({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
-  onSettingsNavigate?: () => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)

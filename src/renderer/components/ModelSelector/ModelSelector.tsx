@@ -276,6 +276,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
+  const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -474,16 +475,42 @@ export function ModelSelector(props: ModelSelectorProps) {
     setOpen(false)
   }, [setOpen])
 
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setShellKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      setShellKey((key) => key + 1)
+      setOpen(false)
+    },
+    [open, runPendingCloseAction, setOpen]
+  )
+
   const closeBeforeSettingsNavigation = useCallback(
     (path: string) => {
-      setOpen(false)
+      closeBeforeAction(() => {
+        const navigate = () => openSettingsTab(path)
+        if (onSettingsNavigate) {
+          onSettingsNavigate(navigate)
+          return
+        }
 
-      window.requestAnimationFrame(() => {
-        onSettingsNavigate?.()
-        window.requestAnimationFrame(() => openSettingsTab(path))
+        navigate()
       })
     },
-    [onSettingsNavigate, setOpen]
+    [closeBeforeAction, onSettingsNavigate]
   )
 
   const handleNavigateToProviderSettings = useCallback(
@@ -593,6 +620,15 @@ export function ModelSelector(props: ModelSelectorProps) {
       resetTags()
     }
   }, [open, resetTags, setFocusedItemKey])
+
+  useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
 
   useEffect(() => {
     const currentModelItems = modelItemsRef.current
@@ -754,6 +790,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <SelectorShell
+        key={shellKey}
         trigger={trigger}
         open={open}
         onOpenChange={setOpen}

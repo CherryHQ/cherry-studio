@@ -326,7 +326,10 @@ function AgentEditDialogContent({
           patchAgentForm={patchAgentForm}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
-          onSettingsNavigate={() => onOpenChange(false)}
+          onSettingsNavigate={(navigate) => {
+            onOpenChange(false)
+            navigate()
+          }}
         />
       </TabsContent>
       <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
@@ -359,7 +362,8 @@ function AgentBasicFields({
   setModelLabels,
   patchAgentForm,
   emojiPickerOpen,
-  setEmojiPickerOpen
+  setEmojiPickerOpen,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -369,7 +373,7 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
-  onSettingsNavigate?: () => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')

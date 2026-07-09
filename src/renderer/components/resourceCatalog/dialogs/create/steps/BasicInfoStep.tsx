@@ -18,7 +18,7 @@ type BasicInfoStepProps = {
   portalContainer: HTMLElement | null
   fallbackAvatar: string
   modelFilter?: (model: Model) => boolean
-  onSettingsNavigate?: () => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 /**
