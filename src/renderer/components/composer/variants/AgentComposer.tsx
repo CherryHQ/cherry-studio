@@ -39,7 +39,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -960,12 +959,10 @@ const AgentComposerInner = ({
     [availableSkills, draftCacheKey, reconcileTokens]
   )
 
-  const placeholderText = useMemo(() => {
-    if (isSoulModeEnabled(agentBase?.configuration)) return t('agent.input.soul_placeholder')
-    return t('agent.input.placeholder', {
-      key: getSendMessageShortcutLabel(sendMessageShortcut)
-    })
-  }, [agentBase?.configuration, sendMessageShortcut, t])
+  const placeholderText = useMemo(
+    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
+    [sendMessageShortcut, t]
+  )
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>

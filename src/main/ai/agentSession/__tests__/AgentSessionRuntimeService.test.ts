@@ -188,6 +188,92 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  describe('per-turn headless state', () => {
+    it('opens a queued busy follow-up as headless when enqueueUserMessage is marked headless', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { headless: true })
+      expect(getEntry(service).headlessMessageIds.has('user-2')).toBe(true)
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const entry = getEntry(service)
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(true)
+      expect(entry.headlessMessageIds?.has('user-2')).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+    })
+
+    it('opens an unmarked queued busy follow-up as interactive', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(getEntry(service).currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+    })
+
+    it('sets current turn headless from beginTurn input', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+
+      expect(getEntry(service).currentTurn.headless).toBe(true)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+    })
+
+    async function rollContinuation(initialHeadless: boolean, steerHeadless: boolean) {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), headless: initialHeadless })
+      const entry = getEntry(service)
+      if (steerHeadless) (entry.headlessMessageIds ??= new Set()).add('user-2')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
+      return { service, entry }
+    }
+
+    it('keeps a roll continuation headless when the current turn and injected steer are headless', async () => {
+      const { service, entry } = await rollContinuation(true, true)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(true)
+      expect(entry.rollHeadless).toBeUndefined()
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+
+      service.closeSession('session-1')
+    })
+
+    it('opens a headless turn plus interactive steer roll continuation as interactive', async () => {
+      const { service, entry } = await rollContinuation(true, false)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+
+      service.closeSession('session-1')
+    })
+
+    it('opens an interactive turn plus headless steer roll continuation as interactive', async () => {
+      const { service, entry } = await rollContinuation(false, true)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+
+      service.closeSession('session-1')
+    })
+  })
+
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
     it('marks crash-orphaned pending assistant messages as errored on init', async () => {
       mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
@@ -358,6 +444,32 @@ describe('AgentSessionRuntimeService', () => {
       pendingMessageCount: 0,
       resumeToken: 'resume-1'
     })
+  })
+
+  it('reuses an idle connection for a headless run regardless of the mode it was built in', () => {
+    // Per-turn headless enforcement lives in `canUseTool` / PreToolUse hooks (resolved by session id at
+    // fire-time via `isCurrentTurnHeadless`), so the warm connection's baked settings no longer vary by
+    // headless mode and never need a mismatch rebuild — an interactive-primed connection is safe to
+    // reuse for a scheduled/channel run, which keeps the resume token and avoids a reconnect.
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    entry.lastResumeToken = 'resume-1'
+    entry.connection = connection
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2'),
+      headless: true
+    })
+
+    expect(second).not.toBe(first)
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    expect(getEntry(service).currentTurn.headless).toBe(true)
   })
 
   it('reconnects an idle runtime when the agent model changes before the next turn', async () => {

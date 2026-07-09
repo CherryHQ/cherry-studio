@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock TaskService before importing ClawServer
+// Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
@@ -80,49 +80,35 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
-const { default: ClawServer } = await import('../claw')
-type ClawServerInstance = InstanceType<typeof ClawServer>
+const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
+type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
-const WORKSPACE_PATH = '/tmp/claw-test-workspace'
+const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 
 function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
-  return new ClawServer(agentId, WORKSPACE_SOURCE, workspacePath)
+  return new CherryAutonomyTools({ agentId, workspaceSource: WORKSPACE_SOURCE, workspacePath })
 }
 
-// Helper to call tools via the Server's request handlers
-async function callTool(server: ClawServerInstance, args: Record<string, unknown>, toolName = 'cron') {
-  // Use the server's internal handler by simulating a CallTool request
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const callToolHandler = handlers?.get('tools/call')
-  if (!callToolHandler) {
-    throw new Error('No tools/call handler registered')
-  }
-
-  return callToolHandler(
-    { method: 'tools/call', params: { name: toolName, arguments: args } },
-    {} // extra
-  )
+// Helper mirroring how CherryBuiltinToolsServer's CallTool handler routes autonomy calls
+// (returns `any` so assertions can poke content items without narrowing the SDK union).
+async function callTool(
+  server: CherryAutonomyToolsInstance,
+  args: Record<string, unknown>,
+  toolName = 'cron'
+): Promise<any> {
+  return server.call(toolName, args as Record<string, string | undefined>)
 }
 
-async function listTools(server: ClawServerInstance) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const listHandler = handlers?.get('tools/list')
-  if (!listHandler) {
-    throw new Error('No tools/list handler registered')
-  }
-  return listHandler({ method: 'tools/list', params: {} }, {})
-}
-
-describe('ClawServer', () => {
+describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should list all tools', async () => {
+  it('should list all tools', () => {
     const server = createServer()
-    const result = await listTools(server)
-    expect(result.tools).toHaveLength(3)
-    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'config'])
+    const tools = server.tools()
+    expect(tools).toHaveLength(3)
+    expect(tools.map((t) => t.name)).toEqual(['cron', 'notify', 'config'])
   })
 
   describe('add action', () => {
@@ -232,6 +218,39 @@ describe('ClawServer', () => {
       })
 
       expect(result.isError).toBe(true)
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('should subscribe explicit channel_ids owned by this agent', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
+      mockCreateTask.mockResolvedValue({ id: 'task_ch' })
+
+      const server = createServer('agent_1')
+      await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_own']
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch_own'] }))
+    })
+
+    it('should reject channel_ids owned by another agent without leaking existence', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_foreign', agentId: 'agent_2' })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_foreign']
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Channel "ch_foreign" not found')
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
   })
@@ -395,8 +414,8 @@ describe('ClawServer', () => {
       let outside: string
 
       beforeEach(async () => {
-        workspace = await mkdtemp(path.join(tmpdir(), 'claw-notify-'))
-        outside = await mkdtemp(path.join(tmpdir(), 'claw-outside-'))
+        workspace = await mkdtemp(path.join(tmpdir(), 'cherry-notify-'))
+        outside = await mkdtemp(path.join(tmpdir(), 'cherry-outside-'))
       })
 
       afterEach(async () => {
@@ -510,25 +529,25 @@ describe('ClawServer', () => {
       id: 'ch_1',
       type: 'telegram',
       name: 'My Telegram',
+      agentId: 'agent_1',
       isActive: true,
       config: { type: 'telegram', bot_token: 'tok_123', allowed_chat_ids: ['100'] }
     }
 
     const agentWithConfig = {
       id: 'agent_1',
-      name: 'CherryClaw',
+      name: 'Test Agent',
       model: 'claude-sonnet-4-20250514',
       configuration: {
-        soul_enabled: true,
         heartbeat_enabled: true
       }
     }
 
     const agentNoConfig = {
       id: 'agent_1',
-      name: 'CherryClaw',
+      name: 'Test Agent',
       model: 'claude-sonnet-4-20250514',
-      configuration: { soul_enabled: false }
+      configuration: {}
     }
 
     beforeEach(() => {
@@ -562,7 +581,8 @@ describe('ClawServer', () => {
           'discord',
           'slack'
         ])
-        expect(parsed.soul_enabled).toBe(true)
+        expect(parsed.soul_enabled).toBeUndefined()
+        expect(parsed.heartbeat_enabled).toBe(true)
       })
 
       it('should return empty channels when none configured', async () => {
@@ -728,6 +748,21 @@ describe('ClawServer', () => {
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('not found')
       })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'update_channel', channel_id: 'ch_1', enabled: false },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
     })
 
     describe('remove_channel action', () => {
@@ -758,6 +793,58 @@ describe('ClawServer', () => {
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('not found')
+      })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('reconnect_channel action', () => {
+      it('should reconnect an existing non-QR channel', async () => {
+        mockGetChannel.mockReturnValue(telegramChannel)
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.content[0].text).toContain('reconnected')
+        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
+      })
+
+      it('should error when channel_id is missing', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain("'channel_id' is required")
+      })
+
+      it('should error when channel not found', async () => {
+        mockGetChannel.mockReturnValue(null)
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_999' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('not found')
+      })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockSyncChannel).not.toHaveBeenCalled()
       })
     })
 
