@@ -25,6 +25,8 @@ IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Prefer
 
 Decision rule: SQLite data → DataApi; user setting → Preference; losable/shared state → Cache; pre-lifecycle config → BootConfig; **everything else, every imperative capability call into main → IpcApi**. Same `BeforeReady` phase does not mean same responsibility — the boundary is responsibility (data/state/config vs command), not phase.
 
+Rare direct IPC carve-outs must be listed in [Not In Scope For IpcApi](./ipc-migration-guide.md#not-in-scope-for-ipcapi). Current carve-outs include the preboot relocation window channels (`relocation:get-progress`, `relocation:progress`, `relocation:restart`), which run before lifecycle and therefore before `IpcApiService` exists.
+
 ## Naming Quick Reference
 
 | Concept | Identifier |

@@ -8,7 +8,6 @@
  */
 
 // BootConfig must load before any other import (configures userData path)
-
 import '@main/data/bootConfig'
 
 import { application } from '@application'
@@ -26,21 +25,25 @@ import {
   resolveUserDataLocation
 } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { type BootConfigLoadError, bootConfigService } from '@main/data/bootConfig'
 import { app, dialog } from 'electron'
 
 const logger = loggerService.withContext('MainEntry')
 
+const bootConfigLoadError = bootConfigService.getLoadError()
 let invalidUserDataPathError: InvalidConfiguredUserDataPathError | null = null
 
-try {
-  // should be the first to resolveUserDataLocation()
-  resolveUserDataLocation()
-} catch (error) {
-  if (!(error instanceof InvalidConfiguredUserDataPathError)) throw error
-  invalidUserDataPathError = error
+if (!bootConfigLoadError) {
+  try {
+    // should be the first to resolveUserDataLocation()
+    resolveUserDataLocation()
+  } catch (error) {
+    if (!(error instanceof InvalidConfiguredUserDataPathError)) throw error
+    invalidUserDataPathError = error
+  }
 }
 
-if (!invalidUserDataPathError) {
+if (!bootConfigLoadError && !invalidUserDataPathError) {
   requireSingleInstance()
   configureChromiumFlags()
   initCrashTelemetry()
@@ -50,6 +53,59 @@ if (!invalidUserDataPathError) {
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
+
+async function handleBootConfigLoadError(error: BootConfigLoadError): Promise<void> {
+  logger.warn('BootConfig load error; blocking startup before userData resolution', {
+    type: error.type,
+    filePath: error.filePath,
+    message: error.message
+  })
+
+  await app.whenReady()
+  const isParseError = error.type === 'parse_error'
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
+    message: isParseError
+      ? 'The configuration file (boot-config.json) contains invalid data.'
+      : 'The configuration file (boot-config.json) could not be read.',
+    detail:
+      `Error: ${error.message}\n\n` +
+      'Cherry Studio will not resolve the data directory or run migration until this is fixed.\n\n' +
+      `"Reset Boot Config" deletes the unreadable/corrupted file and restarts with defaults.\n` +
+      `File: ${error.filePath}`,
+    buttons: ['Retry', 'Reset Boot Config', 'Quit'],
+    defaultId: 0,
+    cancelId: 2
+  })
+
+  if (response === 0) {
+    application.relaunch()
+    return
+  }
+  if (response === 1) {
+    try {
+      bootConfigService.reset()
+    } catch (resetError) {
+      logger.error('Failed to reset BootConfig after load error', resetError as Error)
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'Configuration Reset Failed',
+        message: 'Cherry Studio could not reset boot-config.json.',
+        detail: (resetError as Error).message,
+        buttons: ['Quit'],
+        defaultId: 0,
+        cancelId: 0
+      })
+      application.quit()
+      return
+    }
+    application.relaunch()
+    return
+  }
+
+  application.quit()
+}
 
 async function handleInvalidConfiguredUserDataPath(error: InvalidConfiguredUserDataPathError): Promise<void> {
   logger.warn('Configured userData path is not usable; blocking startup', {
@@ -85,6 +141,11 @@ async function handleInvalidConfiguredUserDataPath(error: InvalidConfiguredUserD
 }
 
 const startApp = async () => {
+  if (bootConfigLoadError) {
+    await handleBootConfigLoadError(bootConfigLoadError)
+    return
+  }
+
   if (invalidUserDataPathError) {
     await handleInvalidConfiguredUserDataPath(invalidUserDataPathError)
     return

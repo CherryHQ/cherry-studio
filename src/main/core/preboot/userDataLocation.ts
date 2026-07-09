@@ -187,6 +187,16 @@ export function resolveUserDataLocation(): void {
   if (resolved) {
     const validation = validateUserDataDir(resolved)
     if (!validation.ok) {
+      const pendingRelocation = bootConfigService.get('temp.user_data_relocation')
+      if (pendingRelocation?.status === 'pending' && pendingRelocation.copy === false) {
+        logger.warn('Committed userData path is not usable; pending switch-only relocation will run', {
+          exe,
+          resolved,
+          reason: validation.reason,
+          to: pendingRelocation.to
+        })
+        return
+      }
       throw new InvalidConfiguredUserDataPathError(exe, resolved, validation.reason)
     }
     app.setPath('userData', resolved)

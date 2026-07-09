@@ -188,12 +188,6 @@ export class Application {
     const regSummary = this.container.getRegistrationSummary()
     logger.info(`Registered ${regSummary.total} services (${regSummary.excluded} excluded)`)
 
-    // Check for boot config corruption BEFORE starting any services
-    if (bootConfigService.hasLoadError()) {
-      await this.handleBootConfigError()
-      // If we reach here, user chose "Continue with Defaults"
-    }
-
     const bootstrapStart = performance.now()
 
     try {
@@ -301,50 +295,6 @@ export class Application {
 
     logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
     this.relaunch()
-  }
-
-  /**
-   * Handle boot config load error by showing a dialog before any services start.
-   * For parse errors: offer reset (delete corrupted file) + restart.
-   * For read errors: offer restart (file may be temporarily inaccessible).
-   */
-  private async handleBootConfigError(): Promise<void> {
-    const loadError = bootConfigService.getLoadError()!
-    logger.warn(`Boot config load error: ${loadError.type} - ${loadError.message}`)
-
-    await app.whenReady()
-
-    const isParseError = loadError.type === 'parse_error'
-
-    const result = await dialog.showMessageBox({
-      type: 'warning',
-      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
-      message: isParseError
-        ? 'The configuration file (boot-config.json) contains invalid data.'
-        : 'The configuration file (boot-config.json) could not be read.',
-      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
-      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
-      defaultId: 0,
-      cancelId: 2
-    })
-
-    if (result.response === 1) {
-      if (isParseError) {
-        bootConfigService.reset()
-      }
-      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
-      this.relaunch()
-      return
-    }
-
-    if (result.response === 2) {
-      logger.info('User chose to exit after boot config error')
-      this.forceExit(1)
-      return
-    }
-
-    logger.info('User chose to continue with defaults after boot config error')
-    bootConfigService.clearLoadError()
   }
 
   /**

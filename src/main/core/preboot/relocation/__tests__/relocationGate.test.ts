@@ -341,6 +341,54 @@ describe('runUserDataRelocationGate', () => {
     })
   })
 
+  it('pending + copy=false: rejects a non-empty switch target without Cherry userData markers', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : []))
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/not recognized as Cherry Studio userData/i)
+    })
+  })
+
+  it('pending + copy=false: allows a non-empty switch target with Cherry userData markers', async () => {
+    stubElectron(true)
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      readdirSync: vi.fn((p: string) => {
+        if (p === '/new/data') return ['Data']
+        if (p === '/new/data/Data') return ['Files']
+        return []
+      })
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).toHaveBeenCalledWith('/new/data')
+    expect(wm.restartApp).toHaveBeenCalled()
+  })
+
+  it('pending + copy=false: commits even when the old source path is inaccessible', async () => {
+    stubElectron(true)
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      existsSync: vi.fn((p: string) => p !== '/old')
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).toHaveBeenCalledWith('/new/data')
+  })
+
   it('pending + copy=true: runs the copy, commits, then restarts immediately (handled)', async () => {
     stubElectron(true)
     stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
@@ -429,11 +477,11 @@ describe('runUserDataRelocationGate', () => {
     const store = stubBootConfig({
       status: 'pending',
       from: '/old',
-      to: '/opt/Cherry Studio/Data',
+      to: '/Users/alice/Cherry Studio/Data',
       copy: true
     })
     stubFsAndFsp()
-    stubDeps({ installPath: '/opt/Cherry Studio' })
+    stubDeps({ installPath: '/Users/alice/Cherry Studio' })
     const { runUserDataRelocationGate } = await loadGate()
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')

@@ -105,7 +105,7 @@ const BasicDataSettings: React.FC = () => {
     title: React.ReactNode,
     className: string
   ) => {
-    let shouldCopyData = !(await window.api.isNotEmptyDir(newPath))
+    let shouldCopyData = true
 
     const PathsContent = () => (
       <div>

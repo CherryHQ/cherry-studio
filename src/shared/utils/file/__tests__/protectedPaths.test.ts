@@ -43,6 +43,9 @@ describe('isProtectedSystemPathOrDescendant', () => {
     expect(isProtectedSystemPathOrDescendant('/etc/cherry')).toBe(true)
     expect(isProtectedSystemPathOrDescendant('/System/Library')).toBe(true)
     expect(isProtectedSystemPathOrDescendant('/Library/Application Support')).toBe(true)
+    expect(isProtectedSystemPathOrDescendant('/Applications/Cherry Studio.app')).toBe(true)
+    expect(isProtectedSystemPathOrDescendant('/Applications/Cherry Studio.app/Contents')).toBe(true)
+    expect(isProtectedSystemPathOrDescendant('/opt/Cherry Studio')).toBe(true)
   })
 
   it('blocks protected Windows roots and descendants for destructive relocation targets', () => {

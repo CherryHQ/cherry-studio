@@ -22,7 +22,8 @@ Typical examples: disabling hardware acceleration, setting user data directory p
 │  1. BootConfig load        ← Sync read of boot-config.json           │
 │     (bootConfigService)      Only data system available here         │
 │          │                                                           │
-│  2. Bootstrap              ← App data directory setup                │
+│  2. Preboot checks         ← Load-error gate, userData resolution,   │
+│                               relocation gate, v1→v2 migration gate  │
 │          │                                                           │
 │  3. application.bootstrap()                                          │
 │          │                                                           │
@@ -53,9 +54,11 @@ BootConfig is the **only** data system available at stage 1 — before the lifec
 
 Keys follow the same naming convention as preferences: `namespace.key_name`
 
-| Key                                 | Type      | Default | Description                            |
-| ----------------------------------- | --------- | ------- | -------------------------------------- |
-| `app.disable_hardware_acceleration` | `boolean` | `false` | Disable Chromium hardware acceleration |
+| Key                                 | Type                     | Default | Description                                                     |
+| ----------------------------------- | ------------------------ | ------- | --------------------------------------------------------------- |
+| `app.disable_hardware_acceleration` | `boolean`                | `false` | Disable Chromium hardware acceleration                          |
+| `app.user_data_path`                | `Record<string, string>` | `{}`    | Custom Electron `userData` path keyed by normalized executable  |
+| `temp.user_data_relocation`         | relocation state/null    | `null`  | One-shot pending/failed userData relocation state consumed preboot |
 
 ### Atomic File Writes
 
@@ -107,7 +110,9 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`. Long-term, BootConfig will fully replace the legacy `config/config.json` — the follow-up PR will rewire `initAppDataDir()` to read `app.user_data_path` from BootConfig instead of parsing the legacy file directly.
+BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; `resolveUserDataLocation()` now consumes it during preboot before the path registry, relocation gate, migration gate, or lifecycle services run. Keys are normalized executable paths, including the AppImage and Windows portable executable path normalization used by v1 so migrated records continue to match.
+
+`temp.user_data_relocation` is transient operation state, not a user setting. The renderer writes `{ status: 'pending', from, to, copy }` through the app-data-path IPC handler, preboot performs the relocation before normal bootstrap, and the gate either commits `app.user_data_path` and clears the temp key or records `{ status: 'failed', from, to, error, failedAt }` for the terminal failure UI. A later normal launch clears failed state. `temp.*` keys must not be backed up, synced, migrated as durable preferences, or restored across machines.
 
 ## Access Convention
 
@@ -161,7 +166,8 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
   "app.disable_hardware_acceleration": false,
   "app.user_data_path": {
     "/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio": "/Volumes/External/CherryData"
-  }
+  },
+  "temp.user_data_relocation": null
 }
 ```
 

@@ -53,6 +53,9 @@ export type RelocationGateResult = 'handled' | 'skipped'
 
 let currentProgress: RelocationProgress | null = null
 
+const CHERRY_USER_DATA_MARKER_FILES = new Set(['cherrystudio.sqlite', 'version.log'])
+const CHERRY_USER_DATA_DATA_DIR_MARKERS = new Set(['Files', 'KnowledgeBase', 'Notes', 'Skills', 'Agents', 'Channels'])
+
 /**
  * Decide whether a pending userData relocation must run before
  * `application.bootstrap()`.
@@ -219,8 +222,9 @@ function preflight(from: string, to: string, copy: boolean): void {
   if (fromAbs === toAbs) {
     throw new Error(`source and target are the same path: ${fromAbs}`)
   }
-  assertSourceDirectoryReadable(from)
-  const fromRealAbs = resolveExistingRealPathForCompare(from)
+  if (copy) {
+    assertSourceDirectoryReadable(from)
+  }
   if (getPathDepth(toAbs) <= 1) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
   }
@@ -230,14 +234,16 @@ function preflight(from: string, to: string, copy: boolean): void {
   if (isExistingMountRoot(to)) {
     throw new Error(`target must not be a mounted volume root: ${toAbs}`)
   }
-  // Target inside source would make the recursive copy recurse into its
-  // own output. The path relation helper avoids false positives when `from`
-  // is a prefix of an unrelated sibling directory (e.g. /a vs /ab).
-  if (isPathInside(toAbs, fromAbs)) {
-    throw new Error(`target is inside source (would recurse): ${toAbs}`)
-  }
-  if (isPathInside(fromAbs, toAbs)) {
-    throw new Error(`source is inside target (would merge userData into an ancestor): ${toAbs}`)
+  if (copy) {
+    // Target inside source would make the recursive copy recurse into its
+    // own output. The path relation helper avoids false positives when `from`
+    // is a prefix of an unrelated sibling directory (e.g. /a vs /ab).
+    if (isPathInside(toAbs, fromAbs)) {
+      throw new Error(`target is inside source (would recurse): ${toAbs}`)
+    }
+    if (isPathInside(fromAbs, toAbs)) {
+      throw new Error(`source is inside target (would merge userData into an ancestor): ${toAbs}`)
+    }
   }
   const toParent = path.dirname(to)
   if (!fs.existsSync(toParent)) {
@@ -246,23 +252,28 @@ function preflight(from: string, to: string, copy: boolean): void {
   fs.accessSync(toParent, fs.constants.W_OK)
   const installPath = resolveForPathCompare(application.getPath('app.install'))
   const toRealAbs = resolveTargetRealPathForCompare(to)
-  if (fromRealAbs === toRealAbs) {
-    throw new Error(`source and target resolve to the same path: ${fromRealAbs}`)
-  }
-  if (isPathInside(toRealAbs, fromRealAbs)) {
-    throw new Error(`target real path is inside source real path (would recurse): ${toRealAbs}`)
-  }
-  if (isPathInside(fromRealAbs, toRealAbs)) {
-    throw new Error(`source real path is inside target real path (would merge userData into an ancestor): ${toRealAbs}`)
+  if (copy) {
+    const fromRealAbs = resolveExistingRealPathForCompare(from)
+    if (fromRealAbs === toRealAbs) {
+      throw new Error(`source and target resolve to the same path: ${fromRealAbs}`)
+    }
+    if (isPathInside(toRealAbs, fromRealAbs)) {
+      throw new Error(`target real path is inside source real path (would recurse): ${toRealAbs}`)
+    }
+    if (isPathInside(fromRealAbs, toRealAbs)) {
+      throw new Error(
+        `source real path is inside target real path (would merge userData into an ancestor): ${toRealAbs}`
+      )
+    }
+    if (toRealAbs !== toAbs && isPathInside(toRealAbs, fromAbs)) {
+      throw new Error(`target real path is not safe: ${toRealAbs}`)
+    }
   }
   if (toRealAbs === installPath || isPathInside(toRealAbs, installPath)) {
     throw new Error(`target must not be inside the app install path: ${toRealAbs}`)
   }
   if (isProtectedSystemPathOrDescendant(toRealAbs)) {
     throw new Error(`target real path must not be a protected system path: ${toRealAbs}`)
-  }
-  if (toRealAbs !== toAbs && isPathInside(toRealAbs, fromAbs)) {
-    throw new Error(`target real path is not safe: ${toRealAbs}`)
   }
   assertTargetDirectoryIsSafeToReplace(to, copy)
 }
@@ -344,12 +355,28 @@ function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean): void {
     } catch (error) {
       throw new Error(`switch target directory is not writable: ${to}: ${(error as Error).message}`)
     }
+    const entries = fs.readdirSync(to)
+    if (entries.length > 0 && !isRecognizedCherryUserDataDirectory(to, entries)) {
+      throw new Error(`switch target directory is not recognized as Cherry Studio userData: ${to}`)
+    }
     return
   }
 
   const entries = fs.readdirSync(to)
   if (entries.length > 0 && !confirmTargetOverwrite(to)) {
     throw new Error(`target directory is not empty and overwrite was not confirmed: ${to}`)
+  }
+}
+
+function isRecognizedCherryUserDataDirectory(to: string, entries = fs.readdirSync(to)): boolean {
+  if (entries.some((entry) => CHERRY_USER_DATA_MARKER_FILES.has(entry))) return true
+  if (!entries.includes('Data')) return false
+
+  try {
+    const dataEntries = fs.readdirSync(path.join(to, 'Data'))
+    return dataEntries.some((entry) => CHERRY_USER_DATA_DATA_DIR_MARKERS.has(entry))
+  } catch {
+    return false
   }
 }
 

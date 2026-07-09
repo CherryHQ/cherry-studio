@@ -365,6 +365,19 @@ describe('resolveUserDataLocation', () => {
     expect(setPathMock).not.toHaveBeenCalled()
   })
 
+  it('BootConfig has invalid committed path but pending copy=false exists: defers to relocation gate', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    stubBootConfig({
+      'app.user_data_path': { '/mock/exe': '/custom/data' },
+      'temp.user_data_relocation': { status: 'pending', from: '/custom/data', to: '/new/data', copy: false }
+    })
+    stubFs({ existsSyncImpl: () => false })
+    const { resolveUserDataLocation } = await loadModule()
+    expect(() => resolveUserDataLocation()).not.toThrow()
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
   it('BootConfig has no matching exe key: falls through, no setPath', async () => {
     stubConstants({ isLinux: false, isWin: false, isPortable: false })
     stubElectron({ exePath: '/mock/exe' })

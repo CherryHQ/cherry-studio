@@ -50,6 +50,8 @@ export function isProtectedSystemPathOrDescendant(candidate: string): boolean {
     '/sbin/',
     '/var/',
     '/library/',
+    '/applications/',
+    '/opt/',
     'c:/windows/',
     'c:/program files/',
     'c:/program files (x86)/'

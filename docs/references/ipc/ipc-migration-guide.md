@@ -138,6 +138,9 @@ Does this R→M channel go through IpcApi?
 | Item | Stays in |
 |---|---|
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
+| `relocation:get-progress`, `relocation:progress`, `relocation:restart` | Preboot relocation window (`src/main/core/preboot/relocation/relocationGate.ts`, `RelocationWindowManager.ts`, `src/renderer/windows/relocation/hooks/useRelocationProgress.ts`) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.subscribe` | their own subsystems |
 | `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |
+
+The relocation channels are a pre-bootstrap carve-out. They run before lifecycle services and before `IpcApiService` exists, while normal bootstrap is intentionally blocked by the userData relocation gate. Sender trust is restricted by the dedicated relocation preload/window pair: only the relocation window exposes these methods, and the main-side handlers are registered for the short-lived preboot flow. Cleanup is process-scoped because success and terminal restart paths relaunch the app; no normal application window or lifecycle service is started while these channels are active.
