@@ -751,6 +751,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionDisplayMode] = usePreference('agent.session.display_mode')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
+  const shouldShowWorkspaceSelector = Boolean(showWorkspaceSelector && sessionDisplayMode !== 'workdir')
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -1115,7 +1116,7 @@ const AgentComposerInner = ({
     enabled: enableMentionModelTrigger
   })
 
-  const renderWorkspaceControl = showWorkspaceSelector
+  const renderWorkspaceControl = shouldShowWorkspaceSelector
     ? ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
         <AgentComposerWorkspaceControl
           workspace={workspace}

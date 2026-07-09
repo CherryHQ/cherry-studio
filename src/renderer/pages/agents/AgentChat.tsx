@@ -381,7 +381,6 @@ const AgentChatSessionFrame = ({
   const isEmptyConversation =
     !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
-  const canChangeModel = isEmptyConversation || activeAgent?.model === null
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -436,7 +435,6 @@ const AgentChatSessionFrame = ({
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
       showWorkspaceSelector={showWorkspaceSelector}
-      canChangeModel={canChangeModel}
       composerContext={runtime.composerContext}
     />
   )

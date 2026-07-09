@@ -426,7 +426,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : 'workdir'
+      'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
     }
     return [values[key]]
   }
@@ -869,6 +869,7 @@ describe('AgentComposer', () => {
 
   it('renders context usage next to the send action when cached usage exists', async () => {
     mocks.contextUsagePercentage = 42
+    mocks.sessionLayout = 'time'
 
     render(
       <AgentComposer
@@ -1786,6 +1787,8 @@ describe('AgentComposer', () => {
   })
 
   it('renders the agent, model, and workspace below the surface in draft home mode', () => {
+    mocks.sessionLayout = 'time'
+
     render(
       <AgentHomeComposer
         agentId="agent-1"
@@ -1852,6 +1855,8 @@ describe('AgentComposer', () => {
   })
 
   it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
+    mocks.sessionLayout = 'time'
+
     render(
       <AgentHomeComposer
         agentId="agent-1"
@@ -1892,7 +1897,26 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
   })
 
+  it('hides the workspace selector when sessions are grouped by workspace', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        showWorkspaceSelector
+        onWorkspaceChange={vi.fn()}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
+    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
+  })
+
   it('renders a read-only workspace control in docked composer mode when requested without a change handler', () => {
+    mocks.sessionLayout = 'time'
+
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1911,6 +1935,7 @@ describe('AgentComposer', () => {
   })
 
   it('releases docked workspace changes to the provided handler', () => {
+    mocks.sessionLayout = 'time'
     const onWorkspaceChange = vi.fn()
 
     render(
@@ -1931,6 +1956,7 @@ describe('AgentComposer', () => {
   })
 
   it('releases draft workspace changes to the provided handler', () => {
+    mocks.sessionLayout = 'time'
     const onWorkspaceChange = vi.fn()
 
     render(
@@ -1975,6 +2001,8 @@ describe('AgentComposer', () => {
   })
 
   it('does not preflight the system no-project workspace path', () => {
+    mocks.sessionLayout = 'time'
+
     render(
       <AgentComposer
         agentId="agent-1"
