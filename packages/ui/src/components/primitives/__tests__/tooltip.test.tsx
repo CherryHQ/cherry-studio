@@ -218,7 +218,9 @@ describe('Tooltip', () => {
     it('renders an arrow by default for TooltipContent', () => {
       renderOpenTooltipContent('compound tip')
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).toBeInTheDocument()
+      const arrow = getTooltipContentElement('compound tip').querySelector('svg')
+      expect(arrow).toBeInTheDocument()
+      expect(arrow).toHaveClass('fill-neutral-900', 'stroke-neutral-900', 'stroke-2')
     })
 
     it('passes showArrow through NormalTooltip', () => {
