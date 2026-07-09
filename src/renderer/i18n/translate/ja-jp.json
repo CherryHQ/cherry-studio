@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "今日は何について話しましょうか？"
     },
+    "icon": {
+      "type": "エージェントアイコン"
+    },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
       "soul_placeholder": "Telegramに接続するのを手伝ってください"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
       }
+    },
+    "manage": {
+      "title": "エージェントの管理"
     },
     "pin": {
       "title": "ピンエージェント"
@@ -499,6 +505,7 @@
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
       },
+      "auto_rename": "タスク名を生成",
       "create": {
         "error": {
           "failed": "セッションの追加に失敗しました"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "エージェント",
+    "skill": {
+      "manage": {
+        "title": "スキルを管理する"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "menu_title": "すべてのアシスタントとの会話を削除してください",
+      "success_title": "{{count}}トピックをクリアしました",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "トピックは、完全な会話コンテキストを含んだ形でナレッジベースに保存されます"
             }
           },
+          "source_fallback": "会話",
           "success": "トピックがナレッジベースに正常に保存されました（{{count}} 個のコンテンツ）",
           "title": "トピックをナレッジベースに保存"
         }
@@ -3135,6 +3149,7 @@
           "avatar_aria": "アバターを選択",
           "back": "戻る",
           "capability": {
+            "builtin_badge": "デフォルトで有効",
             "import": "スキルインポート",
             "no_skills": "インストールされているスキルがありません",
             "search": "検索スキル"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
+      "collapse": "折りたたむ",
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
@@ -3797,6 +3813,7 @@
         "usingTools": "タスクに取り組んでいる"
       },
       "preview": "プレビュー",
+      "processed": "処理済み",
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "runningHeader": "作業中…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
+    "exportToPDF": "PDFにエクスポート",
     "exportToWord": "Wordにエクスポート",
     "export_failed": "知識ベースへのエクスポートに失敗しました",
     "export_knowledge": "ノートをナレッジベースにエクスポートする",
     "export_success": "知識ベースへのエクスポートが成功しました",
+    "export_to_pdf_failed": "PDFへのエクスポートに失敗しました",
+    "export_to_pdf_success": "PDFにエクスポートされました",
     "export_to_word_failed": "Wordへのエクスポートに失敗しました",
     "folder": "フォルダー",
     "load_failed": "ノートの読み込みに失敗しました",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "有効なファイルがアップロードされていません",
     "open_folder": "外部フォルダーを開きます",
     "open_outside": "外部から開く",
+    "print": "印刷",
+    "print_failed": "ノートの印刷に失敗しました",
     "rename": "名前の変更",
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "rename_failed": "ノートの名前を変更できませんでした",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
+    "agent": {
+      "position": {
+        "label": "セッション位置",
+        "left": "左",
+        "right": "右"
+      }
+    },
     "appearance": {
       "title": "外観"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "アップデートを確認",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
@@ -6004,7 +6034,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "アップデートの確認に失敗しました"
     },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
@@ -7266,6 +7297,7 @@
       "open_tab_in_new_window": "新しいウィンドウでタブを開く",
       "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
+      "print": "印刷",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
       "reset": "リセット",
@@ -7596,6 +7628,7 @@
   },
   "title": {
     "apps": "アプリ",
+    "chat": "チャット",
     "code": "Code",
     "files": "ファイル",
     "home": "ホーム",

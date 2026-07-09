@@ -3152,6 +3152,7 @@
           "avatar_aria": "选择头像",
           "back": "上一步",
           "capability": {
+            "builtin_badge": "默认启用",
             "import": "导入技能",
             "no_skills": "未安装技能",
             "search": "搜索技能"
