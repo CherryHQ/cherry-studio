@@ -39,8 +39,7 @@ import type {
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
-  SkillResult,
-  SkillToggleOptions
+  SkillResult
 } from '@shared/types/skill'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { WebviewKeyEvent } from '@shared/types/webview'
@@ -598,8 +597,6 @@ const api = {
     install: (options: SkillInstallOptions): Promise<SkillResult<InstalledSkill>> =>
       ipcRenderer.invoke(IpcChannel.Skill_Install, options),
     uninstall: (skillId: string): Promise<SkillResult<void>> => ipcRenderer.invoke(IpcChannel.Skill_Uninstall, skillId),
-    toggle: (options: SkillToggleOptions): Promise<SkillResult<InstalledSkill | null>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_Toggle, options),
     installFromZip: (options: SkillInstallFromZipOptions): Promise<SkillResult<InstalledSkill>> =>
       ipcRenderer.invoke(IpcChannel.Skill_InstallFromZip, options),
     installFromDirectory: (options: SkillInstallFromDirectoryOptions): Promise<SkillResult<InstalledSkill>> =>

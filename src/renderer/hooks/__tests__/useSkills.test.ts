@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const toggleSkillMock = vi.hoisted(() => vi.fn())
 const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
@@ -59,16 +58,11 @@ describe('useInstalledSkills', () => {
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    toggleSkillMock.mockImplementation(async ({ skillId, isEnabled }) => ({
-      success: true,
-      data: createSkill({ id: skillId, isEnabled, updatedAt: '2024-01-02T00:00:00.000Z' })
-    }))
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     vi.stubGlobal('api', {
       skill: {
-        toggle: toggleSkillMock,
         uninstall: uninstallSkillMock,
         listLocal: listLocalSkillsMock
       }
@@ -79,24 +73,11 @@ describe('useInstalledSkills', () => {
     vi.unstubAllGlobals()
   })
 
-  it('reads skills with DataApi and toggles agent skill through IPC', async () => {
+  it('reads skills with DataApi scoped to the agent', () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
     expect(result.current.skills).toHaveLength(2)
-    expect(useQueryMock).toHaveBeenCalledWith('/skills', { query: { agentId: 'agent-1' } })
-
-    let toggleSuccess = false
-    await act(async () => {
-      toggleSuccess = await result.current.toggle('skill-1', true)
-    })
-
-    expect(toggleSuccess).toBe(true)
-    expect(toggleSkillMock).toHaveBeenCalledWith({
-      agentId: 'agent-1',
-      skillId: 'skill-1',
-      isEnabled: true
-    })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
@@ -126,27 +107,8 @@ describe('useInstalledSkills', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
-  it('does not toggle when no agent context is provided', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let toggleSuccess = true
-    await act(async () => {
-      toggleSuccess = await result.current.toggle('skill-1', true)
-    })
-
-    expect(toggleSuccess).toBe(false)
-    expect(toggleSkillMock).not.toHaveBeenCalled()
-    expect(invalidateMock).not.toHaveBeenCalled()
-  })
-
-  it('logs, toasts, and rethrows toggle and uninstall failures', async () => {
+  it('logs, toasts, and rethrows uninstall failures', async () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
-
-    toggleSkillMock.mockRejectedValueOnce(new Error('toggle failed'))
-    await act(async () => {
-      await expect(result.current.toggle('skill-1', true)).rejects.toThrow('toggle failed')
-    })
-    expect(toast.error).toHaveBeenCalledWith('toggle failed')
 
     uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
     await act(async () => {
