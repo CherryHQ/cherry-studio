@@ -6,7 +6,7 @@
 // documented exception to invariant #21 (natural-key aggregates default to
 // FIELD_MERGE). `note` stores only a state overlay (isStarred/isExpanded) keyed
 // by (rootPath, path) into the Notes markdown files — NOT note body text, which
-// is a file resource (see openspec simple-domains.md "PREFERENCES").
+// is a file resource.
 //
 // preference.value is arbitrary JSON with NO entity-id soft-references;
 // jsonSoftReferences is [] and the coverage test guards against future drift.
@@ -52,7 +52,7 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
   backupPolicy: {
     // PREFERENCES-only: key patterns EXCLUDED at restore so a backup from another
     // OS/machine does not import foreign keybindings or absolute paths. Starter
-    // set (openspec config-domains.md); the full list is curated by the
+    // set; the full list is curated by the
     // PREFERENCES owner. Matching semantics are finalized with the D restore track.
     platformSpecificKeys: [
       'shortcut.', // keybindings — key codes differ per OS (Cmd vs Ctrl)
@@ -65,12 +65,12 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
   //  1. Cache refresh — after commit, call PreferenceService.reloadFromDb() +
   //     rebroadcast so the main + renderer preference caches reflect restored values
   //     (M1; without it restore silently no-ops until restart). Blocked on the upstream
-  //     reloadFromDb API — see ~/Downloads/backup-upstream-issues/preference-service-reload.md.
+  //     reloadFromDb API (upstream, tracked separately).
   //  2. note-overlay selected-resource filtering (codex review P2) — `note` rows are
   //     state overlays keyed by (rootPath, path) into Notes markdown files. In lite
   //     mode (files excluded) the restore MUST filter note rows whose markdown is not
   //     in the backup, else it imports starred/expanded state for non-existent notes
-  //     (openspec simple-domains.md "PREFERENCES" 精简模式一致性). The Notes markdown
+  //     (selected-resource consistency in lite mode). The Notes markdown
   //     body itself is a file resource (full mode only).
   operations: undefined
 })
