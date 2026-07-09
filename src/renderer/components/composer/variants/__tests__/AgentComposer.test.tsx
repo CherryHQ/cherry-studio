@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
   getMetadata: vi.fn(),
+  ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
@@ -103,6 +104,12 @@ const pdfSkillToken = {
   promptText: 'Use the pdf skill.',
   payload: pdfSkill
 } as const
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
+  }
+}))
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
@@ -466,6 +473,13 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.getMetadata.mockReset()
     mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
+    mocks.ipcApiRequest.mockReset()
+    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
+      if (route !== 'file.batch_get_metadata') return {}
+      return Object.fromEntries(
+        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+      )
+    })
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -1324,7 +1338,9 @@ describe('AgentComposer', () => {
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
     expect(mocks.createInternalEntry).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/workspace/docs/notes.md' })
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [{ key: '/workspace/docs/notes.md', handle: { kind: 'path', path: '/workspace/docs/notes.md' } }]
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -1384,7 +1400,9 @@ describe('AgentComposer', () => {
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
     expect(mocks.createInternalEntry).not.toHaveBeenCalled()
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: 'C:\\workspace\\docs\\notes.md' })
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [{ key: 'C:\\workspace\\docs\\notes.md', handle: { kind: 'path', path: 'C:\\workspace\\docs\\notes.md' } }]
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -1406,6 +1424,43 @@ describe('AgentComposer', () => {
         }
       }
     )
+  })
+
+  it('fails the send when a workspace reference is missing from the batch metadata lookup', async () => {
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/workspace/docs/notes.md'
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({})
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed'))
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
   it('bridges file tokens into the existing agent session message text protocol', async () => {

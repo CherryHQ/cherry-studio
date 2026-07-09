@@ -34,6 +34,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -51,7 +52,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,6 +60,7 @@ import { useTranslation } from 'react-i18next'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -100,39 +102,19 @@ const ResourceEditDialogHost = React.lazy(() =>
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
 
-const normalizePathForAccessiblePathComparison = (value: string) => {
-  const normalized = value.replace(/\\/g, '/')
-  return normalized === '/' ? normalized : normalized.replace(/\/+$/, '')
-}
-
-const isPathWithinAccessiblePath = (filePath: string, accessiblePaths: readonly string[]) => {
-  const normalizedFilePath = normalizePathForAccessiblePathComparison(filePath)
-
-  return accessiblePaths.some((basePath) => {
-    const normalizedBasePath = normalizePathForAccessiblePathComparison(basePath)
-    if (!normalizedBasePath) return false
-    if (normalizedBasePath === '/') return normalizedFilePath.startsWith('/')
-    return normalizedFilePath === normalizedBasePath || normalizedFilePath.startsWith(`${normalizedBasePath}/`)
-  })
-}
-
-const toFilePathHandlePath = (filePath: string): FilePath => {
-  if (/^[A-Za-z]:\//.test(filePath)) {
-    return filePath.replace(/\//g, '\\') as FilePath
-  }
-  return filePath as FilePath
-}
-
 const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
-  const filePath = toFilePathHandlePath(attachment.path)
-  const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
-  if (metadata.kind !== 'file') {
+  const filePath = canonicalizeAbsolutePath(attachment.path) as FilePath
+  const metadataById = await ipcApi.request('file.batch_get_metadata', {
+    items: [{ key: filePath, handle: createFilePathHandle(filePath) }]
+  })
+  const metadata = metadataById[filePath]
+  if (!metadata || metadata.kind !== 'file') {
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
   }
 
   return {
     type: 'file',
-    url: toFileUrl(attachment.path as FilePath),
+    url: toFileUrl(filePath),
     mediaType: metadata.mime,
     filename: attachment.origin_name || attachment.name
   }

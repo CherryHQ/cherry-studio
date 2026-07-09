@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelResourceProvider } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
+import { getAccessiblePathRelativePath } from './accessiblePath'
 
 const getBaseName = (filePath: string) => {
   const normalized = filePath.replace(/\\/g, '/')
@@ -43,21 +44,6 @@ const createStablePathHash = (value: string) => {
 
 const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
-
-const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
-  const normalizedFilePath = filePath.replace(/\\/g, '/')
-
-  for (const basePath of accessiblePaths) {
-    const normalizedBasePath = basePath.replace(/\\/g, '/')
-    const baseWithSlash = normalizedBasePath.endsWith('/') ? normalizedBasePath : `${normalizedBasePath}/`
-
-    if (normalizedFilePath.startsWith(baseWithSlash)) {
-      return normalizedFilePath.slice(baseWithSlash.length)
-    }
-  }
-
-  return filePath
-}
 
 interface AgentResourceSuggestionOptions {
   accessiblePaths: readonly string[]
@@ -138,7 +124,7 @@ export function useAgentResourceSearchProvider({
         }
 
         return [...collected].slice(0, 50).map((filePath) => {
-          const relativePath = getRelativePath(filePath, accessiblePaths)
+          const relativePath = getAccessiblePathRelativePath(filePath, accessiblePaths)
           const file = files.find((currentFile) => currentFile.path === filePath)
           const tokenFile = file ?? createAttachmentFromPath(filePath)
           const token = agentFileToComposerToken(tokenFile)
