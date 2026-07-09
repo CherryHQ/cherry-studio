@@ -36,11 +36,11 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   },
-  'app.set_user_data_path': async ({ path, copyData = false, overwriteExisting = false }) => {
+  'app.set_user_data_path': async ({ path, copyData = false }) => {
     if (copyData) {
       await flushAppDataSessions()
     }
 
-    requestRelocation(application.getPath('app.userdata'), path, copyData, overwriteExisting)
+    requestRelocation(application.getPath('app.userdata'), path, copyData)
   }
 }

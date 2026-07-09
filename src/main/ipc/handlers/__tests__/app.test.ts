@@ -104,7 +104,7 @@ describe('appHandlers', () => {
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
 
     expect(result).toBeUndefined()
-    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false, false)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false)
   })
 
   it('set_user_data_path copyData=true requests copy relocation persistence', async () => {
@@ -113,7 +113,7 @@ describe('appHandlers', () => {
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: true }, ctx)
 
     expect(result).toBeUndefined()
-    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true, false)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true)
   })
 
   it('set_user_data_path copyData=true flushes app data sessions before requesting copy relocation', async () => {
@@ -149,17 +149,5 @@ describe('appHandlers', () => {
     expect(webviewSessionMock.cookies.flushStore).not.toHaveBeenCalled()
     expect(webviewSessionMock.closeAllConnections).not.toHaveBeenCalled()
     expect(browserWindowGetAllWindowsMock).not.toHaveBeenCalled()
-  })
-
-  it('set_user_data_path preserves explicit overwrite confirmation for copy relocation', async () => {
-    const targetPath = '/new/user/data-copy'
-
-    const result = await appHandlers['app.set_user_data_path'](
-      { path: targetPath, copyData: true, overwriteExisting: true },
-      ctx
-    )
-
-    expect(result).toBeUndefined()
-    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true, true)
   })
 })

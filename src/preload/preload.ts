@@ -101,7 +101,7 @@ const api = {
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
   isPathInside: (childPath: string, parentPath: string) =>
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
-  setAppDataPath: (request: { path: string; copyData?: boolean; overwriteExisting?: boolean }) =>
+  setAppDataPath: (request: { path: string; copyData?: boolean }) =>
     unwrapIpcResult(ipcApi.request('app.set_user_data_path', request)),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),

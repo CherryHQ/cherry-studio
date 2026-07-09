@@ -9,6 +9,19 @@ import { app } from 'electron'
 const logger = loggerService.withContext('Preboot')
 const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
 
+export class InvalidConfiguredUserDataPathError extends Error {
+  constructor(
+    readonly exe: string,
+    readonly configuredPath: string,
+    readonly reason: string
+  ) {
+    super(`Configured userData path is not usable: ${configuredPath}: ${reason}`)
+    this.name = 'InvalidConfiguredUserDataPathError'
+  }
+}
+
+export type UserDataDirValidationResult = { ok: true } | { ok: false; reason: string }
+
 /**
  * Terminology — read this before editing
  * --------------------------------------
@@ -58,8 +71,8 @@ export function getNormalizedExecutablePath(): string {
 /**
  * Record a userData relocation request in BootConfig and flush.
  *
- * Writes `temp.user_data_relocation = { status: 'pending', from, to, copy,
- * overwriteExisting }` so the next launch's preboot relocation gate (see
+ * Writes `temp.user_data_relocation = { status: 'pending', from, to, copy }`
+ * so the next launch's preboot relocation gate (see
  * `core/preboot/relocation/relocationGate.ts`) picks it up, performs the
  * copy (when `copy` is true), commits the new location to
  * `app.user_data_path`, and relaunches.
@@ -69,22 +82,20 @@ export function getNormalizedExecutablePath(): string {
  * the actual relocation happens exclusively in preboot on the next launch,
  * after the previous process has fully exited and no file is locked.
  */
-export function requestRelocation(from: string, to: string, copy: boolean, overwriteExisting = false): void {
+export function requestRelocation(from: string, to: string, copy: boolean): void {
   const canonicalFrom = canonicalizeUserDataPath(from)
   const canonicalTo = canonicalizeUserDataPath(to)
   bootConfigService.set('temp.user_data_relocation', {
     status: 'pending',
     from: canonicalFrom,
     to: canonicalTo,
-    copy,
-    overwriteExisting
+    copy
   })
   bootConfigService.flush()
   logger.info('userData relocation requested; relaunch required', {
     from: canonicalFrom,
     to: canonicalTo,
-    copy,
-    overwriteExisting
+    copy
   })
 }
 
@@ -104,6 +115,15 @@ export function commitRelocation(targetPath: string): void {
   bootConfigService.set('temp.user_data_relocation', null)
   bootConfigService.flush()
   logger.info('userData relocation committed to BootConfig', { exe, targetPath: canonicalTargetPath })
+}
+
+export function clearCommittedUserDataLocation(exe = getNormalizedExecutablePath()): void {
+  const current = bootConfigService.get('app.user_data_path') ?? {}
+  const remaining = { ...current }
+  delete remaining[exe]
+  bootConfigService.set('app.user_data_path', remaining)
+  bootConfigService.flush()
+  logger.warn('Committed userData location cleared from BootConfig', { exe })
 }
 
 export function canonicalizeUserDataPath(userDataPath: string): string {
@@ -159,10 +179,16 @@ export function resolveUserDataLocation(): void {
     return
   }
 
-  // BootConfig as single source of truth.
+  // BootConfig as single source of truth. A configured but unusable path is
+  // fail-closed: silently falling back to Electron's default can make data
+  // appear lost and may bootstrap services against the wrong directory.
   const exe = getNormalizedExecutablePath()
   const resolved = bootConfigService.get('app.user_data_path')?.[exe]
-  if (resolved && isValidDataDir(resolved)) {
+  if (resolved) {
+    const validation = validateUserDataDir(resolved)
+    if (!validation.ok) {
+      throw new InvalidConfiguredUserDataPathError(exe, resolved, validation.reason)
+    }
     app.setPath('userData', resolved)
     logger.info('userData set from BootConfig', { exe, resolved })
     return
@@ -189,17 +215,21 @@ function resolveDevUserDataSuffix(): string {
  * Intentionally inline — we cannot use the async hasWritePermission from
  * src/main/utils/file.ts during the synchronous preboot chain.
  */
-function isValidDataDir(p: string): boolean {
+export function validateUserDataDir(p: string): UserDataDirValidationResult {
   try {
-    if (!path.isAbsolute(p)) return false
-    if (!fs.existsSync(p)) return false
+    if (!path.isAbsolute(p)) return { ok: false, reason: 'path is not absolute' }
+    if (!fs.existsSync(p)) return { ok: false, reason: 'path does not exist' }
     const lstat = fs.lstatSync(p)
-    if (typeof lstat.isSymbolicLink === 'function' && lstat.isSymbolicLink()) return false
+    if (typeof lstat.isSymbolicLink === 'function' && lstat.isSymbolicLink()) {
+      return { ok: false, reason: 'path is a symlink' }
+    }
     const stat = fs.statSync(p)
-    if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) return false
+    if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) {
+      return { ok: false, reason: 'path is not a directory' }
+    }
     fs.accessSync(p, fs.constants.W_OK)
-    return true
-  } catch {
-    return false
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, reason: (error as Error).message }
   }
 }

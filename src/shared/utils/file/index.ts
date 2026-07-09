@@ -13,7 +13,7 @@ export {
 export { sanitizeFilename, validateFileName, type ValidateFileNameResult } from './filename'
 export { fileTypeMap, getFileTypeByExt } from './fileType'
 export { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from './handle'
-export { isProtectedSystemPath } from './protectedPaths'
+export { isProtectedSystemPath, isProtectedSystemPathOrDescendant } from './protectedPaths'
 export {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,

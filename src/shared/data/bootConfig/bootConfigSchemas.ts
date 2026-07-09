@@ -46,13 +46,12 @@ export interface BootConfigSchema {
    *
    * Lifecycle:
    *   - null: no relocation in progress (default).
-   *   - { status: 'pending', from, to, copy, overwriteExisting? }: an IPC
+   *   - { status: 'pending', from, to, copy }: an IPC
    *     handler wrote this request and the next preboot should relocate
    *     userData. When `copy` is true the entire from→to tree is copied
    *     first; when false only the userData location is switched (no copy).
-   *     `overwriteExisting` records the v1-style second confirmation for
-   *     copying into a non-empty target directory; missing/false means the
-   *     preboot gate must reject non-empty targets before removing them.
+   *     Non-empty target overwrite confirmation is owned by preboot, not
+   *     by renderer-controlled request state.
    *   - { status: 'failed', from, to, error, failedAt }: a previous preboot
    *     attempted the copy and it failed. The failed record is kept for
    *     the terminal relocation window state, then cleared on the next
@@ -68,7 +67,7 @@ export interface BootConfigSchema {
    */
   // preboot/transient/userDataRelocation
   'temp.user_data_relocation':
-    | { status: 'pending'; from: string; to: string; copy: boolean; overwriteExisting?: boolean }
+    | { status: 'pending'; from: string; to: string; copy: boolean }
     | { status: 'failed'; from: string; to: string; error: string; failedAt: string }
     | null
 }

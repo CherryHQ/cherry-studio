@@ -1,5 +1,4 @@
 import realFsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +33,7 @@ const bootConfigFlush = vi.fn()
 const applicationGetPath = vi.fn()
 
 type Relocation = NonNullable<
-  | { status: 'pending'; from: string; to: string; copy: boolean; overwriteExisting?: boolean }
+  | { status: 'pending'; from: string; to: string; copy: boolean }
   | { status: 'failed'; from: string; to: string; error: string; failedAt: string }
   | null
 >
@@ -485,7 +484,8 @@ describe('runUserDataRelocationGate', () => {
     const rm = vi.fn(async () => undefined)
     const rename = vi.fn(async () => undefined)
     stubElectron(true)
-    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true, overwriteExisting: true })
+    showMessageBoxSync.mockReturnValueOnce(1)
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
     stubFsAndFsp({
       readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : [])),
       rm,
@@ -495,13 +495,14 @@ describe('runUserDataRelocationGate', () => {
     const { runUserDataRelocationGate } = await loadGate()
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
-    expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(showMessageBoxSync).toHaveBeenCalledWith(expect.objectContaining({ buttons: ['Cancel', 'Overwrite'] }))
+    expect(rename).toHaveBeenCalledWith('/new/data', expect.stringMatching(/\.data\.relocation-backup-/))
     expect(rename).toHaveBeenCalledWith(expect.stringMatching(/\.data\.relocation-/), '/new/data')
     expect(commitRelocation).toHaveBeenCalledWith('/new/data')
   })
 
   it('copy to non-empty target replaces stale files and preserves symlinks on disk', async () => {
-    const root = await realFsp.mkdtemp(path.join(os.tmpdir(), 'relocation-gate-'))
+    const root = await realFsp.mkdtemp(path.join('/tmp', 'relocation-gate-'))
     try {
       const from = path.join(root, 'old-data')
       const to = path.join(root, 'new-data')
@@ -512,7 +513,8 @@ describe('runUserDataRelocationGate', () => {
       await realFsp.writeFile(path.join(to, 'stale.txt'), 'stale')
 
       stubElectron(true)
-      stubBootConfig({ status: 'pending', from, to, copy: true, overwriteExisting: true })
+      showMessageBoxSync.mockReturnValueOnce(1)
+      stubBootConfig({ status: 'pending', from, to, copy: true })
       useRealFsAndFsp()
       stubDeps({ installPath: path.join(root, 'install') })
       const { runUserDataRelocationGate } = await loadGate()
@@ -786,8 +788,7 @@ describe('runUserDataRelocationGate', () => {
       status: 'pending',
       from: '/old',
       to: '/new/data',
-      copy: true,
-      overwriteExisting: true
+      copy: true
     })
     stubFsAndFsp({
       lstatSync: vi.fn((p: string) => ({ isSymbolicLink: () => p === '/new/data' })),
@@ -802,6 +803,89 @@ describe('runUserDataRelocationGate', () => {
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
       error: expect.stringMatching(/target must not be a symlink/i)
+    })
+  })
+
+  it('copy=true: rejects protected target descendants before touching the target', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/usr/local/cherry-data', copy: true })
+    stubFsAndFsp({ rm })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/protected system path/i)
+    })
+  })
+
+  it('copy=true: rejects target real path inside source real path when source has a symlinked ancestor', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({
+      status: 'pending',
+      from: '/links/userData',
+      to: '/real/userData/nested-target',
+      copy: true
+    })
+    stubFsAndFsp({
+      realpathSync: vi.fn((p: string) => {
+        if (p === '/links/userData') return '/real/userData'
+        return p
+      }),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/target real path is inside source real path/i)
+    })
+  })
+
+  it('copy=true: restores the original target when final replacement rename fails', async () => {
+    const fileEntry = {
+      name: 'db.sqlite',
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true
+    }
+    const rename = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('rename failed'))
+      .mockResolvedValueOnce(undefined)
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    showMessageBoxSync.mockReturnValueOnce(1)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : [])),
+      readdir: vi.fn(async () => [fileEntry]),
+      stat: vi.fn(async () => ({ size: 10 })),
+      copyFile: vi.fn(async () => undefined),
+      rename,
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(rename).toHaveBeenNthCalledWith(1, '/new/data', expect.stringMatching(/\.data\.relocation-backup-/))
+    expect(rename).toHaveBeenNthCalledWith(2, expect.stringMatching(/\.data\.relocation-/), '/new/data')
+    expect(rename).toHaveBeenNthCalledWith(3, expect.stringMatching(/\.data\.relocation-backup-/), '/new/data')
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: 'rename failed'
     })
   })
 })

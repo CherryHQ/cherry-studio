@@ -18,7 +18,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { isProtectedSystemPath } from '@shared/utils/file'
+import { isProtectedSystemPathOrDescendant } from '@shared/utils/file'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -53,7 +53,7 @@ const BasicDataSettings: React.FC = () => {
     }
 
     // check new app data path is a protected system path
-    if (isProtectedSystemPath(newAppDataPath)) {
+    if (isProtectedSystemPathOrDescendant(newAppDataPath)) {
       toast.error(t('settings.data.app_data.select_error_system_path'))
       return
     }
@@ -96,36 +96,6 @@ const BasicDataSettings: React.FC = () => {
     )
     const migrationClassName = 'migration-modal'
     void showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
-  }
-
-  // When copying into a non-empty target, ask the user to confirm the
-  // overwrite before scheduling the relocation.
-  const doubleConfirmModalBeforeCopyData = async (newPath: string) => {
-    const confirmed = await popup.confirm({
-      title: t('settings.data.app_data.select_not_empty_dir'),
-      content: t('settings.data.app_data.select_not_empty_dir_content'),
-      centered: true,
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel')
-    })
-    if (!confirmed) return
-
-    try {
-      await window.api.setAppDataPath({ path: newPath, copyData: true, overwriteExisting: true })
-      toast.info({ title: t('settings.data.app_data.restart_notice'), timeout: 2000 })
-      setTimeoutTimer(
-        'doubleConfirmModalBeforeCopyData',
-        () => {
-          void window.api.application.relaunch()
-        },
-        500
-      )
-    } catch (error) {
-      toast.error({
-        title: t('settings.data.app_data.path_change_failed') + ': ' + error,
-        timeout: 5000
-      })
-    }
   }
 
   // 显示确认迁移的对话框
@@ -192,13 +162,6 @@ const BasicDataSettings: React.FC = () => {
     if (!confirmed) return
 
     try {
-      // Copying into a non-empty target: get explicit overwrite
-      // confirmation before scheduling, since the preboot copy will
-      // overwrite everything under `newPath`.
-      if (shouldCopyData && (await window.api.isNotEmptyDir(newPath))) {
-        void doubleConfirmModalBeforeCopyData(newPath)
-        return
-      }
       // Both "copy" and "switch-only" go through the same preboot
       // relocation protocol: write a `pending` request to BootConfig
       // and relaunch. The actual copy (if any) and path switch happen

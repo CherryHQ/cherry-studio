@@ -28,8 +28,7 @@ export const appRequestSchemas = {
   'app.set_user_data_path': defineRoute({
     input: z.object({
       path: z.string().min(1),
-      copyData: z.boolean().optional(),
-      overwriteExisting: z.boolean().optional()
+      copyData: z.boolean().optional()
     }),
     output: z.void()
   })

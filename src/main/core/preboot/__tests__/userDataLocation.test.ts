@@ -43,7 +43,7 @@ interface FsStubOptions {
 type BootConfigStore = {
   'app.user_data_path'?: Record<string, string>
   'temp.user_data_relocation'?:
-    | { status: 'pending'; from: string; to: string; copy: boolean; overwriteExisting?: boolean }
+    | { status: 'pending'; from: string; to: string; copy: boolean }
     | {
         status: 'failed'
         from: string
@@ -214,8 +214,7 @@ describe('requestRelocation', () => {
       status: 'pending',
       from: '/old/data',
       to: '/new/data',
-      copy: true,
-      overwriteExisting: false
+      copy: true
     })
     expect(bootConfigFlushMock).toHaveBeenCalled()
     // requestRelocation never mutates the live path — relocation runs in
@@ -241,17 +240,7 @@ describe('requestRelocation', () => {
     stubFs()
     const { requestRelocation } = await loadModule()
     requestRelocation('/old/data', '/new/data', false)
-    expect(store['temp.user_data_relocation']).toMatchObject({ copy: false, overwriteExisting: false })
-  })
-
-  it('records explicit overwrite confirmation for non-empty copy targets', async () => {
-    stubConstants({ isLinux: false, isWin: false, isPortable: false })
-    stubElectron({ exePath: '/mock/exe' })
-    const store = stubBootConfig({})
-    stubFs()
-    const { requestRelocation } = await loadModule()
-    requestRelocation('/old/data', '/new/data', true, true)
-    expect(store['temp.user_data_relocation']).toMatchObject({ copy: true, overwriteExisting: true })
+    expect(store['temp.user_data_relocation']).toMatchObject({ copy: false })
   })
 })
 
@@ -297,6 +286,19 @@ describe('commitRelocation', () => {
       '/home/alice/Apps/cherry-studio.appimage': '/home/alice/cherry-data'
     })
   })
+
+  it('clears the committed entry for the current executable', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({
+      'app.user_data_path': { '/mock/exe': '/custom/data', '/other/exe': '/other/data' }
+    })
+    stubFs()
+    const { clearCommittedUserDataLocation } = await loadModule()
+    clearCommittedUserDataLocation()
+    expect(store['app.user_data_path']).toEqual({ '/other/exe': '/other/data' })
+    expect(bootConfigFlushMock).toHaveBeenCalled()
+  })
 })
 
 describe('resolveUserDataLocation', () => {
@@ -333,33 +335,33 @@ describe('resolveUserDataLocation', () => {
     expect(setPathMock).toHaveBeenCalledTimes(1)
   })
 
-  it('BootConfig has matching exe but path is relative: falls through, no setPath', async () => {
+  it('BootConfig has matching exe but path is relative: throws before fallback', async () => {
     stubConstants({ isLinux: false, isWin: false, isPortable: false })
     stubElectron({ exePath: '/mock/exe' })
     stubBootConfig({ 'app.user_data_path': { '/mock/exe': 'custom/data' } })
     stubFs()
-    const { resolveUserDataLocation } = await loadModule()
-    resolveUserDataLocation()
+    const { InvalidConfiguredUserDataPathError, resolveUserDataLocation } = await loadModule()
+    expect(() => resolveUserDataLocation()).toThrow(InvalidConfiguredUserDataPathError)
     expect(setPathMock).not.toHaveBeenCalled()
   })
 
-  it('BootConfig has matching exe but path is a symlink: falls through, no setPath', async () => {
+  it('BootConfig has matching exe but path is a symlink: throws before fallback', async () => {
     stubConstants({ isLinux: false, isWin: false, isPortable: false })
     stubElectron({ exePath: '/mock/exe' })
     stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
     stubFs({ lstatSyncImpl: () => ({ isSymbolicLink: () => true }) })
-    const { resolveUserDataLocation } = await loadModule()
-    resolveUserDataLocation()
+    const { InvalidConfiguredUserDataPathError, resolveUserDataLocation } = await loadModule()
+    expect(() => resolveUserDataLocation()).toThrow(InvalidConfiguredUserDataPathError)
     expect(setPathMock).not.toHaveBeenCalled()
   })
 
-  it('BootConfig has matching exe but path is invalid (existsSync false): falls through, no setPath', async () => {
+  it('BootConfig has matching exe but path is invalid (existsSync false): throws before fallback', async () => {
     stubConstants({ isLinux: false, isWin: false, isPortable: false })
     stubElectron({ exePath: '/mock/exe' })
     stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
     stubFs({ existsSyncImpl: () => false })
-    const { resolveUserDataLocation } = await loadModule()
-    resolveUserDataLocation()
+    const { InvalidConfiguredUserDataPathError, resolveUserDataLocation } = await loadModule()
+    expect(() => resolveUserDataLocation()).toThrow(InvalidConfiguredUserDataPathError)
     expect(setPathMock).not.toHaveBeenCalled()
   })
 

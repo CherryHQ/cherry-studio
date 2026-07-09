@@ -12,33 +12,84 @@
 import '@main/data/bootConfig'
 
 import { application } from '@application'
+import { electronApp } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { runUserDataRelocationGate } from '@main/core/preboot/relocation/relocationGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
-import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
+import {
+  clearCommittedUserDataLocation,
+  InvalidConfiguredUserDataPathError,
+  resolveUserDataLocation
+} from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { app, dialog } from 'electron'
 
-// should be the first to resolveUserDataLocation()
-resolveUserDataLocation()
-requireSingleInstance()
-configureChromiumFlags()
-initCrashTelemetry()
-// Freeze the path registry — bootstrap() asserts this completed.
-application.initPathRegistry()
+const logger = loggerService.withContext('MainEntry')
 
-import { electronApp } from '@electron-toolkit/utils'
-import { loggerService } from '@logger'
-import { app } from 'electron'
+let invalidUserDataPathError: InvalidConfiguredUserDataPathError | null = null
+
+try {
+  // should be the first to resolveUserDataLocation()
+  resolveUserDataLocation()
+} catch (error) {
+  if (!(error instanceof InvalidConfiguredUserDataPathError)) throw error
+  invalidUserDataPathError = error
+}
+
+if (!invalidUserDataPathError) {
+  requireSingleInstance()
+  configureChromiumFlags()
+  initCrashTelemetry()
+  // Freeze the path registry — bootstrap() asserts this completed.
+  application.initPathRegistry()
+}
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
 
-const logger = loggerService.withContext('MainEntry')
+async function handleInvalidConfiguredUserDataPath(error: InvalidConfiguredUserDataPathError): Promise<void> {
+  logger.warn('Configured userData path is not usable; blocking startup', {
+    exe: error.exe,
+    configuredPath: error.configuredPath,
+    reason: error.reason
+  })
+
+  await app.whenReady()
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Custom Data Directory Inaccessible',
+    message:
+      `Your configured data directory is currently inaccessible:\n${error.configuredPath}\n\n` +
+      `Reason: ${error.reason}\n\n` +
+      'Cherry Studio will not start with the default data directory unless you explicitly reset this setting.',
+    buttons: ['Retry', 'Use Default', 'Quit'],
+    defaultId: 0,
+    cancelId: 2
+  })
+
+  if (response === 0) {
+    application.relaunch()
+    return
+  }
+  if (response === 1) {
+    clearCommittedUserDataLocation(error.exe)
+    application.relaunch()
+    return
+  }
+
+  application.quit()
+}
 
 const startApp = async () => {
+  if (invalidUserDataPathError) {
+    await handleInvalidConfiguredUserDataPath(invalidUserDataPathError)
+    return
+  }
+
   // Relocation gate runs first: if a userData relocation is pending it takes
   // over the whole launch (dedicated window → copy → relaunch), so it must
   // run before the v1→v2 migration gate and before bootstrap — neither

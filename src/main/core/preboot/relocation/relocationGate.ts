@@ -42,7 +42,7 @@ import { commitRelocation } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { RelocationIpcChannels, type RelocationProgress } from '@shared/data/relocation/types'
-import { isProtectedSystemPath } from '@shared/utils/file'
+import { isProtectedSystemPathOrDescendant } from '@shared/utils/file'
 import { app, dialog, ipcMain } from 'electron'
 
 const logger = loggerService.withContext('RelocationGate')
@@ -102,7 +102,7 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
     currentProgress = makeProgress('preparing', pending, 0, 0)
     relocationWindowManager.sendProgress(currentProgress)
 
-    preflight(pending.from, pending.to, pending.copy, pending.overwriteExisting ?? false)
+    preflight(pending.from, pending.to, pending.copy)
 
     if (pending.copy) {
       const total = await calcTotalBytes(pending.from)
@@ -207,7 +207,7 @@ function makeProgress(
  * defense, but BootConfig can also be edited by hand, so preboot re-checks
  * here before either switching or copying.
  */
-function preflight(from: string, to: string, copy: boolean, overwriteExisting: boolean): void {
+function preflight(from: string, to: string, copy: boolean): void {
   const fromAbs = resolveForPathCompare(from)
   const toAbs = resolveForPathCompare(to)
   if (!isAbsolutePath(from)) {
@@ -220,10 +220,11 @@ function preflight(from: string, to: string, copy: boolean, overwriteExisting: b
     throw new Error(`source and target are the same path: ${fromAbs}`)
   }
   assertSourceDirectoryReadable(from)
+  const fromRealAbs = resolveExistingRealPathForCompare(from)
   if (getPathDepth(toAbs) <= 1) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
   }
-  if (isProtectedSystemPath(toAbs)) {
+  if (isProtectedSystemPathOrDescendant(toAbs)) {
     throw new Error(`target must not be a protected system path: ${toAbs}`)
   }
   if (isExistingMountRoot(to)) {
@@ -245,13 +246,25 @@ function preflight(from: string, to: string, copy: boolean, overwriteExisting: b
   fs.accessSync(toParent, fs.constants.W_OK)
   const installPath = resolveForPathCompare(application.getPath('app.install'))
   const toRealAbs = resolveTargetRealPathForCompare(to)
+  if (fromRealAbs === toRealAbs) {
+    throw new Error(`source and target resolve to the same path: ${fromRealAbs}`)
+  }
+  if (isPathInside(toRealAbs, fromRealAbs)) {
+    throw new Error(`target real path is inside source real path (would recurse): ${toRealAbs}`)
+  }
+  if (isPathInside(fromRealAbs, toRealAbs)) {
+    throw new Error(`source real path is inside target real path (would merge userData into an ancestor): ${toRealAbs}`)
+  }
   if (toRealAbs === installPath || isPathInside(toRealAbs, installPath)) {
     throw new Error(`target must not be inside the app install path: ${toRealAbs}`)
   }
-  if (toRealAbs !== toAbs && (isProtectedSystemPath(toRealAbs) || isPathInside(toRealAbs, fromAbs))) {
+  if (isProtectedSystemPathOrDescendant(toRealAbs)) {
+    throw new Error(`target real path must not be a protected system path: ${toRealAbs}`)
+  }
+  if (toRealAbs !== toAbs && isPathInside(toRealAbs, fromAbs)) {
     throw new Error(`target real path is not safe: ${toRealAbs}`)
   }
-  assertTargetDirectoryIsSafeToReplace(to, copy, overwriteExisting)
+  assertTargetDirectoryIsSafeToReplace(to, copy)
 }
 
 function isAbsolutePath(p: string): boolean {
@@ -269,6 +282,10 @@ function resolveTargetRealPathForCompare(to: string): string {
   const ops = isWin ? path.win32 : path
   const rawRealPath = fs.existsSync(to) ? getRealPath(to) : ops.join(getRealPath(ops.dirname(to)), ops.basename(to))
   return resolveForPathCompare(rawRealPath)
+}
+
+function resolveExistingRealPathForCompare(p: string): string {
+  return resolveForPathCompare(getRealPath(p))
 }
 
 function getRealPath(p: string): string {
@@ -303,7 +320,7 @@ function isExistingMountRoot(p: string): boolean {
   }
 }
 
-function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwriteExisting: boolean): void {
+function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean): void {
   if (!fs.existsSync(to)) {
     if (!copy) {
       throw new Error(`switch target directory does not exist: ${to}`)
@@ -330,12 +347,25 @@ function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwri
     return
   }
 
-  if (overwriteExisting) return
-
   const entries = fs.readdirSync(to)
-  if (entries.length > 0) {
+  if (entries.length > 0 && !confirmTargetOverwrite(to)) {
     throw new Error(`target directory is not empty and overwrite was not confirmed: ${to}`)
   }
+}
+
+function confirmTargetOverwrite(to: string): boolean {
+  const response = dialog.showMessageBoxSync({
+    type: 'warning',
+    buttons: ['Cancel', 'Overwrite'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Overwrite existing data directory?',
+    message: 'The selected target directory is not empty.',
+    detail:
+      `Cherry Studio will replace the contents of:\n${to}\n\n` +
+      'Only continue if you are sure this directory can be overwritten.'
+  })
+  return response === 1
 }
 
 function assertSourceDirectoryReadable(from: string): void {
@@ -426,8 +456,7 @@ async function copyTreeWithProgress(
   await fsp.rm(tempTo, { recursive: true, force: true })
   try {
     await copyDir(from, tempTo, total, onTick, acc)
-    await fsp.rm(to, { recursive: true, force: true })
-    await fsp.rename(tempTo, to)
+    await replaceTargetWithRollback(tempTo, to)
   } catch (error) {
     await fsp.rm(tempTo, { recursive: true, force: true }).catch((cleanupError) => {
       logger.error('Failed to remove partial relocation target', {
@@ -446,6 +475,43 @@ async function copyTreeWithProgress(
 
 function makeTemporaryTargetPath(to: string): string {
   return path.join(path.dirname(to), `.${path.basename(to)}.relocation-${process.pid}-${Date.now()}`)
+}
+
+function makeBackupTargetPath(to: string): string {
+  return path.join(path.dirname(to), `.${path.basename(to)}.relocation-backup-${process.pid}-${Date.now()}`)
+}
+
+async function replaceTargetWithRollback(tempTo: string, to: string): Promise<void> {
+  const backupTo = makeBackupTargetPath(to)
+  let hasBackup = false
+
+  try {
+    await fsp.rm(backupTo, { recursive: true, force: true })
+    if (fs.existsSync(to)) {
+      await fsp.rename(to, backupTo)
+      hasBackup = true
+    }
+
+    await fsp.rename(tempTo, to)
+
+    if (hasBackup) {
+      await fsp.rm(backupTo, { recursive: true, force: true })
+    }
+  } catch (error) {
+    if (hasBackup) {
+      try {
+        await fsp.rm(to, { recursive: true, force: true })
+        await fsp.rename(backupTo, to)
+      } catch (restoreError) {
+        throw new Error(
+          `target replacement failed: ${(error as Error).message}; target restore failed, manual restore required from ${backupTo}: ${
+            (restoreError as Error).message
+          }`
+        )
+      }
+    }
+    throw error
+  }
 }
 
 async function copyDir(

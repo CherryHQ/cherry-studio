@@ -17,7 +17,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { CHERRY_HOME } from '@main/core/paths/constants'
-import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
+import { getNormalizedExecutablePath, validateUserDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
 
@@ -127,7 +127,17 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   const exe = getNormalizedExecutablePath()
   const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
 
-  if (!bootConfigEntry) {
+  if (bootConfigEntry) {
+    const validation = validateUserDataDir(bootConfigEntry)
+    if (!validation.ok) {
+      inaccessibleLegacyPath = bootConfigEntry
+      logger.warn('BootConfig userData path inaccessible, blocking fallback migration', {
+        bootConfigEntry,
+        reason: validation.reason,
+        currentUserData
+      })
+    }
+  } else {
     // No boot-config entry → first v2 launch for this executable.
     // Check the legacy v1 config.json for a custom appDataPath.
     const legacyPath = readLegacyAppDataPath(legacyConfigFile, exe)
@@ -137,7 +147,8 @@ export function resolveMigrationPaths(): MigrationPathsResult {
       const resolvedCurrent = path.resolve(currentUserData)
 
       if (resolvedLegacy !== resolvedCurrent) {
-        if (isValidDir(legacyPath)) {
+        const validation = validateUserDataDir(legacyPath)
+        if (validation.ok) {
           // Redirect userData for Chromium and external consumers.
           app.setPath('userData', legacyPath)
           currentUserData = legacyPath
@@ -155,6 +166,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
           inaccessibleLegacyPath = legacyPath
           logger.warn('Legacy userData path inaccessible, falling back to default', {
             legacyPath,
+            reason: validation.reason,
             currentUserData
           })
         }
@@ -240,17 +252,4 @@ function readLegacyAppDataPath(configFile: string, normalizedExe: string): strin
   }
 
   return null
-}
-
-/**
- * Synchronous check: directory exists and is writable.
- */
-function isValidDir(p: string): boolean {
-  try {
-    if (!fs.existsSync(p)) return false
-    fs.accessSync(p, fs.constants.W_OK)
-    return true
-  } catch {
-    return false
-  }
 }
