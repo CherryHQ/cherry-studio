@@ -6,11 +6,15 @@
 export { createMigrationContext, type MigrationContext } from './core/MigrationContext'
 export { MigrationEngine, migrationEngine } from './core/MigrationEngine'
 export { isSchemaOutOfSyncError } from './core/migrationErrors'
-export { type MigrationPaths, type MigrationPathsResult, resolveMigrationPaths } from './core/MigrationPaths'
 export {
-  checkUpgradePathCompatibility,
+  type MigrationPaths,
+  type MigrationPathsResult,
+  pinUserDataPath,
+  resolveMigrationPaths
+} from './core/MigrationPaths'
+export {
+  evaluateCandidateVersion,
   getBlockMessage,
-  readPreviousVersion,
   V1_REQUIRED_VERSION,
   V2_GATEWAY_VERSION
 } from './core/versionPolicy'
@@ -40,6 +44,7 @@ export { getAllMigrators } from './migrators/migratorRegistry'
 export {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from './window/MigrationIpcHandler'
