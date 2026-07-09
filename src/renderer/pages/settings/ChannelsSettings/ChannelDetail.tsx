@@ -1,5 +1,4 @@
 import {
-  Alert,
   Badge,
   Button,
   ConfirmDialog,
@@ -26,10 +25,8 @@ import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/com
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
-import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import type { AgentConfiguration } from '@shared/data/types/agent'
 import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -153,15 +150,13 @@ const ChannelLogModal: FC<{
       <DialogContent className="max-w-150">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
+            <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
           {logs.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground text-xs">
-              {t('agent.cherryClaw.channels.noLogs')}
-            </div>
+            <div className="py-8 text-center text-muted-foreground text-xs">{t('agent.channels.noLogs')}</div>
           )}
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
@@ -190,9 +185,7 @@ type EditModalProps = {
   onDelete: (id: string) => void
 }
 
-const ChannelEditModal: FC<
-  EditModalProps & { agentEntities?: Array<{ id: string; configuration?: AgentConfiguration }> }
-> = ({ open, channel, agents, onClose, onSave, onDelete, agentEntities }) => {
+const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, onSave, onDelete }) => {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
@@ -207,9 +200,6 @@ const ChannelEditModal: FC<
       setWorkspaceId(channel.workspace?.type === AGENT_WORKSPACE_TYPE.USER ? channel.workspace.workspaceId : null)
     }
   }, [channel])
-
-  const selectedAgent = agentEntities?.find((a) => a.id === agentId)
-  const showSoulModeWarning = agentId && selectedAgent && !isSoulModeEnabled(selectedAgent.configuration)
 
   const handleNameBlur = useCallback(() => {
     if (channel && name.trim() && name.trim() !== channel.name) {
@@ -276,10 +266,10 @@ const ChannelEditModal: FC<
                 />
               </div>
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
+                <label className="mb-1 block font-medium text-xs">{t('agent.channels.bindAgent')}</label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agent.cherryClaw.channels.selectAgent')} />
+                    <SelectValue placeholder={t('agent.channels.selectAgent')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
@@ -290,14 +280,6 @@ const ChannelEditModal: FC<
                     ))}
                   </SelectContent>
                 </Select>
-                {showSoulModeWarning && (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    message={t('agent.cherryClaw.channels.soulModeRequired')}
-                    className="mt-2 text-xs"
-                  />
-                )}
                 {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
                 <div className="mt-2 flex items-center gap-1.5 text-foreground-muted text-xs">
                   <span>{t('agent.session.display.workdir')}</span>
@@ -352,7 +334,7 @@ const ChannelInstanceRow: FC<{
       statusColor = 'bg-green-500'
       statusTag = (
         <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
-          {t('agent.cherryClaw.channels.connected')}
+          {t('agent.channels.connected')}
         </Badge>
       )
     } else if (hasError) {
@@ -360,7 +342,7 @@ const ChannelInstanceRow: FC<{
       statusTag = (
         <Tooltip title={hasError}>
           <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
-            {t('agent.cherryClaw.channels.error')}
+            {t('agent.channels.error')}
           </Badge>
         </Tooltip>
       )
@@ -380,7 +362,7 @@ const ChannelInstanceRow: FC<{
           {summary}
         </div>
       </div>
-      <Tooltip title={t('agent.cherryClaw.channels.logs')}>
+      <Tooltip title={t('agent.channels.logs')}>
         <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
           <FileText className="size-4" />
         </Button>
@@ -402,7 +384,7 @@ const ChannelInstanceRow: FC<{
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
+        title={t('agent.channels.deleteConfirm', { name: channel.name })}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive
@@ -425,13 +407,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   // SWR-managed remote data
   const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels(channelDef.type)
   const { agents: agentList } = useAgents()
-  const { agents, agentEntities } = useMemo(() => {
-    const list = agentList ?? []
-    return {
-      agents: list.map((a) => ({ id: a.id, name: a.name ?? a.id })),
-      agentEntities: list.map((a) => ({ id: a.id, configuration: a.configuration }))
-    }
-  }, [agentList])
+  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
 
   const channelList: ChannelData[] = useMemo(
     () =>
@@ -554,12 +530,12 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               <span className="truncate">{channelDef.name}</span>
             </SettingTitle>
             <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
-              {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
+              {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
             </p>
           </div>
           <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
             <Plus className="size-4" />
-            {t('agent.cherryClaw.channels.add')}
+            {t('agent.channels.add')}
           </Button>
         </div>
         <SettingDivider className="m-0 mt-2" />
@@ -568,7 +544,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             <EmptyState
               compact
               preset="no-resource"
-              description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
+              description={t('agent.channels.noInstances', { type: channelDef.name })}
               className="py-8"
             />
           )}
@@ -591,7 +567,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         open={!!editingChannel}
         channel={editingChannel}
         agents={agents}
-        agentEntities={agentEntities}
         onClose={() => setEditingChannelId(null)}
         onSave={handleSave}
         onDelete={handleDelete}

@@ -23,9 +23,11 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
+  listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
   getMetadata: vi.fn(),
+  ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
@@ -35,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   inputAdapterFocus: vi.fn(),
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
+  toggleExpanded: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
   contextUsagePercentage: null as number | null,
@@ -103,6 +106,12 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
+  }
+}))
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
@@ -123,7 +132,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
         },
-        toggleExpanded: vi.fn(),
+        toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         getDraft: () => ({ text: props.text, tokens: [...(props.draftTokens ?? [])] })
@@ -389,8 +398,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
-  AgentLabel: ({ agent }: any) => <span>{agent.name}</span>,
-  isSoulModeEnabled: () => false
+  AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -454,6 +462,8 @@ describe('AgentComposer', () => {
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
+    mocks.listDirectoryEntries.mockReset()
+    mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
     vi.mocked(cacheService.setCasual).mockReset()
@@ -463,6 +473,13 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.getMetadata.mockReset()
     mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
+    mocks.ipcApiRequest.mockReset()
+    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
+      if (route !== 'file.batch_get_metadata') return {}
+      return Object.fromEntries(
+        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+      )
+    })
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -479,6 +496,7 @@ describe('AgentComposer', () => {
         ...window.api.file,
         isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory,
+        listDirectoryEntries: mocks.listDirectoryEntries,
         createInternalEntry: mocks.createInternalEntry,
         getPhysicalPath: mocks.getPhysicalPath,
         getMetadata: mocks.getMetadata
@@ -489,6 +507,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.insertToken.mockReset()
+    mocks.toggleExpanded.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
@@ -773,8 +792,12 @@ describe('AgentComposer', () => {
     expect(screen.getByText('agent/deepseek-v4-flash')).toBeInTheDocument()
   })
 
-  it('provides workspace resources through the unified panel resource provider', async () => {
-    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md', '/workspace/docs/notes.md'])
+  it('provides workspace file resources through the unified panel resource provider', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([
+      { path: '/workspace/docs', isDirectory: true },
+      { path: '/workspace/docs/notes.md', isDirectory: false },
+      { path: '/workspace/docs/notes.md', isDirectory: false }
+    ])
 
     render(
       <AgentComposer
@@ -799,13 +822,14 @@ describe('AgentComposer', () => {
     }
     const emptyItems = await resourceProvider?.('', { inputAdapter, quickPanel: {} as any })
     expect(emptyItems).toEqual([])
-    expect(mocks.listDirectory).not.toHaveBeenCalled()
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
 
     const items = await resourceProvider?.('notes', { inputAdapter, quickPanel: {} as any })
-    expect(mocks.listDirectory).toHaveBeenCalledWith(
+    expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
       '/workspace',
       expect.objectContaining({
         recursive: true,
+        includeDirectories: false,
         maxDepth: 3,
         searchPattern: 'notes'
       })
@@ -895,7 +919,7 @@ describe('AgentComposer', () => {
         path: '/workspace/docs/notes.md'
       } as FileMetadata
     ]
-    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md'])
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/workspace/docs/notes.md', isDirectory: false }])
 
     render(
       <AgentComposer
@@ -1280,6 +1304,166 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('sends workspace resource file references with their original workspace path', async () => {
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/workspace/docs/notes.md'
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [{ key: '/workspace/docs/notes.md', handle: { kind: 'path', path: '/workspace/docs/notes.md' } }]
+    })
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'hello'
+            }),
+            {
+              type: 'file',
+              url: 'file:///workspace/docs/notes.md',
+              mediaType: 'text/markdown',
+              filename: 'notes.md'
+            }
+          ])
+        }
+      }
+    )
+  })
+
+  it('sends Windows drive-slash workspace resource file references without internalizing them', async () => {
+    mocks.sessionWorkspacePath = 'C:\\workspace'
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: 'C:/workspace/docs/notes.md'
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
+      items: [{ key: 'C:\\workspace\\docs\\notes.md', handle: { kind: 'path', path: 'C:\\workspace\\docs\\notes.md' } }]
+    })
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'hello'
+            }),
+            {
+              type: 'file',
+              url: 'file:///C:/workspace/docs/notes.md',
+              mediaType: 'text/markdown',
+              filename: 'notes.md'
+            }
+          ])
+        }
+      }
+    )
+  })
+
+  it('fails the send when a workspace reference is missing from the batch metadata lookup', async () => {
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/workspace/docs/notes.md'
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({})
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed'))
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
   it('bridges file tokens into the existing agent session message text protocol', async () => {
     mocks.files = [file]
     render(
@@ -1556,6 +1740,7 @@ describe('AgentComposer', () => {
         promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
       })
     )
+    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
-import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './seedWorkspace'
+import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
 
@@ -36,18 +36,9 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running inside CherryStudio.
+const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry Studio.
 
 `
-
-const SKILLS_GUIDANCE = `## Skills
-
-You can manage Claude skills via the \`mcp__skills__skills\` tool — search the marketplace, install / remove existing skills, and author new ones via the \`init\` and \`register\` actions. Discovery and runtime activation of installed skills is handled automatically by the agent SDK; this tool is just the management surface.
-
-When to act:
-- When the user asks for a capability you don't already have, search the marketplace before attempting the task from scratch — there is often an existing skill that fits.
-- After completing a non-trivial task (5+ tool calls, an iterative fix, a workflow you'd want to repeat), offer to save the approach as a new skill via \`init\` + \`register\`.
-- If you find an installed skill is outdated, incomplete, or wrong, fix it in place. Get the skill's \`path\` from \`mcp__skills__skills\` action="list" (or use the path returned by \`init\` if you just created it), then use the native Read / Edit tools on the files in that directory. The live symlink picks up file changes immediately, so no separate "patch" call is needed. Don't wait for the user to ask — patch immediately when you notice the issue.`
 
 const MEMORY_GUIDANCE = `## Workspace Memory
 
@@ -62,20 +53,20 @@ When to act:
 - Before writing to \`FACT.md\`, ask: will this still matter in 6 months? If not, append to the journal instead.
 - Never write to \`memory/FACT.md\` or \`memory/JOURNAL.jsonl\` via direct file tools — always go through the memory tool so writes stay atomic and searchable.`
 
-const CLAW_GUIDANCE = `## CherryClaw Tools
+const CHERRY_GUIDANCE = `## Autonomy Tools
 
 You have exclusive access to these tools for interacting with CherryStudio's autonomous features. Always prefer them over manual alternatives.
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
-| \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
-| \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
+| \`mcp__cherry-tools__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__cherry-tools__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
+| \`mcp__cherry-tools__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
 - These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
-- When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
-- When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
+- When creating scheduled tasks, always use \`mcp__cherry-tools__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- When you need to notify the user outside the current conversation, use \`mcp__cherry-tools__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
 - Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`
 
@@ -90,19 +81,12 @@ You have two web tools: \`mcp__cherry-tools__web_search\` for structured search 
 If the user explicitly needs browser automation (filling forms, clicking, navigating live pages), tell them this capability is not currently available rather than attempting a workaround.`
 
 /**
- * Compose the tool-strategy guidance for an agent based on which MCP servers
- * have actually been injected. The skills, memory, and web-tools sections are
- * always present (those servers are injected for every agent); the claw
- * section is only included for autonomous (Soul Mode) agents that get the
- * cron / notify / config tools.
+ * Compose the tool-strategy guidance for an agent. Every section is always
+ * present — the autonomy (cron / notify / config), memory, and web-tools MCP
+ * servers are injected for every agent.
  */
-function composeToolGuidance(opts: { hasClaw: boolean }): string {
-  const parts: string[] = []
-  if (opts.hasClaw) parts.push(CLAW_GUIDANCE)
-  parts.push(SKILLS_GUIDANCE)
-  parts.push(MEMORY_GUIDANCE)
-  parts.push(WEB_TOOLS_GUIDANCE)
-  return parts.join('\n\n')
+function composeToolGuidance(): string {
+  return [CHERRY_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
 }
 
 function memoriesTemplate(workspacePath: string, sections: string): string {
@@ -114,12 +98,13 @@ Persistent files in \`${workspacePath}/\` carry your state across sessions. Upda
 |---|---|---|
 | \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
 | \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read + Edit tools |
+| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
 | \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
 - Each file has an exclusive scope — never duplicate information across files.
-- \`SOUL.md\`, \`USER.md\`, and \`memory/FACT.md\` are loaded below. Read and edit them directly when updates are needed.
+- \`SOUL.md\` and \`USER.md\` are loaded below. Read and edit them directly when updates are needed.
+- \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`mcp__agent-memory__memory\` (action: update).
 - \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__agent-memory__memory\` to append entries or search past events. Never read or write the file directly.
 - Filenames are case-insensitive.
 ${sections}`
@@ -128,20 +113,12 @@ ${sections}`
 /**
  * PromptBuilder assembles the system prompt for CherryStudio agents.
  *
- * Two entry points:
+ * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
+ * entirely. Includes the basic identity, the full tool guidance (autonomy +
+ * memory + web), bootstrap instructions when needed, and the workspace memory
+ * files (SOUL.md / USER.md / FACT.md).
  *
- * 1. {@link buildSystemPrompt} — full custom prompt for Soul Mode agents that
- *    REPLACES the SDK preset entirely. Includes the basic identity, the full
- *    tool guidance (claw + skills + memory + web), bootstrap instructions when
- *    needed, and the workspace memory files (SOUL.md / USER.md / FACT.md).
- *
- * 2. {@link buildToolGuidance} — lightweight tool-strategy suffix for
- *    non-Soul agents. Does not touch workspace files; intended to be APPENDED
- *    to the SDK's `claude_code` preset so the model gets cross-tool strategy
- *    guidance (skills + memory + web) on top of the standard Claude Code
- *    instructions. Returns a synchronous string — no I/O.
- *
- * Memory files layout (Soul Mode only):
+ * Memory files layout:
  *   {workspace}/SOUL.md          — personality, tone, communication style
  *   {workspace}/USER.md          — user profile, preferences, context
  *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
@@ -150,7 +127,11 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(workspacePath: string, config?: AgentConfiguration): Promise<string> {
+  async buildSystemPrompt(
+    workspacePath: string,
+    config?: AgentConfiguration,
+    hasUserInstructions = false
+  ): Promise<string> {
     const parts: string[] = []
 
     // Basic prompt: workspace system.md (case-insensitive) > embedded default
@@ -158,11 +139,11 @@ export class PromptBuilder {
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
-    // Tool guidance — Soul Mode gets the full set including claw (cron / notify / config)
-    parts.push(composeToolGuidance({ hasClaw: true }))
+    // Tool guidance — the full set including the autonomy tools (cron / notify / config)
+    parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed
-    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
+    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config, hasUserInstructions)
     if (needsBootstrap) {
       parts.push(BOOTSTRAP_INSTRUCTIONS)
       logger.info('Bootstrap mode active — injecting onboarding instructions')
@@ -178,31 +159,18 @@ export class PromptBuilder {
   }
 
   /**
-   * Build the cross-tool strategy guidance string for a non-Soul agent. The
-   * returned text is meant to be APPENDED to the Claude Code SDK preset so
-   * the model gets explicit "when to use which tool" guidance on top of the
-   * SDK's built-in instructions. The skills + memory + web sections are
-   * always included (those MCP servers are injected for every agent); the
-   * claw section is excluded by default (non-Soul agents do not get cron /
-   * notify / config).
-   */
-  buildToolGuidance(opts: { hasClaw?: boolean } = {}): string {
-    return composeToolGuidance({ hasClaw: opts.hasClaw ?? false })
-  }
-
-  /**
-   * Build a "## Workspace Knowledge" section for non-Soul agents that loads
-   * just the workspace's `memory/FACT.md` content. This is the recall side of
+   * Build a "## Workspace Knowledge" section that loads just the workspace's
+   * `memory/FACT.md` content. This is the recall side of
    * the cross-session learning loop — agents write durable knowledge to
    * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
    * loads it back into the system prompt at the start of the next session so
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
    *
-   * Distinct from {@link buildSystemPrompt}'s memories section which is Soul
-   * Mode only and also includes the SOUL.md / USER.md persona files. Returns
-   * undefined when no FACT.md exists, so callers can omit the section
-   * entirely rather than emitting an empty wrapper.
+   * Distinct from {@link buildSystemPrompt}'s memories section which also
+   * includes the SOUL.md / USER.md persona files. Returns undefined when no
+   * FACT.md exists, so callers can omit the section entirely rather than
+   * emitting an empty wrapper.
    */
   async buildFactsSection(workspacePath: string): Promise<string | undefined> {
     const memoryDir = path.join(workspacePath, 'memory')
@@ -224,11 +192,24 @@ ${content}
   /**
    * Determine whether bootstrap should run.
    * - If `bootstrap_completed` is explicitly true, skip.
+   * - If `bootstrap_completed` is explicitly false (via `config reset_bootstrap`), run — an explicit
+   *   reset overrides the instruction-based skip so the tool's "next session will onboard" holds.
+   * - If the agent already has non-blank user instructions, skip.
    * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
    * - Otherwise, run bootstrap.
    */
-  private async shouldRunBootstrap(workspacePath: string, config?: AgentConfiguration): Promise<boolean> {
+  private async shouldRunBootstrap(
+    workspacePath: string,
+    config?: AgentConfiguration,
+    hasUserInstructions = false
+  ): Promise<boolean> {
     if (config?.bootstrap_completed === true) {
+      return false
+    }
+    if (config?.bootstrap_completed === false) {
+      return true
+    }
+    if (hasUserInstructions) {
       return false
     }
 
