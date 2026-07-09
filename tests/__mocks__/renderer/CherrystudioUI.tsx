@@ -123,7 +123,6 @@ export const MockCherrystudioUI = {
       {emoji}
     </div>
   ),
-  EmojiGlyph: ({ emoji }: { emoji: string }) => <svg data-fluent-emoji={emoji} />,
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,

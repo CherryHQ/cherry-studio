@@ -1,4 +1,5 @@
-import { EmojiGlyph, Scrollbar } from '@cherrystudio/ui'
+import { Scrollbar } from '@cherrystudio/ui'
+import { EmojiGlyph } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'

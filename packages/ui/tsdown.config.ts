@@ -2,7 +2,7 @@ import { defineConfig } from 'tsdown'
 
 export default defineConfig({
   entry: {
-    'fluent-emoji': 'src/fluent-emoji.ts',
+    'fluent-emoji': 'src/fluent-emoji.tsx',
     index: 'src/index.ts',
     'components/index': 'src/components/index.ts',
     'icons/index': 'src/components/icons/index.ts',

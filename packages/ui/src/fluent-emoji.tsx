@@ -1,6 +1,9 @@
-import fluentEmojiDataJson from './fluent-emoji-data.json'
+import { type HTMLAttributes, memo, useId, useMemo } from 'react'
 
-export interface FluentEmojiIconData {
+import fluentEmojiDataJson from './fluent-emoji-data.json'
+import { cn } from './lib/utils'
+
+interface FluentEmojiIconData {
   body: string
   width: number
   height: number
@@ -26,7 +29,7 @@ function toCodepointKeys(emoji: string): string[] {
   return exact === withoutEmojiPresentation ? [exact] : [exact, withoutEmojiPresentation]
 }
 
-export function emojiToFluentEmojiIconName(emoji: string): string | null {
+function emojiToFluentEmojiIconName(emoji: string): string | null {
   for (const key of toCodepointKeys(emoji)) {
     const iconName = codepointToIconName[key]
     if (iconName && fluentEmojiIcons[iconName]) return iconName
@@ -35,7 +38,7 @@ export function emojiToFluentEmojiIconName(emoji: string): string | null {
   return null
 }
 
-export function getFluentEmojiIcon(emoji: string): FluentEmojiIconData | null {
+function getFluentEmojiIcon(emoji: string): FluentEmojiIconData | null {
   const iconName = emojiToFluentEmojiIconName(emoji)
   return iconName ? fluentEmojiIcons[iconName] : null
 }
@@ -48,7 +51,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function scopeFluentEmojiSvgBody(body: string, scopeId: string): string {
+function scopeFluentEmojiSvgBody(body: string, scopeId: string): string {
   const ids = [...body.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])
   if (ids.length === 0) return body
 
@@ -67,3 +70,46 @@ export function scopeFluentEmojiSvgBody(body: string, scopeId: string): string {
 
   return scopedBody
 }
+
+export interface EmojiGlyphProps extends HTMLAttributes<HTMLSpanElement> {
+  emoji: string
+  decorative?: boolean
+}
+
+const EmojiGlyph = ({ emoji, decorative = false, className, ...props }: EmojiGlyphProps) => {
+  const icon = getFluentEmojiIcon(emoji)
+  const rawId = useId()
+  const scopedBody = useMemo(() => (icon ? scopeFluentEmojiSvgBody(icon.body, rawId) : null), [icon, rawId])
+
+  if (!icon || !scopedBody) {
+    return (
+      <span
+        className={cn('inline-flex items-center justify-center leading-none', className)}
+        {...props}
+        aria-hidden={decorative ? true : props['aria-hidden']}>
+        {emoji}
+      </span>
+    )
+  }
+
+  return (
+    <span className={cn('inline-flex items-center justify-center leading-none', className)} {...props}>
+      <svg
+        aria-hidden="true"
+        className="h-[1em] w-[1em] shrink-0"
+        data-fluent-emoji={emoji}
+        focusable="false"
+        viewBox={`0 0 ${icon.width} ${icon.height}`}
+        dangerouslySetInnerHTML={{ __html: scopedBody }}
+      />
+      {decorative ? null : <span className="sr-only">{emoji}</span>}
+    </span>
+  )
+}
+
+EmojiGlyph.displayName = 'EmojiGlyph'
+
+const MemoizedEmojiGlyph = memo(EmojiGlyph)
+
+export { MemoizedEmojiGlyph as EmojiGlyph }
+export default MemoizedEmojiGlyph

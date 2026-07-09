@@ -1,4 +1,5 @@
-import { Checkbox, CustomTag, EmojiGlyph, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { EmojiGlyph } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,

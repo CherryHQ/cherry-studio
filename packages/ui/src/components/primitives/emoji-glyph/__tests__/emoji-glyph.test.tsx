@@ -1,20 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { emojiToFluentEmojiIconName, hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
+import { EmojiGlyph, hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-
-import { EmojiGlyph } from '..'
 
 afterEach(() => {
   cleanup()
 })
 
 describe('EmojiGlyph', () => {
-  it('maps Unicode emoji to Fluent Emoji Flat icon names', () => {
-    expect(emojiToFluentEmojiIconName('😀')).toBe('grinning-face')
-    expect(emojiToFluentEmojiIconName('❤️')).toBe('red-heart')
+  it('detects whether Unicode emoji have Fluent Emoji artwork', () => {
+    expect(hasFluentEmojiIcon('😀')).toBe(true)
+    expect(hasFluentEmojiIcon('❤️')).toBe(true)
     expect(hasFluentEmojiIcon('🤖')).toBe(true)
     expect(hasFluentEmojiIcon('👨‍👩‍👧‍👦')).toBe(false)
   })

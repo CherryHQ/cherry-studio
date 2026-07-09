@@ -800,7 +800,6 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    EmojiGlyph: ({ emoji }) => React.createElement('svg', { 'data-fluent-emoji': emoji }),
     Switch: ({ isSelected, onValueChange, ...props }) =>
       React.createElement('input', {
         ...props,

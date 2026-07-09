@@ -1,8 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import React, { memo } from 'react'
 
-import EmojiGlyph from '../../primitives/emoji-glyph'
-
 interface EmojiAvatarProps {
   children: string
   size?: number
@@ -29,7 +27,7 @@ const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className, style 
       fontSize: fontSize ?? size * 0.5,
       ...style
     }}>
-    <EmojiGlyph emoji={children} />
+    {children}
   </div>
 )
 

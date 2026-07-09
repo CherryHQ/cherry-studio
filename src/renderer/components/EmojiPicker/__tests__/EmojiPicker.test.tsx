@@ -23,8 +23,13 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const Scrollbar = ({ children, className, ref }: any) =>
     React.createElement('div', { ref, className, 'data-testid': 'emoji-scrollbar' }, children)
+  return { Scrollbar }
+})
+
+vi.mock('@cherrystudio/ui/fluent-emoji', () => {
+  const React = require('react')
   const EmojiGlyph = ({ emoji }: { emoji: string }) => React.createElement('span', null, emoji)
-  return { EmojiGlyph, Scrollbar }
+  return { EmojiGlyph }
 })
 
 afterEach(async () => {

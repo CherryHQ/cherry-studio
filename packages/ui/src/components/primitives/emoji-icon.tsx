@@ -2,8 +2,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { CSSProperties, FC } from 'react'
 
-import EmojiGlyph from './emoji-glyph'
-
 interface EmojiIconProps {
   emoji: string
   className?: string
@@ -40,9 +38,9 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontS
           fontSize: '200%',
           transform: 'scale(1.5)'
         }}>
-        <EmojiGlyph emoji={emoji || '⭐️'} decorative />
+        {emoji || '⭐️'}
       </div>
-      {emoji ? <EmojiGlyph emoji={emoji} /> : null}
+      {emoji}
     </div>
   )
 }
