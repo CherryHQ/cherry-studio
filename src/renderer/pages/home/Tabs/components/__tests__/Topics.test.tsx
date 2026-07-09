@@ -941,6 +941,7 @@ describe('Topics', () => {
     const { onNewTopic } = renderTopicList()
 
     expect(screen.getByText('No conversations')).toBeInTheDocument()
+    expect(screen.getByText('No conversations').closest('.h-full')).toBeInTheDocument()
     expect(
       screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
     ).not.toBeInTheDocument()

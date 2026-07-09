@@ -1488,7 +1488,7 @@ function TopicListBody(props: TopicListBodyProps) {
         <ResourceList.EmptyState
           compact
           preset="no-topic"
-          className="min-h-60 px-5 py-10"
+          className="h-full px-5 py-10"
           description={t('chat.topics.empty.title')}
         />
       }

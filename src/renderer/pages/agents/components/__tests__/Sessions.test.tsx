@@ -962,6 +962,7 @@ describe('Sessions', () => {
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     expect(screen.getByText('No tasks')).toBeInTheDocument()
+    expect(screen.getByText('No tasks').closest('.h-full')).toBeInTheDocument()
     expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()

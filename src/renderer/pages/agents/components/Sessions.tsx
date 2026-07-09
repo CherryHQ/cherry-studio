@@ -1918,7 +1918,7 @@ function SessionListBody({
         <ResourceList.EmptyState
           compact
           preset="no-session"
-          className="min-h-60 px-5 py-10"
+          className="h-full px-5 py-10"
           description={t('agent.session.empty.title')}
         />
       }
