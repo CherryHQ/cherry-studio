@@ -99,20 +99,15 @@ export function useProviderConnectionCheck(providerId: string) {
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
-        // Persist the pending key BEFORE running the check. The check resolves
-        // credentials from the saved provider (getRotatedApiKey in main), so
-        // without flushing first it would validate a stale saved key: a new bad
-        // key typed within the input debounce window could pass against an old
-        // good key and then enable the provider on never-checked credentials.
-        // If saving fails it throws into the catch, surfacing only the failure
-        // path. Committing changes provider.apiKeys but not provider.id / host /
-        // inputApiKey, so it does not trip the abort effect.
+        // Persist the pending key BEFORE running the check so a key typed within
+        // the input debounce window is not lost. The probe itself uses the
+        // selected key override below instead of the provider's rotated key.
         await commitInputApiKeyNow()
         didCommitApiKey = true
 
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        await runCheckApi(model.id, { signal: controller.signal })
+        await runCheckApi(model.id, { apiKey, signal: controller.signal })
 
         if (runId !== runIdRef.current) return
 

@@ -132,7 +132,7 @@ describe('useProviderConnectionCheck', () => {
 
     expect(checkApiMock).toHaveBeenCalledWith(
       result.current.checkableModels[0].id,
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({ apiKey: 'sk-b', signal: expect.any(AbortSignal) })
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()
@@ -163,8 +163,8 @@ describe('useProviderConnectionCheck', () => {
 
     expect(commitInputApiKeyNowMock).toHaveBeenCalledTimes(1)
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    // commit must run before the check (so the check validates the pending key,
-    // not a stale saved one) and before enabling the provider.
+    // commit must run before the check so a freshly typed key is saved before
+    // provider enablement, while the check still uses the selected key override.
     expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(checkApiMock.mock.invocationCallOrder[0])
     expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(updateProviderMock.mock.invocationCallOrder[0])
   })

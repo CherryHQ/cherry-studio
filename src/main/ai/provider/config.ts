@@ -45,6 +45,10 @@ interface BuilderContext {
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
 }
 
+interface ProviderToAiSdkConfigOptions {
+  apiKeyOverride?: string
+}
+
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
@@ -88,14 +92,18 @@ type ConfigBuilderEntry = {
 }
 
 /** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
-export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
+export async function providerToAiSdkConfig(
+  provider: Provider,
+  model: Model,
+  options?: ProviderToAiSdkConfigOptions
+): Promise<ProviderConfig> {
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = providerService.getRotatedApiKey(provider.id)
+  const apiKey = options?.apiKeyOverride ?? providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
     actualProvider: provider,

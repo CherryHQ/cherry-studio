@@ -675,6 +675,34 @@ describe('AiService tool approval', () => {
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
+  it('passes the selected API key override into text health checks', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-model',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyOverride: 'sk-selected',
+        system: 'test',
+        prompt: 'hi'
+      })
+    )
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })

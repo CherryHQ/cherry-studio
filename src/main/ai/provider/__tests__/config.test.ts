@@ -52,6 +52,16 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  it('uses an explicit API key override instead of the provider rotation key', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
+
+    const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
+
+    expect(getRotatedApiKeyMock).not.toHaveBeenCalled()
+    expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',
