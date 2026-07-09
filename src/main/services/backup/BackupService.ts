@@ -23,7 +23,7 @@
 // side land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
@@ -204,9 +204,22 @@ export class BackupService extends BaseService {
     await this.assertDiskSpace(dirname(outputPath), needed)
   }
 
-  /** Throw InsufficientDiskSpaceError when `dir`'s volume has < needed * 1.2 free. */
+  /**
+   * Throw InsufficientDiskSpaceError when `dir`'s volume has < needed * 1.2 free.
+   * Walks up from `dir` to the nearest existing ancestor before `statfs` — the
+   * output parent may not exist yet (export creates it), and we must NOT mkdir
+   * just to probe free space.
+   */
   private async assertDiskSpace(dir: string, needed: number): Promise<void> {
-    const fsStats = await statfs(dir)
+    let probe = dir
+    while (!existsSync(probe)) {
+      const parent = dirname(probe)
+      if (parent === probe) {
+        throw new Error(`backup: no existing ancestor for disk-space check: ${dir}`)
+      }
+      probe = parent
+    }
+    const fsStats = await statfs(probe)
     const available = fsStats.bavail * fsStats.bsize
     if (available < needed * 1.2) {
       throw new InsufficientDiskSpaceError({ needed: Math.round(needed * 1.2), available })
@@ -257,14 +270,19 @@ export class BackupService extends BaseService {
     if (!pref) return defaultRoot
     const candidate = resolve(pref)
     if (candidate === defaultRoot) return defaultRoot
-    // Validate the custom dir exists + is a directory. An inaccessible custom dir
-    // falls back to the managed default — matching the renderer, which shows the
-    // default Notes tree when the configured dir is unavailable. Warn so the
-    // fallback is observable rather than a silent partial backup.
+    // Validate the custom dir exists, is a directory, and is readable. An
+    // inaccessible custom dir falls back to the managed default — matching the
+    // renderer, which shows the default Notes tree when the configured dir is
+    // unavailable. Warn so the fallback is observable rather than a silent
+    // partial backup. readdirSync catches mode-000 / EACCES dirs that still
+    // pass isDirectory() via stat.
     try {
-      if (statSync(candidate).isDirectory()) return candidate
+      if (statSync(candidate).isDirectory()) {
+        readdirSync(candidate)
+        return candidate
+      }
     } catch {
-      // stat failed (missing / permission) — fall through to default + warn below.
+      // stat/readdir failed (missing / permission) — fall through to default + warn.
     }
     this.logger.warn('custom Notes root unavailable, backing up the managed default', {
       candidate,

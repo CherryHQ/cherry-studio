@@ -62,13 +62,9 @@ describe('PREFERENCES contributor', () => {
 // Filesystem tests for collectFileResources — scans a tmp Notes root for .md files.
 // The hook returns relative POSIX paths so the manifest is OS-independent.
 describe('PREFERENCES collectFileResources (notes markdown)', () => {
-  // Minimal context stub: only notesRoot + logger matter for the hook. The other
-  // FileResourceContext fields (liveDb/registry/...) are unused by collectNotesMarkdown.
-  const ctx = (notesRoot?: string) =>
-    ({
-      notesRoot,
-      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-    }) as never
+  // Minimal context stub: only notesRoot matters for the hook (module logger owns
+  // logging). Other FileResourceContext fields are unused by collectNotesMarkdown.
+  const ctx = (notesRoot?: string) => ({ notesRoot }) as never
 
   it('returns an empty set when notesRoot is undefined (unit-test / unwired host)', async () => {
     const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
@@ -120,6 +116,30 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
       expect(out).toEqual(new Set(['a.md']))
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not collect paths that escape the notes root (sibling escape.md)', async () => {
+    // Arrange — parent/escape.md sits next to parent/notes/; collect must only see
+    // in-root notes, never a `..`-escaped sibling.
+    const parent = await mkdtemp(join(tmpdir(), 'cs-pref-notes-escape-'))
+    const notesRoot = join(parent, 'notes')
+    try {
+      await mkdir(notesRoot, { recursive: true })
+      await writeFile(join(parent, 'escape.md'), '# escape')
+      await writeFile(join(notesRoot, 'safe.md'), '# safe')
+
+      const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
+      const out = await collect(ctx(notesRoot))
+
+      // Assert — only the in-root note; no `..` segments and no escape.md.
+      expect(out).toEqual(new Set(['safe.md']))
+      for (const p of out) {
+        expect(p.split('/').includes('..')).toBe(false)
+        expect(p).not.toContain('escape.md')
+      }
+    } finally {
+      await rm(parent, { recursive: true, force: true })
     }
   })
 })

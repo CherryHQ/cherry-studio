@@ -16,6 +16,7 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { isPathInside } from '@main/utils/legacyFile'
 
 // Module-level logger — the context intentionally carries no logger; contributors
 // own their own via loggerService.withContext('backup/<domain>').
@@ -123,12 +124,33 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
   const processLevel = (dir: string, entries: readonly Dirent[]): string[] => {
     const subdirs: string[] = []
     for (const e of entries) {
+      // Skip `.` / `..` dirents — never treat them as notes or walk targets.
+      if (e.name === '.' || e.name === '..') continue
       const full = join(dir, e.name)
       if (e.isDirectory()) {
+        // Containment guard: refuse to walk outside the notes root (symlink /
+        // unexpected dirent names that resolve above root).
+        if (!isPathInside(full, root)) {
+          logger.warn('PREFERENCES collectFileResources: subdirectory outside notes root skipped', {
+            full,
+            notesRoot: root
+          })
+          continue
+        }
         subdirs.push(full)
       } else if (e.isFile() && extname(e.name).toLowerCase() === '.md') {
         // Case-insensitive .md — Notes UI treats README.MD == note.md.
-        out.add(relative(root, full).split(sep).join('/'))
+        // Normalize to relative POSIX, then re-resolve and verify containment so a
+        // crafted name cannot escape via `..` segments in the relative path.
+        const rel = relative(root, full).split(sep).join('/')
+        if (!isPathInside(resolve(root, rel), root)) {
+          logger.warn('PREFERENCES collectFileResources: note path outside notes root skipped', {
+            rel,
+            notesRoot: root
+          })
+          continue
+        }
+        out.add(rel)
       }
     }
     return subdirs
