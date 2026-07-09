@@ -372,7 +372,7 @@ export class ChannelMessageHandler {
         }
         case 'help': {
           const agent = agentService.getAgent(agentId)
-          const name = agent?.name ?? 'CherryClaw'
+          const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
           const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
           const helpText = [
@@ -393,7 +393,7 @@ export class ChannelMessageHandler {
             [
               `Current chat ID: \`${command.chatId}\``,
               '',
-              'Add this value to `allow_ids` in settings to receive notifications.'
+              'Add this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.'
             ].join('\n'),
             replyOpts
           )
@@ -670,7 +670,8 @@ export class ChannelMessageHandler {
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: content }],
-      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)]
+      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+      headless: true
     })
 
     return executionDone

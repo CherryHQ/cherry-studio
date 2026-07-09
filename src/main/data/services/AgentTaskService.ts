@@ -1,7 +1,7 @@
 /**
  * Thin facade — preserves existing DataApi/MCP IPC shape (ScheduledTaskEntity etc.).
  * Internally delegates to JobManager + jobScheduleService + jobService.
- * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/claw.ts) to the
+ * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/cherryAutonomyTools.ts) to the
  * generic Job/Scheduler API directly, then delete this facade.
  */
 
@@ -60,15 +60,10 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  /**
-   * Scheduled tasks require an autonomous agent — either Soul Mode
-   * (soul_enabled) or bypassPermissions permission mode — otherwise
-   * tool calls during task execution will fail with permission errors.
-   */
-  private assertAutonomous(agentId: string): void {
+  private assertAgentExists(agentId: string): void {
     const database = application.get('DbService').getDb()
     const [row] = database
-      .select({ configuration: agentsTable.configuration })
+      .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(eq(agentsTable.id, agentId))
       .limit(1)
@@ -77,20 +72,22 @@ export class AgentTaskService {
     if (!row) {
       throw DataApiErrorFactory.notFound('Agent', agentId)
     }
+  }
 
-    const config: Record<string, unknown> = row.configuration ?? {}
-
-    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
-      return
+  private assertChannelsBelongToAgent(agentId: string, channelIds: string[]): void {
+    for (const channelId of channelIds) {
+      const channel = agentChannelService.getChannel(channelId)
+      if (!channel || channel.agentId !== agentId) {
+        throw DataApiErrorFactory.notFound('Channel', channelId)
+      }
     }
-
-    throw DataApiErrorFactory.invalidOperation(
-      'Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.'
-    )
   }
 
   async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    this.assertAutonomous(agentId)
+    this.assertAgentExists(agentId)
+    if (dto.channelIds?.length) {
+      this.assertChannelsBelongToAgent(agentId, dto.channelIds)
+    }
 
     const timeoutMinutes = dto.timeoutMinutes ?? 2
     const jobInputTemplate: AgentTaskJobInputTemplate = {
@@ -176,6 +173,9 @@ export class AgentTaskService {
     const existingSnapshot = jobScheduleService.getById(taskId)
     const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
     if (!existingSnapshot || !existingTemplate) return null
+    if (patch.channelIds !== undefined) {
+      this.assertChannelsBelongToAgent(agentId, patch.channelIds)
+    }
 
     // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
     const nextPrompt = patch.prompt ?? existingTemplate.prompt
@@ -203,7 +203,26 @@ export class AgentTaskService {
     if (!updated) return null
 
     if (patch.channelIds !== undefined) {
-      agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
+      try {
+        agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
+      } catch (error) {
+        const rollbackPatch: UpdateJobScheduleDto = {}
+        if (updatePatch.name !== undefined) rollbackPatch.name = existingSnapshot.name
+        if (updatePatch.trigger !== undefined) rollbackPatch.trigger = existingSnapshot.trigger
+        if (updatePatch.enabled !== undefined) rollbackPatch.enabled = existingSnapshot.enabled
+        if (updatePatch.jobInputTemplate !== undefined)
+          rollbackPatch.jobInputTemplate = existingSnapshot.jobInputTemplate
+
+        try {
+          application.get('JobManager').updateJobSchedule(taskId, rollbackPatch)
+        } catch (rollbackError) {
+          logger.warn('Failed to rollback task schedule after channel subscription failure', {
+            taskId,
+            rollbackError
+          })
+        }
+        throw error
+      }
     }
 
     logger.info('Task updated', { taskId, agentId })

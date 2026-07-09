@@ -409,6 +409,9 @@ describe('ChannelMessageHandler', () => {
       expect.objectContaining({
         sessionId: 'session-1',
         userParts: [{ type: 'text', text: '/compact' }],
+        // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
+        // disallowed so the run can't stall on an approval prompt.
+        headless: true,
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])
@@ -520,7 +523,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(adapter.sendMessage).toHaveBeenCalledWith(
       'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.',
+      'Current chat ID: `oc_123`\n\nAdd this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.',
       { replyToMessageId: undefined }
     )
   })
