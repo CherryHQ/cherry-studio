@@ -547,19 +547,29 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
+    historyRecordsActive,
     onAddAgent,
     onActiveAgentDeleted,
+    onOpenHistoryRecords,
     onSelectedAgentClick
   }: {
     activeAgentId?: string | null
+    historyRecordsActive?: boolean
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAgentClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
-    <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
+    <div
+      data-active-agent-id={activeAgentId ?? ''}
+      data-history-active={String(Boolean(historyRecordsActive))}
+      data-testid="agent-resource-list">
       <button type="button" onClick={() => void onAddAgent?.()}>
         Open agent picker
+      </button>
+      <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
+        Open history records
       </button>
       <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
         Delete active agent
@@ -728,6 +738,24 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
 
     expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
+  })
+
+  it('closes classic-layout history records when the active agent is clicked', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'false')
   })
 
   it('renders the modern session sidebar when session display mode is time', () => {

@@ -607,20 +607,30 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
+    historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onOpenHistoryRecords,
     onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
+    historyRecordsActive?: boolean
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
-    <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
+    <div
+      data-active-assistant-id={activeAssistantId ?? ''}
+      data-history-active={String(Boolean(historyRecordsActive))}
+      data-testid="assistant-resource-list">
       <button type="button" onClick={() => void onAddAssistant?.()}>
         Open assistant picker
+      </button>
+      <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
+        Open history records
       </button>
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
@@ -862,6 +872,21 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('active-topic')).toBeInTheDocument()
     expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('closes classic-layout history records when the active assistant is clicked', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'false')
   })
 
   it('replaces the history center surface when opening assistant management', () => {

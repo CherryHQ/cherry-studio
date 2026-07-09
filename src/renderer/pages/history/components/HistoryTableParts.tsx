@@ -82,7 +82,7 @@ export function HistoryVirtualTable<TItem>({
   }, [items.length, updateFixedActionShadow])
 
   return (
-    <div className="min-h-0 flex-1 px-3 py-3" role="table">
+    <div className="min-h-0 flex-1 px-3 pt-3 pb-2" role="table">
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', historyTableClassName)}>
         {items.length > 0 ? (
           <DynamicVirtualList

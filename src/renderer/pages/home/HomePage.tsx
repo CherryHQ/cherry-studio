@@ -849,7 +849,10 @@ const HomePage: FC = () => {
         onOpenHistoryRecords={openHistoryRecords}
         onSelectTopic={setActiveTopicAndDiscardDraft}
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
-        onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
+        onSelectedAssistantClick={() => {
+          closeSurface()
+          setTopicPaneOpen(!topicPaneOpen)
+        }}
         onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
         resourceMenuItems={resourceMenuItems}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}

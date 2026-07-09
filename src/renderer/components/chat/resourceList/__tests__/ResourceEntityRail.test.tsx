@@ -341,6 +341,33 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('keeps repeat-click toggles available while history records clear the visual selection', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const row = screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement
+    expect(row).not.toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(row)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('selects the entity instead of toggling it while a resource menu item is active', () => {
     const onSelect = vi.fn()
     const onSelectedClick = vi.fn()
