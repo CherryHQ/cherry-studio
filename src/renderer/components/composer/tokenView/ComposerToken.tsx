@@ -91,7 +91,7 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none inline-flex shrink-0 items-center justify-center border-0 bg-transparent p-0 text-muted-foreground leading-none opacity-0 outline-none transition-[color,opacity]',
+        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-muted-foreground leading-none opacity-0 outline-none transition-[color,opacity]',
         'hover:text-foreground hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -120,9 +120,13 @@ function InlineTokenIconSlot({
 }) {
   if (!onRemove) return icon
 
+  // The remove button overlays the icon (absolute) instead of sitting beside it in
+  // flow, so it never occupies half of the fixed-size icon slot and shift the icon.
+  // Icon and button cross-fade via opacity (not display) to keep the slot from
+  // collapsing and to keep the button keyboard-focusable.
   return (
-    <>
-      <span className="inline-flex shrink-0 group-focus-within/composer-token:hidden group-hover/composer-token:hidden">
+    <span className="relative inline-flex shrink-0">
+      <span className="inline-flex shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
         {icon}
       </span>
       <InlineTokenRemoveButton
@@ -131,7 +135,7 @@ function InlineTokenIconSlot({
         className={removeButtonClassName}
         iconClassName={removeIconClassName}
       />
-    </>
+    </span>
   )
 }
 

@@ -959,7 +959,9 @@ describe('ComposerToken', () => {
 
     const removeButton = screen.getByRole('button', { name: '删除' })
     expect(removeButton).not.toHaveClass('hidden')
-    expect(removeButton).toHaveClass('inline-flex', 'opacity-0', 'focus-visible:opacity-100')
+    // Absolutely positioned so it overlays the icon instead of taking flow space in
+    // the fixed-size icon slot (which would shift the icon off-center).
+    expect(removeButton).toHaveClass('absolute', 'inset-0', 'inline-flex', 'opacity-0', 'focus-visible:opacity-100')
 
     await user.tab()
     expect(removeButton).toHaveFocus()
