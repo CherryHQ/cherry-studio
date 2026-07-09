@@ -53,7 +53,7 @@ describe('OllamaTransport', () => {
     expect(result).toEqual({ imageUrls: ['QUJD'] })
   })
 
-  it('splits size into width/height and forwards seed and providerParams.steps', async () => {
+  it('splits size into width/height, nests seed under options, and forwards providerParams.steps at the top level', async () => {
     const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -74,9 +74,23 @@ describe('OllamaTransport', () => {
       stream: false,
       width: 768,
       height: 768,
-      seed: 42,
-      steps: 9
+      steps: 9,
+      options: { seed: 42 }
     })
+  })
+
+  it('omits options entirely when seed is unset', async () => {
+    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
+
+    await transport.submit({ ...baseInput, prompt: 'a cat', size: '768x768' })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(init.body as string)
+    expect(body.options).toBeUndefined()
+    expect(body.seed).toBeUndefined()
   })
 
   it('ignores a non-numeric providerParams.steps', async () => {

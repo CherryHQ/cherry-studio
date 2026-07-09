@@ -9,10 +9,12 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  * image model id (e.g. `x/z-image-turbo`) — and reads the base64 `image` field
  * back synchronously, so this transport only implements `submit()`.
  *
- * `width`/`height` (from `size`), `seed`, and `steps` (from `providerParams`,
- * mapped in `imageOptions.ts`) mirror `ollama run --width --height --steps
- * --seed`, confirmed against the Ollama binary's own `json:"width"` /
- * `"height"` / `"seed"` / `"steps"` struct tags and a live `/api/generate` call.
+ * `width`/`height` (from `size`) and `steps` (from `providerParams`, mapped in
+ * `imageOptions.ts`) are top-level `GenerateRequest` fields; `seed` is not —
+ * it must nest under `options.seed` (the same sampling-options bag the LLM
+ * generate path uses), confirmed by A/B testing identical requests: a
+ * top-level `seed` produced a different image each call, `options.seed`
+ * reproduced the same one.
  */
 
 // Cold-loading a multi-GB image model (e.g. x/z-image-turbo, ~12.7GB) before it
@@ -59,8 +61,8 @@ class OllamaTransport implements ImageGenerationTransport {
         prompt: input.prompt ?? '',
         stream: false,
         ...(width !== undefined && height !== undefined && { width, height }),
-        ...(input.seed !== undefined && { seed: input.seed }),
-        ...(typeof steps === 'number' && { steps })
+        ...(typeof steps === 'number' && { steps }),
+        ...(input.seed !== undefined && { options: { seed: input.seed } })
       }),
       signal: input.signal,
       ...(this.fetch ? {} : { dispatcher: longRunningDispatcher })

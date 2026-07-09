@@ -1,5 +1,6 @@
 import { popup } from '@renderer/services/popup'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { isOllamaProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
 
@@ -17,11 +18,21 @@ import type { PaintingProviderRuntime } from '../model/types/paintingProviderRun
  */
 export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms', 'ollama'])
 
-/** Matches a provider (or a preset it was copied from, e.g. a duplicated Ollama entry) against `NO_AUTH_PROVIDER_IDS`. */
-export function isNoAuthProvider(provider: Pick<PaintingProviderRuntime, 'id' | 'presetProviderId'>): boolean {
+/**
+ * Matches a provider against `NO_AUTH_PROVIDER_IDS`, by id, by the preset it was
+ * copied from (e.g. a duplicated Ollama entry), or — for Ollama specifically —
+ * by `defaultChatEndpoint`, so an endpoint-only local Ollama provider (created
+ * via the Provider editor or a deep link, with neither a matching id nor
+ * `presetProviderId`) is still recognized. Reuses `isOllamaProvider`, the same
+ * identity contract the model-sync side already uses for Ollama.
+ */
+export function isNoAuthProvider(
+  provider: Pick<PaintingProviderRuntime, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+): boolean {
   return (
     NO_AUTH_PROVIDER_IDS.has(provider.id) ||
-    (!!provider.presetProviderId && NO_AUTH_PROVIDER_IDS.has(provider.presetProviderId))
+    (!!provider.presetProviderId && NO_AUTH_PROVIDER_IDS.has(provider.presetProviderId)) ||
+    isOllamaProvider(provider)
   )
 }
 

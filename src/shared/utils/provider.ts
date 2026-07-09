@@ -19,7 +19,7 @@ export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.authType === 'iam-aws'
 }
 
-export function isOllamaProvider(provider: Provider): boolean {
+export function isOllamaProvider(provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>): boolean {
   return (
     provider.id === 'ollama' ||
     provider.presetProviderId === 'ollama' ||

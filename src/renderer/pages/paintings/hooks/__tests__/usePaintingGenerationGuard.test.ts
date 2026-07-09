@@ -1,3 +1,4 @@
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -189,6 +190,49 @@ describe('usePaintingGenerationGuard', () => {
     })
     const { result } = renderGuard({
       painting: { providerId: 'ollama-2', mode: 'generate', model: 'x/z-image-turbo:latest' },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
+    })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
+  })
+
+  it('still blocks a disabled endpoint-only Ollama provider (no matching id or presetProviderId, matched via defaultChatEndpoint) with provider_disabled', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        id: 'custom-local',
+        name: 'Local Ollama',
+        defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+        apiHost: 'http://localhost:11434',
+        isEnabled: false,
+        getApiKey: vi.fn(async () => '')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard({
+      painting: { providerId: 'custom-local', mode: 'generate', model: 'x/z-image-turbo:latest' },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
+    })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
+      ok: false,
+      reason: 'provider_disabled'
+    })
+  })
+
+  it('exempts an enabled endpoint-only Ollama provider (created via Provider editor / deep link) from the API key check', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        id: 'custom-local',
+        name: 'Local Ollama',
+        defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+        apiHost: 'http://localhost:11434',
+        isEnabled: true,
+        getApiKey: vi.fn(async () => '')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard({
+      painting: { providerId: 'custom-local', mode: 'generate', model: 'x/z-image-turbo:latest' },
       ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
     })
 

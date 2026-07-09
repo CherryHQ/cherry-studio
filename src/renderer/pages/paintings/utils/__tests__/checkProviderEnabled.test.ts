@@ -1,5 +1,6 @@
 import { popup } from '@renderer/services/popup'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
@@ -30,6 +31,13 @@ describe('isNoAuthProvider', () => {
   it('matches a copied provider via presetProviderId when the id itself does not match', () => {
     expect(isNoAuthProvider({ id: 'ollama-2', presetProviderId: 'ollama' })).toBe(true)
     expect(isNoAuthProvider({ id: 'custom', presetProviderId: 'zhipu' })).toBe(false)
+  })
+
+  it('matches an endpoint-only Ollama provider (Provider editor / deep link, no matching id or presetProviderId) via defaultChatEndpoint', () => {
+    expect(isNoAuthProvider({ id: 'custom-local', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT })).toBe(true)
+    expect(isNoAuthProvider({ id: 'custom-local', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })).toBe(
+      false
+    )
   })
 })
 
@@ -72,6 +80,29 @@ describe('checkProviderEnabled', () => {
   it('blocks a disabled provider matched only via presetProviderId — keyless status does not exempt the enabled check', async () => {
     vi.mocked(popup.warning).mockResolvedValue(false)
     const provider = runtimeProvider({ id: 'ollama-2', presetProviderId: 'ollama', isEnabled: false })
+
+    await expect(checkProviderEnabled(provider)).rejects.toBe('Provider disabled')
+  })
+
+  it('returns an empty key for an enabled endpoint-only Ollama provider (Provider editor / deep link) without prompting for an API key', async () => {
+    const provider = runtimeProvider({
+      id: 'custom-local',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      isEnabled: true,
+      getApiKey: vi.fn(async () => '')
+    })
+
+    await expect(checkProviderEnabled(provider)).resolves.toBe('')
+    expect(provider.getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('blocks a disabled endpoint-only Ollama provider — keyless status does not exempt the enabled check', async () => {
+    vi.mocked(popup.warning).mockResolvedValue(false)
+    const provider = runtimeProvider({
+      id: 'custom-local',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      isEnabled: false
+    })
 
     await expect(checkProviderEnabled(provider)).rejects.toBe('Provider disabled')
   })
