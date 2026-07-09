@@ -9,7 +9,7 @@ import { fileEntryTable } from '@main/data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { SqliteFileStager } from './FileStager'
+import { SqliteFileStager } from '../FileStager'
 
 describe('SqliteFileStager', () => {
   const dbh = setupTestDatabase()
@@ -128,6 +128,30 @@ describe('SqliteFileStager', () => {
       expect((await readFile(join(dest, 'sub', 'deep', 'note2.md'))).toString()).toBe('# 2')
     } finally {
       await rm(notesRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageNotes rejects ../escape.md (does not copy outside notesRoot)', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'cs-stager-notes-escape-'))
+    const notesRoot = join(parent, 'notes')
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-escape-dest-'))
+    try {
+      await mkdir(notesRoot, { recursive: true })
+      await writeFile(join(parent, 'escape.md'), '# outside')
+      await writeFile(join(notesRoot, 'safe.md'), '# safe')
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      const r = await stager.stageNotes(notesRoot, new Set(['../escape.md', 'safe.md']), dest)
+
+      expect(r.paths).toEqual(['safe.md'])
+      expect(r.missing).toEqual(['../escape.md'])
+      // Escape content must not land in dest under any path.
+      expect(existsSync(join(dest, 'escape.md'))).toBe(false)
+      expect(existsSync(join(dest, '..', 'escape.md'))).toBe(false)
+      expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
+    } finally {
+      await rm(parent, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })

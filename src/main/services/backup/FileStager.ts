@@ -10,11 +10,15 @@
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
 import { copyFile, cp, mkdir, rm, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
+import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { isPathInside } from '@main/utils/legacyFile'
 import { and, inArray, isNull } from 'drizzle-orm'
+
+const logger = loggerService.withContext('backup/FileStager')
 
 /** True if `e` is a Node fs error with the given code (e.g. 'ENOENT' = source gone). */
 const isErrnoCode = (e: unknown, code: string): boolean => (e as NodeJS.ErrnoException | undefined)?.code === code
@@ -239,6 +243,16 @@ export class SqliteFileStager implements FileStager {
     const staged: string[] = []
     const missing: string[] = []
     for (const rel of relPaths) {
+      // Containment guard: reject `..` path segments and any resolve that escapes
+      // notesRoot — treat as missing (same as an absent source) so a crafted rel
+      // cannot copy a file from outside the Notes tree into the archive.
+      const escapes =
+        rel.split(/[/\\]/).includes('..') || !isPathInside(resolve(notesRoot, rel), notesRoot)
+      if (escapes) {
+        logger.warn('stageNotes: path outside notes root skipped', { rel, notesRoot })
+        missing.push(rel)
+        continue
+      }
       const src = join(notesRoot, rel)
       const dest = join(destDir, rel)
       // Ensure the destination sub-directory exists (rel may be `sub/note.md`).
