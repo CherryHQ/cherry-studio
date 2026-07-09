@@ -84,6 +84,7 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
 ] as const
+const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
 interface ComposerClipboardCopyView {
   state: {
     selection: {
@@ -497,7 +498,7 @@ export default function ComposerSurface({
   toolLaunchersVersion,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
-  suggestionSources = [],
+  suggestionSources = EMPTY_SUGGESTION_SOURCES,
   resourceProvider,
   queueContent,
   rootPanelLeadingItems,
@@ -525,6 +526,7 @@ export default function ComposerSurface({
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -533,34 +535,18 @@ export default function ComposerSurface({
   const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
-  useEffect(() => {
-    isExpandedRef.current = isExpanded
-  }, [isExpanded])
-
-  useEffect(() => {
-    filesCountRef.current = filesCount
-  }, [filesCount])
+  isExpandedRef.current = isExpanded
+  filesCountRef.current = filesCount
+  sendDisabledRef.current = sendDisabled
+  sendBlockedReasonRef.current = sendBlockedReason
+  sendMessageShortcutRef.current = sendMessageShortcut
+  setFilesRef.current = setFiles
+  onSendDraftRef.current = onSendDraft
   const editingHighlightKey = editingState?.highlightKey
 
   useEffect(() => {
     textRef.current = text
   }, [text])
-
-  useEffect(() => {
-    sendDisabledRef.current = sendDisabled
-  }, [sendDisabled])
-
-  useEffect(() => {
-    sendBlockedReasonRef.current = sendBlockedReason
-  }, [sendBlockedReason])
-
-  useEffect(() => {
-    sendMessageShortcutRef.current = sendMessageShortcut
-  }, [sendMessageShortcut])
-
-  useEffect(() => {
-    onSendDraftRef.current = onSendDraft
-  }, [onSendDraft])
 
   useEffect(() => {
     tokenByIdRef.current = new Map(tokens.map((token) => [token.id, token]))
@@ -668,6 +654,8 @@ export default function ComposerSurface({
     focusEditor,
     setTimeoutTimer
   })
+  const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
+  toggleEditorExpandedRef.current = toggleEditorExpanded
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
@@ -1212,7 +1200,7 @@ export default function ComposerSurface({
 
         if (event.key === 'Escape' && isExpandedRef.current) {
           event.stopPropagation()
-          toggleEditorExpanded(false)
+          toggleEditorExpandedRef.current(false)
           return true
         }
 
@@ -1247,7 +1235,7 @@ export default function ComposerSurface({
           filesCountRef.current > 0 &&
           (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
         ) {
-          setFiles((prev) => prev.slice(0, -1))
+          setFilesRef.current((prev) => prev.slice(0, -1))
           event.preventDefault()
           return true
         }
@@ -1353,7 +1341,7 @@ export default function ComposerSurface({
         }
       }
     }),
-    [hasCustomHeight, editorStyle]
+    [editorStyle, focusEditor, hasCustomHeight, showBlockedSendReason]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1408,7 +1396,7 @@ export default function ComposerSurface({
           event.preventDefault()
           insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
-            setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+            setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
           return true
         }

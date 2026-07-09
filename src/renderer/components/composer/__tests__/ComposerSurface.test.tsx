@@ -9,6 +9,7 @@ import {
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
@@ -52,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
   selection: { from: 1 } as any,
+  translate: (key: string) => key,
   transaction: undefined as any
 }))
 
@@ -276,7 +278,7 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty',
     init: vi.fn()
   },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mocks.translate })
 }))
 
 vi.mock('../composerPreset', () => ({
@@ -3532,19 +3534,57 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
-    rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
-    await act(async () => {})
+    let enterHandled = true
+    let ctrlEnterHandled = false
+    act(() => {
+      mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- Simulates the post-commit window before passive effects flush.
+      flushSync(() => {
+        rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+      })
+      enterHandled = mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+      ctrlEnterHandled = mocks.editorOptions.editorProps.handleKeyDown(
+        null,
+        new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true })
+      )
+    })
 
-    expect(mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(
-      false
-    )
-    expect(onSendDraft).not.toHaveBeenCalled()
-
-    expect(
-      mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
-    ).toBe(true)
+    expect(enterHandled).toBe(false)
+    expect(ctrlEnterHandled).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledTimes(1)
     expect(onSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
+  })
+
+  it('uses the latest send draft callback immediately after rerender', async () => {
+    const initialSendDraft = vi.fn()
+    const nextSendDraft = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={initialSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    let handled = false
+    act(() => {
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- Simulates the post-commit window before passive effects flush.
+      flushSync(() => {
+        rerender(<ComposerSurface {...baseProps} onSendDraft={nextSendDraft} />)
+      })
+      handled = mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+
+    expect(handled).toBe(true)
+    expect(initialSendDraft).not.toHaveBeenCalled()
+    expect(nextSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
+  })
+
+  it('keeps omitted suggestion sources stable across quick panel rerenders', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    const initialSuggestionSources = mocks.editorPresetOptions.suggestionSources
+
+    rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
+
+    expect(mocks.editorPresetOptions.suggestionSources).toBe(initialSuggestionSources)
   })
 
   it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {
