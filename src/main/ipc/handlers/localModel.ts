@@ -1,5 +1,6 @@
 import { localEmbeddingDownloadService } from '@main/features/localModel/LocalEmbeddingDownloadService'
 import { localOcrDownloadService } from '@main/features/localModel/LocalOcrDownloadService'
+import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -7,6 +8,12 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 /** The two download services share one method shape — pick by `model`. */
 function serviceFor(model: LocalModelKind) {
   return model === 'embedding' ? localEmbeddingDownloadService : localOcrDownloadService
+}
+
+/** The other of the two — checked on removal to decide whether the onnxruntime
+ * binary they share is still needed. */
+function siblingFor(model: LocalModelKind) {
+  return model === 'embedding' ? localOcrDownloadService : localEmbeddingDownloadService
 }
 
 /**
@@ -19,5 +26,13 @@ export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas>
   'local_model.get_status': async ({ model }) => ({ status: serviceFor(model).getStatus() }),
   'local_model.download': async ({ model }) => serviceFor(model).download(),
   'local_model.cancel': async ({ model }) => serviceFor(model).cancel(),
-  'local_model.remove': async ({ model }) => serviceFor(model).remove()
+  'local_model.remove': async ({ model }) => {
+    const result = await serviceFor(model).remove()
+    // Only the removed feature's own weights are gone here — the shared onnxruntime
+    // binary is a separate concern, cleaned up only once the sibling feature is gone too.
+    if (result.removed) {
+      await onnxRuntimeBinaryService.removeIfUnused(siblingFor(model).getStatus() === 'ready')
+    }
+    return result
+  }
 }
