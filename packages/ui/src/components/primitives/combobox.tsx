@@ -78,6 +78,10 @@ export type ComboboxOption<TExtra extends object = Record<never, never>> = {
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
 
+type ComboboxTriggerProps = Pick<React.AriaAttributes, 'aria-label' | 'aria-labelledby' | 'aria-describedby'> & {
+  id?: string
+}
+
 export interface ComboboxProps<TExtra extends object = Record<never, never>>
   extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
   // Data source
@@ -116,6 +120,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   popoverAlign?: React.ComponentProps<typeof PopoverContent>['align']
   portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
+  triggerProps?: ComboboxTriggerProps
   width?: string | number
 
   // Other
@@ -149,6 +154,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   popoverAlign,
   portalContainer,
   triggerStyle,
+  triggerProps,
   width,
   size,
   name
@@ -401,6 +407,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         <div className="relative" style={{ width: triggerWidth }}>
           <PopoverTrigger asChild>
             <Input
+              {...triggerProps}
               ref={triggerInputRef}
               type="text"
               value={triggerInputValue}
@@ -444,6 +451,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     return (
       <PopoverTrigger asChild>
         <div
+          {...triggerProps}
           role="combobox"
           tabIndex={disabled ? -1 : 0}
           aria-expanded={open}
@@ -501,11 +509,13 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       ) : (
         <PopoverTrigger asChild>
           <Button
+            {...triggerProps}
             variant="outline"
             size={size}
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
+            role="combobox"
             aria-expanded={open}
             aria-invalid={error}>
             {renderTriggerContent()}
