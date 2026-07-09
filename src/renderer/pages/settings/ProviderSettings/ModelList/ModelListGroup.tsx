@@ -75,6 +75,12 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
     [groupModels, groupName, onDeleteModels, t]
   )
 
+  const handleDeleteGroupKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.stopPropagation()
+    }
+  }, [])
+
   return (
     <div className={cn(modelListClasses.groupCard, open && modelListClasses.groupCardOpen)}>
       <div
@@ -105,6 +111,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               aria-label={t('settings.models.manage.remove_whole_group')}
               disabled={disabled || bulkActionDisabled || hasPendingModel || groupModels.length === 0}
               className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton} opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/modelGroup:opacity-100 group-hover/modelGroup:opacity-100`}
+              onKeyDown={handleDeleteGroupKeyDown}
               onClick={handleDeleteGroupModels}>
               <Minus className="size-3.5" />
             </Button>

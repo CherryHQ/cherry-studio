@@ -106,6 +106,32 @@ describe('ModelListGroup', () => {
     expect(onDeleteModels).toHaveBeenCalledWith(models)
   })
 
+  it('does not toggle the group when the delete action receives keyboard activation keys', () => {
+    const onDeleteModels = vi.fn().mockResolvedValue(undefined)
+    const onToggleOpen = vi.fn()
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        onDeleteModels={onDeleteModels}
+        onToggleOpen={onToggleOpen}
+      />
+    )
+
+    const deleteButton = screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })[0]
+
+    fireEvent.keyDown(deleteButton, { key: 'Enter' })
+    fireEvent.keyDown(deleteButton, { key: ' ' })
+    fireEvent.click(deleteButton)
+
+    expect(onToggleOpen).not.toHaveBeenCalled()
+    expect(onDeleteModels).toHaveBeenCalledWith(models)
+  })
+
   it('logs and shows a toast when deleting a group fails', async () => {
     const error = new Error('delete group failed')
     const onDeleteModels = vi.fn().mockRejectedValue(error)
