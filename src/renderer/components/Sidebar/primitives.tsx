@@ -1,4 +1,4 @@
-import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
+import { EmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -84,13 +84,7 @@ export function UserAvatar({
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiAvatar
-          size={14}
-          fontSize={14}
-          className="h-full w-full cursor-default rounded-full border-0 hover:opacity-100"
-          style={{ width: '100%', height: '100%' }}>
-          {user.avatar!}
-        </EmojiAvatar>
+        <EmojiIcon emoji={user.avatar!} fluid fontSize={14} />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

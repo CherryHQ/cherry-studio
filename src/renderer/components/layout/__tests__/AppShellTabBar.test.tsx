@@ -24,15 +24,6 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  EmojiIcon: ({ emoji, className }: { emoji?: string; className?: string }) => (
-    <div
-      className={['relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full', className]
-        .filter(Boolean)
-        .join(' ')}
-      data-testid="emoji-icon">
-      {emoji}
-    </div>
-  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 

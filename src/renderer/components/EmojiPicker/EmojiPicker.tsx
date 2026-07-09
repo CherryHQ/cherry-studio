@@ -117,7 +117,7 @@ const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
           aria-label={record.annotation ?? record.emoji}
           onClick={() => onPick(record.emoji)}
           className={cn(
-            'flex aspect-square items-center justify-center rounded-md text-2xl leading-none',
+            'flex aspect-square items-center justify-center rounded-md text-3xl leading-none',
             'transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none'
           )}>
           <EmojiGlyph emoji={record.emoji} />
