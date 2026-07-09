@@ -250,6 +250,29 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
+  it('can remove the platform left inset when aligned inside a content column', () => {
+    const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="home"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+        leftInset="none"
+      />
+    )
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+
+    expect(header).toHaveClass('pl-0')
+    expect(header).not.toHaveClass('pl-3')
+  })
+
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
     renderTabBar({
       tabs: [

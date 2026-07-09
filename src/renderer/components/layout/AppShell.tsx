@@ -2,6 +2,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useMainSettingsTab, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
@@ -73,6 +74,58 @@ export const AppShell = () => {
     }
   }
 
+  const tabBar = (
+    <AppShellTabBar
+      tabs={tabs}
+      activeTabId={activeTabId}
+      setActiveTab={setActiveTab}
+      closeTab={closeTab}
+      reorderTabs={reorderTabs}
+      pinTab={pinTab}
+      unpinTab={unpinTab}
+      detachTab={detachTab}
+      openTab={openTab}
+      leftInset={isMac ? 'platform' : 'none'}
+    />
+  )
+
+  const contentArea = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
+      <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+        {/* Route Tabs: Only render non-dormant tabs */}
+        {tabs
+          .filter((t) => t.type === 'route' && !t.isDormant)
+          .map((tab) => (
+            <TabRouter
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === activeTabId}
+              onUrlChange={(url) => handleUrlChange(tab.id, url)}
+            />
+          ))}
+
+        {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+        <MiniAppTabsPool />
+      </main>
+    </div>
+  )
+
+  if (!isMac) {
+    return (
+      <div
+        className={cn(
+          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
+          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+        )}>
+        <Sidebar />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {tabBar}
+          {contentArea}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
@@ -80,17 +133,7 @@ export const AppShell = () => {
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Zone 1: Tab Bar (spans full width) */}
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        setActiveTab={setActiveTab}
-        closeTab={closeTab}
-        reorderTabs={reorderTabs}
-        pinTab={pinTab}
-        unpinTab={unpinTab}
-        detachTab={detachTab}
-        openTab={openTab}
-      />
+      {tabBar}
 
       {/* Zone 2: Main Area (Sidebar + Content) */}
       <div className="flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden">
@@ -98,24 +141,7 @@ export const AppShell = () => {
         <Sidebar />
 
         {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-            {/* Route Tabs: Only render non-dormant tabs */}
-            {tabs
-              .filter((t) => t.type === 'route' && !t.isDormant)
-              .map((tab) => (
-                <TabRouter
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === activeTabId}
-                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
-                />
-              ))}
-
-            {/* MiniApp keep-alive WebView pool — global, shared across modes */}
-            <MiniAppTabsPool />
-          </main>
-        </div>
+        {contentArea}
       </div>
     </div>
   )

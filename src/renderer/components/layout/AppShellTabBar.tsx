@@ -27,6 +27,7 @@ type AppShellTabBarProps = {
   unpinTab: (id: string) => void
   detachTab?: (id: string) => void
   openTab: (url: string, options?: OpenTabOptions) => string
+  leftInset?: 'platform' | 'none'
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -373,7 +374,8 @@ export const AppShellTabBar = ({
   pinTab,
   unpinTab,
   detachTab,
-  openTab
+  openTab,
+  leftInset = 'platform'
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -478,6 +480,7 @@ export const AppShellTabBar = ({
   const handleOpenLaunchpad = () => {
     openTab('/app/launchpad', { title: t('title.launchpad') })
   }
+  const leftPaddingClass = leftInset === 'none' ? 'pl-0' : isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -489,7 +492,7 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          leftPaddingClass
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
