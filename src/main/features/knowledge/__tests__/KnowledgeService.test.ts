@@ -1004,7 +1004,7 @@ describe('KnowledgeService', () => {
       expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
     })
 
-    it('propagates a reindex failure instead of swallowing it', async () => {
+    it('rejects a doomed backfill before committing the model, instead of leaving it set with no vectors', async () => {
       const service = new KnowledgeService()
       const activeRoot = createNoteItem('note-3', 'kb-1', null, 'embedding')
       knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([activeRoot])
@@ -1018,8 +1018,50 @@ describe('KnowledgeService', () => {
         service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
-      // The base row was still updated — only the backfill reindex failed to enqueue.
-      expect(knowledgeBaseUpdateMock).toHaveBeenCalled()
+      // Admission failed before the model was ever committed — the base stays BM25-only.
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('rejects a backfill when a root item source no longer exists, without committing the model', async () => {
+      const service = new KnowledgeService()
+      const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
+      probeKnowledgeFileMock.mockResolvedValue('missing')
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
+      knowledgeItemGetByIdMock.mockReturnValue(root)
+      knowledgeItemGetSubtreeItemsMock.mockImplementation(
+        (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+          options.includeRoots ? [root] : []
+      )
+
+      await expect(
+        service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+      })
+
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('rejects enabling embedding on a failed base before committing the model', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(
+        createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+      )
+      const root = createNoteItem('note-1', 'kb-1', null, 'completed')
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
+
+      try {
+        await service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+        throw new Error('Expected enableEmbeddingModel to fail')
+      } catch (error) {
+        expectFailedBaseGuard(error, 'enableEmbeddingModel')
+      }
+
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
       expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
     })
   })
