@@ -3280,6 +3280,7 @@
         "title": "知識庫"
       },
       "prompt": {
+        "copy_variable": "複製 {{variable}}",
         "create_title": "新提示",
         "dblclick_hint": "雙擊預覽即可切換回編輯",
         "desc": "系統提示作為助手的開場背景發送",

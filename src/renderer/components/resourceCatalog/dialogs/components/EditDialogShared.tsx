@@ -21,6 +21,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -33,6 +34,8 @@ import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+
+const logger = loggerService.withContext('EditDialogShared')
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -668,6 +671,11 @@ export function CompactModelField({
 
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
+  const copyVariable = (variable: string) => {
+    navigator.clipboard.writeText(variable).catch((error) => {
+      logger.warn('Failed to copy prompt variable to clipboard', error as Error)
+    })
+  }
   const content = (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -683,7 +691,13 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs">
           {PROMPT_VARIABLES.map((variable) => (
             <div key={variable.name} className="contents">
-              <span className="text-neutral-50">{variable.name}</span>
+              <button
+                type="button"
+                className="rounded px-1 text-left text-neutral-50 transition-colors hover:bg-neutral-700/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-500"
+                aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
+                onClick={() => copyVariable(variable.name)}>
+                {variable.name}
+              </button>
               <span className="font-sans">{t(variable.i18n)}</span>
             </div>
           ))}
@@ -697,7 +711,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
       content={content}
       delayDuration={300}
       align="start"
-      sideOffset={4}
+      sideOffset={0}
       contentProps={{
         portalContainer,
         className: 'w-80 p-3'
