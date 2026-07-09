@@ -63,7 +63,7 @@ export const BACKUP_DOMAINS = [
  * Restore conflict strategy for an aggregate.
  * - SKIP: keep local, ignore backup row (default for uuid-entity aggregates).
  * - OVERWRITE: row-level replace — identityKey-matching member rows fully overwritten,
- *   local-only members preserved (no差集 deletion).
+ *   local-only members preserved (no set-difference deletion).
  * - RENAME: keep both sides (only for renamable:true aggregates; degrades to SKIP + notify).
  * - FIELD_MERGE: field-level merge (default for natural-key/slot aggregates, e.g. PROVIDERS
  *   keeps local API key + merges remote).

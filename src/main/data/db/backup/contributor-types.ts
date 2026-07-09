@@ -283,7 +283,7 @@ export interface BackupContributor {
   readonly operations?: BackupContributorOperations
 }
 
-// ─── ReadonlyBackupRegistry — the finalized read-only view (registry.md L169-195) ─
+// ─── ReadonlyBackupRegistry — the finalized read-only view ─
 
 /**
  * The immutable registry produced by ContributorManager.finalize() (A3). Lives in

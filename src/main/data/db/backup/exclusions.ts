@@ -6,7 +6,7 @@
 // the coverage test import them from here (tier-1 M9: single ownership, no duplication
 // across ContributorManager / registry / coverage).
 //
-// Membership model (codegen.md L32-36): __drizzle_migrations is IN INFRASTRUCTURE_TABLES
+// Membership model: __drizzle_migrations is IN INFRASTRUCTURE_TABLES
 // but NOT in DB_TABLES (codegen only discovers sqliteTable() calls), so the coverage
 // equation (which iterates DB_TABLES) never involves it — it is a VACUUM-INTU-preserved
 // infrastructure artifact outside the coverage universe.

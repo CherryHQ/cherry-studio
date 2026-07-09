@@ -1,5 +1,5 @@
 // Product tests for the @generated dbSchemaRefs.ts (Track A2 codegen output).
-// These pin the codegen contract from codegen.md / types-contracts.md: membership,
+// These pin the codegen contract from the codegen product: membership,
 // camelCase column keys, PK heuristic (H1–H5), FK edge cases, FTS mapping, and the
 // compile-time-validation helpers. If a Drizzle schema changes, regenerate
 // (pnpm backup:refs:generate) and update the expected counts here.

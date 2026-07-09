@@ -6,7 +6,7 @@
 
 // Table/column identifier types (main-only neutral layer). These are literal unions
 // derived from DB_TABLES / DB_COLUMNS_BY_TABLE, not the branded "string & { __brand }"
-// form in types-contracts.md: the branded form would reject the literal argument to
+// form: the branded form would reject the literal argument to
 // table()/column() and break compile-time membership validation. The union still
 // makes a wrong literal fail tsc (table('nope') / column<'message'>('nope')), which
 // is the spec intent. Consumers MUST build identifiers via the helpers below, never
@@ -585,7 +585,7 @@ export const DB_COLUMNS_BY_TABLE = {
 }
 
 // 3. Primary-key facts (keys dict-ascending). ambiguous:true means a contributor
-//    MUST override this PK explicitly (H4/H5 heuristic — see types-contracts.md).
+//    MUST override this PK explicitly (H4/H5 heuristic).
 export const DB_PRIMARY_KEYS = {
   agent: { table: 'agent', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   agent_channel: { table: 'agent_channel', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
@@ -823,5 +823,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-09T03:45:42.221Z'
+  generatedAt: '2026-07-09T05:54:49.672Z'
 } as const

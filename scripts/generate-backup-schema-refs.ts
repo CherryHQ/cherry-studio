@@ -352,7 +352,7 @@ function emitDbSchemaRefs(
 
 // Table/column identifier types (main-only neutral layer). These are literal unions
 // derived from DB_TABLES / DB_COLUMNS_BY_TABLE, not the branded "string & { __brand }"
-// form in types-contracts.md: the branded form would reject the literal argument to
+// form: the branded form would reject the literal argument to
 // table()/column() and break compile-time membership validation. The union still
 // makes a wrong literal fail tsc (table('nope') / column<'message'>('nope')), which
 // is the spec intent. Consumers MUST build identifiers via the helpers below, never
@@ -426,7 +426,7 @@ ${columnsByTable}
 } as const satisfies { readonly [T in DbTableName]: readonly { readonly name: string; readonly dbName: string; readonly isPrimaryKey: boolean; readonly isNullable: boolean; readonly sqlType: 'text' | 'integer' | 'real' | 'blob' }[] }
 
 // 3. Primary-key facts (keys dict-ascending). ambiguous:true means a contributor
-//    MUST override this PK explicitly (H4/H5 heuristic — see types-contracts.md).
+//    MUST override this PK explicitly (H4/H5 heuristic).
 export const DB_PRIMARY_KEYS = {
 ${primaryKeys}
 } as const satisfies Readonly<Record<DbTableName, PrimaryKeyFact>>
