@@ -16,6 +16,7 @@ import type { ModelGroups } from './modelListDerivedState'
 interface ModelSyncPreviewPanelProps {
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
+  removableModelIds: Set<UniqueModelId>
   staleModelIds: Set<UniqueModelId>
   isLoading: boolean
   isApplying: boolean
@@ -41,10 +42,6 @@ type ManageVirtualRow =
 
 function modelIdLine(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
-}
-
-function isPresetBackedModel(model: Model) {
-  return model.presetModelId != null && model.presetModelId !== ''
 }
 
 const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
@@ -123,6 +120,7 @@ const ManageModelRow = memo(function ManageModelRow({
 export default function ModelSyncPreviewPanel({
   modelGroups,
   localModelIds,
+  removableModelIds,
   staleModelIds,
   isLoading,
   isApplying,
@@ -178,8 +176,8 @@ export default function ModelSyncPreviewPanel({
   const renderGroupAction = useCallback(
     (models: Model[]) => {
       const isAllInProvider = models.every((model) => localModelIds.has(model.id))
-      const removableModelIds = models
-        .filter((model) => localModelIds.has(model.id) && isPresetBackedModel(model))
+      const removableGroupModelIds = models
+        .filter((model) => localModelIds.has(model.id) && removableModelIds.has(model.id))
         .map((model) => model.id)
       const title = isAllInProvider
         ? t('settings.models.manage.remove_whole_group')
@@ -192,12 +190,12 @@ export default function ModelSyncPreviewPanel({
             variant="ghost"
             size="icon-sm"
             aria-label={title}
-            disabled={isApplying || (isAllInProvider && removableModelIds.length === 0)}
+            disabled={isApplying || (isAllInProvider && removableGroupModelIds.length === 0)}
             className={modelSyncClasses.manageRowAction}
             onClick={(event) => {
               event.stopPropagation()
               if (isAllInProvider) {
-                void onRemoveModels(removableModelIds)
+                void onRemoveModels(removableGroupModelIds)
                 return
               }
               void onAddModels(models.filter((model) => !localModelIds.has(model.id)))
@@ -207,7 +205,7 @@ export default function ModelSyncPreviewPanel({
         </Tooltip>
       )
     },
-    [isApplying, localModelIds, onAddModels, onRemoveModels, t]
+    [isApplying, localModelIds, onAddModels, onRemoveModels, removableModelIds, t]
   )
 
   if (isLoading) {

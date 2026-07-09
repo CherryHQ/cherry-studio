@@ -157,6 +157,26 @@ describe('useProviderModelPullReconcile', () => {
     expect(reconcileTriggerMock).not.toHaveBeenCalled()
   })
 
+  it('marks local models from the remote list as removable even without a preset model id', async () => {
+    useModelsMock.mockReturnValue({
+      models: [
+        {
+          ...fetchedModel,
+          presetModelId: null
+        }
+      ]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.removableModelIds).toEqual(['openai::fetched-model'])
+    })
+  })
+
   it('adds only models that are not already local and enables the provider when models exist', async () => {
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 

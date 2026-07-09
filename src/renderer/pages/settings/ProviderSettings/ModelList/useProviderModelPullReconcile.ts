@@ -81,16 +81,26 @@ export function useProviderModelPullReconcile(providerId: string) {
     () => uniqueById([...catalogModels, ...fetchedModels, ...models]),
     [catalogModels, fetchedModels, models]
   )
+  const remoteModelIds = useMemo(
+    () => new Set([...catalogModels, ...fetchedModels].map((model) => model.id)),
+    [catalogModels, fetchedModels]
+  )
+  const removableModelIds = useMemo(
+    () =>
+      models
+        .filter((model) => remoteModelIds.has(model.id) || (model.presetModelId != null && model.presetModelId !== ''))
+        .map((model) => model.id),
+    [models, remoteModelIds]
+  )
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
       return []
     }
 
-    const remoteIds = new Set([...catalogModels, ...fetchedModels].map((model) => model.id))
     return models.filter(
-      (model) => !remoteIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
+      (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
-  }, [catalogModels, fetchedModels, hasLoadedCompleteRemoteModels, models])
+  }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
 
   const loadModels = useCallback(async () => {
     const sequence = ++loadModelsSequenceRef.current
@@ -226,6 +236,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     allModels,
     provider,
     localModels: models,
+    removableModelIds,
     staleModelCount: staleModels.length,
     staleModelIds: staleModels.map((model) => model.id),
     openPullReconcile,

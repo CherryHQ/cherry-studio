@@ -130,6 +130,7 @@ function renderDrawer(props: Partial<React.ComponentProps<typeof ModelListSyncDr
       provider={{ id: 'openai', name: 'OpenAI' } as any}
       allModels={[...allModels]}
       localModels={[...localModels]}
+      removableModelIds={['openai::legacy-model']}
       isLoading={false}
       isApplying={false}
       loadErrorMessage={null}
@@ -214,6 +215,20 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
 
     expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('removes locally added remote models even when the remote row has no preset model id', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[0]],
+      localModels: [allModels[0]],
+      removableModelIds: ['openai::gpt-5'],
+      onRemoveModels
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
+
+    expect(onRemoveModels).toHaveBeenCalledWith(['openai::gpt-5'])
   })
 
   it('does not bulk-remove custom local models', () => {

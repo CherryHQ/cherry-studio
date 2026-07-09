@@ -22,15 +22,12 @@ const CAPABILITY_FILTER_LABEL_KEYS: Record<Exclude<ModelListCapabilityFilter, 'a
   function_calling: 'models.type.function_calling'
 }
 
-function isPresetBackedModel(model: Model) {
-  return model.presetModelId != null && model.presetModelId !== ''
-}
-
 interface ModelListSyncDrawerProps {
   open: boolean
   provider?: Provider
   allModels: Model[]
   localModels: Model[]
+  removableModelIds: UniqueModelId[]
   isLoading: boolean
   isApplying: boolean
   loadErrorMessage?: string | null
@@ -48,6 +45,7 @@ export default function ModelListSyncDrawer({
   provider,
   allModels = [],
   localModels = [],
+  removableModelIds = [],
   isLoading,
   isApplying,
   loadErrorMessage,
@@ -72,6 +70,7 @@ export default function ModelListSyncDrawer({
   }, [open])
 
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
+  const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
   const staleModelIdSet = useMemo(() => new Set(staleModelIds), [staleModelIds])
   const filterOptions = useMemo<ModelManageFilter[]>(
     () => (staleModelCount > 0 ? [...MODEL_LIST_CAPABILITY_FILTERS, 'stale'] : [...MODEL_LIST_CAPABILITY_FILTERS]),
@@ -93,9 +92,9 @@ export default function ModelListSyncDrawer({
   const removableFilteredModelIds = useMemo(
     () =>
       filteredModels
-        .filter((model) => localModelIds.has(model.id) && isPresetBackedModel(model))
+        .filter((model) => localModelIds.has(model.id) && removableModelIdSet.has(model.id))
         .map((model) => model.id),
-    [filteredModels, localModelIds]
+    [filteredModels, localModelIds, removableModelIdSet]
   )
   const busy = isLoading || isApplying
   const hasLoadError = Boolean(loadErrorMessage)
@@ -238,6 +237,7 @@ export default function ModelListSyncDrawer({
       <ModelSyncPreviewPanel
         modelGroups={filteredGroups}
         localModelIds={localModelIds}
+        removableModelIds={removableModelIdSet}
         staleModelIds={staleModelIdSet}
         isLoading={isLoading}
         isApplying={isApplying}
