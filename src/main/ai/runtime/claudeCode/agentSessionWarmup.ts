@@ -76,7 +76,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
-    await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
+    await buildClaudeCodeSessionSettings(session, provider, {
+      lastAgentSessionId: resumeSessionId
+    }),
     route
   )
   const sdkModelId = route.modelIds.primary
