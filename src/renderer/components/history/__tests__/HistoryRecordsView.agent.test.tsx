@@ -263,7 +263,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import HistoryRecordsPage from '../HistoryRecordsPage'
+import HistoryRecordsView from '../HistoryRecordsView'
 
 function flushAnimationFrame() {
   return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
@@ -355,7 +355,7 @@ function setupAgentHistory({
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
   render(
-    <HistoryRecordsPage
+    <HistoryRecordsView
       mode="agent"
       open
       activeRecordId={activeRecordId}
@@ -367,7 +367,7 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
-describe('HistoryRecordsPage agent mode', () => {
+describe('HistoryRecordsView agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
@@ -797,11 +797,11 @@ describe('HistoryRecordsPage agent mode', () => {
       onRecordSelect: vi.fn()
     }
 
-    const { rerender } = render(<HistoryRecordsPage {...props} open />)
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    const { rerender } = render(<HistoryRecordsView {...props} open />)
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
 
-    rerender(<HistoryRecordsPage {...props} open={false} />)
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    rerender(<HistoryRecordsView {...props} open={false} />)
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
   it('renders an empty state when session search has no matches', () => {

@@ -15,6 +15,7 @@ import {
   type GlobalSearchAgentSessionSelectionPayload,
   isGlobalSearchSelectionForTab
 } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -49,7 +50,6 @@ import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
@@ -1076,7 +1076,7 @@ const AgentPage = () => {
     ? {
         className: 'relative',
         content: (
-          <HistoryRecordsPage
+          <HistoryRecordsView
             mode="agent"
             open={historyRecordsActive && !isMessageOnlyView && !isWindowFrame}
             activeRecordId={activeSessionId}

@@ -676,10 +676,10 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
     ) : null
 }))
 
-vi.mock('../../history/HistoryRecordsPage', () => ({
+vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
     open ? (
-      <div data-testid="history-records-page">
+      <div data-testid="history-records-view">
         <button type="button" onClick={() => onRecordSelect?.(null)}>
           Clear history selection
         </button>
@@ -862,14 +862,14 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
     expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'true')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('active-topic')).toBeInTheDocument()
     expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'false')
   })
@@ -880,12 +880,12 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'false')
   })
 
@@ -895,7 +895,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })

@@ -25,6 +25,7 @@ import {
   type GlobalSearchTopicSelectionPayload,
   isGlobalSearchSelectionForTab
 } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -60,7 +61,6 @@ import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
 import {
   AssistantConversationPickerDialog,
@@ -769,7 +769,7 @@ const HomePage: FC = () => {
     ? {
         className: 'relative',
         content: (
-          <HistoryRecordsPage
+          <HistoryRecordsView
             mode="assistant"
             open={historyRecordsActive && !isMessageOnlyView && !isWindowFrame}
             activeRecordId={activeTopicId}

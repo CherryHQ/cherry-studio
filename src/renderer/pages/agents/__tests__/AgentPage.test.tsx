@@ -613,10 +613,10 @@ vi.mock('../components/Sessions', () => ({
   )
 }))
 
-vi.mock('../../history/HistoryRecordsPage', () => ({
+vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
     open ? (
-      <div data-testid="history-records-page">
+      <div data-testid="history-records-view">
         <button type="button" onClick={() => onRecordSelect?.(null)}>
           Clear history session
         </button>
@@ -749,12 +749,12 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'false')
   })
 
@@ -826,14 +826,14 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'true')
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'false')
   })
@@ -847,7 +847,7 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })

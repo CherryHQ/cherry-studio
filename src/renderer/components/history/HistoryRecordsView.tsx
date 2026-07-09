@@ -5,7 +5,7 @@ import AgentHistoryRecords from './AgentHistoryRecords'
 import AssistantHistoryRecords from './AssistantHistoryRecords'
 import type { HistoryRecordsMode } from './historyRecordsTypes'
 
-interface HistoryRecordsPageBaseProps {
+interface HistoryRecordsViewBaseProps {
   mode: HistoryRecordsMode
   open: boolean
   activeRecordId?: string | null
@@ -14,21 +14,21 @@ interface HistoryRecordsPageBaseProps {
   toolbarLeading?: ReactNode
 }
 
-type HistoryRecordsPageProps =
-  | (HistoryRecordsPageBaseProps & {
+type HistoryRecordsViewProps =
+  | (HistoryRecordsViewBaseProps & {
       mode: 'assistant'
       onRecordSelect?: (topic: RendererTopic | null) => void
     })
-  | (HistoryRecordsPageBaseProps & {
+  | (HistoryRecordsViewBaseProps & {
       mode: 'agent'
       onRecordSelect?: (sessionId: string | null) => void
     })
 
-const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
+const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
   if (!props.open) return null
 
   return (
-    <div className="flex min-h-0 flex-1 bg-card [-webkit-app-region:none]" data-testid="history-records-page">
+    <div className="flex min-h-0 flex-1 bg-card [-webkit-app-region:none]" data-testid="history-records-view">
       {props.mode === 'assistant' ? (
         <AssistantHistoryRecords
           activeRecordId={props.activeRecordId}
@@ -48,4 +48,4 @@ const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
   )
 }
 
-export default HistoryRecordsPage
+export default HistoryRecordsView

@@ -322,7 +322,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from '@renderer/services/toast'
 
-import HistoryRecordsPage from '../HistoryRecordsPage'
+import HistoryRecordsView from '../HistoryRecordsView'
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
   return {
@@ -373,7 +373,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrotask(resolve))
 
-describe('HistoryRecordsPage assistant mode', () => {
+describe('HistoryRecordsView assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     confirmActionShow.mockClear()
@@ -430,7 +430,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
@@ -473,7 +473,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
 
@@ -488,7 +488,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
     expect(alphaRow).not.toBeNull()
@@ -517,7 +517,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-alpha"
@@ -557,7 +557,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-alpha"
@@ -597,7 +597,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-gamma"
@@ -639,7 +639,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
@@ -668,7 +668,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -690,7 +690,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-beta'], togglePin: hookMocks.togglePin })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaCheckbox = within(screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement).getByRole(
       'checkbox'
@@ -730,7 +730,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
@@ -781,7 +781,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       { status: 'rejected', reason: new Error('move failed') }
     ])
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
@@ -819,9 +819,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    const page = screen.getByTestId('history-records-page')
+    const page = screen.getByTestId('history-records-view')
     expect(page).toHaveClass('flex')
     expect(page).toHaveClass('flex-1')
     expect(page).toHaveClass('bg-card')
@@ -837,12 +837,12 @@ describe('HistoryRecordsPage assistant mode', () => {
     const owningContainer = document.createElement('div')
     document.body.appendChild(owningContainer)
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />, {
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />, {
       container: owningContainer
     })
 
-    expect(within(owningContainer).getByTestId('history-records-page')).toBeInTheDocument()
-    expect(within(firstHomePage).queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(within(owningContainer).getByTestId('history-records-view')).toBeInTheDocument()
+    expect(within(firstHomePage).queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
   it('matches external assistant source and selected-source order', () => {
@@ -863,7 +863,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       ]
     })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
@@ -902,7 +902,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant/ })
 
@@ -923,11 +923,11 @@ describe('HistoryRecordsPage assistant mode', () => {
       onRecordSelect: vi.fn()
     }
 
-    const { rerender } = render(<HistoryRecordsPage {...props} open />)
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    const { rerender } = render(<HistoryRecordsView {...props} open />)
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
 
-    rerender(<HistoryRecordsPage {...props} open={false} />)
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    rerender(<HistoryRecordsView {...props} open={false} />)
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
   it('renders the external topic context menu for history rows', () => {
@@ -938,7 +938,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -967,7 +967,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -985,7 +985,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const checkbox = within(alphaRow).getByRole('checkbox')
@@ -1006,7 +1006,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const checkbox = within(alphaRow).getByRole('checkbox')
@@ -1032,7 +1032,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
     expect(alphaRow).not.toBeNull()
@@ -1057,7 +1057,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1095,7 +1095,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1126,7 +1126,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    const { unmount } = render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    const { unmount } = render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1143,7 +1143,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     unmount()
     hookMocks.updateTopic.mockClear()
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1170,7 +1170,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
-    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1198,7 +1198,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-alpha"
@@ -1229,7 +1229,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-alpha"
@@ -1259,7 +1259,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-beta"
@@ -1294,7 +1294,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const onRecordSelect = vi.fn()
 
     render(
-      <HistoryRecordsPage
+      <HistoryRecordsView
         mode="assistant"
         open
         activeRecordId="topic-alpha"
@@ -1319,7 +1319,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 })
 
-describe('HistoryRecordsPage locale resources', () => {
+describe('HistoryRecordsView locale resources', () => {
   it('defines the real history and delete dialog keys used by the page', () => {
     const requiredGlobalKeys = [
       'chat.topics.manage.delete.confirm.content',
