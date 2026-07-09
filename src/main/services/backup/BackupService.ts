@@ -28,7 +28,6 @@ import { stat, statfs } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
-import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
@@ -69,8 +68,6 @@ export class BackupService extends BaseService {
   private readonly _onProgress = new Emitter<BackupProgressUpdate>()
   /** The single active export (null when idle). */
   private activeExport: ActiveExport | null = null
-  /** Service logger for backup lifecycle / export diagnostics. */
-  private readonly logger = loggerService.withContext('backup')
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -256,35 +253,55 @@ export class BackupService extends BaseService {
   /**
    * Resolve the effective Notes markdown root for backup. The user-visible Notes
    * dir is `feature.notes.path` when set, else the managed default
-   * (`feature.notes.data`). Backup MUST scan the same root the user configured —
-   * falling back to the managed default when a custom path is set but unavailable
+   * (`feature.notes.data`). Returns `undefined` when the managed default is not
+   * present yet (fresh install / Notes never opened) — collect then skips notes.
+   * A set-but-unavailable custom path throws: falling back to the managed default
    * would produce a successful archive whose `note` overlay rows still point at
    * the custom `rootPath` while bodies came from the wrong tree. Called per export
    * so a mid-session preference change takes effect on the next backup.
    */
-  private resolveNotesRoot(): string {
+  private resolveNotesRoot(): string | undefined {
     const defaultRoot = application.getPath('feature.notes.data')
     const prefRaw = application.get('PreferenceService').get('feature.notes.path')
     const pref = typeof prefRaw === 'string' ? prefRaw.trim() : ''
-    // No custom dir configured (fresh user, or never opened Notes settings) → default.
-    if (!pref) return defaultRoot
+
+    const requireReadableDir = (candidate: string, label: string): string => {
+      try {
+        if (!statSync(candidate).isDirectory()) {
+          throw new Error(`${label} is not a directory: ${candidate}`)
+        }
+        readdirSync(candidate)
+        return candidate
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code
+        const detail = e instanceof Error ? e.message : String(e)
+        throw new Error(`${label} unavailable (${code ?? 'unknown'}): ${candidate} — ${detail}`)
+      }
+    }
+
+    // No custom dir configured → managed default when it exists; else undefined
+    // ("no notes configured" — collect skips). Do not throw on a missing default.
+    if (!pref) {
+      try {
+        if (statSync(defaultRoot).isDirectory()) {
+          readdirSync(defaultRoot)
+          return defaultRoot
+        }
+      } catch {
+        // missing / unreadable default — treat as no Notes root for this export
+      }
+      return undefined
+    }
+
     const candidate = resolve(pref)
-    if (candidate === defaultRoot) return defaultRoot
+    if (candidate === defaultRoot) {
+      // Preference explicitly points at the managed path — same readability rule
+      // as a custom path (user opted into that location).
+      return requireReadableDir(candidate, 'Notes root')
+    }
     // Custom path is set: require a readable directory. Do NOT fall back to the
     // managed default — that would silently omit the user's real notes while
     // still exporting note overlay rows keyed to the custom rootPath.
-    try {
-      if (!statSync(candidate).isDirectory()) {
-        throw new Error(`custom Notes root is not a directory: ${candidate}`)
-      }
-      readdirSync(candidate)
-      return candidate
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code
-      const detail = e instanceof Error ? e.message : String(e)
-      throw new Error(
-        `custom Notes root unavailable (${code ?? 'unknown'}): ${candidate} — ${detail}`
-      )
-    }
+    return requireReadableDir(candidate, 'custom Notes root')
   }
 }

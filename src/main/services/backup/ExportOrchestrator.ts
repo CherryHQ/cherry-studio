@@ -105,7 +105,8 @@ export interface ExportOrchestratorDeps {
    * user changes their Notes dir mid-session. The resolver lets BackupService read
    * the current preference on each backup instead. See BackupService.resolveNotesRoot.
    */
-  readonly notesRoot: () => string
+  /** Returns undefined when Notes is not configured / managed default absent. */
+  readonly notesRoot: () => string | undefined
   /** Strips ALWAYS_STRIP + (lite only) excluded-domain rows from the copy (step 2.5). */
   readonly stripper: BackupStripper
 }
@@ -165,8 +166,10 @@ export class ExportOrchestrator {
     }
 
     const { copier, registry, tempDir, filesRoot, knowledgeRoot, stripper } = this.deps
-    // Resolve the Notes root fresh per export (preference-driven, see deps.notesRoot).
-    const notesRoot = this.deps.notesRoot()
+    // Notes root is only needed for full-preset PREFERENCES file resources.
+    // Resolve lazily below — calling notesRoot() here would abort lite exports when
+    // feature.notes.path is set but unavailable, even though lite never stages notes.
+    let notesRoot: string | undefined
 
     // 1. preset → topo-sorted domains (consumers rely on dependency order)
     this.emitProgress(options, 'collect', 0, 0, 'Resolving domains')
@@ -218,26 +221,26 @@ export class ExportOrchestrator {
       const fileIds = new Set<string>()
       const baseIds = new Set<string>()
       const notesRelPaths = new Set<string>()
+      // Resolve Notes root only when full preset will collect PREFERENCES file resources.
+      // lite keeps `note` overlay rows in backup.sqlite but must NOT archive bodies —
+      // and must not fail on an unavailable custom Notes path.
+      if (options.preset === 'full' && domains.includes('PREFERENCES')) {
+        notesRoot = this.deps.notesRoot()
+      }
       const ctx: FileResourceContext = {
         liveDb: snapshotReadonly,
         registry,
         restoreId: options.restoreId,
         domains,
         strategy: EXPORT_STRATEGY,
-        // notesRoot on the context is optional (undefined in unit tests); deps.notesRoot
-        // is a resolver BackupService evaluates per export (feature.notes.path when set,
-        // else feature.notes.data; a set-but-unavailable custom path fails the export).
-        // PREFERENCES' collectFileResources scans it.
+        // notesRoot is undefined for lite / unit stubs; full resolves via deps.notesRoot
+        // (feature.notes.path when set, else feature.notes.data; unavailable custom fails).
         notesRoot
       }
       let collected = 0
       for (const d of domains) {
         this.assertNotCancelled(options)
-        // PREFERENCES' file resource (Notes markdown bodies) is full-preset only. lite
-        // keeps the `note` overlay rows (they travel in backup.sqlite) but must NOT
-        // archive note bodies (lite-mode consistency). Skip collection
-        // so lite never stages notes — even when the contributor hook would return paths
-        // (and so an unreadable Notes root can't fail a lite export that excludes notes).
+        // PREFERENCES' file resource (Notes markdown bodies) is full-preset only.
         if (d === 'PREFERENCES' && options.preset !== 'full') {
           collected += 1
           this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')
@@ -281,6 +284,11 @@ export class ExportOrchestrator {
         knowledgeMissing = r.missing
       }
       if (notesRelPaths.size > 0) {
+        // notesRelPaths is only populated on full + PREFERENCES collect, which
+        // resolves notesRoot above — refuse to stage without it.
+        if (!notesRoot) {
+          throw new Error('ExportOrchestrator: notesRelPaths non-empty but notesRoot unresolved')
+        }
         notesDir = join(stagingRoot, 'notes')
         const r = await fileStager.stageNotes(notesRoot, notesRelPaths, notesDir)
         // notes are NOT DB-gated (the note table holds overlays, not bodies) → missing

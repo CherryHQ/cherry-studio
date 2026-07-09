@@ -84,6 +84,12 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
     }
   })
 
+  it('throws when a provided notesRoot does not exist (ENOENT)', async () => {
+    const missing = join(tmpdir(), `cs-pref-notes-missing-${Date.now()}`)
+    const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
+    await expect(collect(ctx(missing))).rejects.toThrow(/cannot read notes root/)
+  })
+
   it('collects .md files recursively as relative POSIX paths (sub-dir structure preserved)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-pref-notes-tree-'))
     try {
