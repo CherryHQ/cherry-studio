@@ -84,6 +84,14 @@ const fetchedModel = {
   group: 'OpenAI'
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 describe('useProviderModelPullReconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -270,5 +278,35 @@ describe('useProviderModelPullReconcile', () => {
       expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
     })
     expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+  })
+
+  it('ignores stale model load results when a newer load finishes first', async () => {
+    const oldCatalog = { ...catalogModel, id: 'openai::old-catalog', apiModelId: 'old-catalog', name: 'Old Catalog' }
+    const oldFetched = { ...fetchedModel, id: 'openai::old-fetched', apiModelId: 'old-fetched', name: 'Old Fetched' }
+    const newCatalog = { ...catalogModel, id: 'openai::new-catalog', apiModelId: 'new-catalog', name: 'New Catalog' }
+    const newFetched = { ...fetchedModel, id: 'openai::new-fetched', apiModelId: 'new-fetched', name: 'New Fetched' }
+    const oldCatalogLoad = deferred<any[]>()
+    const oldFetchedLoad = deferred<any[]>()
+
+    fetchProviderCatalogModelsMock.mockReturnValueOnce(oldCatalogLoad.promise).mockResolvedValueOnce([newCatalog])
+    fetchResolvedProviderModelsMock.mockReturnValueOnce(oldFetchedLoad.promise).mockResolvedValueOnce([newFetched])
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      void result.current.reloadModels()
+      await result.current.reloadModels()
+    })
+
+    expect(result.current.allModels).toEqual([newCatalog, newFetched, localModel])
+
+    await act(async () => {
+      oldCatalogLoad.resolve([oldCatalog])
+      oldFetchedLoad.resolve([oldFetched])
+      await oldCatalogLoad.promise
+      await oldFetchedLoad.promise
+    })
+
+    expect(result.current.allModels).toEqual([newCatalog, newFetched, localModel])
   })
 })

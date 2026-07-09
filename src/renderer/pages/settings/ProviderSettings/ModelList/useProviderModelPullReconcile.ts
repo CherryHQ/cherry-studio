@@ -11,7 +11,7 @@ import {
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
@@ -67,6 +67,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [hasLoadedRemoteModels, setHasLoadedRemoteModels] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
+  const loadModelsSequenceRef = useRef(0)
   const { provider, updateProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
@@ -90,6 +91,9 @@ export function useProviderModelPullReconcile(providerId: string) {
   }, [catalogModels, fetchedModels, hasLoadedRemoteModels, models])
 
   const loadModels = useCallback(async () => {
+    const sequence = ++loadModelsSequenceRef.current
+    const isLatestLoad = () => sequence === loadModelsSequenceRef.current
+
     setIsLoadingModels(true)
     setHasLoadedRemoteModels(false)
     setLoadErrorMessage(null)
@@ -98,14 +102,24 @@ export function useProviderModelPullReconcile(providerId: string) {
         fetchProviderCatalogModels(providerId),
         fetchResolvedProviderModels(providerId)
       ])
+      if (!isLatestLoad()) {
+        return
+      }
+
       setCatalogModels(catalog.filter((model) => model.name?.trim()))
       setFetchedModels(fetched.filter((model) => model.name?.trim()))
       setHasLoadedRemoteModels(true)
     } catch (error) {
+      if (!isLatestLoad()) {
+        return
+      }
+
       logger.error('Failed to load provider models for manage drawer', { providerId, error })
       setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
     } finally {
-      setIsLoadingModels(false)
+      if (isLatestLoad()) {
+        setIsLoadingModels(false)
+      }
     }
   }, [providerId, t])
 
