@@ -65,7 +65,7 @@ export const INFRASTRUCTURE_TABLES: ReadonlySet<string> = new Set<string>(['__dr
 /**
  * FileRef sourceTypes that are runtime-only (in-memory, no DB rows to back up) —
  * excluded from the backup universe. finalize invariant #11 treats these as
- * covered (runtime-only-exclude, contributor-spec §11) so they need no
+ * covered (runtime-only-exclude, backup-architecture §8.5 invariant #11) so they need no
  * contributor owner.
  *
  * - temp_session: runtime temp-session refs live in CacheService (no table) —

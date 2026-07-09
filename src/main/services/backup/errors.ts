@@ -35,7 +35,7 @@ export class BackupCancelledError extends Error {
 /**
  * Thrown when the disk fills up mid-archive (preflight passed but the volume ran out
  * during the write stream — typically external blobs whose size is NULL in
- * file_entry.size and so not counted in preflight). Disk budget L254:
+ * file_entry.size and so not counted in preflight). Disk budget (BackupService.preflightDisk):
  * archive writeStream ENOSPC is wrapped to DiskFullError so the
  * renderer surfaces a clear "disk full" message rather than a raw errno.
  */
