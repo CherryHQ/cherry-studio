@@ -1,4 +1,6 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
+import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,12 +12,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof import('@cherrystudio/ui')>())
+vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', async () => {
-  const actual = await vi.importActual<
-    typeof import('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared')
-  >('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared')
+  const actual = await vi.importActual<typeof EditDialogSharedModule>(
+    '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
+  )
 
   return {
     ...actual,

@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
@@ -18,14 +19,14 @@ vi.mock('@renderer/hooks/useModel', () => ({
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; PersonaStep fills the prompt.
 vi.mock('../steps/BasicInfoStep', async () => {
-  const { useWatch } = await vi.importActual<typeof import('react-hook-form')>('react-hook-form')
+  const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
 
   return {
     BasicInfoStep: ({
       form
     }: {
       form: {
-        control: import('react-hook-form').Control<{ modelId: string | null }>
+        control: ReactHookForm.Control<{ modelId: string | null }>
         setValue: (name: string, value: unknown) => void
       }
     }) => {
