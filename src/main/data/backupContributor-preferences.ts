@@ -60,17 +60,12 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
       'app.hardware_acceleration' // GPU/driver-specific, not portable
     ]
   },
-  // TODO(D track): two restore requirements for PREFERENCES (neither is a finalize
-  // concern; both wire when the D restore track lands):
-  //  1. Cache refresh — after commit, call PreferenceService.reloadFromDb() +
-  //     rebroadcast so the main + renderer preference caches reflect restored values
-  //     (M1; without it restore silently no-ops until restart). Blocked on the upstream
-  //     reloadFromDb API (upstream, tracked separately).
-  //  2. note-overlay selected-resource filtering (codex review P2) — `note` rows are
-  //     state overlays keyed by (rootPath, path) into Notes markdown files. In lite
-  //     mode (files excluded) the restore MUST filter note rows whose markdown is not
-  //     in the backup, else it imports starred/expanded state for non-existent notes
-  //     (selected-resource consistency in lite mode). The Notes markdown
-  //     body itself is a file resource (full mode only).
+  // TODO(D track): note-overlay selected-resource filtering (codex review P2) —
+  // `note` rows are state overlays keyed by (rootPath, path) into Notes markdown
+  // files. In lite mode (files excluded) the restore MUST filter note rows whose
+  // markdown is not in the backup, else it imports starred/expanded state for
+  // non-existent notes. The Notes markdown body itself is a file resource (full
+  // mode only). Cache refresh is NOT needed under the D model (#16714): relaunch
+  // after preboot promotion fresh-loads PreferenceService.onInit.
   operations: undefined
 })
