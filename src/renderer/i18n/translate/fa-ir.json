@@ -3433,1022 +3433,1022 @@
     },
     "uninstall_failed": "حذف نصب نشد",
     "view": {
-      "grid": "[to be translated]:Grid view",
-      "list": "[to be translated]:List view"
+      "grid": "نمای شبکه ای",
+      "list": "نمای فهرستی"
     }
   },
   "lmstudio": {
     "keep_alive_time": {
-      "description": "[to be translated]:The time in minutes to keep the connection alive, default is 5 minutes.",
-      "placeholder": "[to be translated]:Minutes",
-      "title": "[to be translated]:Keep Alive Time"
+      "description": "زمان زنده نگه داشتن اتصال بر حسب دقیقه، پیش فرض 5 دقیقه است.",
+      "placeholder": "دقیقه",
+      "title": "زنده نگه داشتن زمان"
     },
-    "title": "[to be translated]:LM Studio"
+    "title": "LM Studio"
   },
   "message": {
     "agents": {
       "import": {
-        "error": "[to be translated]:Import failed"
+        "error": "واردات انجام نشد"
       },
-      "imported": "[to be translated]:Successfully imported {{count}} assistant(s)"
+      "imported": "{{count}} دستیار با موفقیت وارد شد"
     },
     "api": {
       "check": {
         "model": {
-          "title": "[to be translated]:Select the model to use for detection"
+          "title": "مدل مورد استفاده برای تشخیص را انتخاب کنید"
         }
       },
       "connection": {
-        "failed": "[to be translated]:Connection failed",
-        "success": "[to be translated]:Connection successful"
+        "failed": "اتصال ناموفق بود",
+        "success": "اتصال با موفقیت انجام شد"
       }
     },
     "assistant": {
       "added": {
-        "content": "[to be translated]:Assistant added successfully"
+        "content": "دستیار با موفقیت اضافه شد"
       }
     },
     "attachments": {
-      "pasted_image": "[to be translated]:Pasted Image",
-      "pasted_text": "[to be translated]:Pasted Text"
+      "pasted_image": "تصویر جایگذاری شده",
+      "pasted_text": "متن جایگذاری شده"
     },
     "backup": {
-      "failed": "[to be translated]:Backup failed",
+      "failed": "پشتیبان گیری انجام نشد",
       "start": {
-        "success": "[to be translated]:Backup started"
+        "success": "پشتیبان گیری شروع شد"
       },
-      "success": "[to be translated]:Backup successful"
+      "success": "پشتیبان گیری با موفقیت انجام شد"
     },
     "branch": {
-      "error": "[to be translated]:Branch creation failed"
+      "error": "ایجاد شعبه ناموفق بود"
     },
     "chat": {
       "completion": {
-        "paused": "[to be translated]:Chat completion paused"
+        "paused": "تکمیل گپ متوقف شد"
       }
     },
-    "citation": "[to be translated]:{{count}} citations",
-    "citations": "[to be translated]:References",
-    "copied": "[to be translated]:Copied!",
+    "citation": "{{count}} نقل قول",
+    "citations": "مراجع",
+    "copied": "کپی شده!",
     "copy": {
-      "failed": "[to be translated]:Copy failed",
-      "success": "[to be translated]:Copied!"
+      "failed": "کپی ناموفق بود",
+      "success": "کپی شده!"
     },
     "delete": {
       "confirm": {
-        "content": "[to be translated]:Are you sure you want to delete the selected {{count}} message(s)?",
-        "title": "[to be translated]:Delete Confirmation"
+        "content": "آیا مطمئن هستید که می خواهید {{count}} پیام(های) انتخابی را حذف کنید؟",
+        "title": "حذف تاییدیه"
       },
-      "failed": "[to be translated]:Delete Failed",
-      "success": "[to be translated]:Delete Successful"
+      "failed": "حذف نشد",
+      "success": "حذف موفق"
     },
     "dialog": {
-      "failed": "[to be translated]:Preview failed"
+      "failed": "پیش نمایش ناموفق بود"
     },
     "download": {
-      "failed": "[to be translated]:Download failed",
-      "success": "[to be translated]:Download successfully"
+      "failed": "دانلود انجام نشد",
+      "success": "دانلود با موفقیت"
     },
-    "empty_url": "[to be translated]:Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
+    "empty_url": "تصویر دانلود نشد، احتمالاً به دلیل درخواست حاوی محتوای حساس یا کلمات ممنوعه",
     "error": {
-      "chunk_overlap_too_large": "[to be translated]:Chunk overlap cannot be greater than chunk size",
-      "copy": "[to be translated]:Copy failed",
-      "dimension_too_large": "[to be translated]:Content size is too large",
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "chunk_overlap_too_large": "همپوشانی تکه نمی تواند بزرگتر از اندازه تکه باشد",
+      "copy": "کپی ناموفق بود",
+      "dimension_too_large": "اندازه محتوا خیلی بزرگ است",
+      "dismiss_failed": "رد پیام خطا انجام نشد",
       "enter": {
         "api": {
-          "host": "[to be translated]:Please enter your API host first",
-          "label": "[to be translated]:Please enter your API key first"
+          "host": "لطفا ابتدا میزبان API خود را وارد کنید",
+          "label": "لطفا ابتدا کلید API خود را وارد کنید"
         },
-        "model": "[to be translated]:Please select a model first",
-        "name": "[to be translated]:Please enter the name of the knowledge base"
+        "model": "لطفا ابتدا یک مدل را انتخاب کنید",
+        "name": "لطفا نام پایگاه دانش را وارد کنید"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "اکسل صادر نشد"
       },
-      "fetchTopicName": "[to be translated]:Failed to name the conversation",
+      "fetchTopicName": "نام مکالمه ناموفق بود",
       "file": {
-        "process_failed": "[to be translated]:File {{name}} could not be processed",
-        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+        "process_failed": "فایل {{name}} قابل پردازش نیست",
+        "text_extraction_failed": "متن از {{name}} استخراج نشد"
       },
-      "get_embedding_dimensions": "[to be translated]:Failed to get embedding dimensions",
+      "get_embedding_dimensions": "ابعاد جاسازی دریافت نشد",
       "invalid": {
         "api": {
-          "host": "[to be translated]:Invalid API Host",
-          "label": "[to be translated]:Invalid API Key"
+          "host": "میزبان API نامعتبر است",
+          "label": "کلید API نامعتبر است"
         },
         "enter": {
-          "model": "[to be translated]:Please select a model"
+          "model": "لطفا یک مدل انتخاب کنید"
         },
-        "nutstore": "[to be translated]:Invalid Nutstore settings",
-        "nutstore_token": "[to be translated]:Invalid Nutstore Token",
+        "nutstore": "تنظیمات Nutstore نامعتبر است",
+        "nutstore_token": "توکن Nutstore نامعتبر است",
         "proxy": {
-          "url": "[to be translated]:Invalid proxy URL"
+          "url": "URL پروکسی نامعتبر است"
         },
-        "webdav": "[to be translated]:Invalid WebDAV settings"
+        "webdav": "تنظیمات WebDAV نامعتبر است"
       },
       "joplin": {
-        "export": "[to be translated]:Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
-        "no_config": "[to be translated]:Joplin Authorization Token or URL is not configured"
+        "export": "به جاپلین صادر نشد. ",
+        "no_config": "نشانی یا نشانی اینترنتی مجوز جوپلین پیکربندی نشده است"
       },
       "markdown": {
         "export": {
-          "preconf": "[to be translated]:Failed to export the Markdown file to the preconfigured path",
-          "specified": "[to be translated]:Failed to export the Markdown file"
+          "preconf": "صادر کردن فایل Markdown به مسیر از پیش پیکربندی شده انجام نشد",
+          "specified": "فایل Markdown صادر نشد"
         }
       },
       "notes": {
-        "export": "[to be translated]:Failed to export notes"
+        "export": "یادداشت صادر نشد"
       },
       "notion": {
-        "export": "[to be translated]:Failed to export to Notion. Please check connection status and configuration according to documentation",
-        "no_api_key": "[to be translated]:Notion ApiKey or Notion DatabaseID is not configured",
-        "no_content": "[to be translated]:There is nothing to export to Notion."
+        "export": "صادر کردن به Notion انجام نشد. ",
+        "no_api_key": "Notion ApiKey یا Notion DatabaseID پیکربندی نشده است",
+        "no_content": "چیزی برای صادرات به Notion وجود ندارد."
       },
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
+      "operation_unavailable": "عملیات پیام در دسترس نیست. ",
       "siyuan": {
-        "export": "[to be translated]:Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
-        "no_config": "[to be translated]:Siyuan Note API address or token is not configured"
+        "export": "به Siyuan Note صادر نشد، لطفاً وضعیت اتصال و پیکربندی را طبق اسناد بررسی کنید",
+        "no_config": "آدرس یا توکن Siyuan Note API پیکربندی نشده است"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "نمی توان داده های جدول معتبر را بازیابی کرد"
       },
-      "unknown": "[to be translated]:Unknown error",
+      "unknown": "خطای ناشناخته",
       "yuque": {
-        "export": "[to be translated]:Failed to export to Yuque. Please check connection status and configuration according to documentation",
-        "no_config": "[to be translated]:Yuque Token or Yuque Url is not configured"
+        "export": "صادرات به Yuque انجام نشد. ",
+        "no_config": "Yuque Token یا Yuque Url پیکربندی نشده است"
       }
     },
     "group": {
       "delete": {
-        "content": "[to be translated]:Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "[to be translated]:Delete Group Message"
+        "content": "حذف یک پیام گروهی، سؤال کاربر و تمام پاسخ‌های دستیار را حذف می‌کند",
+        "title": "حذف پیام گروه"
       },
-      "retry_failed": "[to be translated]:Retry failed messages"
+      "retry_failed": "پیام های ناموفق را دوباره امتحان کنید"
     },
     "ignore": {
       "knowledge": {
-        "base": "[to be translated]:Web search mode is enabled, ignore knowledge base"
+        "base": "حالت جستجوی وب فعال است، پایگاه دانش را نادیده بگیرید"
       }
     },
     "loading": {
       "notion": {
-        "exporting_progress": "[to be translated]:Exporting to Notion ...",
-        "preparing": "[to be translated]:Preparing to export to Notion..."
+        "exporting_progress": "صادرات به مفهوم ...",
+        "preparing": "آماده سازی برای صادرات به Notion..."
       }
     },
     "mention": {
-      "title": "[to be translated]:Switch model answer"
+      "title": "جواب مدل سوئیچ"
     },
     "message": {
-      "code_style": "[to be translated]:Code style",
+      "code_style": "سبک کد",
       "compact": {
-        "title": "[to be translated]:Conversation Compacted"
+        "title": "مکالمه فشرده شده است"
       },
       "delete": {
-        "content": "[to be translated]:Are you sure you want to delete this message?",
-        "title": "[to be translated]:Delete Message"
+        "content": "آیا مطمئن هستید که می خواهید این پیام را حذف کنید؟",
+        "title": "حذف پیام"
       },
       "multi_model_style": {
         "fold": {
-          "compress": "[to be translated]:Switch to compact layout",
-          "expand": "[to be translated]:Switch to expanded layout",
-          "label": "[to be translated]:Fold view"
+          "compress": "به چیدمان فشرده تغییر وضعیت دهید",
+          "expand": "به طرح‌بندی توسعه‌یافته بروید",
+          "label": "نمای تاشو"
         },
-        "grid": "[to be translated]:Grid layout",
-        "horizontal": "[to be translated]:Side by side",
-        "label": "[to be translated]:Group style",
-        "vertical": "[to be translated]:Stacked view"
+        "grid": "چیدمان شبکه ای",
+        "horizontal": "کنار هم",
+        "label": "سبک گروهی",
+        "vertical": "نمای پشته ای"
       },
       "style": {
-        "bubble": "[to be translated]:Bubble",
-        "label": "[to be translated]:Message style",
-        "plain": "[to be translated]:Plain"
+        "bubble": "حباب",
+        "label": "سبک پیام",
+        "plain": "دشت"
       },
       "user_content": {
-        "collapse": "[to be translated]:Collapse",
-        "expand": "[to be translated]:Expand"
+        "collapse": "فرو ریختن",
+        "expand": "گسترش دهید"
       },
       "video": {
         "error": {
-          "local_file_missing": "[to be translated]:Local video file path not found",
-          "unsupported_type": "[to be translated]:Unsupported video type",
-          "youtube_url_missing": "[to be translated]:YouTube video URL not found"
+          "local_file_missing": "مسیر فایل ویدئویی محلی یافت نشد",
+          "unsupported_type": "نوع ویدیو پشتیبانی نشده",
+          "youtube_url_missing": "URL ویدیوی YouTube یافت نشد"
         }
       }
     },
-    "processing": "[to be translated]:Processing...",
+    "processing": "در حال پردازش...",
     "regenerate": {
-      "confirm": "[to be translated]:Regenerating will replace current message"
+      "confirm": "بازسازی جایگزین پیام فعلی خواهد شد"
     },
     "reset": {
       "confirm": {
-        "content": "[to be translated]:Are you sure you want to clear all data?"
+        "content": "آیا مطمئن هستید که می خواهید همه داده ها را پاک کنید؟"
       },
       "double": {
         "confirm": {
-          "content": "[to be translated]:All data will be lost, do you want to continue?",
-          "title": "[to be translated]:DATA LOST !!!"
+          "content": "همه داده ها از بین خواهند رفت، آیا می خواهید ادامه دهید؟",
+          "title": "داده ها از دست رفت!!!"
         }
       },
-      "success": "[to be translated]:Data reset successful"
+      "success": "بازنشانی داده با موفقیت انجام شد"
     },
     "restore": {
-      "failed": "[to be translated]:Restore failed",
-      "success": "[to be translated]:Restored successfully"
+      "failed": "بازیابی انجام نشد",
+      "success": "با موفقیت بازیابی شد"
     },
     "save": {
       "success": {
-        "title": "[to be translated]:Saved successfully"
+        "title": "با موفقیت ذخیره شد"
       }
     },
-    "searching": "[to be translated]:Searching...",
+    "searching": "در حال جستجو...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "اکسل با موفقیت صادر شد"
       },
       "joplin": {
-        "export": "[to be translated]:Successfully exported to Joplin"
+        "export": "با موفقیت به جاپلین صادر شد"
       },
       "markdown": {
         "export": {
-          "preconf": "[to be translated]:Successfully exported the Markdown file to the preconfigured path",
-          "specified": "[to be translated]:Successfully exported the Markdown file"
+          "preconf": "فایل Markdown با موفقیت به مسیر از پیش تنظیم شده صادر شد",
+          "specified": "فایل Markdown با موفقیت صادر شد"
         }
       },
       "notes": {
-        "export": "[to be translated]:Successfully exported to notes"
+        "export": "با موفقیت به یادداشت ها صادر شد"
       },
       "notion": {
-        "export": "[to be translated]:Successfully exported to Notion"
+        "export": "با موفقیت به Notion صادر شد"
       },
       "siyuan": {
-        "export": "[to be translated]:Successfully exported to Siyuan Note"
+        "export": "با موفقیت به Siyuan Note صادر شد"
       },
       "yuque": {
-        "export": "[to be translated]:Successfully exported to Yuque"
+        "export": "با موفقیت به Yuque صادر شد"
       }
     },
     "switch": {
-      "disabled": "[to be translated]:Please wait for the current reply to complete"
+      "disabled": "لطفاً منتظر بمانید تا پاسخ فعلی تکمیل شود"
     },
     "tools": {
-      "abort_failed": "[to be translated]:Tool call abort failed",
-      "aborted": "[to be translated]:Tool call aborted",
+      "abort_failed": "تماس ابزار لغو نشد",
+      "aborted": "تماس ابزار قطع شد",
       "activity": {
-        "archive": "[to be translated]:archive",
-        "assistantTask": "[to be translated]:task",
-        "availableFeatures": "[to be translated]:available features",
-        "availableResources": "[to be translated]:available resources",
-        "branch": "[to be translated]:code branch",
-        "build": "[to be translated]:Build",
-        "building": "[to be translated]:Building",
-        "check": "[to be translated]:Check",
-        "checking": "[to be translated]:Checking",
-        "codeFiles": "[to be translated]:code files",
-        "codeHostInfo": "[to be translated]:code hosting information",
-        "commandName": "[to be translated]:{{name}} command",
-        "configFiles": "[to be translated]:project docs and config files",
-        "copy": "[to be translated]:Copy",
-        "copying": "[to be translated]:Copying",
-        "create": "[to be translated]:Create",
-        "creating": "[to be translated]:Creating",
-        "currentFolder": "[to be translated]:current folder",
-        "delete": "[to be translated]:Delete",
-        "deleting": "[to be translated]:Deleting",
-        "documentFiles": "[to be translated]:document files",
-        "download": "[to be translated]:Download",
-        "downloading": "[to be translated]:Downloading",
-        "executeCommand": "[to be translated]:Run command",
-        "executingCommand": "[to be translated]:Running command",
-        "extract": "[to be translated]:Extract",
-        "extracting": "[to be translated]:Extracting",
-        "file": "[to be translated]:file",
-        "fileList": "[to be translated]:file list",
-        "folder": "[to be translated]:folder",
-        "handle": "[to be translated]:Handle",
-        "handling": "[to be translated]:Handling",
-        "imageFiles": "[to be translated]:image files",
-        "install": "[to be translated]:Install",
-        "installing": "[to be translated]:Installing",
-        "matchingFiles": "[to be translated]:matching files",
-        "modify": "[to be translated]:Modify",
-        "modifying": "[to be translated]:Modifying",
-        "move": "[to be translated]:Move",
-        "moving": "[to be translated]:Moving",
-        "open": "[to be translated]:Open",
-        "opening": "[to be translated]:Opening",
-        "plan": "[to be translated]:execution plan",
-        "projectChanges": "[to be translated]:project changes",
-        "projectChecks": "[to be translated]:project checks",
-        "projectDependencies": "[to be translated]:project dependencies",
-        "projectFiles": "[to be translated]:project files",
-        "projectRootFiles": "[to be translated]:project root files",
-        "projectTask": "[to be translated]:project task",
-        "relatedContent": "[to be translated]:related content",
-        "repository": "[to be translated]:code repository",
-        "search": "[to be translated]:Find",
-        "searching": "[to be translated]:Finding",
-        "switch": "[to be translated]:Switch",
-        "switching": "[to be translated]:Switching",
-        "sync": "[to be translated]:Sync",
-        "syncing": "[to be translated]:Syncing",
-        "taskId": "[to be translated]:Task {{id}}",
-        "taskList": "[to be translated]:task list",
-        "translationFiles": "[to be translated]:translation files",
-        "upload": "[to be translated]:Upload",
-        "uploading": "[to be translated]:Uploading",
-        "view": "[to be translated]:View",
-        "viewing": "[to be translated]:Viewing",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
+        "archive": "بایگانی",
+        "assistantTask": "وظیفه",
+        "availableFeatures": "ویژگی های موجود",
+        "availableResources": "منابع موجود",
+        "branch": "شعبه کد",
+        "build": "ساخت",
+        "building": "ساختمان",
+        "check": "بررسی کنید",
+        "checking": "چک کردن",
+        "codeFiles": "فایل های کد",
+        "codeHostInfo": "اطلاعات میزبانی کد",
+        "commandName": "دستور {{name}}",
+        "configFiles": "اسناد پروژه و فایل های پیکربندی",
+        "copy": "کپی کنید",
+        "copying": "کپی کردن",
+        "create": "ایجاد کنید",
+        "creating": "ایجاد",
+        "currentFolder": "پوشه فعلی",
+        "delete": "حذف کنید",
+        "deleting": "در حال حذف",
+        "documentFiles": "فایل های سند",
+        "download": "دانلود کنید",
+        "downloading": "در حال دانلود",
+        "executeCommand": "دستور را اجرا کنید",
+        "executingCommand": "فرمان در حال اجرا",
+        "extract": "استخراج کنید",
+        "extracting": "استخراج کردن",
+        "file": "فایل",
+        "fileList": "لیست فایل",
+        "folder": "پوشه",
+        "handle": "دسته",
+        "handling": "هندلینگ",
+        "imageFiles": "فایل های تصویری",
+        "install": "نصب کنید",
+        "installing": "در حال نصب",
+        "matchingFiles": "فایل های منطبق",
+        "modify": "اصلاح کنید",
+        "modifying": "در حال اصلاح",
+        "move": "حرکت کنید",
+        "moving": "در حال حرکت",
+        "open": "باز کنید",
+        "opening": "باز شدن",
+        "plan": "طرح اجرا",
+        "projectChanges": "تغییرات پروژه",
+        "projectChecks": "بررسی های پروژه",
+        "projectDependencies": "وابستگی های پروژه",
+        "projectFiles": "فایل های پروژه",
+        "projectRootFiles": "فایل های ریشه پروژه",
+        "projectTask": "وظیفه پروژه",
+        "relatedContent": "مطالب مرتبط",
+        "repository": "مخزن کد",
+        "search": "پیدا کنید",
+        "searching": "پیدا کردن",
+        "switch": "سوئیچ",
+        "switching": "سوئیچینگ",
+        "sync": "همگام سازی",
+        "syncing": "در حال همگام سازی",
+        "taskId": "وظیفه {{id}}",
+        "taskList": "لیست وظایف",
+        "translationFiles": "فایل های ترجمه",
+        "upload": "آپلود کنید",
+        "uploading": "در حال آپلود",
+        "view": "مشاهده کنید",
+        "viewing": "در حال مشاهده",
+        "webPage": "صفحه وب",
+        "webSearch": "محتوای وب",
+        "workspace": "فضای کار",
+        "write": "ذخیره کنید",
+        "writing": "صرفه جویی"
       },
-      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
-      "autoApproveEnabled": "[to be translated]:Auto-approve enabled for this tool",
-      "cancelled": "[to be translated]:Cancelled",
-      "collapse": "[to be translated]:Collapse",
-      "completed": "[to be translated]:Completed",
-      "error": "[to be translated]:Error occurred",
-      "groupHeader": "[to be translated]:{{count}} tool calls",
-      "invoking": "[to be translated]:Invoking",
+      "approvalRequired": "ابزار \"{{ابزار}}\" نیاز به تایید دارد",
+      "autoApproveEnabled": "تأیید خودکار برای این ابزار فعال است",
+      "cancelled": "لغو شد",
+      "collapse": "فرو ریختن",
+      "completed": "تکمیل شد",
+      "error": "خطایی رخ داد",
+      "groupHeader": "{{count}} فراخوانی ابزار",
+      "invoking": "استناد کردن",
       "labels": {
-        "bash": "[to be translated]:Bash",
-        "edit": "[to be translated]:Edit",
-        "exitPlanMode": "[to be translated]:ExitPlanMode",
-        "glob": "[to be translated]:Glob",
-        "grep": "[to be translated]:Grep",
-        "mcpServerTool": "[to be translated]:MCP Server Tool",
-        "multiEdit": "[to be translated]:MultiEdit",
-        "notebookEdit": "[to be translated]:NotebookEdit",
-        "readFile": "[to be translated]:Read File",
-        "search": "[to be translated]:Search",
-        "skill": "[to be translated]:Skill",
-        "task": "[to be translated]:Task",
-        "taskCreate": "[to be translated]:Create task",
-        "taskGet": "[to be translated]:View task",
-        "taskList": "[to be translated]:List tasks",
-        "taskOutput": "[to be translated]:View task output",
-        "taskStop": "[to be translated]:Stop task",
-        "taskUpdate": "[to be translated]:Update task",
-        "todoWrite": "[to be translated]:Todo Write",
-        "tool": "[to be translated]:Tool",
-        "webFetch": "[to be translated]:Web Fetch",
-        "webSearch": "[to be translated]:Web Search",
-        "write": "[to be translated]:Write"
+        "bash": "ضربه شدید",
+        "edit": "ویرایش کنید",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "گلوب",
+        "grep": "گرپ",
+        "mcpServerTool": "ابزار سرور MCP",
+        "multiEdit": "چند ویرایش",
+        "notebookEdit": "نوت بوک ویرایش",
+        "readFile": "فایل را بخوانید",
+        "search": "جستجو کنید",
+        "skill": "مهارت",
+        "task": "وظیفه",
+        "taskCreate": "وظیفه ایجاد کنید",
+        "taskGet": "مشاهده کار",
+        "taskList": "لیست وظایف",
+        "taskOutput": "مشاهده خروجی کار",
+        "taskStop": "کار را متوقف کنید",
+        "taskUpdate": "وظیفه به روز رسانی",
+        "todoWrite": "Todo Write",
+        "tool": "ابزار",
+        "webFetch": "واکشی وب",
+        "webSearch": "جستجوی وب",
+        "write": "بنویسید"
       },
-      "noData": "[to be translated]:No data available for this tool",
-      "pending": "[to be translated]:Pending",
+      "noData": "هیچ داده ای برای این ابزار موجود نیست",
+      "pending": "در انتظار",
       "placeholder": {
         "elapsed": {
-          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
-          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
-          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
-          "seconds": "[to be translated]:{{seconds}}s"
+          "days": "{{days}}d {{hours}}h {{minutes}} دقیقه {{seconds}}s",
+          "hours": "{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "{{minutes}} دقیقه {{ثانیه}} ثانیه",
+          "seconds": "{{ثانیه}} ثانیه"
         },
-        "generating": "[to be translated]:Writing response",
-        "preparing": "[to be translated]:Preparing response",
-        "thinking": "[to be translated]:Thinking",
-        "usingTools": "[to be translated]:Working on the task"
+        "generating": "پاسخ نویسی",
+        "preparing": "آماده سازی پاسخ",
+        "thinking": "فکر کردن",
+        "usingTools": "کار روی کار"
       },
-      "preview": "[to be translated]:Preview",
-      "processed": "[to be translated]:Processed",
-      "raw": "[to be translated]:Raw",
-      "runningCount": "[to be translated]:{{count}} tools running",
-      "runningHeader": "[to be translated]:Working…",
+      "preview": "پیش نمایش",
+      "processed": "پردازش شده است",
+      "raw": "خام",
+      "runningCount": "{{count}} ابزار در حال اجرا است",
+      "runningHeader": "در حال کار…",
       "sections": {
-        "args": "[to be translated]:Arguments",
-        "command": "[to be translated]:Command",
-        "content": "[to be translated]:Content",
-        "exitCode": "[to be translated]:Exit Code",
-        "input": "[to be translated]:Input",
-        "output": "[to be translated]:Output",
-        "prompt": "[to be translated]:Prompt",
-        "searchQuery": "[to be translated]:Search Query",
-        "searchResults": "[to be translated]:Search Results",
-        "stderr": "[to be translated]:stderr",
-        "stdout": "[to be translated]:stdout"
+        "args": "استدلال ها",
+        "command": "فرمان",
+        "content": "محتوا",
+        "exitCode": "کد خروج",
+        "input": "ورودی",
+        "output": "خروجی",
+        "prompt": "اعلان",
+        "searchQuery": "پرس و جو جستجو",
+        "searchResults": "نتایج جستجو",
+        "stderr": "stderr",
+        "stdout": "stdout"
       },
       "status": {
-        "done": "[to be translated]:Done",
-        "error": "[to be translated]:Error",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running",
-        "success": "[to be translated]:Success"
+        "done": "انجام شد",
+        "error": "خطا",
+        "failed": "شکست خورد",
+        "running": "در حال دویدن",
+        "success": "موفقیت"
       },
-      "streaming": "[to be translated]:Streaming",
-      "thinkingHeader": "[to be translated]:Thinking",
-      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "streaming": "پخش جریانی",
+      "thinkingHeader": "فکر کردن",
+      "truncated": "خروجی کوتاه شده (اصلی: {{size}})",
       "units": {
-        "done_one": "[to be translated]:{{count}} Done",
-        "done_other": "[to be translated]:{{count}} Done",
-        "file_one": "[to be translated]:{{count}} file",
-        "file_other": "[to be translated]:{{count}} files",
-        "item_one": "[to be translated]:{{count}} item",
-        "item_other": "[to be translated]:{{count}} items",
-        "line_one": "[to be translated]:{{count}} line",
-        "line_other": "[to be translated]:{{count}} lines",
-        "plan_one": "[to be translated]:{{count}} plan",
-        "plan_other": "[to be translated]:{{count}} plans",
-        "result_one": "[to be translated]:{{count}} result",
-        "result_other": "[to be translated]:{{count}} results"
+        "done_one": "{{count}} انجام شد",
+        "done_other": "{{count}} انجام شد",
+        "file_one": "فایل {{count}}",
+        "file_other": "{{count}} فایل",
+        "item_one": "{{count}} مورد",
+        "item_other": "{{count}} مورد",
+        "line_one": "خط {{count}}",
+        "line_other": "{{count}} خط",
+        "plan_one": "طرح {{count}}",
+        "plan_other": "{{count}} طرح",
+        "result_one": "{{count}} نتیجه",
+        "result_other": "{{count}} نتیجه"
       }
     },
     "topic": {
-      "added": "[to be translated]:New conversation added"
+      "added": "مکالمه جدید اضافه شد"
     },
     "upgrade": {
       "success": {
-        "button": "[to be translated]:Restart",
-        "content": "[to be translated]:Please restart the application to complete the upgrade",
-        "title": "[to be translated]:Upgrade successfully"
+        "button": "راه اندازی مجدد",
+        "content": "لطفاً برای تکمیل ارتقاء، برنامه را مجدداً راه اندازی کنید",
+        "title": "با موفقیت ارتقا دهید"
       }
     },
     "warn": {
       "export": {
-        "exporting": "[to be translated]:Another export is in progress. Please wait for the previous export to complete and then try again."
+        "exporting": "صادرات دیگری در حال انجام است. "
       }
     },
     "warning": {
       "file": {
-        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
-        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
-        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+        "pdf_exceeds_limit": "اندازه فایل PDF {{name}} از حد مجاز ({{limit}}) فراتر رفته و به استخراج متن باز می گردد",
+        "pdf_text_extraction_failed": "متن از PDF {{name}} استخراج نشد",
+        "pdf_upload_failed": "PDF {{name}} آپلود نشد، به استخراج متن بازگشت"
       },
       "rate": {
-        "limit": "[to be translated]:Too many requests. Please wait {{seconds}} seconds before trying again."
+        "limit": "درخواست های خیلی زیاد "
       }
     },
     "websearch": {
-      "cutoff": "[to be translated]:Truncating search content...",
-      "fetch_complete": "[to be translated]:{{count}} search result(s)",
-      "fetch_empty": "[to be translated]:No search results found",
-      "partial_failure": "[to be translated]:{{count}} search result(s), some searches failed"
+      "cutoff": "کوتاه کردن محتوای جستجو...",
+      "fetch_complete": "{{count}} نتیجه(های) جستجو",
+      "fetch_empty": "هیچ نتیجه جستجویی یافت نشد",
+      "partial_failure": "{{count}} نتیجه(های) جستجو، برخی از جستجوها ناموفق بود"
     }
   },
   "miniApp": {
-    "add_to_launchpad": "[to be translated]:Add to Launchpad",
-    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "add_to_launchpad": "به Launchpad اضافه کنید",
+    "add_to_sidebar": "به نوار کناری اضافه کنید",
     "error": {
-      "load_failed": "[to be translated]:Failed to load app",
-      "not_found": "[to be translated]:App not found"
+      "load_failed": "برنامه بارگیری نشد",
+      "not_found": "برنامه پیدا نشد"
     },
-    "hide_failed": "[to be translated]:Failed to hide mini-app",
-    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "hide_failed": "مینی برنامه پنهان نشد",
+    "pin_failed": "مینی برنامه پین ​​نشد",
     "popup": {
-      "devtools": "[to be translated]:Developer Tools",
-      "goBack": "[to be translated]:Go Back",
-      "goForward": "[to be translated]:Go Forward",
-      "openExternal": "[to be translated]:Open in Browser",
-      "open_link_external_off": "[to be translated]:Current: Open links in default window",
-      "open_link_external_on": "[to be translated]:Current: Open links in browser",
-      "refresh": "[to be translated]:Refresh"
+      "devtools": "ابزارهای توسعه دهنده",
+      "goBack": "به عقب برگرد",
+      "goForward": "برو جلو",
+      "openExternal": "در مرورگر باز کنید",
+      "open_link_external_off": "فعلی: پیوندها را در پنجره پیش فرض باز کنید",
+      "open_link_external_on": "فعلی: پیوندها را در مرورگر باز کنید",
+      "refresh": "تازه کردن"
     },
-    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
-    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
-    "reorder_failed": "[to be translated]:Failed to reorder mini-apps",
+    "remove_from_launchpad": "از Launchpad حذف کنید",
+    "remove_from_sidebar": "حذف از نوار کناری",
+    "reorder_failed": "ترتیب‌بندی مجدد برنامه‌های کوچک انجام نشد",
     "shortcut": {
-      "failed": "[to be translated]:Failed: {{message}}",
-      "html_saved": "[to be translated]:HTML saved to: {{path}}",
-      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+      "failed": "ناموفق: {{پیام}}",
+      "html_saved": "HTML ذخیره شده در: {{path}}",
+      "pdf_saved": "PDF ذخیره شده در: {{path}}"
     },
-    "show_failed": "[to be translated]:Failed to show mini-app",
+    "show_failed": "مینی برنامه نمایش داده نشد",
     "sidebar": {
       "hide": {
-        "title": "[to be translated]:Hide"
+        "title": "پنهان کردن"
       }
     },
-    "title": "[to be translated]:MiniApp",
-    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
-    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
+    "title": "مینی اپ",
+    "unpin_failed": "برداشتن پین مینی برنامه انجام نشد",
+    "update_partial_failure": "{{failed}} از {{total}} به‌روزرسانی انجام نشد"
   },
   "miniApps": {
-    "ant-ling": "[to be translated]:Ant Ling",
-    "baichuan": "[to be translated]:Baichuan",
-    "baidu-ai-search": "[to be translated]:Baidu AI Search",
-    "chatglm": "[to be translated]:ChatGLM",
-    "dangbei": "[to be translated]:Dangbei",
-    "doubao": "[to be translated]:Doubao",
-    "hailuo": "[to be translated]:Hailuo",
-    "ima": "[to be translated]:ima",
-    "metaso": "[to be translated]:Metaso",
-    "minimax-agent": "[to be translated]:Minimax Agent CN",
-    "minimax-global": "[to be translated]:Minimax Agent",
-    "nami-ai": "[to be translated]:Nami AI",
-    "qwen": "[to be translated]:Qwen",
-    "sensechat": "[to be translated]:SenseChat",
-    "stepfun": "[to be translated]:Stepfun",
-    "tencent-yuanbao": "[to be translated]:Yuanbao",
-    "tiangong-ai": "[to be translated]:Skywork",
-    "update_partial_failure_generic": "[to be translated]:Some mini-apps failed to update",
-    "wanzhi": "[to be translated]:Wanzhi",
-    "wenxin": "[to be translated]:ERNIE",
-    "wps-copilot": "[to be translated]:WPS Copilot",
-    "xiaoyi": "[to be translated]:Xiaoyi",
-    "zhihu": "[to be translated]:Zhihu"
+    "ant-ling": "مورچه لینگ",
+    "baichuan": "بایچوان",
+    "baidu-ai-search": "جستجوی هوش مصنوعی بایدو",
+    "chatglm": "ChatGLM",
+    "dangbei": "دنگ بی",
+    "doubao": "دوبائو",
+    "hailuo": "هایلو",
+    "ima": "ایما",
+    "metaso": "متاسو",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "نمایندگی Minimax",
+    "nami-ai": "Nami AI",
+    "qwen": "کوئن",
+    "sensechat": "SenseChat",
+    "stepfun": "استپ پاپ",
+    "tencent-yuanbao": "یوانبائو",
+    "tiangong-ai": "اسکای ورک",
+    "update_partial_failure_generic": "برخی از برنامه های کوچک به روز نشدند",
+    "wanzhi": "وانژی",
+    "wenxin": "ارنی",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "شیائوی",
+    "zhihu": "ژیهو"
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "این مدل را سنجاق کنید",
+      "unpin": "مدل را باز کنید"
     },
-    "add_parameter": "[to be translated]:Add Parameter",
-    "all": "[to be translated]:All",
-    "custom_parameters": "[to be translated]:Custom Parameters",
+    "add_parameter": "اضافه کردن پارامتر",
+    "all": "همه",
+    "custom_parameters": "پارامترهای سفارشی",
     "detail": {
-      "context_window": "[to be translated]:Context window",
-      "image_modes": "[to be translated]:Image modes",
-      "max_input_tokens": "[to be translated]:Max input",
-      "max_output_tokens": "[to be translated]:Max output",
-      "model_id": "[to be translated]:Model ID",
-      "provider": "[to be translated]:Provider"
+      "context_window": "پنجره زمینه",
+      "image_modes": "حالت های تصویر",
+      "max_input_tokens": "حداکثر ورودی",
+      "max_output_tokens": "حداکثر خروجی",
+      "model_id": "شناسه مدل",
+      "provider": "ارائه دهنده"
     },
-    "dimensions": "[to be translated]:Dimensions {{dimensions}}",
-    "edit": "[to be translated]:Edit Model",
-    "embedding": "[to be translated]:Embedding",
-    "embedding_dimensions": "[to be translated]:Embedding Dimensions",
-    "embedding_model": "[to be translated]:Embedding Model",
-    "embedding_model_tooltip": "[to be translated]:Add in Settings->Model Provider->Manage",
-    "enable_tool_use": "[to be translated]:Enable Tool Use",
+    "dimensions": "ابعاد {{ابعاد}}",
+    "edit": "ویرایش مدل",
+    "embedding": "جاسازی",
+    "embedding_dimensions": "ابعاد تعبیه شده",
+    "embedding_model": "مدل جاسازی",
+    "embedding_model_tooltip": "در Settings->Model Provider->Manage اضافه کنید",
+    "enable_tool_use": "استفاده از ابزار را فعال کنید",
     "filter": {
-      "by_tag": "[to be translated]:Filter by tag",
-      "selected": "[to be translated]:Selected tags"
+      "by_tag": "فیلتر بر اساس برچسب",
+      "selected": "برچسب های انتخاب شده"
     },
-    "function_calling": "[to be translated]:Function Calling",
-    "invalid_model": "[to be translated]:Invalid Model",
-    "json_parse_error": "[to be translated]:Invalid JSON format",
+    "function_calling": "فراخوانی تابع",
+    "invalid_model": "مدل نامعتبر",
+    "json_parse_error": "قالب JSON نامعتبر است",
     "multi_select": {
-      "label": "[to be translated]:Multi-model simultaneous responses"
+      "label": "پاسخ های همزمان چند مدل"
     },
-    "no_matches": "[to be translated]:No models available",
-    "parameter_name": "[to be translated]:Parameter Name",
+    "no_matches": "هیچ مدلی موجود نیست",
+    "parameter_name": "نام پارامتر",
     "parameter_type": {
-      "boolean": "[to be translated]:Boolean",
-      "json": "[to be translated]:JSON",
-      "number": "[to be translated]:Number",
-      "string": "[to be translated]:Text"
+      "boolean": "بولی",
+      "json": "JSON",
+      "number": "شماره",
+      "string": "متن"
     },
-    "pinned": "[to be translated]:Pinned",
+    "pinned": "پین شده",
     "price": {
-      "cost": "[to be translated]:Cost",
-      "currency": "[to be translated]:Currency",
-      "custom": "[to be translated]:Custom",
-      "input": "[to be translated]:Input Price",
-      "million_tokens": "[to be translated]:M Tokens",
-      "output": "[to be translated]:Output Price",
-      "price": "[to be translated]:Price"
+      "cost": "هزینه",
+      "currency": "ارز",
+      "custom": "سفارشی",
+      "input": "قیمت ورودی",
+      "million_tokens": "توکن های M",
+      "output": "قیمت خروجی",
+      "price": "قیمت"
     },
-    "reasoning": "[to be translated]:Reasoning",
-    "rerank_model": "[to be translated]:Reranker",
-    "rerank_model_not_support_provider": "[to be translated]:Currently, the reranker model does not support this provider ({{provider}})",
-    "rerank_model_support_provider": "[to be translated]:Currently, the reranker model only supports some providers ({{provider}})",
-    "rerank_model_tooltip": "[to be translated]:Click the Manage button in Settings -> Model Services to add.",
+    "reasoning": "استدلال",
+    "rerank_model": "رتبه بندی مجدد",
+    "rerank_model_not_support_provider": "در حال حاضر، مدل رتبه‌بندی مجدد از این ارائه‌دهنده ({{provider}}) پشتیبانی نمی‌کند",
+    "rerank_model_support_provider": "در حال حاضر، مدل رتبه‌بندی مجدد فقط برخی از ارائه‌دهندگان را پشتیبانی می‌کند ({{provider}})",
+    "rerank_model_tooltip": "برای افزودن، روی دکمه مدیریت در تنظیمات -> خدمات مدل کلیک کنید.",
     "search": {
-      "placeholder": "[to be translated]:Search models...",
-      "tooltip": "[to be translated]:Search models"
+      "placeholder": "جستجوی مدل های ...",
+      "tooltip": "جستجوی مدل ها"
     },
     "selection": {
-      "context_window": "[to be translated]:Context {{count}}",
-      "remove_model": "[to be translated]:Remove {{name}}",
-      "restore_default": "[to be translated]:Restore assistant model",
-      "selected_models": "[to be translated]:Selected models"
+      "context_window": "زمینه {{count}}",
+      "remove_model": "حذف {{name}}",
+      "restore_default": "بازیابی مدل دستیار",
+      "selected_models": "مدل های منتخب"
     },
-    "stream_output": "[to be translated]:Stream output",
+    "stream_output": "خروجی جریان",
     "type": {
-      "audio": "[to be translated]:Audio",
-      "embedding": "[to be translated]:Embedding",
-      "free": "[to be translated]:Free",
-      "function_calling": "[to be translated]:Tool",
-      "reasoning": "[to be translated]:Reasoning",
-      "rerank": "[to be translated]:Reranker",
-      "select": "[to be translated]:Model Types",
-      "text": "[to be translated]:Text",
-      "video": "[to be translated]:Video",
-      "vision": "[to be translated]:Vision",
-      "websearch": "[to be translated]:WebSearch"
+      "audio": "صوتی",
+      "embedding": "جاسازی",
+      "free": "رایگان",
+      "function_calling": "ابزار",
+      "reasoning": "استدلال",
+      "rerank": "رتبه بندی مجدد",
+      "select": "انواع مدل",
+      "text": "متن",
+      "video": "ویدئو",
+      "vision": "چشم انداز",
+      "websearch": "جستجوی وب"
     }
   },
   "navbar": {
-    "expand": "[to be translated]:Expand Dialog",
-    "hide_sidebar": "[to be translated]:Hide Sidebar",
-    "show_sidebar": "[to be translated]:Show Sidebar",
+    "expand": "گفتگو را بزرگ کنید",
+    "hide_sidebar": "پنهان کردن نوار کناری",
+    "show_sidebar": "نمایش نوار کناری",
     "window": {
-      "close": "[to be translated]:Close",
-      "maximize": "[to be translated]:Maximize",
-      "minimize": "[to be translated]:Minimize",
-      "restore": "[to be translated]:Restore"
+      "close": "بستن",
+      "maximize": "به حداکثر رساندن",
+      "minimize": "به حداقل رساندن",
+      "restore": "بازیابی کنید"
     }
   },
   "navigate": {
-    "provider_settings": "[to be translated]:Go to provider settings"
+    "provider_settings": "به تنظیمات ارائه دهنده بروید"
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "[to be translated]:Note is empty, cannot generate name",
-      "failed": "[to be translated]:Failed to generate note name",
-      "label": "[to be translated]:Generate Note Name",
-      "success": "[to be translated]:Note name generated successfully"
+      "empty_note": "یادداشت خالی است، نمی تواند نام ایجاد کند",
+      "failed": "نام یادداشت ایجاد نشد",
+      "label": "نام یادداشت را ایجاد کنید",
+      "success": "نام یادداشت با موفقیت ایجاد شد"
     },
-    "characters": "[to be translated]:Characters",
-    "collapse": "[to be translated]:Collapse",
-    "content_placeholder": "[to be translated]:Please enter the note content...",
-    "copyContent": "[to be translated]:Copy Content",
-    "create_folder_failed": "[to be translated]:Failed to create folder",
-    "create_note_failed": "[to be translated]:Failed to create note",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
-    "delete": "[to be translated]:delete",
-    "delete_confirm": "[to be translated]:Are you sure you want to delete this {{type}}?",
-    "delete_failed": "[to be translated]:Failed to delete note",
-    "delete_folder_confirm": "[to be translated]:Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
-    "delete_note_confirm": "[to be translated]:Are you sure you want to delete the note \"{{name}}\"?",
-    "drop_markdown_hint": "[to be translated]:Drop .md files or folders here to import",
-    "empty": "[to be translated]:No notes available yet",
-    "expand": "[to be translated]:unfold",
-    "exportToPDF": "[to be translated]:Export to PDF",
-    "exportToWord": "[to be translated]:Export to Word",
-    "export_failed": "[to be translated]:Failed to export to knowledge base",
-    "export_knowledge": "[to be translated]:Export notes to knowledge base",
-    "export_success": "[to be translated]:Successfully exported to the knowledge base",
-    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
-    "export_to_pdf_success": "[to be translated]:Exported to PDF",
-    "export_to_word_failed": "[to be translated]:Failed to export to Word",
-    "folder": "[to be translated]:folder",
-    "load_failed": "[to be translated]:Failed to load note",
-    "load_failed_description": "[to be translated]:The file could not be read. Editing is disabled to protect the note content.",
-    "metadata_sync_failed": "[to be translated]:File updated, but note state sync failed. Please retry the operation.",
-    "metadata_update_failed": "[to be translated]:Failed to update note state",
-    "move_failed": "[to be translated]:Failed to move note",
-    "new_folder": "[to be translated]:New Folder",
-    "new_note": "[to be translated]:Create a new note",
-    "no_content_to_copy": "[to be translated]:No content to copy",
-    "no_content_to_export": "[to be translated]:No content to export",
-    "no_file_selected": "[to be translated]:Please select the file to upload",
-    "no_note_selected": "[to be translated]:Please select a note first",
-    "no_valid_files": "[to be translated]:No valid file was uploaded",
-    "open_folder": "[to be translated]:Open an external folder",
-    "open_outside": "[to be translated]:Open from external",
-    "print": "[to be translated]:Print",
-    "print_failed": "[to be translated]:Failed to print note",
-    "rename": "[to be translated]:Rename",
-    "rename_changed": "[to be translated]:Due to security policies, the filename has been changed from {{original}} to {{final}}",
-    "rename_failed": "[to be translated]:Failed to rename note",
-    "save": "[to be translated]:Save to Notes",
-    "save_blocked_load_failed": "[to be translated]:Save blocked because the note failed to load",
-    "save_failed": "[to be translated]:Failed to save note",
+    "characters": "شخصیت ها",
+    "collapse": "فرو ریختن",
+    "content_placeholder": "لطفا محتوای یادداشت را وارد کنید...",
+    "copyContent": "مطالب را کپی کنید",
+    "create_folder_failed": "پوشه ایجاد نشد",
+    "create_note_failed": "یادداشت ایجاد نشد",
+    "crossPlatformRestoreWarning": "پیکربندی چند پلتفرمی بازیابی شد، اما دایرکتوری notes خالی است. ",
+    "delete": "حذف کنید",
+    "delete_confirm": "آیا مطمئنید که می خواهید این {{type}} را حذف کنید؟",
+    "delete_failed": "یادداشت حذف نشد",
+    "delete_folder_confirm": "آیا مطمئن هستید که می خواهید پوشه \"{{name}}\" و تمام محتویات آن را حذف کنید؟",
+    "delete_note_confirm": "آیا مطمئن هستید که می خواهید یادداشت \"{{name}}\" را حذف کنید؟",
+    "drop_markdown_hint": "فایل‌ها یا پوشه‌های md را برای وارد کردن اینجا رها کنید",
+    "empty": "هنوز یادداشتی در دسترس نیست",
+    "expand": "گشودن",
+    "exportToPDF": "صادرات به PDF",
+    "exportToWord": "صادرات به Word",
+    "export_failed": "به پایگاه دانش صادر نشد",
+    "export_knowledge": "صادرات یادداشت به پایگاه دانش",
+    "export_success": "با موفقیت به پایگاه دانش صادر شد",
+    "export_to_pdf_failed": "صادر کردن به PDF انجام نشد",
+    "export_to_pdf_success": "به PDF صادر شد",
+    "export_to_word_failed": "صادر کردن به Word انجام نشد",
+    "folder": "پوشه",
+    "load_failed": "یادداشت بارگیری نشد",
+    "load_failed_description": "فایل خوانده نشد. ",
+    "metadata_sync_failed": "فایل به‌روزرسانی شد، اما همگام‌سازی وضعیت یادداشت انجام نشد. ",
+    "metadata_update_failed": "وضعیت یادداشت به‌روزرسانی نشد",
+    "move_failed": "یادداشت منتقل نشد",
+    "new_folder": "پوشه جدید",
+    "new_note": "یک یادداشت جدید ایجاد کنید",
+    "no_content_to_copy": "محتوایی برای کپی وجود ندارد",
+    "no_content_to_export": "محتوایی برای صادرات وجود ندارد",
+    "no_file_selected": "لطفا فایل مورد نظر را برای آپلود انتخاب کنید",
+    "no_note_selected": "لطفاً ابتدا یک یادداشت را انتخاب کنید",
+    "no_valid_files": "هیچ فایل معتبری آپلود نشد",
+    "open_folder": "یک پوشه خارجی باز کنید",
+    "open_outside": "از خارجی باز شود",
+    "print": "چاپ کنید",
+    "print_failed": "یادداشت چاپ نشد",
+    "rename": "تغییر نام دهید",
+    "rename_changed": "به دلیل سیاست های امنیتی، نام فایل از {{اصلی}} به {{پایانی}} تغییر کرده است.",
+    "rename_failed": "تغییر نام یادداشت انجام نشد",
+    "save": "ذخیره در یادداشت ها",
+    "save_blocked_load_failed": "ذخیره مسدود شد زیرا یادداشت بارگیری نشد",
+    "save_failed": "یادداشت ذخیره نشد",
     "search": {
-      "both": "[to be translated]:Name+Content",
-      "content": "[to be translated]:Content",
-      "found_results": "[to be translated]:Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
-      "more_matches": "[to be translated]:more matches",
-      "searching": "[to be translated]:Searching...",
-      "show_less": "[to be translated]:Show less"
+      "both": "نام + محتوا",
+      "content": "محتوا",
+      "found_results": "{{count}} نتیجه یافت شد (نام: {{nameCount}}، محتوا: {{contentCount}})",
+      "more_matches": "مسابقات بیشتر",
+      "searching": "در حال جستجو...",
+      "show_less": "کمتر نشان دادن"
     },
     "settings": {
       "data": {
-        "apply": "[to be translated]:Apply",
-        "apply_path_failed": "[to be translated]:Failed to apply path",
-        "current_work_directory": "[to be translated]:Current Work Directory",
-        "invalid_directory": "[to be translated]:Selected directory is invalid or access denied",
-        "path_required": "[to be translated]:Please select a work directory",
-        "path_updated": "[to be translated]:Work directory updated successfully",
-        "reset_failed": "[to be translated]:Reset failed",
-        "reset_to_default": "[to be translated]:Reset to Default",
-        "select": "[to be translated]:Select",
-        "select_directory_failed": "[to be translated]:Failed to select directory",
-        "title": "[to be translated]:Data Settings",
-        "work_directory_description": "[to be translated]:Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
-        "work_directory_placeholder": "[to be translated]:Select notes work directory"
+        "apply": "درخواست کنید",
+        "apply_path_failed": "مسیر اعمال نشد",
+        "current_work_directory": "فهرست کار فعلی",
+        "invalid_directory": "دایرکتوری انتخاب شده نامعتبر است یا دسترسی ممنوع است",
+        "path_required": "لطفاً یک فهرست کار انتخاب کنید",
+        "path_updated": "فهرست کار با موفقیت به روز شد",
+        "reset_failed": "بازنشانی انجام نشد",
+        "reset_to_default": "به حالت پیش فرض بازنشانی کنید",
+        "select": "انتخاب کنید",
+        "select_directory_failed": "انتخاب دایرکتوری انجام نشد",
+        "title": "تنظیمات داده",
+        "work_directory_description": "دایرکتوری کار جایی است که همه فایل های یادداشت در آن ذخیره می شوند. ",
+        "work_directory_placeholder": "فهرست کار یادداشت ها را انتخاب کنید"
       },
       "display": {
-        "compress_content": "[to be translated]:Content Compression",
-        "compress_content_description": "[to be translated]:When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
-        "default_font": "[to be translated]:Default font",
-        "font_size": "[to be translated]:Font Size",
-        "font_size_description": "[to be translated]:Adjust the font size for better reading experience (10-30px)",
-        "font_size_large": "[to be translated]:Large",
-        "font_size_medium": "[to be translated]:Medium",
-        "font_size_small": "[to be translated]:Small",
-        "font_title": "[to be translated]:Font settings",
-        "serif_font": "[to be translated]:Serif font",
-        "show_table_of_contents": "[to be translated]:Show Table of Contents",
-        "show_table_of_contents_description": "[to be translated]:Display a table of contents sidebar for easy navigation within documents",
-        "title": "[to be translated]:Display Settings"
+        "compress_content": "فشرده سازی محتوا",
+        "compress_content_description": "وقتی فعال باشد، تعداد کاراکترها در هر خط را محدود می کند، محتوای نمایش داده شده روی صفحه را کاهش می دهد، اما پاراگراف های طولانی تر را خواناتر می کند.",
+        "default_font": "فونت پیش فرض",
+        "font_size": "اندازه فونت",
+        "font_size_description": "اندازه فونت را برای تجربه خواندن بهتر تنظیم کنید (10-30 پیکسل)",
+        "font_size_large": "بزرگ",
+        "font_size_medium": "متوسط",
+        "font_size_small": "کوچک",
+        "font_title": "تنظیمات فونت",
+        "serif_font": "فونت Serif",
+        "show_table_of_contents": "نمایش فهرست مطالب",
+        "show_table_of_contents_description": "نمایش نوار کناری فهرست مطالب برای پیمایش آسان در اسناد",
+        "title": "تنظیمات نمایش"
       },
       "editor": {
         "edit_mode": {
-          "description": "[to be translated]:In Edit View, the default editing mode for new notes",
-          "preview_mode": "[to be translated]:Live preview",
-          "source_mode": "[to be translated]:Source code mode",
-          "title": "[to be translated]:Default edit view"
+          "description": "در نمای ویرایش، حالت ویرایش پیش‌فرض برای یادداشت‌های جدید",
+          "preview_mode": "پیش نمایش زنده",
+          "source_mode": "حالت کد منبع",
+          "title": "نمای ویرایش پیش فرض"
         },
-        "title": "[to be translated]:Editor Settings",
+        "title": "تنظیمات ویرایشگر",
         "view_mode": {
-          "description": "[to be translated]:New Notes Default View Mode",
-          "edit_mode": "[to be translated]:Editing mode",
-          "read_mode": "[to be translated]:Reading mode",
-          "title": "[to be translated]:Default view"
+          "description": "یادداشت های جدید حالت نمایش پیش فرض",
+          "edit_mode": "حالت ویرایش",
+          "read_mode": "حالت خواندن",
+          "title": "نمای پیش فرض"
         },
-        "view_mode_description": "[to be translated]:Sets the default view mode for the new tab page."
+        "view_mode_description": "حالت نمایش پیش فرض را برای صفحه برگه جدید تنظیم می کند."
       },
-      "save_failed": "[to be translated]:Failed to save notes settings",
-      "title": "[to be translated]:Notes"
+      "save_failed": "تنظیمات یادداشت‌ها ذخیره نشد",
+      "title": "یادداشت ها"
     },
-    "show_starred": "[to be translated]:Show favorite notes",
-    "sort_a2z": "[to be translated]:File name (A-Z)",
-    "sort_created_asc": "[to be translated]:Creation time (oldest first)",
-    "sort_created_desc": "[to be translated]:Creation time (newest first)",
-    "sort_updated_asc": "[to be translated]:Update time (oldest first)",
-    "sort_updated_desc": "[to be translated]:Update time (newest first)",
-    "sort_z2a": "[to be translated]:File name (Z-A)",
-    "spell_check": "[to be translated]:Spell Check",
-    "spell_check_tooltip": "[to be translated]:Enable/Disable spell check",
-    "star": "[to be translated]:Favorite note",
-    "starred_notes": "[to be translated]:Collected notes",
-    "target_name_exists": "[to be translated]:A note or folder with this name already exists",
-    "title": "[to be translated]:Notes",
-    "tree_load_failed": "[to be translated]:Failed to load notes directory",
-    "unsaved_changes": "[to be translated]:You have unsaved content, are you sure you want to leave?",
-    "unstar": "[to be translated]:Unfavorite",
-    "untitled_folder": "[to be translated]:New Folder",
-    "untitled_note": "[to be translated]:Untitled Note",
-    "upload_all_failed": "[to be translated]:Failed to upload {{failed}} notes",
-    "upload_failed": "[to be translated]:Note upload failed",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
-    "upload_partial_failed": "[to be translated]:Uploaded {{uploaded}} notes, {{failed}} failed",
-    "upload_success": "[to be translated]:Note uploaded success",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "show_starred": "نمایش یادداشت های مورد علاقه",
+    "sort_a2z": "نام فایل (A-Z)",
+    "sort_created_asc": "زمان ایجاد (ابتدا قدیمی ترین)",
+    "sort_created_desc": "زمان ایجاد (ابتدا جدیدترین)",
+    "sort_updated_asc": "زمان به روز رسانی (ابتدا قدیمی ترین)",
+    "sort_updated_desc": "زمان به‌روزرسانی (ابتدا جدیدترین)",
+    "sort_z2a": "نام فایل (Z-A)",
+    "spell_check": "بررسی املا",
+    "spell_check_tooltip": "فعال/غیرفعال کردن غلط املایی",
+    "star": "یادداشت مورد علاقه",
+    "starred_notes": "یادداشت های جمع آوری شده",
+    "target_name_exists": "یادداشت یا پوشه ای با این نام از قبل وجود دارد",
+    "title": "یادداشت ها",
+    "tree_load_failed": "فهرست یادداشت ها بارگیری نشد",
+    "unsaved_changes": "شما محتوای ذخیره نشده ای دارید، آیا مطمئن هستید که می خواهید آن را ترک کنید؟",
+    "unstar": "نامطلوب",
+    "untitled_folder": "پوشه جدید",
+    "untitled_note": "یادداشت بدون عنوان",
+    "upload_all_failed": "یادداشت‌های {{شکست}} بارگذاری نشدند",
+    "upload_failed": "بارگذاری یادداشت انجام نشد",
+    "upload_files": "آپلود فایل ها",
+    "upload_folder": "پوشه آپلود",
+    "upload_partial_failed": "یادداشت‌های {{آپلود شده}} بارگذاری شد، {{شکست}} ناموفق بود",
+    "upload_success": "یادداشت با موفقیت بارگذاری شد",
+    "uploading_files": "در حال آپلود {{count}} فایل..."
   },
   "notification": {
-    "assistant": "[to be translated]:Assistant Response",
+    "assistant": "پاسخ دستیار",
     "knowledge": {
-      "batch_error": "[to be translated]:{{failed}} items failed to process",
-      "batch_mixed": "[to be translated]:{{succeeded}} items succeeded, {{failed}} items failed",
-      "batch_success": "[to be translated]:{{succeeded}} items processed successfully",
-      "error": "[to be translated]:{{error}}",
-      "success": "[to be translated]:Successfully added {{type}} to the knowledge base"
+      "batch_error": "{{ شکست }} مورد پردازش نشد",
+      "batch_mixed": "{{موفق شد}} مورد با موفقیت انجام شد، {{موفق شد}} مورد ناموفق بود",
+      "batch_success": "{{موفق شد}} مورد با موفقیت پردازش شد",
+      "error": "{{خطا}}",
+      "success": "{{type}} با موفقیت به پایگاه دانش اضافه شد"
     },
-    "tip": "[to be translated]:If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "اگر پاسخ موفقیت آمیز باشد، فقط پیام‌های بیش از 30 ثانیه باعث یادآوری می‌شوند"
   },
   "ocr": {
-    "processing": "[to be translated]:OCR processing..."
+    "processing": "پردازش OCR..."
   },
   "ollama": {
     "keep_alive_time": {
-      "description": "[to be translated]:The time in minutes to keep the connection alive, default is 5 minutes.",
-      "placeholder": "[to be translated]:Minutes",
-      "title": "[to be translated]:Keep Alive Time"
+      "description": "زمان زنده نگه داشتن اتصال بر حسب دقیقه، پیش فرض 5 دقیقه است.",
+      "placeholder": "دقیقه",
+      "title": "زنده نگه داشتن زمان"
     },
-    "title": "[to be translated]:Ollama"
+    "title": "اولاما"
   },
   "onboarding": {
     "select_model": {
-      "change_later": "[to be translated]:You can change this anytime in settings",
-      "start": "[to be translated]:Get Started",
-      "subtitle": "[to be translated]:Select default model for each scenario",
-      "title": "[to be translated]:Choose Your Default Models"
+      "change_later": "هر زمان خواستید می‌توانید این را در تنظیمات تغییر دهید",
+      "start": "شروع کنید",
+      "subtitle": "مدل پیش فرض را برای هر سناریو انتخاب کنید",
+      "title": "مدل های پیش فرض خود را انتخاب کنید"
     },
-    "skip": "[to be translated]:Skip",
+    "skip": "پرش کنید",
     "toast": {
-      "connected": "[to be translated]:Successfully connected to CherryIN"
+      "connected": "با موفقیت به CherryIN متصل شد"
     },
     "welcome": {
-      "login_cherryin": "[to be translated]:Login with CherryIN",
-      "or_continue_with": "[to be translated]:OR CONTINUE WITH",
-      "other_provider": "[to be translated]:Choose Other Providers",
-      "select_other_provider": "[to be translated]:Select Other Provider",
-      "setup_hint": "[to be translated]:Please configure at least one provider for the best experience",
-      "subtitle": "[to be translated]:Enjoy top-tier AI services with CherryIN",
-      "title": "[to be translated]:Welcome to Cherry Studio"
+      "login_cherryin": "با CherryIN وارد شوید",
+      "or_continue_with": "یا ادامه دهید",
+      "other_provider": "سایر ارائه دهندگان را انتخاب کنید",
+      "select_other_provider": "ارائه دهنده دیگر را انتخاب کنید",
+      "setup_hint": "لطفاً حداقل یک ارائه دهنده را برای بهترین تجربه پیکربندی کنید",
+      "subtitle": "با CherryIN از خدمات سطح بالای هوش مصنوعی لذت ببرید",
+      "title": "به استودیو Cherry خوش آمدید"
     }
   },
   "openclaw": {
-    "checking_installation": "[to be translated]:Checking OpenClaw installation...",
-    "description": "[to be translated]:Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
+    "checking_installation": "در حال بررسی نصب OpenClaw...",
+    "description": "از ارائه دهندگان Cherry Studio برای تقویت OpenClaw، دستیار هوش مصنوعی شخصی خود که در WhatsApp، Telegram، Slack، Discord و موارد دیگر کار می کند، استفاده کنید.",
     "error": {
-      "select_provider_model": "[to be translated]:Please select a provider and model first"
+      "select_provider_model": "لطفا ابتدا ارائه دهنده و مدل را انتخاب کنید"
     },
     "gateway": {
-      "port": "[to be translated]:Port",
-      "restart": "[to be translated]:Restart",
-      "start": "[to be translated]:Start",
-      "status": "[to be translated]:Status",
-      "stop": "[to be translated]:Stop",
-      "version": "[to be translated]:Version"
+      "port": "بندر",
+      "restart": "راه اندازی مجدد",
+      "start": "شروع کنید",
+      "status": "وضعیت",
+      "stop": "توقف کنید",
+      "version": "نسخه"
     },
     "git_missing": {
-      "description": "[to be translated]:OpenClaw requires Git for installing some dependencies. Please install Git first, then click Install again.",
-      "download_button": "[to be translated]:Download Git",
-      "hint": "[to be translated]:macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
-      "title": "[to be translated]:Git Required"
+      "description": "OpenClaw برای نصب برخی وابستگی ها به Git نیاز دارد. ",
+      "download_button": "Git را دانلود کنید",
+      "hint": "macOS: brew install git | ",
+      "title": "Git مورد نیاز است"
     },
-    "install_progress": "[to be translated]:Install Progress",
-    "installed_at": "[to be translated]:OpenClaw installed at",
+    "install_progress": "Progress را نصب کنید",
+    "installed_at": "OpenClaw نصب شده در",
     "migration": {
-      "description": "[to be translated]:An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
-      "install_button": "[to be translated]:Reinstall OpenClaw",
-      "title": "[to be translated]:OpenClaw Needs Update"
+      "description": "یک نصب OpenClaw خارجی در PATH شناسایی شد، اما Cherry Studio از باینری OpenClaw مدیریت شده خود استفاده می کند. ",
+      "install_button": "OpenClaw را دوباره نصب کنید",
+      "title": "OpenClaw به به روز رسانی نیاز دارد"
     },
     "model_config": {
-      "auth_token": "[to be translated]:Auth Token",
-      "auth_token_hint": "[to be translated]:Token for gateway authentication (required). Will be auto-generated if empty.",
-      "auth_token_placeholder": "[to be translated]:Enter or generate a token",
-      "generate_token": "[to be translated]:Generate",
-      "model": "[to be translated]:Model",
-      "provider": "[to be translated]:Provider",
-      "select_model": "[to be translated]:Select a model",
-      "select_provider": "[to be translated]:Select a provider",
-      "sync_hint": "[to be translated]:Selected provider and model will be synced to OpenClaw config file",
-      "title": "[to be translated]:Model Configuration"
+      "auth_token": "رمز تأیید",
+      "auth_token_hint": "توکن برای احراز هویت دروازه (الزامی). ",
+      "auth_token_placeholder": "یک رمز را وارد یا تولید کنید",
+      "generate_token": "ایجاد کنید",
+      "model": "مدل",
+      "provider": "ارائه دهنده",
+      "select_model": "یک مدل انتخاب کنید",
+      "select_provider": "ارائه دهنده ای را انتخاب کنید",
+      "sync_hint": "ارائه دهنده و مدل انتخاب شده با فایل پیکربندی OpenClaw همگام سازی می شود",
+      "title": "پیکربندی مدل"
     },
     "node_missing": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22+. Please install Node.js first, then click Install again.",
-      "download_button": "[to be translated]:Download Node.js",
-      "hint": "[to be translated]:macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "[to be translated]:Node.js Required"
+      "description": "OpenClaw به Node.js 22+ نیاز دارد. ",
+      "download_button": "Node.js را دانلود کنید",
+      "hint": "macOS: brew install node | ",
+      "title": "Node.js مورد نیاز است"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "OpenClaw به Node.js 22.0 یا بالاتر نیاز دارد. ",
+      "hint": "nvm: nvm نصب 22 && nvm استفاده از 22 | ",
+      "title": "نسخه Node.js خیلی کم است"
     },
     "not_installed": {
-      "description": "[to be translated]:OpenClaw is not installed on your system. Please install it first to use this feature.",
-      "install_button": "[to be translated]:Install OpenClaw",
-      "install_guide_title": "[to be translated]:Installation Guide",
-      "macos_linux_title": "[to be translated]:macOS / Linux",
-      "refresh": "[to be translated]:Refresh",
-      "step2_hint": "[to be translated]:After installation, click the Refresh button above to detect OpenClaw",
-      "step2_title": "[to be translated]:Step 2: Verify installation",
-      "title": "[to be translated]:OpenClaw Not Installed",
-      "windows_title": "[to be translated]:Windows"
+      "description": "OpenClaw روی سیستم شما نصب نیست. ",
+      "install_button": "OpenClaw را نصب کنید",
+      "install_guide_title": "راهنمای نصب",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "تازه کردن",
+      "step2_hint": "پس از نصب، روی دکمه Refresh در بالا کلیک کنید تا OpenClaw شناسایی شود",
+      "step2_title": "مرحله 2: تأیید نصب",
+      "title": "OpenClaw نصب نشده است",
+      "windows_title": "ویندوز"
     },
     "quick_actions": {
-      "check_update": "[to be translated]:Check for Updates",
-      "open_dashboard": "[to be translated]:Open Dashboard",
-      "title": "[to be translated]:Quick Actions",
-      "uninstall": "[to be translated]:Uninstall",
-      "view_docs": "[to be translated]:View Documentation"
+      "check_update": "به روز رسانی ها را بررسی کنید",
+      "open_dashboard": "داشبورد را باز کنید",
+      "title": "اقدامات سریع",
+      "uninstall": "حذف نصب کنید",
+      "view_docs": "مشاهده مستندات"
     },
     "status": {
-      "error": "[to be translated]:Error",
-      "running": "[to be translated]:Running",
-      "starting": "[to be translated]:Starting",
-      "stopped": "[to be translated]:Stopped"
+      "error": "خطا",
+      "running": "در حال دویدن",
+      "starting": "شروع کردن",
+      "stopped": "متوقف شد"
     },
     "tips": {
-      "permissions": "[to be translated]:OpenClaw has elevated system permissions. Use only in trusted environments",
-      "title": "[to be translated]:Tips",
-      "token_usage": "[to be translated]:AI agent mode may consume more tokens. Please monitor your usage"
+      "permissions": "OpenClaw مجوزهای سیستم را افزایش داده است. ",
+      "title": "نکات",
+      "token_usage": "حالت عامل هوش مصنوعی ممکن است توکن های بیشتری مصرف کند. "
     },
-    "title": "[to be translated]:OpenClaw",
-    "uninstall_confirm": "[to be translated]:Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "[to be translated]:Uninstall Progress",
+    "title": "OpenClaw",
+    "uninstall_confirm": "آیا مطمئن هستید که می خواهید OpenClaw را حذف نصب کنید؟ ",
+    "uninstall_progress": "Progress را حذف نصب کنید",
     "uninstalled": {
-      "description": "[to be translated]:OpenClaw has been successfully uninstalled.",
-      "title": "[to be translated]:Uninstall Complete"
+      "description": "OpenClaw با موفقیت حذف نصب شد.",
+      "title": "حذف کامل"
     },
     "uninstalling": {
-      "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
-      "title": "[to be translated]:Uninstalling OpenClaw"
+      "description": "لطفا صبر کنید تا OpenClaw در حال حذف نصب باشد...",
+      "title": "حذف نصب OpenClaw"
     },
     "update": {
-      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
-      "checking": "[to be translated]:Checking for updates...",
-      "confirm_button": "[to be translated]:Update Now",
-      "failed": "[to be translated]:Failed to check for updates",
-      "modal_title": "[to be translated]:OpenClaw Update",
-      "success": "[to be translated]:Update completed successfully!",
-      "up_to_date": "[to be translated]:Already up to date (v{{current}})",
-      "updating": "[to be translated]:Updating..."
+      "available": "نسخه جدید در دسترس است: v{{آخرین}} (در حال حاضر: v{{current}})",
+      "checking": "در حال بررسی به‌روزرسانی‌ها...",
+      "confirm_button": "اکنون به روز رسانی کنید",
+      "failed": "بررسی به‌روزرسانی‌ها انجام نشد",
+      "modal_title": "آپدیت OpenClaw",
+      "success": "به روز رسانی با موفقیت انجام شد!",
+      "up_to_date": "قبلاً به روز شده است (v{{current}})",
+      "updating": "در حال به روز رسانی..."
     }
   },
   "ovms": {
     "action": {
-      "install": "[to be translated]:Install",
-      "installing": "[to be translated]:Installing",
-      "reinstall": "[to be translated]:Re-Install",
-      "run": "[to be translated]:Run OVMS",
-      "starting": "[to be translated]:Starting",
-      "stop": "[to be translated]:Stop OVMS",
-      "stopping": "[to be translated]:Stopping"
+      "install": "نصب کنید",
+      "installing": "در حال نصب",
+      "reinstall": "دوباره نصب کنید",
+      "run": "OVMS را اجرا کنید",
+      "starting": "شروع کردن",
+      "stop": "OVMS را متوقف کنید",
+      "stopping": "توقف"
     },
-    "description": "[to be translated]:<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "description": "<div><p>1. ",
     "download": {
-      "button": "[to be translated]:Download",
-      "error": "[to be translated]:Download Error",
+      "button": "دانلود کنید",
+      "error": "خطای دانلود",
       "model_id": {
-        "label": "[to be translated]:Model ID:",
-        "model_id_pattern": "[to be translated]:Model ID must start with OpenVINO/",
-        "placeholder": "[to be translated]:Required e.g. OpenVINO/Qwen3-8B-int4-ov",
-        "required": "[to be translated]:Please enter the model ID"
+        "label": "شناسه مدل:",
+        "model_id_pattern": "شناسه مدل باید با OpenVINO شروع شود/",
+        "placeholder": "مورد نیاز به عنوان مثال ",
+        "required": "لطفا شناسه مدل را وارد کنید"
       },
       "model_name": {
-        "label": "[to be translated]:Model Name:",
-        "placeholder": "[to be translated]:Required e.g. Qwen3-8B-int4-ov",
-        "required": "[to be translated]:Please enter the model name"
+        "label": "نام مدل:",
+        "placeholder": "مورد نیاز به عنوان مثال ",
+        "required": "لطفا نام مدل را وارد کنید"
       },
-      "model_source": "[to be translated]:Model Source:",
-      "model_task": "[to be translated]:Model Task:",
-      "success": "[to be translated]:Download successful",
-      "success_desc": "[to be translated]:Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "model_source": "منبع مدل:",
+      "model_task": "وظیفه مدل:",
+      "success": "دانلود با موفقیت انجام شد",
+      "success_desc": "مدل \"{{modelName}}\"-\"{{modelId}}\" با موفقیت بارگیری شد، لطفاً برای افزودن مدل به رابط مدیریت OVMS بروید",
       "task": {
-        "embeddings": "[to be translated]:Embeddings",
-        "image_generation": "[to be translated]:Image Generation",
-        "rerank": "[to be translated]:Rerank",
-        "text_generation": "[to be translated]:Text Generation"
+        "embeddings": "جاسازی ها",
+        "image_generation": "تولید تصویر",
+        "rerank": "رتبه بندی مجدد",
+        "text_generation": "تولید متن"
       },
-      "tip": "[to be translated]:The model is downloading, sometimes it takes hours. Please be patient...",
-      "title": "[to be translated]:Download Intel OpenVINO Model"
+      "tip": "مدل در حال دانلود است، گاهی ساعت ها طول می کشد. ",
+      "title": "دانلود مدل OpenVINO اینتل"
     },
     "failed": {
-      "install": "[to be translated]:Install OVMS failed:",
-      "install_code_100": "[to be translated]:Unknown Error",
-      "install_code_101": "[to be translated]:Only supports Intel(R) CPU",
-      "install_code_102": "[to be translated]:Only supports Windows",
-      "install_code_103": "[to be translated]:Download OVMS runtime failed",
-      "install_code_104": "[to be translated]:Failed to install OVMS runtime",
-      "install_code_105": "[to be translated]:Failed to create ovdnd.exe",
-      "install_code_106": "[to be translated]:Failed to create run.bat",
-      "install_code_110": "[to be translated]:Failed to clean old OVMS runtime",
-      "run": "[to be translated]:Run OVMS failed:",
-      "stop": "[to be translated]:Stop OVMS failed:"
+      "install": "نصب OVMS ناموفق بود:",
+      "install_code_100": "خطای ناشناخته",
+      "install_code_101": "فقط از CPU اینتل (R) پشتیبانی می کند",
+      "install_code_102": "فقط از ویندوز پشتیبانی می کند",
+      "install_code_103": "دانلود زمان اجرا OVMS ناموفق بود",
+      "install_code_104": "زمان اجرا OVMS نصب نشد",
+      "install_code_105": "ovdnd.exe ایجاد نشد",
+      "install_code_106": "run.bat ایجاد نشد",
+      "install_code_110": "پاک کردن زمان اجرا OVMS قدیمی انجام نشد",
+      "run": "اجرای OVMS ناموفق بود:",
+      "stop": "توقف OVMS ناموفق بود:"
     },
-    "guide": "[to be translated]:Intel OVMS Guide:",
+    "guide": "راهنمای OVMS اینتل:",
     "status": {
-      "not_installed": "[to be translated]:OVMS is not installed",
-      "not_running": "[to be translated]:OVMS is not running",
-      "running": "[to be translated]:OVMS is running",
-      "unknown": "[to be translated]:OVMS status unknown"
+      "not_installed": "OVMS نصب نشده است",
+      "not_running": "OVMS در حال اجرا نیست",
+      "running": "OVMS در حال اجرا است",
+      "unknown": "وضعیت OVMS ناشناخته است"
     },
-    "title": "[to be translated]:Intel OVMS"
+    "title": "اینتل OVMS"
   },
   "paintings": {
-    "aspect_ratio": "[to be translated]:Aspect Ratio",
+    "aspect_ratio": "نسبت تصویر",
     "aspect_ratios": {
-      "landscape": "[to be translated]:Landscape",
-      "portrait": "[to be translated]:Portrait",
-      "square": "[to be translated]:Square"
+      "landscape": "چشم انداز",
+      "portrait": "پرتره",
+      "square": "مربع"
     },
-    "auto_create_paint": "[to be translated]:Auto-create image",
-    "auto_create_paint_tip": "[to be translated]:After the image is generated, a new image will be created automatically.",
-    "background": "[to be translated]:Background",
+    "auto_create_paint": "ایجاد خودکار تصویر",
+    "auto_create_paint_tip": "پس از ایجاد تصویر، یک تصویر جدید به طور خودکار ایجاد می شود.",
+    "background": "پس زمینه",
     "background_options": {
-      "auto": "[to be translated]:Auto",
-      "opaque": "[to be translated]:Opaque",
-      "transparent": "[to be translated]:Transparent"
+      "auto": "خودکار",
+      "opaque": "مات",
+      "transparent": "شفاف"
     },
     "button": {
       "delete": {
         "image": {
-          "confirm": "[to be translated]:Are you sure you want to delete this image?",
-          "label": "[to be translated]:Delete Image"
+          "confirm": "آیا مطمئن هستید که می خواهید این تصویر را حذف کنید؟",
+          "label": "حذف تصویر"
         }
       },
       "new": {
-        "image": "[to be translated]:New Image"
+        "image": "تصویر جدید"
       },
       "select": {
-        "image": "[to be translated]:Select Image"
+        "image": "Image را انتخاب کنید"
       }
     },
-    "custom_size": "[to be translated]:Custom Size",
+    "custom_size": "اندازه سفارشی",
     "dashscope": {
-      "bottom_scale": "[to be translated]:Expand Bottom",
-      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
-      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
-      "function": "[to be translated]:Edit Function",
+      "bottom_scale": "پایین را باز کنید",
+      "enable_interleave": "حالت ترکیبی متن + تصویر",
+      "enable_interleave_tip": "وقتی روشن است، خروجی ترکیبی متن و تصویر بدون نیاز به تصویر ورودی تولید می‌کند. ",
+      "function": "تابع ویرایش",
       "function_options": {
-        "colorization": "[to be translated]:Colorization",
-        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
-        "description_edit": "[to be translated]:Instruction Edit",
-        "description_edit_with_mask": "[to be translated]:Masked Edit",
-        "doodle": "[to be translated]:Doodle to Image",
-        "expand": "[to be translated]:Expand",
-        "remove_watermark": "[to be translated]:Remove Watermark",
-        "stylization_all": "[to be translated]:Global Stylization",
-        "stylization_local": "[to be translated]:Local Stylization",
-        "super_resolution": "[to be translated]:Super Resolution"
+        "colorization": "رنگ آمیزی",
+        "control_cartoon_feature": "مرجع کارتون",
+        "description_edit": "ویرایش دستورالعمل",
+        "description_edit_with_mask": "ویرایش نقاب دار",
+        "doodle": "Doodle to Image",
+        "expand": "گسترش دهید",
+        "remove_watermark": "حذف واترمارک",
+        "stylization_all": "سبک سازی جهانی",
+        "stylization_local": "سبک سازی محلی",
+        "super_resolution": "وضوح فوق العاده"
       },
-      "is_sketch": "[to be translated]:Sketch Input",
-      "left_scale": "[to be translated]:Expand Left",
-      "ref_mode": "[to be translated]:Reference Mode",
+      "is_sketch": "ورودی طرح",
+      "left_scale": "سمت چپ را باز کنید",
+      "ref_mode": "حالت مرجع",
       "ref_mode_options": {
-        "refonly": "[to be translated]:Reference only",
-        "repaint": "[to be translated]:Repaint"
+        "refonly": "فقط مرجع",
+        "repaint": "رنگ آمیزی مجدد"
       },
-      "ref_strength": "[to be translated]:Reference Strength",
-      "right_scale": "[to be translated]:Expand Right",
-      "source_lang": "[to be translated]:Source Language",
-      "strength": "[to be translated]:Strength",
-      "target_lang": "[to be translated]:Target Language",
-      "top_scale": "[to be translated]:Expand Top",
-      "upscale_factor": "[to be translated]:Upscale Factor"
+      "ref_strength": "قدرت مرجع",
+      "right_scale": "راست را باز کنید",
+      "source_lang": "زبان مبدأ",
+      "strength": "قدرت",
+      "target_lang": "زبان مقصد",
+      "top_scale": "بالا را باز کنید",
+      "upscale_factor": "فاکتور سطح بالا"
     },
     "dmxapi": {
-      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "generating_tip": "تولید با مدل رسمی، زمان انتظار تخمینی 2-5 دقیقه برای بهترین نتایج است. ",
       "max_images": "[to be translated]:Max Images",
       "sequential_image_generation": "[to be translated]:Sequential Image Generation",
       "sequential_image_generation_options": {
