@@ -44,6 +44,8 @@ export interface ShellActions {
   refreshPdfLayout: () => void
 }
 
+export type ShellTabShortcutOpenBehavior = 'hide' | 'toggle-active'
+
 interface ShellContextValue {
   state: ShellState
   actions: ShellActions
@@ -325,7 +327,8 @@ function ShellTabShortcut({
   label,
   icon,
   disabled = false,
-  tooltip = label,
+  tooltip,
+  openBehavior = 'hide',
   className,
   onClick,
   ...buttonProps
@@ -334,37 +337,50 @@ function ShellTabShortcut({
   label: string
   icon: ReactNode
   tooltip?: ReactNode | false
+  openBehavior?: ShellTabShortcutOpenBehavior
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
   const { state, actions } = useShell()
+  const { t } = useTranslation()
+  const active = state.open && state.activeTab === tab
+  const togglesActive = openBehavior === 'toggle-active'
+  const closeLabel = t('common.close_sidebar')
+  const ariaLabel = togglesActive && active ? closeLabel : label
+  const tooltipContent = tooltip === false ? false : (tooltip ?? ariaLabel)
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       onClick?.(event)
       if (event.defaultPrevented) return
+      if (togglesActive && state.open && state.activeTab === tab) {
+        actions.close()
+        return
+      }
       actions.openTab(tab)
     },
-    [actions, onClick, tab]
+    [actions, onClick, state.activeTab, state.open, tab, togglesActive]
   )
 
-  if (state.open || state.maximized) return null
+  if (state.maximized || (state.open && openBehavior === 'hide')) return null
 
   const button = (
     <NavbarIcon
       {...buttonProps}
       tone="conversation"
       className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      active={active}
       disabled={disabled}
-      aria-label={label}
+      aria-label={ariaLabel}
+      aria-pressed={togglesActive ? active : undefined}
       data-shell-tab-shortcut={tab}
       onClick={handleClick}>
       {icon}
     </NavbarIcon>
   )
 
-  if (tooltip === false) return button
+  if (tooltipContent === false) return button
 
   return (
-    <Tooltip content={tooltip} delay={800}>
+    <Tooltip content={tooltipContent} delay={800}>
       {button}
     </Tooltip>
   )

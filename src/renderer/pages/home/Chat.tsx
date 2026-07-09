@@ -231,7 +231,6 @@ const Chat: FC<Props> = (props) => {
         <>
           {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
           <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
-          <TopicRightPane.Toggle />
         </>
       }
       sidePanel={

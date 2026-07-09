@@ -2,7 +2,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { List } from 'lucide-react'
 import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
 
-import { Shell, useShellActions } from './Shell'
+import { Shell, type ShellTabShortcutOpenBehavior, useShellActions } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
 // In classic-layout mode the topic/session list moves into the
@@ -40,6 +40,20 @@ export function ResourcePaneTab() {
     <Shell.Tab value={RESOURCE_PANE_TAB} icon={<List className="size-3.5" />}>
       {config.label}
     </Shell.Tab>
+  )
+}
+
+export function ResourcePaneShortcut({ openBehavior }: { openBehavior?: ShellTabShortcutOpenBehavior }) {
+  const config = useResourcePane()
+  if (!config) return null
+
+  return (
+    <Shell.TabShortcut
+      tab={RESOURCE_PANE_TAB}
+      label={config.label}
+      icon={<List className="size-3.5" />}
+      openBehavior={openBehavior}
+    />
   )
 }
 

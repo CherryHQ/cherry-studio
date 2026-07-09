@@ -522,6 +522,31 @@ describe('Shell.TabShortcut', () => {
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
   })
+
+  it('can stay visible while open and expose close semantics for the active tab', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut
+          tab="files"
+          label="Files"
+          icon={<span data-testid="files-icon" />}
+          openBehavior="toggle-active"
+        />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
+  })
 })
 
 describe('Shell.Host', () => {

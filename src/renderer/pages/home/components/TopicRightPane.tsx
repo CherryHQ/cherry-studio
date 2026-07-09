@@ -5,15 +5,15 @@ import {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
+  ResourcePaneShortcut,
   ResourcePaneTab,
   Shell,
-  useResourcePane,
+  type ShellTabShortcutOpenBehavior,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
@@ -137,7 +137,6 @@ function TopicRightPaneSurface({
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const shellState = useShellState()
-  const resourcePane = useResourcePane()
   const hasBranchPanel = !!topicId
   const branchLiveState = useTopicBranchLiveState(topicId ?? '')
   const { mode, chrome } = useWindowFrame()
@@ -152,12 +151,13 @@ function TopicRightPaneSurface({
   )
 
   // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
-  // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
+  // when we're in a sub-window, plus the tab shortcuts that also collapse the active pane. Navbar suppresses
   // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}
+      <ResourcePaneShortcut openBehavior="toggle-active" />
+      <TopicRightPaneShortcuts topicId={topicId} openBehavior="toggle-active" />
     </>
   )
 
@@ -217,19 +217,13 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
   )
 }
 
-function TopicRightPaneToggle() {
-  const isActiveTab = useIsActiveTab()
-  const resourcePane = useResourcePane()
-  return (
-    <Shell.Toggle
-      tab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
-      command="topic.sidebar.toggle"
-      commandEnabled={isActiveTab}
-    />
-  )
-}
-
-function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
+function TopicRightPaneShortcuts({
+  topicId,
+  openBehavior
+}: {
+  topicId?: string
+  openBehavior?: ShellTabShortcutOpenBehavior
+}) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const hasBranchPanel = !!topicId
@@ -241,10 +235,16 @@ function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
           tab="branch"
           label={t('chat.message.flow.title')}
           icon={<GitBranch className="size-3.5" />}
+          openBehavior={openBehavior}
         />
       )}
       {hasBranchPanel && enableDeveloperMode && (
-        <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+        <Shell.TabShortcut
+          tab="trace"
+          label={t('trace.label')}
+          icon={<Activity className="size-3.5" />}
+          openBehavior={openBehavior}
+        />
       )}
     </>
   )
@@ -253,6 +253,5 @@ function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
   Host: TopicRightPaneHost,
   MaximizedOverlay: TopicRightPaneMaximizedOverlay,
-  Toggle: TopicRightPaneToggle,
   Shortcuts: TopicRightPaneShortcuts
 })

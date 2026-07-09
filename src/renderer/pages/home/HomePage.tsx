@@ -1046,7 +1046,6 @@ function DraftWelcomeChat({
           <>
             {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
             <TopicRightPane.Shortcuts />
-            <TopicRightPane.Toggle />
           </>
         ) : undefined
       }
