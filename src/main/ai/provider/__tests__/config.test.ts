@@ -204,6 +204,37 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.location).toBe('us-central1')
     })
 
+    it('routes a MaaS (publisher-prefixed, non-Claude) Vertex model to the google-vertex-maas adapter', async () => {
+      // MaaS open/partner models resolve through the default google-generate-content endpoint
+      // (they carry no endpointTypes), so buildVertexConfig must distinguish them from Gemini by
+      // the `{publisher}/{model}` id shape and route them to the OpenAI-compatible MaaS adapter.
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::meta/llama-4-scout-17b-16e-instruct-maas',
+        apiModelId: 'meta/llama-4-scout-17b-16e-instruct-maas'
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex-maas')
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+      expect(settings.googleCredentials).toMatchObject({
+        clientEmail: 'svc@my-project.iam.gserviceaccount.com'
+      })
+      // No custom host configured → adapter derives the aiplatform host from project+location.
+      expect(settings.baseURL).toBeUndefined()
+    })
+
     it('throws when a Vertex-resolved provider lacks iam-gcp auth config', async () => {
       getAuthConfigMock.mockReturnValue(null)
       const provider = makeProvider({

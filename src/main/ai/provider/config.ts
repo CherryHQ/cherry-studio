@@ -407,7 +407,9 @@ export function normalizeVertexCredentials(credentials: Record<string, unknown> 
   }
 }
 
-function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'> {
+function buildVertexConfig(
+  ctx: BuilderContext
+): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
   const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
@@ -417,19 +419,44 @@ function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'>
   const { project, location, credentials } = authConfig
   const googleCredentials = credentials as Record<string, string> | undefined
 
+  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
+  const creds = googleCredentials
+    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
+    : undefined
+
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
+
+  // MaaS open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss) are served over
+  // Vertex's OpenAI-compatible Chat Completions endpoint, not the Gemini generateContent
+  // SDK that `google-vertex` uses. They carry a `{publisher}/{model}` id — the model listing
+  // bakes the publisher prefix in (§listModels/vertex), and that same id is the `model` the
+  // OpenAI-compatible endpoint expects. Route them to the dedicated MaaS adapter, which mints
+  // the GCP bearer token itself from the iam-gcp credentials.
+  // ponytail: MaaS is detected by the '/' in the id; manually-added MaaS models must be
+  // entered in `publisher/model-maas` form (same convention as OpenRouter ids).
+  if (!isAnthropic && modelId.includes('/')) {
+    return {
+      providerId: 'google-vertex-maas',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        project,
+        location,
+        // Standard providers leave baseURL empty so the adapter derives the aiplatform host
+        // from project+location; a custom host (proxy) passes through untouched.
+        ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
+        ...(creds && { googleCredentials: creds }),
+        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      }
+    } as ProviderConfig<'google-vertex-maas'>
+  }
+
   // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
   // yields a truthy host-less URL (`/publishers/google`), which the Vertex SDK's `?? ` default
   // does NOT override — so it must stay `undefined` to let the SDK derive the full aiplatform
   // host. Only append the suffix when a custom host is actually configured.
   const baseURL = ctx.baseConfig.baseURL
     ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
-    : undefined
-
-  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
-  const creds = googleCredentials
-    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
 
   return {

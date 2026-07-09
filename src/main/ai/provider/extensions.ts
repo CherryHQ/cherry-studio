@@ -9,6 +9,11 @@ import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import {
+  createVertexMaas,
+  type GoogleVertexMaasProvider,
+  type GoogleVertexMaasProviderSettings
+} from '@ai-sdk/google-vertex/maas/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
@@ -71,6 +76,24 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   GoogleVertexProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
+>)
+
+/**
+ * Vertex MaaS — open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss)
+ * served over Vertex's OpenAI-compatible Chat Completions endpoint. Distinct from
+ * `google-vertex` (Gemini generateContent) and `google-vertex-anthropic` (Claude
+ * messages); the adapter mints the GCP bearer token itself from the same iam-gcp
+ * service-account credentials.
+ */
+export const GoogleVertexMaaSExtension = ProviderExtension.create({
+  name: 'google-vertex-maas',
+  aliases: ['vertexai-maas'] as const,
+  supportsImageGeneration: false,
+  create: createVertexMaas
+} as const satisfies ProviderExtensionConfig<
+  GoogleVertexMaasProviderSettings,
+  GoogleVertexMaasProvider,
+  'google-vertex-maas'
 >)
 
 export const GitHubCopilotExtension = ProviderExtension.create({
@@ -255,6 +278,7 @@ export const VoyageExtension = ProviderExtension.create({
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
+  GoogleVertexMaaSExtension,
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,

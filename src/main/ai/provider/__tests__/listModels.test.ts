@@ -384,6 +384,24 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models[0].ownedBy).toBe('google')
   })
 
+  it('bakes the publisher prefix into MaaS (non-google) model ids so the OpenAI-compatible endpoint gets the right model', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas', displayName: 'Llama 4 Scout' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    // Same MaaS model deduped across the per-publisher fan-out → a single entry.
+    expect(models).toHaveLength(1)
+    // Publisher-prefixed id (survives the bare-name support filter) is what the request sends.
+    expect(models[0].apiModelId).toBe('meta/llama-4-scout-17b-16e-instruct-maas')
+    expect(models[0].ownedBy).toBe('meta')
+  })
+
   it('paginates a publisher via nextPageToken', async () => {
     // First call returns a page token; every subsequent call returns a final page.
     aiSdkGetFromApiMock
