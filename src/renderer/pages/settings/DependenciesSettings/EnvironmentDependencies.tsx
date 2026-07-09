@@ -268,7 +268,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   // Deep-link to the Code Tools launcher with the agent's launch dialog already
   // open — closes the "installed it but don't know how to run it" gap.
   const openInCodeTools = (codeCli: CodeCli) => {
-    navigate({ to: '/app/code', search: { launch: codeCli } })
+    void navigate({ to: '/app/code', search: { launch: codeCli } })
   }
 
   const renderPresetCard = (tool: BinaryToolPreset) => {
