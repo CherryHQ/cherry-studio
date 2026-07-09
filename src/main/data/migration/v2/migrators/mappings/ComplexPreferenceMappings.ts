@@ -19,11 +19,6 @@
  */
 
 import { loggerService } from '@logger'
-import {
-  SIDEBAR_FAVORITES,
-  type SidebarFavorite,
-  type SidebarFavoriteItem
-} from '@shared/data/preference/preferenceTypes'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -42,11 +37,7 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const SUPPORTED_SIDEBAR_FAVORITES = new Set<SidebarFavorite>(SIDEBAR_FAVORITES)
-
-function isSupportedSidebarFavorite(value: unknown): value is SidebarFavorite {
-  return typeof value === 'string' && SUPPORTED_SIDEBAR_FAVORITES.has(value as SidebarFavorite)
-}
+const DEFAULT_SIDEBAR_FAVORITE_IDS = ['assistants', 'agents', 'translate', 'paintings', 'knowledge'] as const
 
 // ============================================================================
 // Type Definitions
@@ -154,47 +145,18 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar favorites: migrate legacy v1 sidebarIcons.visible, rewrite 'minapp' → 'mini_app',
-  // preserve the user's visible order, and restore the v2 agents favorite unless explicitly hidden.
+  // Sidebar favorites: v2 resets migrated v1 users to the same canonical defaults as new users.
   {
     id: 'sidebar_favorites_migrate',
-    description:
-      "Migrate legacy v1 sidebarIcons.visible to v2 favorites, rewrite 'minapp' to 'mini_app', preserve visible items, and restore agents",
+    description: 'Reset legacy v1 sidebar favorites to the v2 canonical default tabs',
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
     targetKeys: ['ui.sidebar.favorites'],
-    transform: (sources) => {
-      const rewrite = (arr: unknown): SidebarFavorite[] | undefined =>
-        Array.isArray(arr)
-          ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)).filter(isSupportedSidebarFavorite)
-          : undefined
-      const toSidebarFavorites = (arr: SidebarFavorite[] | undefined): SidebarFavoriteItem[] | undefined =>
-        arr?.map((id) => ({ type: 'app', id }))
-      const addAgents = (
-        visible: SidebarFavorite[] | undefined,
-        invisible: SidebarFavorite[] | undefined
-      ): SidebarFavorite[] | undefined => {
-        if (!visible || visible.includes('agents')) {
-          return visible
-        }
-        if (invisible?.includes('agents')) {
-          return visible
-        }
-
-        const nextVisible = [...visible]
-        const assistantsIndex = nextVisible.indexOf('assistants')
-        nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
-        return nextVisible
-      }
-      const dedup = (arr: SidebarFavorite[] | undefined): SidebarFavorite[] | undefined =>
-        arr ? [...new Set(arr)] : undefined
-      const visible = rewrite(sources.visible)
-      const invisible = rewrite(sources.disabled)
-      const visibleWithAgents = dedup(addAgents(visible, invisible))
+    transform: () => {
       return {
-        'ui.sidebar.favorites': toSidebarFavorites(visibleWithAgents)
+        'ui.sidebar.favorites': DEFAULT_SIDEBAR_FAVORITE_IDS.map((id) => ({ type: 'app', id }))
       }
     }
   },
