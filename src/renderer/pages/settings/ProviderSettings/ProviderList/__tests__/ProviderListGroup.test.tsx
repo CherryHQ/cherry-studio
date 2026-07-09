@@ -26,7 +26,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
 
 import ProviderListGroup from '../ProviderListGroup'
 
-function provider(id: string, presetProviderId: string): Provider {
+function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
   return {
     id,
     name: id,
@@ -35,7 +35,7 @@ function provider(id: string, presetProviderId: string): Provider {
     authType: 'api-key',
     apiFeatures: {},
     settings: {},
-    isEnabled: true
+    isEnabled
   } as unknown as Provider
 }
 
@@ -107,6 +107,28 @@ describe('ProviderListGroup', () => {
   })
 
   it('renders only the chevron in the group trailing area', () => {
+    const disabledProviders = [provider('zhipu-a', 'zhipu', false), provider('zhipu-b', 'zhipu', false)]
+
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={disabledProviders}
+        items={disabledProviders}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(screen.queryByTestId('provider-list-group-count-zhipu')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('provider-list-group-enabled-dot-zhipu')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
+  })
+
+  it('shows an enabled-state dot for groups with enabled providers', () => {
     render(
       <ProviderListGroup
         presetProviderId="zhipu"
@@ -121,7 +143,7 @@ describe('ProviderListGroup', () => {
       />
     )
 
-    expect(screen.queryByTestId('provider-list-group-count-zhipu')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-group-enabled-dot-zhipu')).toBeInTheDocument()
     expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
   })
 

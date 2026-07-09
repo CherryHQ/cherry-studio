@@ -17,11 +17,6 @@ import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModel
 
 export type ModelGroups = Record<string, Model[]>
 
-export type ModelSections = {
-  enabled: ModelGroups
-  disabled: ModelGroups
-}
-
 export const MODEL_LIST_CAPABILITY_FILTERS = [
   'all',
   'reasoning',
@@ -41,12 +36,9 @@ export type ModelListDerivedState = {
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
   duplicateModelNames: Set<string>
-  enabledModelCount: number
-  disabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean
   hasNoModels: boolean
-  allEnabled: boolean
   modelStatusMap: Map<string, ModelWithStatus>
 }
 
@@ -124,26 +116,6 @@ export const applyModelFilters = (
   return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
 }
 
-export const calculateModelSections = (
-  models: Model[],
-  searchText: string,
-  selectedCapabilityFilter: ModelListCapabilityFilter
-): ModelSections => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const preserveGroupOrder = Boolean(searchText.trim())
-
-  return {
-    enabled: groupModels(
-      filteredModels.filter((model) => model.isEnabled),
-      preserveGroupOrder
-    ),
-    disabled: groupModels(
-      filteredModels.filter((model) => !model.isEnabled),
-      preserveGroupOrder
-    )
-  }
-}
-
 export const countModelsInGroups = (groups: ModelGroups): number => {
   return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
 }
@@ -188,29 +160,15 @@ export const calculateModelListDerivedState = ({
   modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const enabledModels: Model[] = []
-  const disabledModels: Model[] = []
-
-  for (const model of filteredModels) {
-    if (model.isEnabled) {
-      enabledModels.push(model)
-      continue
-    }
-
-    disabledModels.push(model)
-  }
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
     capabilityModelCounts: getCapabilityModelCounts(models),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
-    enabledModelCount: enabledModels.length,
-    disabledModelCount: disabledModels.length,
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
     hasNoModels: models.length === 0,
-    allEnabled: filteredModels.length > 0 && filteredModels.every((model) => model.isEnabled),
     modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
   }
 }

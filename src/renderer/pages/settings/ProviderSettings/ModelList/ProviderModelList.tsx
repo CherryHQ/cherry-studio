@@ -21,7 +21,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
     disabled
   })
   const providerMeta = useProviderMeta(providerId)
-  const toolbarDisabled = disabled || modelList.isBulkUpdating
+  const toolbarDisabled = disabled
   const toggleGroupsExpanded = useCallback(() => {
     setGroupExpansionCommand((current) => ({
       expanded: !current.expanded,

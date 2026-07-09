@@ -98,9 +98,13 @@ export const providerListClasses = {
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
   groupHeader: cn(providerListItemFrame, 'group/row pr-2.5 hover:bg-muted'),
   groupHeaderHasSelected: 'bg-muted',
-  groupTrailing: 'ml-2 flex shrink-0 items-center gap-1.5',
+  groupTrailing: 'relative ml-2 flex size-3 shrink-0 items-center justify-center',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
+  groupChevronHiddenUntilHover:
+    'absolute opacity-0 transition-[opacity,transform] group-hover/row:opacity-100 group-focus-within/row:opacity-100',
+  groupEnabledDot:
+    'pointer-events-none absolute size-1.5 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
   itemMoreActions:
     'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',

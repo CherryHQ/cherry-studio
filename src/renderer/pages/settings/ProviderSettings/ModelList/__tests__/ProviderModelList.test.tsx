@@ -50,10 +50,8 @@ vi.mock('../ModelListGroup', () => ({
 vi.mock('../useProviderModelList', () => ({
   useProviderModelList: () => ({
     header: {
-      enabledModelCount: 1,
       modelCount: 1,
       hasVisibleModels: true,
-      allEnabled: false,
       hasNoModels: false,
       searchText: searchTextMock.value,
       setSearchText: vi.fn()
@@ -64,22 +62,17 @@ vi.mock('../useProviderModelList', () => ({
       hasVisibleModels: true,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
-      disabledSections: [],
-      displayDisabledModelCount: 0,
       disabled: false,
       pendingModelIds: new Set<string>(),
       onEditModel: vi.fn(),
       onDeleteModel: vi.fn(),
-      onDeleteModels: vi.fn(),
-      onToggleModel: vi.fn(),
-      onToggleModels: vi.fn()
+      onDeleteModels: vi.fn()
     },
     editDrawer: {
       open: false,
       model: null,
       onClose: vi.fn()
-    },
-    isBulkUpdating: false
+    }
   })
 }))
 

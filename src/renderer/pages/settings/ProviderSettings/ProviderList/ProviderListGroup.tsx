@@ -56,6 +56,7 @@ export default function ProviderListGroup({
   const bodyId = useId()
   const label = t(getProviderLabelKey(presetProviderId))
   const headerHighlight = !expanded && containsSelected
+  const hasEnabledMember = members.some((member) => member.isEnabled)
 
   return (
     <div className="w-full">
@@ -84,10 +85,21 @@ export default function ProviderListGroup({
           </div>
         </div>
         <div className={providerListClasses.groupTrailing}>
+          {hasEnabledMember && (
+            <span
+              aria-hidden
+              data-testid={`provider-list-group-enabled-dot-${presetProviderId}`}
+              className={providerListClasses.groupEnabledDot}
+            />
+          )}
           <ChevronRight
             size={12}
             data-testid={`provider-list-group-chevron-${presetProviderId}`}
-            className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
+            className={cn(
+              providerListClasses.groupChevron,
+              expanded && providerListClasses.groupChevronOpen,
+              hasEnabledMember && providerListClasses.groupChevronHiddenUntilHover
+            )}
           />
         </div>
       </button>
