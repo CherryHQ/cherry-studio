@@ -766,8 +766,12 @@ export class SkillService {
    *
    * - If the row exists and files weren't updated, no-ops.
    * - If files were updated, refreshes the metadata row in-place.
-   * - If the row is missing (first install), inserts it and fans it out to
-   *   every existing agent via `enableForAllAgents`.
+   * - If the row is missing (first install), inserts it.
+   *
+   * Per-agent enablement needs no fan-out here: `AgentGlobalSkillService.list()`
+   * defaults a builtin skill to enabled for every agent until a user explicitly
+   * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
+   * for existing and future agents alike — without any `agent_skill` rows.
    */
   async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
     const existing = agentGlobalSkillService.getByFolderName(folderName)
@@ -786,7 +790,7 @@ export class SkillService {
         contentHash
       })
     } else {
-      const inserted = agentGlobalSkillService.insert({
+      agentGlobalSkillService.insert({
         name: metadata.name,
         description: metadata.description ?? null,
         folderName,
@@ -798,7 +802,6 @@ export class SkillService {
         contentHash,
         isEnabled: false
       })
-      this.enableForAllAgents(inserted.id)
     }
 
     await this.linkMirror(folderName)
