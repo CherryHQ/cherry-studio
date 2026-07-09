@@ -26,6 +26,7 @@ interface PromptEditorFieldProps {
   resetPreviewKey?: unknown
   minHeight?: string
   maxHeight?: string
+  autoFocus?: boolean
 }
 
 export function PromptEditorField({
@@ -40,7 +41,8 @@ export function PromptEditorField({
   previewValue,
   resetPreviewKey,
   minHeight = '200px',
-  maxHeight = '50vh'
+  maxHeight = '50vh',
+  autoFocus = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const previewId = useId()
@@ -62,6 +64,16 @@ export function PromptEditorField({
     previousResetPreviewKey.current = resetPreviewKey
     setShowPreview(false)
   }, [resetPreviewKey])
+
+  useEffect(() => {
+    if (!autoFocus || effectiveShowPreview) return
+
+    const frame = window.requestAnimationFrame(() => {
+      codeEditorRef.current?.focus?.()
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [autoFocus, effectiveShowPreview])
 
   const handleChange = (nextValue: string) => {
     onChange(nextValue)
