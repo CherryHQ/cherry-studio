@@ -22,8 +22,7 @@ describe('UserAvatar', () => {
     const emojiAvatar = container.firstElementChild?.firstElementChild as HTMLElement
     expect(emojiAvatar).toHaveClass('h-full', 'w-full', 'rounded-full', 'border-0')
     expect(emojiAvatar).toHaveStyle({ width: '100%', height: '100%', fontSize: '14px' })
-    expect(emojiAvatar).toHaveTextContent('🌈')
-    expect(emojiAvatar.querySelector('svg[data-fluent-emoji="🌈"]')).not.toBeInTheDocument()
+    expect(emojiAvatar.querySelectorAll('svg[data-fluent-emoji="🌈"]')).toHaveLength(1)
     // Emoji avatars must not fall through to the gradient-initial branch.
     // The gradient classes live on the inner fallback div, so query that element directly.
     expect(container.querySelector('.from-blue-400')).not.toBeInTheDocument()

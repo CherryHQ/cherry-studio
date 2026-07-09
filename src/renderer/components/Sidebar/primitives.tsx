@@ -1,4 +1,4 @@
-import { EmojiAvatar } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 

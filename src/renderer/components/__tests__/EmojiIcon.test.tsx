@@ -1,8 +1,5 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+import { describe, expect, it } from 'vitest'
 
 import EmojiIcon from '../EmojiIcon'
 
@@ -10,18 +7,18 @@ describe('EmojiIcon', () => {
   it('should render with provided emoji', () => {
     const { container } = render(<EmojiIcon emoji="🚀" />)
 
-    expect(container.textContent).toBe('🚀🚀')
-    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(container.textContent).toContain('🚀')
+    expect(container.querySelectorAll('svg[data-fluent-emoji="🚀"]')).toHaveLength(2)
   })
 
   it('should render default emoji when no emoji provided', () => {
     const { container } = render(<EmojiIcon emoji="" />)
 
     const background = container.querySelector('[aria-hidden="true"]')
-    expect(background).toHaveTextContent('⭐️')
+    expect(background?.querySelector('svg[data-fluent-emoji="⭐️"]')).toBeInTheDocument()
 
     const emojiContainer = container.firstChild as HTMLElement
-    expect(emojiContainer.textContent).toBe('⭐️')
+    expect(emojiContainer.textContent).toBe('')
   })
 
   it('should apply custom className', () => {
@@ -32,11 +29,12 @@ describe('EmojiIcon', () => {
     expect(emojiContainer).toHaveClass(customClass)
   })
 
-  it('should render mapped emoji as Unicode text without pulling Fluent SVG artwork', () => {
+  it('should render Fluent SVG artwork for mapped emoji', () => {
     const { container } = render(<EmojiIcon emoji="🎉" />)
 
-    expect(container.textContent).toBe('🎉🎉')
-    expect(container.querySelector('svg[data-fluent-emoji="🎉"]')).not.toBeInTheDocument()
+    const svg = container.querySelector('svg[data-fluent-emoji="🎉"]')
+    expect(svg).toBeInTheDocument()
+    expect(svg).toHaveAttribute('viewBox', '0 0 32 32')
   })
 
   it('should handle special emojis correctly', () => {
@@ -61,6 +59,6 @@ describe('EmojiIcon', () => {
     const { container } = render(<EmojiIcon emoji="" />)
     const backgroundElement = container.querySelector('[aria-hidden="true"]')
 
-    expect(backgroundElement).toHaveTextContent('⭐️')
+    expect(backgroundElement?.querySelector('svg[data-fluent-emoji="⭐️"]')).toBeInTheDocument()
   })
 })

@@ -26,7 +26,7 @@ npm install motion react react-dom tailwindcss
 > The recommended integration style in this repository is to use the package export entry points:
 > `@cherrystudio/ui`
 > `@cherrystudio/ui/components`
-> `@cherrystudio/ui/fluent-emoji` (dedicated Fluent emoji artwork entry; importing this entry loads the generated emoji dataset)
+> `@cherrystudio/ui/fluent-emoji` (dedicated `EmojiGlyph` / `EmojiIcon` / `EmojiAvatar` artwork entry; importing this entry loads the generated emoji dataset)
 > `@cherrystudio/ui/icons`
 > `@cherrystudio/ui/utils`
 > `@cherrystudio/ui/styles/*`
@@ -217,7 +217,7 @@ src/
 │   ├── composites/     # Composite components
 │   ├── icons/          # Icon runtime exports and catalogs
 │   └── index.ts
-├── fluent-emoji.tsx    # Fluent emoji runtime entry point
+├── fluent-emoji.tsx    # Fluent emoji runtime entry point for glyphs, icons, and avatars
 ├── fluent-emoji-data.json # Generated Fluent emoji dataset
 ├── hooks/              # React Hooks
 ├── lib/                # Internal utilities

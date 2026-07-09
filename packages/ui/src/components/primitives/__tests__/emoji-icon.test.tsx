@@ -1,32 +1,31 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { EmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-
-import EmojiIcon from '../emoji-icon'
 
 afterEach(() => {
   cleanup()
 })
 
 describe('EmojiIcon', () => {
-  it('renders the emoji in both foreground and blurred background', () => {
+  it('renders Fluent SVG artwork in both foreground and blurred background', () => {
     const { container } = render(<EmojiIcon emoji="🌈" />)
 
-    expect(container.textContent).toBe('🌈🌈')
     const background = container.querySelector('[aria-hidden="true"]')
     expect(background).toBeInTheDocument()
-    expect(background).toHaveTextContent('🌈')
-    expect(container.querySelector('svg')).not.toBeInTheDocument()
+    expect(background?.querySelector('svg[data-fluent-emoji="🌈"]')).toBeInTheDocument()
+    expect(container.querySelectorAll('svg[data-fluent-emoji="🌈"]')).toHaveLength(2)
+    expect(container.textContent).toContain('🌈')
     expect(background).toHaveClass('blur-sm', 'opacity-40')
   })
 
   it('falls back to the default star in the background when emoji is empty', () => {
     const { container } = render(<EmojiIcon emoji="" />)
     const background = container.querySelector('[aria-hidden="true"]')
-    expect(background).toHaveTextContent('⭐️')
-    expect(container.firstElementChild).toHaveTextContent('⭐️')
+    expect(background?.querySelector('svg[data-fluent-emoji="⭐️"]')).toBeInTheDocument()
+    expect(container.firstElementChild).toHaveTextContent('')
   })
 
   it('applies fixed sizing by default with the right margin', () => {

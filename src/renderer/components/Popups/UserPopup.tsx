@@ -8,13 +8,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  EmojiAvatar,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
   RowFlex
 } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'

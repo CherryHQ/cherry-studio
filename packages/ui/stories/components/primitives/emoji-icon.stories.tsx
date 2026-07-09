@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { EmojiIcon } from '../../../src/components'
+import { EmojiIcon } from '../../../src/fluent-emoji'
 
 const meta: Meta<typeof EmojiIcon> = {
   title: 'Components/Primitives/EmojiIcon',

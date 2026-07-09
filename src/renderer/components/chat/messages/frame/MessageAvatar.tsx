@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { isEmoji } from '@renderer/utils/naming'
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'

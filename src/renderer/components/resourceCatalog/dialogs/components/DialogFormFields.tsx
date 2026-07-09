@@ -1,4 +1,5 @@
-import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'

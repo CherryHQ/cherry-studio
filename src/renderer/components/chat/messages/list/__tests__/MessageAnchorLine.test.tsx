@@ -12,7 +12,10 @@ import MessageAnchorLine from '../MessageAnchorLine'
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   AvatarFallback: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  AvatarImage: () => null,
+  AvatarImage: () => null
+}))
+
+vi.mock('@cherrystudio/ui/fluent-emoji', () => ({
   EmojiAvatar: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>
 }))
 

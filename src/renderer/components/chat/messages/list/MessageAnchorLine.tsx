@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'

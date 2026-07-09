@@ -116,11 +116,14 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogContent,
     DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-    EmojiAvatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Form: ({ children }: { children: ReactNode }) => <>{children}</>,
     Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
   }
 })
+
+vi.mock('@cherrystudio/ui/fluent-emoji', () => ({
+  EmojiAvatar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+}))
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
 

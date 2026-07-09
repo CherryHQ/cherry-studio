@@ -1,13 +1,5 @@
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  EmojiAvatar,
-  Form,
-  Scrollbar
-} from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Model } from '@shared/data/types/model'
 import { Check } from 'lucide-react'

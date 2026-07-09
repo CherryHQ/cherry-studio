@@ -1,4 +1,4 @@
-import { type HTMLAttributes, memo, useId, useMemo } from 'react'
+import { type CSSProperties, type HTMLAttributes, memo, type MouseEventHandler, useId, useMemo } from 'react'
 
 import fluentEmojiDataJson from './fluent-emoji-data.json'
 import { cn } from './lib/utils'
@@ -111,5 +111,85 @@ EmojiGlyph.displayName = 'EmojiGlyph'
 
 const MemoizedEmojiGlyph = memo(EmojiGlyph)
 
-export { MemoizedEmojiGlyph as EmojiGlyph }
+export interface EmojiIconProps {
+  emoji: string
+  className?: string
+  /** Fixed-mode side length in px. Ignored when `fluid` is true. */
+  size?: number
+  /** Foreground emoji font size in px. */
+  fontSize?: number
+  /** Fill the parent (h-full w-full) instead of using a fixed px size. Drops the default right margin. */
+  fluid?: boolean
+}
+
+const EmojiIcon = ({ emoji, className = '', size = 26, fontSize = 15, fluid = false }: EmojiIconProps) => {
+  const wrapperStyle: CSSProperties = fluid
+    ? { fontSize: `${fontSize}px` }
+    : {
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${size / 2}px`,
+        fontSize: `${fontSize}px`
+      }
+
+  return (
+    <div
+      className={cn(
+        'relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full',
+        fluid ? 'h-full w-full' : 'mr-1',
+        className
+      )}
+      style={wrapperStyle}>
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 flex items-center justify-center blur-sm opacity-40"
+        style={{
+          fontSize: '200%',
+          transform: 'scale(1.5)'
+        }}>
+        <MemoizedEmojiGlyph emoji={emoji || '⭐️'} decorative />
+      </div>
+      {emoji ? <MemoizedEmojiGlyph emoji={emoji} /> : null}
+    </div>
+  )
+}
+
+EmojiIcon.displayName = 'EmojiIcon'
+
+export interface EmojiAvatarProps {
+  children: string
+  size?: number
+  fontSize?: number
+  onClick?: MouseEventHandler<HTMLDivElement>
+  className?: string
+  style?: CSSProperties
+}
+
+const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className, style }: EmojiAvatarProps) => (
+  <div
+    onClick={onClick}
+    className={cn(
+      'flex items-center justify-center',
+      'bg-background-soft border-border',
+      'rounded-[20%] cursor-pointer',
+      'transition-opacity hover:opacity-80',
+      'border-[0.5px]',
+      className
+    )}
+    style={{
+      width: size,
+      height: size,
+      fontSize: fontSize ?? size * 0.5,
+      ...style
+    }}>
+    <MemoizedEmojiGlyph emoji={children} />
+  </div>
+)
+
+EmojiAvatar.displayName = 'EmojiAvatar'
+
+const MemoizedEmojiIcon = memo(EmojiIcon)
+const MemoizedEmojiAvatar = memo(EmojiAvatar)
+
+export { MemoizedEmojiAvatar as EmojiAvatar, MemoizedEmojiGlyph as EmojiGlyph, MemoizedEmojiIcon as EmojiIcon }
 export default MemoizedEmojiGlyph

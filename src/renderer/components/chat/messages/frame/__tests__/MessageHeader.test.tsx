@@ -32,10 +32,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
     return <div className={className} role="checkbox" {...domProps} />
   },
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+
+vi.mock('@cherrystudio/ui/fluent-emoji', () => ({
   EmojiAvatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  )
 }))
 
 vi.mock('@renderer/utils/model', () => ({

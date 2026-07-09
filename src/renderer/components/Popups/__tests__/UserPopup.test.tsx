@@ -66,11 +66,6 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </h2>
     ),
-    EmojiAvatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <div data-testid="emoji-avatar" {...props}>
-        {children}
-      </div>
-    ),
     Input: (props: { [key: string]: unknown }) => <input {...props} />,
     Popover: ({
       children,
@@ -98,6 +93,14 @@ vi.mock('@cherrystudio/ui', () => {
     )
   }
 })
+
+vi.mock('@cherrystudio/ui/fluent-emoji', () => ({
+  EmojiAvatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    <div data-testid="emoji-avatar" {...props}>
+      {children}
+    </div>
+  )
+}))
 
 // This suite renders the real popup through the store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
