@@ -67,6 +67,10 @@ const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>
 }))
 
+const i18nMock = vi.hoisted(() => ({
+  t: (key: string) => key
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
@@ -131,7 +135,7 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
     i18n: { language: 'en-US' },
-    t: (key: string) => key
+    t: i18nMock.t
   })
 }))
 
@@ -518,6 +522,7 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
     )
+    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledTimes(4))
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
