@@ -5,11 +5,12 @@ import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNormalTooltipProps, mockLoggerWarn, mockUseQuery, mockOpenTab } = vi.hoisted(() => ({
+const { mockNormalTooltipProps, mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
   mockNormalTooltipProps: [] as Array<{ sideOffset?: number }>,
   mockLoggerWarn: vi.fn(),
   mockUseQuery: vi.fn(),
-  mockOpenTab: vi.fn()
+  mockOpenTab: vi.fn(),
+  mockToastSuccess: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -46,11 +47,18 @@ vi.mock('react-i18next', () => ({
         'library.config.prompt.vars.model_name': 'Model name',
         'library.config.prompt.vars.os': 'OS',
         'library.config.prompt.vars.time': 'Time',
-        'library.config.prompt.vars.username': 'Username'
+        'library.config.prompt.vars.username': 'Username',
+        'message.copy.success': 'Copied'
       }
       return labels[key] ?? key
     }
   })
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    success: mockToastSuccess
+  }
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
@@ -97,6 +105,7 @@ describe('EditDialogShared', () => {
   beforeEach(() => {
     mockUseQuery.mockReturnValue({ data: { items: [] }, isLoading: false })
     mockOpenTab.mockReset()
+    mockToastSuccess.mockReset()
     writeText.mockResolvedValue(undefined)
     mockLoggerWarn.mockReset()
     mockNormalTooltipProps.length = 0
@@ -112,6 +121,7 @@ describe('EditDialogShared', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy {{date}}' }))
 
     expect(writeText).toHaveBeenCalledWith('{{date}}')
+    await vi.waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Copied'))
     expect(mockLoggerWarn).not.toHaveBeenCalled()
     expect(mockNormalTooltipProps.at(-1)).toMatchObject({ sideOffset: 0 })
   })

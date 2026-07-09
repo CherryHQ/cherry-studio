@@ -26,6 +26,7 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -687,9 +688,12 @@ export function CompactModelField({
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
   const copyVariable = (variable: string) => {
-    navigator.clipboard.writeText(variable).catch((error) => {
-      logger.warn('Failed to copy prompt variable to clipboard', error as Error)
-    })
+    navigator.clipboard
+      .writeText(variable)
+      .then(() => toast.success(t('message.copy.success')))
+      .catch((error) => {
+        logger.warn('Failed to copy prompt variable to clipboard', error as Error)
+      })
   }
   const content = (
     <div className="space-y-3">
