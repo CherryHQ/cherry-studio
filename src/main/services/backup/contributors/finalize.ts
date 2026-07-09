@@ -180,7 +180,7 @@ export function finalize(
 
   // ── #11: every FileRefSourceType is owned or runtime-only-excluded (set diff) ─
   // Runtime-only sourceTypes (in-memory, no owner) are pre-covered — architecture
-  // L193/L283 "temp_session excluded (runtime)", contributor-spec §11 runtime-only-exclude.
+  // §8.5 invariant #11 "temp_session excluded (runtime)" (runtime-only-exclude).
   const coveredSources = new Set<FileRefSourceType>(RUNTIME_EXCLUDED_FILE_REF_SOURCES)
   for (const c of contributors) {
     for (const p of c.schema.fileRefSourcePolicies) {
@@ -395,7 +395,7 @@ export function finalize(
     }
   }
 
-  // ── polymorphicEntityMap validation (architecture L201) ───────────────────────
+  // ── polymorphicEntityMap validation (architecture §8.5 invariant #21) ──────────
   // Reuses invariant #21 as the payload id (an identity-routing deviation, shared with
   // the platformSpecificKeys check above) and disambiguates via the `deviation` subkey —
   // see contributor-spec.md §4.2. Record<EntityType, BackupDomain | 'excluded'> is

@@ -121,7 +121,7 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
     await finished(output).catch(() => {})
     await unlink(tmpPath).catch(() => {})
     // Wrap ENOSPC (disk filled mid-archive — typically external blobs uncounted by
-    // preflight) as DiskFullError for a clear renderer message (disk budget L254).
+    // preflight) as DiskFullError for a clear renderer message (BackupService.preflightDisk, the 1.2x safety budget).
     throw (e as NodeJS.ErrnoException).code === 'ENOSPC' ? new DiskFullError() : e
   }
 }

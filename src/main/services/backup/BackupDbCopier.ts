@@ -7,7 +7,7 @@
 // which is restore-merge-base only). @0xfullex #16714 floated `backupTo(path)` via
 // `db.backup()` for export.
 //
-// DbService.sqlite is private (DbService.ts L40), so the interim impl opens a
+// DbService.sqlite is private, so the interim impl opens a
 // 2nd better-sqlite3 connection to the live file (sqlite allows multi-connection
 // to the same file; the backup API is designed for online backup). When @0xfullex
 // lands `DbService.backupTo(path)` upstream, the orchestrator swaps in a thin
