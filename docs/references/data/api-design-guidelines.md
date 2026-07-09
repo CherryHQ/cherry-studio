@@ -188,6 +188,8 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
+Exception: a route may combine a state transition with an ordering mutation only when exposing the intermediate state would violate the feature contract. For example, `PATCH /providers/:providerId/enable:pin-to-top` atomically ensures a provider is enabled and first in provider order; callers must refresh both `/providers` and the provider entity after it succeeds.
+
 
 ```typescript
 // Search

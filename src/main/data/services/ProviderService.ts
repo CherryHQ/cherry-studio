@@ -304,10 +304,6 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      if (current.isEnabled) {
-        return current
-      }
-
       try {
         applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
           pkColumn: userProviderTable.providerId

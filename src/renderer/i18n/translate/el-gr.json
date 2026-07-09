@@ -6639,6 +6639,7 @@
         "large_group_hidden": "Εμφάνιση {{count}} επιπλέον μοντέλων",
         "model_in_use_by_knowledge_base": "Αυτό το μοντέλο χρησιμοποιείται από μια βάση γνώσης και δεν μπορεί να διαγραφεί.",
         "operation_failed": "Model operation failed.",
+        "provider_enable_failed": "[to be translated]:Models were updated, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
         "remove_listed": "Αφαίρεση όλων των μοντέλων",

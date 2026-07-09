@@ -6639,6 +6639,7 @@
         "large_group_hidden": "Показать ещё {{count}} моделей",
         "model_in_use_by_knowledge_base": "Эта модель используется базой знаний и не может быть удалена.",
         "operation_failed": "Model operation failed.",
+        "provider_enable_failed": "[to be translated]:Models were updated, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Повторное получение списка моделей",
         "reload_catalog": "Refresh list",
         "remove_listed": "Удалить все модели",

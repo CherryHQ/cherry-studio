@@ -6639,6 +6639,7 @@
         "large_group_hidden": "Zeige {{count}} weitere Modelle",
         "model_in_use_by_knowledge_base": "Dieses Modell wird von einer Wissensbasis verwendet und kann nicht gelöscht werden.",
         "operation_failed": "Model operation failed.",
+        "provider_enable_failed": "[to be translated]:Models were updated, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Modellliste erneut abrufen",
         "reload_catalog": "Refresh list",
         "remove_listed": "Alle Modelle entfernen",

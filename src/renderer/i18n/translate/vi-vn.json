@@ -6639,6 +6639,7 @@
         "large_group_hidden": "Hiển thị thêm {{count}} mô hình",
         "model_in_use_by_knowledge_base": "Mô hình này đang được sử dụng bởi một cơ sở kiến thức và không thể bị xóa.",
         "operation_failed": "Model operation failed.",
+        "provider_enable_failed": "[to be translated]:Models were updated, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
         "remove_listed": "Xóa tất cả mô hình",

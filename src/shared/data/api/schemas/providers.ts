@@ -183,7 +183,10 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Enable a provider and move it to the top in one persisted operation.
+   * Ensure a provider is enabled and pinned to the top in one persisted operation.
+   * This is a narrow state-plus-order exception to the canonical `/providers/:id/order`
+   * route because callers must not expose an enabled-but-not-pinned intermediate state.
+   * The renderer must refresh `/providers` and the provider entity after this mutation.
    * @example PATCH /providers/openai-main/enable:pin-to-top
    */
   '/providers/:providerId/enable:pin-to-top': {

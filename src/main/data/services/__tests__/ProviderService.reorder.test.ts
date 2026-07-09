@@ -73,14 +73,14 @@ describe('ProviderService reorder', () => {
     expect(row.isEnabled).toBe(true)
   })
 
-  it('leaves an already enabled provider in place for atomic enable-and-pin', async () => {
+  it('pins an already enabled provider to the first position for atomic enable-and-pin', async () => {
     await seedProviders()
     await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
 
     const updated = providerService.enableAndMoveToFirst('gemini')
 
     expect(updated.isEnabled).toBe(true)
-    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+    expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
   })
 
   it('moves a provider after an anchor', async () => {
