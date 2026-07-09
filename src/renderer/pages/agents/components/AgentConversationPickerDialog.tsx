@@ -7,7 +7,7 @@ import {
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -46,7 +46,7 @@ export function AgentConversationPickerDialog({
       agents.map((agent) => ({
         id: `agent:${agent.id}`,
         name: agent.name,
-        searchText: agent.description,
+        searchText: getAgentDescriptionForDisplay(agent, t),
         icon: (
           <EmojiIcon
             emoji={getAgentAvatarFromConfiguration(agent.configuration)}
@@ -57,7 +57,7 @@ export function AgentConversationPickerDialog({
         ),
         agentId: agent.id
       })),
-    [agents]
+    [agents, t]
   )
 
   // The picker closes itself before the caller runs its async work (avoids a refetch flash while the
