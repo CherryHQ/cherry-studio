@@ -153,4 +153,14 @@ describe('ResourceCreateWizard', () => {
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
   })
+
+  it('prefills the default model for agent kind even when rejected by the model filter', async () => {
+    modelHook.defaultModel = { id: 'provider::default' }
+
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+    )
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+  })
 })
