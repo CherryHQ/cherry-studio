@@ -62,8 +62,8 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // authConfig skeletons, so a plain `remote-fills-local-null` would treat those as
     // "present" and silently drop backed-up credentials. `remote-fills-local-empty`
     // treats [], null, and empty/skeleton auth configs as missing — preserves a
-    // working local API key, brings in keys present only in the backup (§5 "防丢 API
-    // key"). Restore (C/D track) implements the empty/skeleton detection.
+    // working local API key, brings in keys present only in the backup (loss-
+    // prevention for the API key). Restore (C/D track) implements the empty/skeleton detection.
     fieldMergePolicies: [
       {
         table: table('user_provider'),

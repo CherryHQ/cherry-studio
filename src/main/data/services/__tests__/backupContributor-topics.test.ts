@@ -1,5 +1,5 @@
 // Unit tests for the TOPICS contributor — pure declaration assertions (no DB).
-import type { CloneAggregateContext } from '@main/data/db/backup/contexts'
+import type { CloneAggregateContext } from '@main/data/db/backup/contributor-types'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
