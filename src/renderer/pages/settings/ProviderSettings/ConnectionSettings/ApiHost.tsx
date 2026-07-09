@@ -12,12 +12,15 @@ import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
 
 interface ApiHostProps {
   providerId: string
+  onRequestModelPullGuide?: () => void
 }
 
-export default function ApiHost({ providerId }: ApiHostProps) {
+export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHostProps) {
   const { provider } = useProvider(providerId)
   const { updateProvider } = useProviderMutations(providerId)
   const [customHeaderOpen, setCustomHeaderOpen] = useState(false)
+  const [apiHostEdited, setApiHostEdited] = useState(false)
+  const [anthropicApiHostEdited, setAnthropicApiHostEdited] = useState(false)
   const meta = useProviderMeta(providerId)
   const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
     useProviderEndpoints(provider)
@@ -39,6 +42,28 @@ export default function ApiHost({ providerId }: ApiHostProps) {
     apiVersion,
     patchProvider: updateProvider
   })
+  const handleApiHostChange = (value: string) => {
+    setApiHostEdited(true)
+    setApiHost(value)
+  }
+  const handleApiHostCommit = async () => {
+    const committed = await endpointActions.commitApiHost()
+    if (committed && apiHostEdited) {
+      setApiHostEdited(false)
+      onRequestModelPullGuide?.()
+    }
+  }
+  const handleAnthropicApiHostChange = (value: string) => {
+    setAnthropicApiHostEdited(true)
+    setAnthropicApiHost(value)
+  }
+  const handleAnthropicApiHostCommit = async () => {
+    const committed = await endpointActions.commitAnthropicApiHost()
+    if (committed && anthropicApiHostEdited) {
+      setAnthropicApiHostEdited(false)
+      onRequestModelPullGuide?.()
+    }
+  }
 
   if (!provider) {
     return null
@@ -67,8 +92,8 @@ export default function ApiHost({ providerId }: ApiHostProps) {
             isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
-            onApiHostChange={setApiHost}
-            onApiHostCommit={() => void endpointActions.commitApiHost()}
+            onApiHostChange={handleApiHostChange}
+            onApiHostCommit={() => void handleApiHostCommit()}
             onResetApiHost={endpointActions.resetApiHost}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
@@ -76,8 +101,8 @@ export default function ApiHost({ providerId }: ApiHostProps) {
           <AnthropicApiHostField
             anthropicApiHost={anthropicApiHost}
             anthropicHostPreview={hostPreview.anthropicHostPreview}
-            onAnthropicApiHostChange={setAnthropicApiHost}
-            onAnthropicApiHostCommit={() => void endpointActions.commitAnthropicApiHost()}
+            onAnthropicApiHostChange={handleAnthropicApiHostChange}
+            onAnthropicApiHostCommit={() => void handleAnthropicApiHostCommit()}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
         )}

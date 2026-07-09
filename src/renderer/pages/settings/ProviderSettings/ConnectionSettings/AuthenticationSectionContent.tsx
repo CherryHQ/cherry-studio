@@ -9,11 +9,13 @@ import ProviderConnectionCheckDrawer from './ProviderConnectionCheckDrawer'
 export interface AuthenticationSectionContentProps {
   providerId: string
   onOpenModelHealthCheck?: () => void
+  onRequestModelPullGuide?: () => void
 }
 
 export function AuthenticationSectionContent({
   providerId,
-  onOpenModelHealthCheck
+  onOpenModelHealthCheck,
+  onRequestModelPullGuide
 }: AuthenticationSectionContentProps) {
   const connectionCheck = useProviderConnectionCheck(providerId)
   const { provider } = useProvider(providerId)
@@ -31,8 +33,9 @@ export function AuthenticationSectionContent({
         providerId={providerId}
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
         onOpenConnectionCheck={connectionCheck.openConnectionCheck}
+        onRequestModelPullGuide={onRequestModelPullGuide}
       />
-      <ApiHost providerId={providerId} />
+      <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
       <ProviderConnectionCheckDrawer
         open={connectionCheck.connectionCheckOpen}
         models={connectionCheck.checkableModels}

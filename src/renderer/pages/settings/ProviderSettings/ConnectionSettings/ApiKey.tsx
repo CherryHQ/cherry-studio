@@ -2,7 +2,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherryst
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
@@ -16,19 +16,40 @@ interface ApiKeyProps {
   providerId: string
   apiKeyConnectivity: ApiKeyConnectivity
   onOpenConnectionCheck: () => void
+  onRequestModelPullGuide?: () => void
 }
 
-export default function ApiKey({ providerId, apiKeyConnectivity, onOpenConnectionCheck }: ApiKeyProps) {
+export default function ApiKey({
+  providerId,
+  apiKeyConnectivity,
+  onOpenConnectionCheck,
+  onRequestModelPullGuide
+}: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
-  const { inputApiKey, setInputApiKey } = useAuthenticationApiKey()
+  const { inputApiKey, setInputApiKey, hasPendingSync, commitInputApiKeyNow } = useAuthenticationApiKey()
   const [showApiKey, setShowApiKey] = useState(false)
   const [keyListOpen, setKeyListOpen] = useState(false)
+  const [apiKeyEdited, setApiKeyEdited] = useState(false)
 
   useEffect(() => {
     setShowApiKey(false)
   }, [provider?.id])
+
+  const handleApiKeyBlur = useCallback(async () => {
+    if (!apiKeyEdited && !hasPendingSync) {
+      return
+    }
+
+    try {
+      await commitInputApiKeyNow()
+      setApiKeyEdited(false)
+      onRequestModelPullGuide?.()
+    } catch {
+      // Save failures are surfaced by the API-key hook; do not show the model-pull hint.
+    }
+  }, [apiKeyEdited, commitInputApiKeyNow, hasPendingSync, onRequestModelPullGuide])
 
   if (!provider || !meta.isApiKeyFieldVisible) {
     return null
@@ -61,7 +82,11 @@ export default function ApiKey({ providerId, apiKeyConnectivity, onOpenConnectio
                 className={fieldClasses.input}
                 value={inputApiKey}
                 placeholder={t('settings.provider.api_key.placeholder')}
-                onChange={(event) => setInputApiKey(event.target.value)}
+                onChange={(event) => {
+                  setApiKeyEdited(true)
+                  setInputApiKey(event.target.value)
+                }}
+                onBlur={() => void handleApiKeyBlur()}
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (

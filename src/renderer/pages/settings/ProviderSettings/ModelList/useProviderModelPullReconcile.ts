@@ -179,7 +179,7 @@ export function useProviderModelPullReconcile(providerId: string) {
           toRemove: staleIds
         }
       })
-      const reconciledIds = new Set((reconciledModels as Model[]).map((model) => model.id))
+      const reconciledIds = new Set(reconciledModels.map((model) => model.id))
       const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
 
       if (skippedCount > 0) {

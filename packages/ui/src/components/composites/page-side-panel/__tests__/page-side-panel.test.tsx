@@ -13,7 +13,7 @@ const motionSnapshots = vi.hoisted(() => ({
 }))
 
 vi.mock('motion/react', async () => {
-  const React = await vi.importActual<typeof import('react')>('react')
+  const ReactActual = await vi.importActual<typeof React>('react')
   const motionPropNames = new Set(['initial', 'animate', 'exit', 'transition'])
   const createMotionComponent =
     (tag: 'div' | 'aside') =>
@@ -27,12 +27,12 @@ vi.mock('motion/react', async () => {
       }
 
       const domProps = Object.fromEntries(Object.entries(props).filter(([key]) => !motionPropNames.has(key)))
-      return React.createElement(tag, { ...domProps, ref }, children)
+      return ReactActual.createElement(tag, { ...domProps, ref }, children)
     }
 
   return {
     AnimatePresence: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+      ReactActual.createElement(ReactActual.Fragment, null, children),
     motion: {
       aside: createMotionComponent('aside'),
       div: createMotionComponent('div')

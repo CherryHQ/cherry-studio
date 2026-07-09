@@ -158,6 +158,41 @@ describe('ApiHost', () => {
     expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
   })
 
+  it('requests the model pull guide after a changed API host is committed on blur', async () => {
+    const commitApiHost = vi.fn().mockResolvedValue(true)
+    const onRequestModelPullGuide = vi.fn()
+
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api2.example.com/chat/completions',
+      anthropicHostPreview: 'https://api2.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost,
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" onRequestModelPullGuide={onRequestModelPullGuide} />)
+
+    const apiHostInput = screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })
+    fireEvent.change(apiHostInput, { target: { value: 'https://api2.example.com' } })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(onRequestModelPullGuide).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('opens the request-configuration drawer from the add endpoint text button', () => {
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',

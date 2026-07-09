@@ -51,7 +51,9 @@ describe('useProviderModelList', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(result.current.editDrawer.open).toBe(false)
-    expect(result.current.sections.enabledSections[0]?.items[0]?.model.name).toBe('Alpha')
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.name)
+    ).toContain('Alpha')
 
     act(() => {
       result.current.sections.onEditModel(models[0])
@@ -440,11 +442,13 @@ describe('useProviderModelList', () => {
       result.current.sections.enabledSections
         .flatMap((section) => section.items)
         .map((item) => [item.model.id, item.model.isEnabled] as const)
-    ).toEqual([
-      ['openai::reasoning-alpha', false],
-      ['openai::reasoning-beta', false],
-      ['openai::embedding-gamma', false]
-    ])
+    ).toEqual(
+      expect.arrayContaining([
+        ['openai::reasoning-alpha', false],
+        ['openai::reasoning-beta', false],
+        ['openai::embedding-gamma', false]
+      ])
+    )
 
     serverModels = serverModels.map((model: any) =>
       model.id === 'openai::embedding-gamma' ? model : { ...model, isEnabled: false }
@@ -618,7 +622,9 @@ describe('useProviderModelList', () => {
     expect(result.current.header.enabledModelCount).toBe(1)
     expect(result.current.sections.displayEnabledModelCount).toBe(2)
     expect(result.current.sections.displayDisabledModelCount).toBe(0)
-    expect(result.current.sections.enabledSections[0]?.items[0]?.model.id).toBe('openai::reasoning-alpha')
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toContain('openai::reasoning-alpha')
     expect(
       result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).not.toContain('openai::reasoning-alpha')

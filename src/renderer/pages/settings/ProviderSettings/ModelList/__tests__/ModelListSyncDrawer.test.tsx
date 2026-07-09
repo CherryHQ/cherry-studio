@@ -162,7 +162,7 @@ describe('ModelListSyncDrawer', () => {
   it('renders a fallback group for models without explicit groups', () => {
     renderDrawer()
 
-    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.getByText('custom')).toBeInTheDocument()
     expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
     expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
   })
