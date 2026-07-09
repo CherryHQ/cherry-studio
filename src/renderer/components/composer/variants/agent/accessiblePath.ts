@@ -1,3 +1,11 @@
+// TODO(file-infra): Move the path-containment helpers below
+// (`isPathWithinAccessiblePath` / `getAccessiblePathRelativePath`) into a
+// renderer-safe, general-purpose `isPathInside` / `getRelativePath` in
+// `@shared/utils/file` once that infra exists — the main-side `isPathInside`
+// (`src/main/utils/file/path.ts`) can't be reused here because it depends on
+// `node:path`. Generalizing needs UNC paths, relative inputs, and per-mount
+// case-insensitivity handling resolved first, so this module stays an
+// agent-local stopgap until then.
 import { isMac, isWin } from '@renderer/utils/platform'
 import { canonicalizeAbsolutePath } from '@shared/utils/file'
 
