@@ -992,6 +992,75 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('reports scroll ownership so collapsible block anchors yield only while the runtime writes scrollTop', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      let scrollHeight = 1000
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      scrollHeight = 1200
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+
+      // At the live bottom during streaming, auto-stick owns scrollTop → blocks yield.
+      scrollTop = 800
+      act(() => runtime!.scrollerProps.onScroll(800))
+      expect(handle!.isAtBottom()).toBe(true)
+      expect(runtime!.isScrollOwned()).toBe(true)
+
+      // Content grows; bottom-follow keeps us at the live edge (still owned).
+      scrollHeight = 2000
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick()
+      const followedOffset = scrollTop
+      act(() => runtime!.scrollerProps.onScroll(followedOffset))
+
+      // A genuine upward gesture (reported via markUserInput) hands control to the
+      // user: the pin is gone, we're no longer at the bottom, nothing is animating,
+      // so the runtime stops writing scrollTop. Ownership must return to the
+      // block-level anchor — otherwise expanding/collapsing a block here would jump
+      // the reading position. A bare `preserveScrollAnchor` check would wrongly
+      // keep reporting ownership throughout the whole streaming turn.
+      const userOffset = followedOffset - 40
+      scrollTop = userOffset
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(userOffset)
+      })
+      expect(handle!.isAtBottom()).toBe(false)
+      expect(runtime!.isScrollOwned()).toBe(false)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('ignores a large programmatic backward jump during bottom-follow (no input) and keeps following', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

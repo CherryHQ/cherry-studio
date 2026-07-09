@@ -201,13 +201,17 @@ export function useChatVirtualizerRuntime<T>({
 
   // Single predicate the collapsible blocks consult (via ScrollOwnershipProvider)
   // before running their own scroll-anchor restore: true whenever the runtime is
-  // already the authoritative scrollTop writer — a streaming turn (top-pin or its
-  // bottom-follow handoff), at-bottom auto-stick, or an in-flight smooth scroll.
-  // Ref-backed so its identity never changes, keeping the context value stable
-  // (no extra re-renders of the block tree).
+  // already the authoritative scrollTop writer. Reuses the exact bottom-follow
+  // lock (top-pin, or a streaming turn the user has NOT taken over) plus the two
+  // other owners — at-bottom auto-stick and an in-flight smooth scroll. It must
+  // NOT be bare `preserveScrollAnchor`: once the user scrolls away mid-stream
+  // (`userTookControl`), the pin is gone and auto-stick has bowed out, so the
+  // runtime stops writing scrollTop — ownership has to return to the block anchor
+  // or a toggle would jump the position the user is reading. Ref-backed so its
+  // identity never changes, keeping the context value stable (no extra re-renders
+  // of the block tree).
   const isScrollOwnedRef = useRef<() => boolean>(() => false)
-  isScrollOwnedRef.current = () =>
-    preserveScrollAnchorRef.current || anchor.isPinned() || atBottom.isAtBottom() || smoothScroll.isAnimating()
+  isScrollOwnedRef.current = () => isBottomFollowSuppressed() || atBottom.isAtBottom() || smoothScroll.isAnimating()
   const isScrollOwned = useCallback(() => isScrollOwnedRef.current(), [])
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
