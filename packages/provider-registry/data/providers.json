@@ -933,6 +933,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Eden AI - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.edenai.run/v3/"
+        }
+      },
+      "id": "edenai",
+      "metadata": {
+        "website": {
+          "apiKey": "https://app.edenai.run/admin/account/settings",
+          "docs": "https://docs.edenai.co",
+          "models": "https://www.edenai.co/product/models",
+          "official": "https://www.edenai.co"
+        }
+      },
+      "name": "Eden AI"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Fireworks - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {

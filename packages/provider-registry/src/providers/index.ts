@@ -16,6 +16,7 @@ import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
 import p_dmxapi from './dmxapi'
 import p_doubao from './doubao'
+import p_edenai from './edenai'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
 import p_gemini from './gemini'
@@ -110,6 +111,7 @@ export const PROVIDERS: Provider[] = [
   p_minimax,
   p_groq,
   p_together,
+  p_edenai,
   p_fireworks,
   p_nvidia,
   p_grok,
