@@ -48,13 +48,9 @@ function setupScroller({
   return { scroller, anchorEl, scrollTopWrites, rectSpy }
 }
 
-function renderScrollAnchor(isScrollOwned?: () => boolean, releaseScrollOwnership?: () => void) {
-  const wrapper = isScrollOwned
-    ? ({ children }: { children: ReactNode }) => (
-        <ScrollOwnershipProvider isScrollOwned={isScrollOwned} releaseScrollOwnership={releaseScrollOwnership}>
-          {children}
-        </ScrollOwnershipProvider>
-      )
+function renderScrollAnchor({ insideList }: { insideList: boolean }) {
+  const wrapper = insideList
+    ? ({ children }: { children: ReactNode }) => <ScrollOwnershipProvider>{children}</ScrollOwnershipProvider>
     : undefined
   return renderHook(() => useScrollAnchor<HTMLDivElement>(), { wrapper })
 }
@@ -74,10 +70,26 @@ describe('useScrollAnchor', () => {
     vi.restoreAllMocks()
   })
 
-  it('restores scrollTop after a toggle when the runtime does not own scroll', () => {
+  it('applies the update without measuring or writing scrollTop inside the message list', () => {
+    const { anchorEl, scrollTopWrites, rectSpy } = setupScroller()
+    const { result } = renderScrollAnchor({ insideList: true })
+    result.current.anchorRef.current = anchorEl
+
+    const update = vi.fn()
+    act(() => result.current.withScrollAnchor(update))
+
+    // The runtime owns scroll stability inside the list — whether it is driving
+    // (pin / bottom-follow) or freezing the viewport after a user takeover, a
+    // second scrollTop writer here is what used to jitter the scrollbar.
+    expect(update).toHaveBeenCalledOnce()
+    expect(scrollTopWrites).toEqual([])
+    expect(rectSpy).not.toHaveBeenCalled()
+  })
+
+  it('restores scrollTop after a toggle when standalone (no provider)', () => {
     // Anchor moves up 40px (200 -> 160) as content above it collapses.
     const { anchorEl, scrollTopWrites } = setupScroller({ initialScrollTop: 200, anchorTops: [100, 60] })
-    const { result } = renderScrollAnchor(() => false)
+    const { result } = renderScrollAnchor({ insideList: false })
     result.current.anchorRef.current = anchorEl
 
     const update = vi.fn()
@@ -88,78 +100,14 @@ describe('useScrollAnchor', () => {
     expect(scrollTopWrites).toEqual([160])
   })
 
-  it('yields without writing scrollTop while the runtime owns scroll', () => {
-    const { anchorEl, scrollTopWrites, rectSpy } = setupScroller()
-    const { result } = renderScrollAnchor(() => true)
-    result.current.anchorRef.current = anchorEl
+  it('applies the update without writes when standalone but no anchor element is attached', () => {
+    const { scrollTopWrites } = setupScroller()
+    const { result } = renderScrollAnchor({ insideList: false })
 
     const update = vi.fn()
     act(() => result.current.withScrollAnchor(update))
 
-    // The toggle still applies, but we don't touch scrollTop or even measure —
-    // the runtime is the sole scroll owner during streaming / bottom-follow.
     expect(update).toHaveBeenCalledOnce()
     expect(scrollTopWrites).toEqual([])
-    expect(rectSpy).not.toHaveBeenCalled()
-  })
-
-  it('takes ownership on expand: releases the runtime, then restores its own scrollTop', () => {
-    // Anchor moves up 40px as the expanded block pushes the stream down below it.
-    const { anchorEl, scrollTopWrites } = setupScroller({ initialScrollTop: 200, anchorTops: [100, 60] })
-    // Runtime owns scroll (bottom-follow) until the block reclaims it on expand.
-    let owned = true
-    const releaseScrollOwnership = vi.fn(() => {
-      owned = false
-    })
-    const { result } = renderScrollAnchor(() => owned, releaseScrollOwnership)
-    result.current.anchorRef.current = anchorEl
-
-    const update = vi.fn()
-    act(() => result.current.withScrollAnchor(update, { takeScrollOwnership: true }))
-
-    expect(releaseScrollOwnership).toHaveBeenCalledOnce()
-    expect(update).toHaveBeenCalledOnce()
-    // Ownership was handed back, so the block runs its own restore: 200 + (60 - 100).
-    expect(scrollTopWrites).toEqual([160])
-  })
-
-  it('yields on expand when the runtime keeps ownership (e.g. an active top-pin)', () => {
-    const { anchorEl, scrollTopWrites, rectSpy } = setupScroller()
-    // Runtime declines to hand back ownership (a top-pin stays authoritative).
-    const releaseScrollOwnership = vi.fn()
-    const { result } = renderScrollAnchor(() => true, releaseScrollOwnership)
-    result.current.anchorRef.current = anchorEl
-
-    const update = vi.fn()
-    act(() => result.current.withScrollAnchor(update, { takeScrollOwnership: true }))
-
-    expect(releaseScrollOwnership).toHaveBeenCalledOnce()
-    // Still owned after asking → yield without measuring or writing scrollTop.
-    expect(update).toHaveBeenCalledOnce()
-    expect(scrollTopWrites).toEqual([])
-    expect(rectSpy).not.toHaveBeenCalled()
-  })
-
-  it('does not reclaim ownership on collapse (no takeScrollOwnership)', () => {
-    const { anchorEl, scrollTopWrites } = setupScroller()
-    const releaseScrollOwnership = vi.fn()
-    const { result } = renderScrollAnchor(() => true, releaseScrollOwnership)
-    result.current.anchorRef.current = anchorEl
-
-    act(() => result.current.withScrollAnchor(vi.fn()))
-
-    // A collapse (default) never asks the runtime to hand back ownership.
-    expect(releaseScrollOwnership).not.toHaveBeenCalled()
-    expect(scrollTopWrites).toEqual([])
-  })
-
-  it('restores scrollTop when no ScrollOwnershipProvider is mounted (standalone default)', () => {
-    const { anchorEl, scrollTopWrites } = setupScroller({ initialScrollTop: 200, anchorTops: [100, 60] })
-    const { result } = renderScrollAnchor()
-    result.current.anchorRef.current = anchorEl
-
-    act(() => result.current.withScrollAnchor(vi.fn()))
-
-    expect(scrollTopWrites).toEqual([160])
   })
 })

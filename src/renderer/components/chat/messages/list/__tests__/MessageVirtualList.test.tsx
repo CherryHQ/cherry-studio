@@ -5,8 +5,7 @@ import { MessageVirtualList } from '../MessageVirtualList'
 
 const runtimeMockState = vi.hoisted(() => ({
   isScrollToBottomButtonVisible: false,
-  isScrollOwned: vi.fn(() => false),
-  releaseScrollOwnership: vi.fn(),
+  takeUserControl: vi.fn(),
   scrollToBottom: vi.fn(),
   markUserInput: vi.fn(),
   shift: false
@@ -72,8 +71,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       scrollerRef: { current: null },
       vlistHandleRef: { current: null },
       isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
-      isScrollOwned: runtimeMockState.isScrollOwned,
-      releaseScrollOwnership: runtimeMockState.releaseScrollOwnership,
+      takeUserControl: runtimeMockState.takeUserControl,
       scrollToBottom: runtimeMockState.scrollToBottom,
       markUserInput: runtimeMockState.markUserInput,
       shift: runtimeMockState.shift,
@@ -87,8 +85,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
 describe('MessageVirtualList', () => {
   beforeEach(() => {
     runtimeMockState.isScrollToBottomButtonVisible = false
-    runtimeMockState.isScrollOwned.mockClear()
-    runtimeMockState.releaseScrollOwnership.mockClear()
+    runtimeMockState.takeUserControl.mockClear()
     runtimeMockState.scrollToBottom.mockClear()
     runtimeMockState.markUserInput.mockClear()
     runtimeMockState.shift = false
@@ -144,7 +141,7 @@ describe('MessageVirtualList', () => {
     }
   })
 
-  it('reports pointer/touch/keydown on the scroller as user input and removes the listeners on unmount', () => {
+  it('reports pointer/touch/keydown on the scroller as user input + takeover and removes the listeners on unmount', () => {
     const { unmount } = render(
       <MessageVirtualList
         items={['message-1']}
@@ -161,6 +158,9 @@ describe('MessageVirtualList', () => {
     fireEvent.touchStart(scroller)
     fireEvent.keyDown(scroller, { key: 'PageDown' })
     expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(3)
+    // Every direct input inside the scroller hands the user the wheel —
+    // deliberately unclassified (blocks, buttons and blank space all count).
+    expect(runtimeMockState.takeUserControl).toHaveBeenCalledTimes(3)
 
     unmount()
     expect(removeSpy).toHaveBeenCalledWith('pointerdown', expect.any(Function))

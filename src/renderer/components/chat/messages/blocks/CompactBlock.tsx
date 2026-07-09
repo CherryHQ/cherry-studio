@@ -29,7 +29,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
         type="single"
         collapsible
         value={activeKey}
-        onValueChange={(value) => withScrollAnchor(() => setActiveKey(value), { takeScrollOwnership: value !== '' })}>
+        onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}>
         <AccordionItem value="summary" className="rounded-lg border-0">
           <AccordionTrigger className="[&>svg]:hidden">
             <div className="flex items-center gap-2">

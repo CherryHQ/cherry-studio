@@ -114,7 +114,7 @@ export function MessageVirtualList<T>({
     preserveScrollAnchor
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
-  const { scrollToBottom, markUserInput } = runtime
+  const { scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -134,12 +134,19 @@ export function MessageVirtualList<T>({
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement])
 
-  // Flag real user scroll intent (touch/pointer/keyboard) so the runtime can tell
-  // a genuine scroll-away from a programmatic scroll (virtua remeasure jump, a
-  // child `scrollIntoView`) and only release the top pin for the former.
+  // Any direct user input inside the scroller does two things: (1) flags real
+  // scroll intent so the runtime can tell a genuine scroll-away from a
+  // programmatic scroll (virtua remeasure jump, a child `scrollIntoView`), and
+  // (2) hands the user the wheel — the runtime stops driving and freezes the
+  // viewport so nothing moves under their pointer. Deliberately unclassified:
+  // expanding a block, copying text, clicking blank space all count. Wheel input
+  // is only (1) — its intent is directional, resolved by the scroll handler.
   useEffect(() => {
     if (!scrollerElement) return
-    const onInput = () => markUserInput()
+    const onInput = () => {
+      markUserInput()
+      takeUserControl()
+    }
     scrollerElement.addEventListener('pointerdown', onInput, { passive: true })
     scrollerElement.addEventListener('touchstart', onInput, { passive: true })
     scrollerElement.addEventListener('keydown', onInput)
@@ -148,7 +155,7 @@ export function MessageVirtualList<T>({
       scrollerElement.removeEventListener('touchstart', onInput)
       scrollerElement.removeEventListener('keydown', onInput)
     }
-  }, [markUserInput, scrollerElement])
+  }, [markUserInput, scrollerElement, takeUserControl])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom('smooth')
@@ -164,9 +171,7 @@ export function MessageVirtualList<T>({
         className={className}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
-          <ScrollOwnershipProvider
-            isScrollOwned={runtime.isScrollOwned}
-            releaseScrollOwnership={runtime.releaseScrollOwnership}>
+          <ScrollOwnershipProvider>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}

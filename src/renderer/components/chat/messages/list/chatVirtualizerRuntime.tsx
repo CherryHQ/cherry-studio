@@ -9,6 +9,21 @@
  *     item appended to virtua's data array (so virtua's measurement +
  *     scrollToIndex handles offsets, not us).
  *   - `useSmoothScrollAnimation` — RAF + cancel-on-wheel.
+ *
+ * At any moment exactly one driver owns scrollTop (`scrollDriverRef`):
+ *
+ *   - 'runtime' — the hooks above drive: pin the fresh user message to the top,
+ *     follow the streaming bottom, animate scrolls.
+ *   - 'user' — the user took over (any pointer/touch/keyboard interaction inside
+ *     the scroller via `takeUserControl`, or an upward scroll-away). Runtime
+ *     writers go idle and the viewport is frozen where the user holds it: every
+ *     observed layout change re-asserts scrollTop against a freeze anchor, so
+ *     streaming growth, block toggles and async renders cannot move what the
+ *     user is reading or aiming at.
+ *
+ * The wheel goes back to the runtime when the user returns to the effective
+ * bottom, on an explicit scroll command (scroll-to-bottom/top/key), and at turn
+ * boundaries.
  */
 
 import {
@@ -105,19 +120,14 @@ export interface ChatVirtualizerRuntime<T> {
   scrollerProps: ScrollerEventHandlers
   isScrollToBottomButtonVisible: boolean
   /**
-   * True while the runtime is the authoritative `scrollTop` writer — streaming
-   * top-pin, bottom-follow, or an in-flight smooth scroll. Collapsible blocks
-   * read this (via `ScrollOwnershipProvider`) to yield their local scroll-anchor
-   * restore, which would otherwise fight the runtime and jitter the scrollbar on
-   * expand/collapse during streaming.
+   * The user directly interacted with the message area (pointer / touch /
+   * keyboard — the host wires this to capture-phase input events on the
+   * scroller). The runtime hands them the wheel: it stops driving scrollTop
+   * (bottom-follow, smooth scroll) and instead freezes the viewport against
+   * every layout change, until the user scrolls back to the effective bottom,
+   * an explicit scroll-to-bottom runs, or a new turn begins.
    */
-  isScrollOwned(): boolean
-  /**
-   * Relinquish bottom-follow / smooth-scroll ownership so a collapsible block the
-   * user just expanded can hold its position instead of being scrolled away by the
-   * live stream. A no-op while a top-pin is active (that case is already stable).
-   */
-  releaseScrollOwnership(): void
+  takeUserControl(): void
   scrollToBottom(behavior?: ScrollBehavior): void
   /**
    * Mark that a real user scroll input just happened (wheel is wired via
@@ -142,6 +152,10 @@ const SCROLL_TAKEOVER_THRESHOLD_PX = 6
 // scroll arriving a few hundred ms after an unrelated input isn't misread as a
 // gesture.
 const USER_SCROLL_INPUT_WINDOW_MS = 250
+// While the user holds the viewport frozen, snap scrollTop back to the freeze
+// anchor when a layout change drifts it by more than this. Kept above
+// subpixel/rounding noise so an already-stable viewport never churns.
+const FREEZE_REASSERT_TOLERANCE_PX = 2
 
 export function useChatVirtualizerRuntime<T>({
   items,
@@ -167,14 +181,25 @@ export function useChatVirtualizerRuntime<T>({
   const atBottom = useAtBottomTracker()
   const preserveScrollAnchorRef = useRef(preserveScrollAnchor)
   preserveScrollAnchorRef.current = preserveScrollAnchor
+  // Who drives scrollTop right now. 'runtime': top-pin, bottom-follow and smooth
+  // scrolls write it. 'user': the user took over (any direct interaction with the
+  // message area, or an upward scroll-away) — runtime writers go idle and the
+  // viewport is instead FROZEN against layout changes (see the freeze anchor
+  // below). Hands back to 'runtime' when the user reaches the effective bottom,
+  // on an explicit scroll-to-bottom, and at turn boundaries.
+  const scrollDriverRef = useRef<'runtime' | 'user'>('runtime')
   // True once governance has been handed from the top-pin to the at-bottom
-  // tracker for the current streaming turn. Two writers flip it: (1) the user
-  // manually scrolls away (onScroll, input-gated), and (2) the reply overflows a
-  // viewport so the pin releases and we switch to bottom-follow (the ResizeObserver
-  // handoff below). Once set, `preserveScrollAnchor` no longer suppresses
+  // tracker for the current streaming turn — the reply overflowed a viewport so
+  // the pin released (ResizeObserver handoff below), or the user scrolled/was
+  // brought past the pin. Once set, `preserveScrollAnchor` no longer suppresses
   // bottom-follow, so reaching the bottom re-engages auto-stick. Reset at the
   // start of each turn (see the pin effect and the preserve rising edge below).
-  const userTookControlRef = useRef(false)
+  const turnHandedOffRef = useRef(false)
+  // Viewport freeze anchor while the user drives: the virtua item at the
+  // viewport top plus the pixel offset into it. Kept in virtua's offset table
+  // (not a DOM node) so it survives virtualization unmounts; the ResizeObserver
+  // re-asserts scrollTop from it after every layout change.
+  const freezeAnchorRef = useRef<{ itemIndex: number; offsetInItem: number } | null>(null)
   // Timestamp of the last real user scroll input (wheel / touch / pointer). Lets
   // us tell a genuine scroll-away from a programmatic scroll (virtua remeasure
   // jump, a child `scrollIntoView`) so only the former releases the top pin.
@@ -192,7 +217,10 @@ export function useChatVirtualizerRuntime<T>({
   const bottomFollowInsetRef = useRef(0)
   bottomFollowInsetRef.current = anchor.spacerHeight
   const isBottomFollowSuppressed = useCallback(
-    () => anchor.isPinned() || (preserveScrollAnchorRef.current && !userTookControlRef.current),
+    () =>
+      scrollDriverRef.current === 'user' ||
+      anchor.isPinned() ||
+      (preserveScrollAnchorRef.current && !turnHandedOffRef.current),
     [anchor]
   )
   const getBottomFollowInset = useCallback(() => bottomFollowInsetRef.current, [])
@@ -204,25 +232,6 @@ export function useChatVirtualizerRuntime<T>({
     isLocked: isBottomFollowSuppressed,
     markStuck: atBottom.notifyProgrammaticStick
   })
-
-  // Single predicate the collapsible blocks consult (via ScrollOwnershipProvider)
-  // before running their own scroll-anchor restore: true ONLY when a runtime writer
-  // is actively holding scrollTop, so a block toggle must not fight it:
-  //   - the top-pin re-asserts scrollTop        -> anchor.isPinned()
-  //   - auto-stick follows the live bottom       -> atBottom.isAtBottom() && !isBottomFollowSuppressed()
-  //     (mirrors useAutoStickToBottom's own `isLocked() || !isAtBottom()` bail-out)
-  //   - a smooth-scroll animation is in flight   -> smoothScroll.isAnimating()
-  // Deliberately NOT `isBottomFollowSuppressed()` / bare `preserveScrollAnchor`:
-  // suppression only means "don't let auto-stick follow", which stays true through a
-  // streaming turn that has no pin and isn't at the bottom (a follow-up steered into
-  // a live turn, or streaming-on-mount) — there the runtime writes nothing, so the
-  // block anchor must keep ownership or a toggle would jump the reading position.
-  // Ref-backed so its identity never changes, keeping the context value stable
-  // (no extra re-renders of the block tree).
-  const isScrollOwnedRef = useRef<() => boolean>(() => false)
-  isScrollOwnedRef.current = () =>
-    anchor.isPinned() || (atBottom.isAtBottom() && !isBottomFollowSuppressed()) || smoothScroll.isAnimating()
-  const isScrollOwned = useCallback(() => isScrollOwnedRef.current(), [])
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
@@ -239,25 +248,63 @@ export function useChatVirtualizerRuntime<T>({
     setIsScrollToBottomButtonVisible(false)
   }, [])
 
-  // Let a collapsible block the user just expanded reclaim scrollTop from
-  // bottom-follow. Deliberately a NO-OP while a top-pin is active: with the user
-  // message pinned to the top, content already grows coherently below it, so a
-  // block toggle stays stable and we keep the pin. Otherwise relinquish
-  // bottom-follow / smooth-scroll ownership — cancel any animation, latch the
-  // at-bottom tracker into its protected `user-scrolled-up` state (a plain reset
-  // would be re-latched by the very next in-tolerance size change — a short
-  // expanded block near the live edge stays within the 100px tolerance, and
-  // auto-stick would immediately scroll the revealed content away again), and
-  // record the manual-control takeover (mirrors a user scroll-away) so
-  // `isScrollOwned()` reports false and the block anchor holds the expanded
-  // content in place. Scrolling back to the bottom re-engages auto-stick.
-  const releaseScrollOwnership = useCallback(() => {
-    if (anchor.isPinned()) return
+  // ---- user-held viewport freeze --------------------------------------
+
+  // Record the freeze anchor at the current scroll position: the item under the
+  // viewport top plus the pixel offset into it, in virtua's offset space
+  // (`getItemOffset` excludes `startMargin`, so subtract the top padding first).
+  const captureFreezeAnchor = useCallback(() => {
+    const el = scrollerRef.current
+    const handle = vlistHandleRef.current
+    if (!el || !handle) return
+    const itemSpaceOffset = Math.max(0, el.scrollTop - Math.max(0, topPadding))
+    const itemIndex = handle.findItemIndex(itemSpaceOffset)
+    if (itemIndex < 0) {
+      freezeAnchorRef.current = null
+      return
+    }
+    freezeAnchorRef.current = { itemIndex, offsetInItem: itemSpaceOffset - handle.getItemOffset(itemIndex) }
+  }, [topPadding, vlistHandleRef])
+
+  // Snap scrollTop back to the freeze anchor after a layout change. Recomputed
+  // from virtua's live offset table, so its own remeasure compensation (which
+  // moves the item offset and scrollTop by the same delta) stays a no-op, while
+  // rogue programmatic nudges (a child `scrollIntoView`) get corrected. Yields
+  // while a pin holds (same position, one writer), during a smooth scroll, and
+  // within the user-input window — the user's own in-flight scrolling must not
+  // be fought; each of their scroll events re-captures the anchor anyway.
+  const reassertFreeze = useCallback(() => {
+    const frozen = freezeAnchorRef.current
+    const el = scrollerRef.current
+    const handle = vlistHandleRef.current
+    if (!frozen || !el || !handle) return
+    if (anchor.isPinned() || smoothScroll.isAnimating()) return
+    if (performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS) return
+    const target = Math.max(0, topPadding) + handle.getItemOffset(frozen.itemIndex) + frozen.offsetInItem
+    if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+      el.scrollTop = target
+    }
+  }, [anchor, smoothScroll, topPadding, vlistHandleRef])
+
+  // Any direct user interaction with the message area hands them the wheel:
+  // cancel runtime writers, latch the at-bottom tracker into its protected
+  // `user-scrolled-up` state (a plain reset would be re-latched by the very next
+  // in-tolerance size change), and freeze the viewport where it stands. An
+  // active top-pin keeps holding instead of the freeze (same position, one
+  // writer); the freeze takes over if the pin later lets go.
+  const takeUserControl = useCallback(() => {
     smoothScroll.cancel()
+    scrollDriverRef.current = 'user'
     atBottom.notifyUserTookControl()
-    userTookControlRef.current = true
+    captureFreezeAnchor()
     updateScrollToBottomButtonVisibility()
-  }, [anchor, atBottom, smoothScroll, updateScrollToBottomButtonVisibility])
+  }, [atBottom, captureFreezeAnchor, smoothScroll, updateScrollToBottomButtonVisibility])
+
+  const handBackToRuntime = useCallback(() => {
+    scrollDriverRef.current = 'runtime'
+    freezeAnchorRef.current = null
+  }, [])
+
   const stickToEffectiveBottom = useCallback(() => {
     const el = scrollerRef.current
     if (!el) return
@@ -362,30 +409,46 @@ export function useChatVirtualizerRuntime<T>({
       // Anchor first: it may adjust spacer height. Auto-stick reads
       // scrollHeight after, so any pin-driven layout change is reflected.
       anchor.onContentSizeChange()
-      // The pin let go because the reply outgrew the space below it (overflowed a
-      // viewport). Hand the turn to bottom-follow: drop the preserve suppression
-      // and snap to the live bottom so streaming now sticks to the bottom instead
-      // of freezing the user message at the top.
       const pinReleasedByContent = wasPinned && !anchor.isPinned()
-      if (pinReleasedByContent && preserveScrollAnchorRef.current) {
-        userTookControlRef.current = true
+      const userDrives = scrollDriverRef.current === 'user'
+      if (userDrives) {
+        // The pin let go while the user holds the viewport: re-capture the freeze
+        // where the pin left it instead of handing the turn to bottom-follow.
+        if (pinReleasedByContent) captureFreezeAnchor()
+      } else {
+        // The pin let go because the reply outgrew the space below it (overflowed
+        // a viewport). Hand the turn to bottom-follow: drop the preserve
+        // suppression and snap to the live bottom so streaming now sticks to the
+        // bottom instead of freezing the user message at the top.
+        if (pinReleasedByContent && preserveScrollAnchorRef.current) {
+          turnHandedOffRef.current = true
+        }
+        if (wasBottomFollowSuppressed || isBottomFollowSuppressed()) {
+          atBottom.reset()
+        }
       }
-      if (wasBottomFollowSuppressed || isBottomFollowSuppressed()) {
-        atBottom.reset()
-      }
+      // Locked (a no-op write-wise) while the user drives, but keeps its
+      // scroll-size bookkeeping current for when the runtime takes back over.
       autoStick.onContentSizeChange()
-      if (pinReleasedByContent && preserveScrollAnchorRef.current) {
-        stickToEffectiveBottom()
-      }
-      // Feed the at-bottom tracker so its state machine stays current.
-      const el = scrollerRef.current
-      if (el && !wasBottomFollowSuppressed && !isBottomFollowSuppressed() && !smoothScroll.isAnimating()) {
-        const viewportSize = el.clientHeight
-        atBottom.notifySizeChange({
-          offset: el.scrollTop,
-          scrollSize: getEffectiveScrollSize(el, anchor.spacerHeight),
-          viewportSize
-        })
+      if (userDrives) {
+        // The single writer while the user drives: hold the frozen viewport
+        // against whatever just resized (streaming growth, block toggles,
+        // composer/viewport changes, async renders).
+        reassertFreeze()
+      } else {
+        if (pinReleasedByContent && preserveScrollAnchorRef.current) {
+          stickToEffectiveBottom()
+        }
+        // Feed the at-bottom tracker so its state machine stays current.
+        const el = scrollerRef.current
+        if (el && !wasBottomFollowSuppressed && !isBottomFollowSuppressed() && !smoothScroll.isAnimating()) {
+          const viewportSize = el.clientHeight
+          atBottom.notifySizeChange({
+            offset: el.scrollTop,
+            scrollSize: getEffectiveScrollSize(el, anchor.spacerHeight),
+            viewportSize
+          })
+        }
       }
       updateScrollToBottomButtonVisibility()
     })
@@ -400,7 +463,9 @@ export function useChatVirtualizerRuntime<T>({
     anchor,
     atBottom,
     autoStick,
+    captureFreezeAnchor,
     isBottomFollowSuppressed,
+    reassertFreeze,
     smoothScroll,
     stickToEffectiveBottom,
     updateScrollToBottomButtonVisibility
@@ -435,12 +500,20 @@ export function useChatVirtualizerRuntime<T>({
     const wasPreserving = wasPreservingScrollAnchorRef.current
     wasPreservingScrollAnchorRef.current = preserveScrollAnchor
     if (preserveScrollAnchor) {
-      // Rising edge — a new generation began: start it pinned-to-top again
-      // rather than inheriting the previous turn's manual-control state.
-      if (!wasPreserving) userTookControlRef.current = false
+      // Rising edge — a new generation began: turn boundaries clear the driving
+      // state, so the fresh turn starts runtime-driven rather than inheriting a
+      // takeover latched during the previous turn or while idle.
+      if (!wasPreserving) {
+        turnHandedOffRef.current = false
+        handBackToRuntime()
+      }
       return
     }
     if (!wasPreserving) return
+    // Falling edge also returns the wheel: with the stream over there is nothing
+    // left to hold the freeze against, and the at-bottom tracker still reads
+    // not-at-bottom after a takeover, so nothing moves until the user does.
+    handBackToRuntime()
     const raf = requestAnimationFrame(() => {
       const shouldKeepBottom = atBottom.isAtBottom() && !isBottomFollowSuppressedRef.current()
       if (shouldKeepBottom) {
@@ -450,7 +523,7 @@ export function useChatVirtualizerRuntime<T>({
       anchorRef.current.onContentSizeChange()
     })
     return () => cancelAnimationFrame(raf)
-  }, [atBottom, preserveScrollAnchor])
+  }, [atBottom, handBackToRuntime, preserveScrollAnchor])
 
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 
@@ -480,10 +553,11 @@ export function useChatVirtualizerRuntime<T>({
     if (idx < 0) return
     anchor.pinTo(idx)
     atBottom.reset()
-    // New user turn: the message is freshly pinned to the top, so revoke any
-    // manual-control gate carried over from the previous turn.
-    userTookControlRef.current = false
-  }, [anchor, atBottom, findDataIndexByKey, scrollToTopKey])
+    // New user turn: the message is freshly pinned to the top, so the runtime
+    // drives again regardless of any takeover carried over from before.
+    turnHandedOffRef.current = false
+    handBackToRuntime()
+  }, [anchor, atBottom, findDataIndexByKey, handBackToRuntime, scrollToTopKey])
 
   // Sync the "was a turn already streaming" marker AFTER the pin effect above has
   // read the previous render's value. Runs every commit so the next new-user-
@@ -558,23 +632,41 @@ export function useChatVirtualizerRuntime<T>({
     const viewportSize = el.clientHeight
     const scrollSize = getEffectiveScrollSize(el, anchor.spacerHeight)
     anchor.onUserScroll(offset, isUserInitiated)
-    // A user scroll during a streaming turn (which just released the top pin,
-    // or there was none) means the user has taken over: stop letting
-    // `preserveScrollAnchor` suppress bottom-follow so reaching the bottom can
-    // re-engage auto-stick. `onUserScroll` runs first and is itself input-gated,
-    // so the pin is only un-pinned here when a real scroll crossed the tolerance.
-    const tookControl = preserveScrollAnchorRef.current && !anchor.isPinned()
-    if (tookControl) {
-      userTookControlRef.current = true
-    }
     const wheelDir = lastWheelDirRef.current
     const direction: 'up' | 'down' | 'none' =
       wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
     lastScrollOffsetRef.current = offset
-    if (isBottomFollowSuppressed()) {
-      atBottom.reset()
+    if (scrollDriverRef.current === 'user') {
+      if (isUserInitiated) {
+        // The user is scrolling their own frozen viewport: the freeze follows
+        // them, and reaching the effective bottom hands the wheel back so
+        // auto-stick can resume on the next growth.
+        captureFreezeAnchor()
+        atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: true })
+        if (atBottom.isAtBottom()) {
+          turnHandedOffRef.current = true
+          handBackToRuntime()
+        }
+      }
+      // Programmatic scrolls while frozen (virtua remeasure compensation) don't
+      // touch the tracker; the ResizeObserver pass re-asserts the freeze if they
+      // actually drifted the viewport.
     } else {
-      atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: isUserInitiated })
+      // A scroll during a preserve turn whose pin is gone (it just released, or
+      // there never was one) hands governance to the at-bottom tracker, so
+      // reaching the bottom re-engages auto-stick. `onUserScroll` runs first and
+      // is input-gated, so the pin only drops on a real user scroll.
+      if (preserveScrollAnchorRef.current && !anchor.isPinned()) {
+        turnHandedOffRef.current = true
+      }
+      if (isUserInitiated && direction === 'up') {
+        // An upward user scroll is a takeover like any other interaction.
+        takeUserControl()
+      } else if (isBottomFollowSuppressed()) {
+        atBottom.reset()
+      } else {
+        atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: isUserInitiated })
+      }
     }
     updateScrollToBottomButtonVisibility()
     saveScrollPosition()
@@ -582,10 +674,13 @@ export function useChatVirtualizerRuntime<T>({
   }, [
     anchor,
     atBottom,
+    captureFreezeAnchor,
+    handBackToRuntime,
     isBottomFollowSuppressed,
     maybeNotifyReachTop,
     saveScrollPosition,
     smoothScroll,
+    takeUserControl,
     updateScrollToBottomButtonVisibility
   ])
 
@@ -633,7 +728,7 @@ export function useChatVirtualizerRuntime<T>({
     (behavior: ScrollBehavior = 'instant') => {
       // Explicit scroll-to-bottom releases any anchor — caller wants the
       // absolute bottom, not the user-message-top position.
-      anchor.release()
+      anchor.release({ clearSpacer: true })
       const el = scrollerRef.current
       if (!el) return
       const target = getRealBottom(el, anchor.spacerHeight)
@@ -647,16 +742,23 @@ export function useChatVirtualizerRuntime<T>({
         el.scrollTop = target
       }
       atBottom.notifyProgrammaticStick()
+      // The user chose the bottom: the runtime drives from here, and a preserve
+      // turn no longer suppresses bottom-follow.
+      turnHandedOffRef.current = true
+      handBackToRuntime()
       hideScrollToBottomButton()
     },
-    [anchor, atBottom, hideScrollToBottomButton, smoothScroll]
+    [anchor, atBottom, handBackToRuntime, hideScrollToBottomButton, smoothScroll]
   )
 
   const scrollToTop = useCallback(
     (behavior: ScrollBehavior = 'instant') => {
       // Explicit scroll-to-top releases any anchor pin — the caller wants the
       // absolute top of the loaded content, not the pinned user-message position.
+      // It is also a navigation: the runtime drives it, so drop any freeze (a
+      // stale anchor would yank the view back after the scroll lands).
       anchor.release()
+      handBackToRuntime()
       const el = scrollerRef.current
       if (!el) return
       if (behavior === 'smooth') {
@@ -669,7 +771,7 @@ export function useChatVirtualizerRuntime<T>({
         el.scrollTop = 0
       }
     },
-    [anchor, smoothScroll]
+    [anchor, handBackToRuntime, smoothScroll]
   )
 
   useImperativeHandle(
@@ -681,13 +783,16 @@ export function useChatVirtualizerRuntime<T>({
         const handle = vlistHandleRef.current
         const idx = findDataIndexByKey(key)
         if (idx < 0 || !handle) return
+        // A navigation, like scrollToTop: release the pin and any freeze so the
+        // runtime can drive the scroll without a stale anchor yanking it back.
         anchor.release()
+        handBackToRuntime()
         handle.scrollToIndex(idx, { align, smooth: true })
       },
       isAtBottom: atBottom.isAtBottom,
       getScrollElement: () => scrollerRef.current
     }),
-    [anchor, atBottom.isAtBottom, findDataIndexByKey, scrollToBottom, scrollToTop]
+    [anchor, atBottom.isAtBottom, findDataIndexByKey, handBackToRuntime, scrollToBottom, scrollToTop]
   )
 
   return {
@@ -701,8 +806,7 @@ export function useChatVirtualizerRuntime<T>({
     keepMounted,
     scrollerProps,
     isScrollToBottomButtonVisible,
-    isScrollOwned,
-    releaseScrollOwnership,
+    takeUserControl,
     scrollToBottom,
     markUserInput
   }

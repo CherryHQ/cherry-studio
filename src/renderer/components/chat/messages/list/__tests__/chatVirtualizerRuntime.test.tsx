@@ -992,7 +992,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('reports scroll ownership so collapsible block anchors yield only while the runtime writes scrollTop', () => {
+  it('stops following and freezes the viewport when the user takes control during bottom-follow', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1028,58 +1028,71 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
 
-      // At the live bottom during streaming, auto-stick owns scrollTop → blocks yield.
+      // At the live bottom during streaming — auto-stick follows growth.
       scrollTop = 800
       act(() => runtime!.scrollerProps.onScroll(800))
       expect(handle!.isAtBottom()).toBe(true)
-      expect(runtime!.isScrollOwned()).toBe(true)
 
-      // Content grows; bottom-follow keeps us at the live edge (still owned).
+      // Any direct interaction (a click, a key, a toggle — the host wires them
+      // all to takeUserControl) hands the user the wheel: the at-bottom latch
+      // drops and the viewport freezes where it stands.
+      act(() => runtime!.takeUserControl())
+      expect(handle!.isAtBottom()).toBe(false)
+
+      // Streaming keeps growing — the frozen viewport must not follow.
       scrollHeight = 2000
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      raf.tick()
-      const followedOffset = scrollTop
-      act(() => runtime!.scrollerProps.onScroll(followedOffset))
-
-      // A genuine upward gesture (reported via markUserInput) hands control to the
-      // user: the pin is gone, we're no longer at the bottom, nothing is animating,
-      // so the runtime stops writing scrollTop. Ownership must return to the
-      // block-level anchor — otherwise expanding/collapsing a block here would jump
-      // the reading position. A bare `preserveScrollAnchor` check would wrongly
-      // keep reporting ownership throughout the whole streaming turn.
-      const userOffset = followedOffset - 40
-      scrollTop = userOffset
-      act(() => {
-        runtime!.markUserInput()
-        runtime!.scrollerProps.onScroll(userOffset)
-      })
-      expect(handle!.isAtBottom()).toBe(false)
-      expect(runtime!.isScrollOwned()).toBe(false)
+      raf.tick(10)
+      expect(scrollTop).toBe(800)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('keeps ownership with block anchors while a streaming turn has no pin and no active writer', () => {
-    // A follow-up steered into a live turn (or streaming-on-mount) does NOT pin
-    // (the pin effect bails via `wasStreamingBeforeUserMessage`), so
-    // preserveScrollAnchor is true yet nothing writes scrollTop: no pin, bottom-
-    // follow is suppressed so auto-stick bails, and no smooth scroll is running.
-    // `isScrollOwned()` must be false so a block toggle runs its own restore
-    // instead of jumping the reading position. (A bare bottom-follow-suppression
-    // check would wrongly report ownership here.)
-    let runtime: ChatVirtualizerRuntime<string> | undefined
-    render(
-      <RuntimeProbe items={['user-a']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
-    )
-    runtime!.scrollerRef.current = { scrollTop: 0, scrollHeight: 2000, clientHeight: 400 } as HTMLDivElement
-    runtime!.vlistHandleRef.current = createHandle()
+  it('re-asserts the frozen viewport when a programmatic nudge drifts it', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    // Deterministically outside the user-input window (the freeze only yields to
+    // the user's own in-flight scrolling), regardless of how young the jsdom
+    // time origin is when this test runs.
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
 
-    expect(runtime!.isScrollOwned()).toBe(false)
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      // The user takes control while reading mid-list; the freeze anchors here.
+      act(() => runtime!.takeUserControl())
+
+      // A rogue programmatic scroll (a child `scrollIntoView`, a remeasure that
+      // virtua did not compensate) drifts the frozen viewport; the next observed
+      // layout pass must snap it back.
+      scrollTop = 560
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
   })
 
-  it('reports ownership while a smooth scroll is in flight and releases it when cancelled', () => {
+  it('cancels an in-flight smooth scroll when the user takes control', () => {
     const raf = installQueuedAnimationFrame()
 
     try {
@@ -1107,29 +1120,27 @@ describe('useChatVirtualizerRuntime', () => {
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle()
-
-      // Drain the mount's scroll-to-newest rAF, then establish a deterministic
-      // not-at-bottom / not-pinned / not-animating baseline so the only thing that
-      // can flip ownership below is the smooth-scroll animation itself.
       raf.tick(60)
       scrollTop = 800
-      act(() => runtime!.scrollerProps.onScroll(800))
-      expect(runtime!.isScrollOwned()).toBe(false)
 
-      // A smooth scroll is an active scrollTop writer for the whole animation.
+      // A smooth scroll-to-top is in flight...
       act(() => handle!.scrollToTop('smooth'))
-      expect(runtime!.isScrollOwned()).toBe(true)
+      raf.tick()
+      const midFlight = scrollTop
+      expect(midFlight).toBeLessThan(800)
+      expect(midFlight).toBeGreaterThan(0)
 
-      // Cancelling it (an instant scroll cancels the in-flight animation) hands
-      // ownership back to the block anchors.
-      act(() => handle!.scrollToTop('instant'))
-      expect(runtime!.isScrollOwned()).toBe(false)
+      // ...and a direct interaction takes the wheel: the animation dies where it
+      // is instead of dragging the user away from what they just touched.
+      act(() => runtime!.takeUserControl())
+      raf.tick(10)
+      expect(scrollTop).toBe(midFlight)
     } finally {
       raf.restore()
     }
   })
 
-  it('hands bottom-follow ownership back to block anchors when a block reclaims it on expand', () => {
+  it('hands the wheel back when the user returns to the bottom after a takeover', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1165,32 +1176,44 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
 
-      // At the live bottom during streaming, auto-stick owns scrollTop → blocks yield.
+      // At the live bottom during streaming — following.
       scrollTop = 800
       act(() => runtime!.scrollerProps.onScroll(800))
       expect(handle!.isAtBottom()).toBe(true)
-      expect(runtime!.isScrollOwned()).toBe(true)
 
-      // Expanding a thinking block is a user intent to READ it: the block asks the
-      // runtime to relinquish bottom-follow. No pin is active, so ownership returns
-      // to the block-level anchor and the runtime stops writing scrollTop — the
-      // expanded content stays put instead of the stream scrolling it away.
-      act(() => runtime!.releaseScrollOwnership())
-      expect(handle!.isAtBottom()).toBe(false)
-      expect(runtime!.isScrollOwned()).toBe(false)
+      // A direct interaction freezes the viewport mid-stream.
+      act(() => runtime!.takeUserControl())
+      scrollHeight = 1600
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scrollTop).toBe(800)
+
+      // The user scrolls down to the new live bottom: that hands the wheel back,
+      // so the next growth follows again.
+      scrollTop = 1200
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(1200)
+      })
+      expect(handle!.isAtBottom()).toBe(true)
+
+      scrollHeight = 1800
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(100)
+      expect(scrollTop).toBe(1400)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('keeps a released ownership latched while streaming growth stays within the at-bottom tolerance', () => {
+  it('keeps a takeover latched while streaming growth stays within the at-bottom tolerance', () => {
     // Expanding a SHORT thinking block near the live edge grows the content by
-    // less than the 100px at-bottom tolerance, so right after the release the
-    // viewport still measures "close to bottom". The size-change fed to the
-    // at-bottom tracker must not re-latch at-bottom over the release — otherwise
-    // the very next chunk re-engages auto-stick and scrolls the expanded content
-    // away again (the jitter this latch exists to prevent).
+    // less than the 100px at-bottom tolerance, so right after the takeover the
+    // viewport still measures "close to bottom". The size-change must not
+    // re-latch at-bottom over the takeover — otherwise the very next chunk
+    // re-engages auto-stick and scrolls the revealed content away again (the
+    // jitter this latch exists to prevent).
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1235,21 +1258,20 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => runtime!.scrollerProps.onScroll(800))
       expect(handle!.isAtBottom()).toBe(true)
 
-      act(() => runtime!.releaseScrollOwnership())
-      expect(runtime!.isScrollOwned()).toBe(false)
+      act(() => runtime!.takeUserControl())
+      expect(handle!.isAtBottom()).toBe(false)
 
       // The short expansion grows content by only 40px — still within tolerance.
       scrollHeight = 1240
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(handle!.isAtBottom()).toBe(false)
-      expect(runtime!.isScrollOwned()).toBe(false)
 
       // The next streaming chunk must not re-engage bottom-follow.
       scrollHeight = 1300
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
       expect(scrollTop).toBe(800)
-      expect(runtime!.isScrollOwned()).toBe(false)
+      expect(handle!.isAtBottom()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -1305,12 +1327,10 @@ describe('useChatVirtualizerRuntime', () => {
         />
       )
       raf.tick()
-      expect(runtime!.isScrollOwned()).toBe(true)
 
       // Settle at the pinned offset (programmatic, keeps the pin).
       scrollTop = 300
       act(() => runtime!.scrollerProps.onScroll(300))
-      expect(runtime!.isScrollOwned()).toBe(true)
 
       // The user wheels up a little — beyond the pin's 16px release tolerance
       // but still well within the at-bottom tolerance of the effective bottom.
@@ -1320,55 +1340,217 @@ describe('useChatVirtualizerRuntime', () => {
         runtime!.scrollerProps.onScroll(270)
       })
       expect(handle!.isAtBottom()).toBe(false)
-      expect(runtime!.isScrollOwned()).toBe(false)
 
       // Streaming continues — the view must hold, not crawl back to the bottom.
       scrollHeight = 1100
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
       expect(scrollTop).toBe(270)
-      expect(runtime!.isScrollOwned()).toBe(false)
+      expect(handle!.isAtBottom()).toBe(false)
     } finally {
       restoreResizeObserver()
       raf.restore()
     }
   })
 
-  it('keeps an active top-pin when a block requests ownership (release is a no-op)', () => {
-    let runtime: ChatVirtualizerRuntime<string> | undefined
-    const view = render(<RuntimeProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
-    const scroller = { scrollTop: 0, scrollHeight: 700, clientHeight: 400 } as HTMLDivElement
-    runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
-    runtime!.scrollerRef.current = scroller
+  it('holds the pinned position when the pin releases under user control instead of handing to bottom-follow', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
 
-    // Pin the user message to the top (a fresh streaming turn).
-    view.rerender(
-      <RuntimeProbe
-        items={['message-a']}
-        preserveScrollAnchor
-        scrollToTopKey="message-a"
-        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
-      />
-    )
-    expect(runtime!.isScrollOwned()).toBe(true)
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      let contentHeight = 900
+      const view = render(
+        <RuntimeDomProbe
+          items={['user-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const getSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', {
+        configurable: true,
+        get: () => contentHeight + getSpacerHeight()
+      })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+      // Drain the mount's scroll-to-newest restore (it releases any anchor) so
+      // it cannot fire after the pin below and silently unpin it.
+      raf.tick(60)
 
-    // With the message pinned to the top, content already grows coherently below
-    // it, so a block toggle stays stable. The runtime must NOT drop the pin — the
-    // request is a no-op and ownership stays with the runtime (the block yields).
-    act(() => runtime!.releaseScrollOwnership())
-    expect(runtime!.isScrollOwned()).toBe(true)
+      // Send: pin the fresh user message to the top.
+      view.rerender(
+        <RuntimeDomProbe
+          items={['user-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          scrollToTopKey="user-a"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(getSpacerHeight()).toBe(400)
+      scrollTop = 300
+
+      // The user interacts (expands a block, clicks) while the pin holds: the
+      // pin keeps holding — same position, one writer — but the takeover is
+      // remembered.
+      act(() => runtime!.takeUserControl())
+
+      // The reply outgrows the space below the pin, releasing it. Runtime-driven
+      // turns hand off to bottom-follow here and snap to the live bottom; under
+      // user control the viewport must stay frozen where the pin left it.
+      contentHeight = 1600
+      act(() => callbacks[callbacks.length - 1]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scrollTop).toBe(300)
+      expect(handle!.isAtBottom()).toBe(false)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
   })
 
-  it('exposes a stable isScrollOwned identity across rerenders', () => {
-    let runtime: ChatVirtualizerRuntime<string> | undefined
-    const view = render(<RuntimeProbe items={['a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
-    const before = runtime!.isScrollOwned
-    view.rerender(
-      <RuntimeProbe items={['a', 'b']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
-    )
-    // Ref-backed getter: identity must survive an unrelated rerender so the
-    // ScrollOwnershipProvider value stays stable and the block tree doesn't churn.
-    expect(runtime!.isScrollOwned).toBe(before)
+  it('lets a new user turn take the wheel back from a takeover', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      let contentHeight = 900
+      const view = render(
+        <RuntimeDomProbe
+          items={['user-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const getSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', {
+        configurable: true,
+        get: () => contentHeight + getSpacerHeight()
+      })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+      // Drain the mount's scroll-to-newest restore (it releases any anchor) so
+      // it cannot fire after the pin below and silently unpin it.
+      raf.tick(60)
+
+      // A takeover latched while idle (the user clicked something in the list).
+      act(() => runtime!.takeUserControl())
+
+      // Send: a fresh turn begins. Turn boundaries clear the takeover, so the
+      // new user message pins to the top and the turn is runtime-driven again.
+      view.rerender(
+        <RuntimeDomProbe
+          items={['user-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          scrollToTopKey="user-a"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(getSpacerHeight()).toBe(400)
+      scrollTop = 300
+
+      // The reply outgrows the pin: with the takeover cleared, the turn hands
+      // off to bottom-follow and snaps to the live bottom (it would stay frozen
+      // at 300 if the stale takeover had survived the turn boundary).
+      contentHeight = 1600
+      act(() => callbacks[callbacks.length - 1]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scrollTop).toBe(1200)
+      expect(handle!.isAtBottom()).toBe(true)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('resumes following after an explicit scroll-to-bottom ends a takeover', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 500
+      let scrollHeight = 1200
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      // Held mid-stream after a direct interaction.
+      act(() => runtime!.takeUserControl())
+      scrollHeight = 1400
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scrollTop).toBe(500)
+
+      // The scroll-to-bottom affordance is the user choosing the live edge:
+      // the runtime drives again and the next growth follows.
+      act(() => runtime!.scrollToBottom())
+      expect(scrollTop).toBe(1000)
+      expect(handle!.isAtBottom()).toBe(true)
+
+      scrollHeight = 1600
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(100)
+      expect(scrollTop).toBe(1200)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
   })
 
   it('ignores a large programmatic backward jump during bottom-follow (no input) and keeps following', () => {

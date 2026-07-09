@@ -72,8 +72,14 @@ export interface ScrollAnchor {
    * rendered (otherwise virtua's scrollSize hasn't extended yet).
    */
   pinTo(dataIndex: number): void
-  /** Release the pin (does not reset spacer height; lets content fill it). */
-  release(): void
+  /**
+   * Release the pin.
+   *
+   * By default the spacer is kept so growing content can fill it without a scroll
+   * jump. Pass `clearSpacer` when the caller has already moved the viewport to the
+   * effective bottom and wants to remove the anchor-created blank range.
+   */
+  release(options?: { clearSpacer?: boolean }): void
   /** Caller invokes on every observed content size change (ResizeObserver). */
   onContentSizeChange(): void
   /**
@@ -181,11 +187,15 @@ export function useScrollAnchor({
     [computeNeededSpacer, getAnchorScrollOffset, getNaturalScrollableSize, scrollerRef, vlistHandleRef]
   )
 
-  const release = useCallback(() => {
+  const release = useCallback((options?: { clearSpacer?: boolean }) => {
     anchorIndexRef.current = null
     shouldTightenInitialSpacerRef.current = false
-    // Don't reset spacerHeight here — content will grow into it (size-change
-    // handler decays it). Snapping to 0 would jump scrollTop downward.
+    // Default release keeps spacerHeight — content will grow into it (size-change
+    // handler decays it). Only clear it once the caller has clamped to the
+    // effective bottom, where removing the spacer leaves scrollTop valid.
+    if (options?.clearSpacer) {
+      setSpacerHeight((height) => (height === 0 ? height : 0))
+    }
   }, [])
 
   const onContentSizeChange = useCallback(() => {
