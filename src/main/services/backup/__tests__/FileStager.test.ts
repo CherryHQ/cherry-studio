@@ -1,6 +1,6 @@
 // Unit tests for SqliteFileStager — blob staging from live DB + filesystem roots.
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -149,6 +149,29 @@ describe('SqliteFileStager', () => {
       // Escape content must not land in dest under any path.
       expect(existsSync(join(dest, 'escape.md'))).toBe(false)
       expect(existsSync(join(dest, '..', 'escape.md'))).toBe(false)
+      expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
+    } finally {
+      await rm(parent, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
+  it('stageNotes rejects a symlink whose realpath escapes notesRoot', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'cs-stager-notes-symlink-'))
+    const notesRoot = join(parent, 'notes')
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-symlink-dest-'))
+    try {
+      await mkdir(notesRoot, { recursive: true })
+      await writeFile(join(parent, 'secret.md'), '# secret')
+      await writeFile(join(notesRoot, 'safe.md'), '# safe')
+      await symlink(join(parent, 'secret.md'), join(notesRoot, 'linked.md'))
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      const r = await stager.stageNotes(notesRoot, new Set(['linked.md', 'safe.md']), dest)
+
+      expect(r.paths).toEqual(['safe.md'])
+      expect(r.missing).toEqual(['linked.md'])
+      expect(existsSync(join(dest, 'linked.md'))).toBe(false)
       expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
     } finally {
       await rm(parent, { recursive: true, force: true })

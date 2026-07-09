@@ -1,5 +1,5 @@
 // Unit tests for the PREFERENCES contributor — pure declaration assertions (no DB).
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -138,6 +138,29 @@ describe('PREFERENCES collectFileResources (notes markdown)', () => {
         expect(p.split('/').includes('..')).toBe(false)
         expect(p).not.toContain('escape.md')
       }
+    } finally {
+      await rm(parent, { recursive: true, force: true })
+    }
+  })
+
+  it('does not follow a directory symlink/junction out of the notes root', async () => {
+    // Arrange — notes/link → ../outside/secret.md. Lexical path is under notesRoot,
+    // but realpath lands outside; collect must skip the link entirely.
+    const parent = await mkdtemp(join(tmpdir(), 'cs-pref-notes-symlink-'))
+    const notesRoot = join(parent, 'notes')
+    const outside = join(parent, 'outside')
+    try {
+      await mkdir(notesRoot, { recursive: true })
+      await mkdir(outside, { recursive: true })
+      await writeFile(join(outside, 'secret.md'), '# secret')
+      await writeFile(join(notesRoot, 'safe.md'), '# safe')
+      await symlink(outside, join(notesRoot, 'link'))
+
+      const collect = PREFERENCES_CONTRIBUTOR.operations!.collectFileResources!
+      const out = await collect(ctx(notesRoot))
+
+      expect(out).toEqual(new Set(['safe.md']))
+      expect([...out].some((p) => p.includes('secret'))).toBe(false)
     } finally {
       await rm(parent, { recursive: true, force: true })
     }

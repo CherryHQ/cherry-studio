@@ -225,8 +225,9 @@ export class ExportOrchestrator {
         domains,
         strategy: EXPORT_STRATEGY,
         // notesRoot on the context is optional (undefined in unit tests); deps.notesRoot
-        // is a resolver BackupService evaluates per export (feature.notes.path preference,
-        // falling back to feature.notes.data). PREFERENCES' collectFileResources scans it.
+        // is a resolver BackupService evaluates per export (feature.notes.path when set,
+        // else feature.notes.data; a set-but-unavailable custom path fails the export).
+        // PREFERENCES' collectFileResources scans it.
         notesRoot
       }
       let collected = 0

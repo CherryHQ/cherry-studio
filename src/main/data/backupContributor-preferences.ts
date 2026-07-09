@@ -82,8 +82,9 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // PREFERENCES owns Notes markdown bodies as a file resource: the `note` table
     // stores only state overlays (starred/expanded), while the markdown bodies live
     // as `.md` files under the user-visible Notes root. BackupService resolves that
-    // root from the feature.notes.path preference (falling back to the managed
-    // feature.notes.data) and injects it via the context. This hook scans it
+    // root from feature.notes.path when set (else feature.notes.data) and injects
+    // it via the context — a set-but-unavailable custom path fails the export
+    // rather than falling back to the managed default. This hook scans it
     // recursively and returns relative POSIX paths so the stager + archive carry the
     // bodies (full mode). A missing root = "no notes configured" (empty set); an
     // unreadable root (permission) throws — never a silent empty backup.
@@ -103,6 +104,11 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
  * UI, which treats them the same (toLowerCase().endsWith in NotesService.ts) — a
  * case-sensitive check here would silently drop uppercase-ext notes.
  *
+ * Symlinks and Windows junctions/reparse points are never followed: a link whose
+ * lexical path sits under notesRoot can still resolve outside it; walking or
+ * collecting through it would archive foreign trees. `lstat` + `realpath`
+ * containment against the notes root's real path refuse that escape.
+ *
  * Root vs subtree read errors are handled differently:
  *  - Root: ENOENT = "no Notes configured" → empty set; any other error (EACCES,
  *    EPERM, …) → throw so the export fails loudly instead of archiving zero notes.
@@ -119,6 +125,15 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
   const root = ctx.notesRoot
   const out = new Set<string>()
 
+  // Canonical root for realpath containment checks. Falls back to resolve() when
+  // realpath fails (rare); lexical isPathInside still applies below.
+  let realRoot: string
+  try {
+    realRoot = realpathSync(root)
+  } catch {
+    realRoot = resolve(root)
+  }
+
   // Process one directory level: push subdirs onto the DFS stack, add matching
   // note files to `out` as notesRoot-relative POSIX paths.
   const processLevel = (dir: string, entries: readonly Dirent[]): string[] => {
@@ -127,9 +142,25 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
       // Skip `.` / `..` dirents — never treat them as notes or walk targets.
       if (e.name === '.' || e.name === '..') continue
       const full = join(dir, e.name)
-      if (e.isDirectory()) {
-        // Containment guard: refuse to walk outside the notes root (symlink /
-        // unexpected dirent names that resolve above root).
+
+      // Prefer lstat over Dirent type bits: Windows junctions/reparse points may
+      // report as directories while still being links that resolve outside root.
+      let st: ReturnType<typeof lstatSync>
+      try {
+        st = lstatSync(full)
+      } catch {
+        continue
+      }
+      if (st.isSymbolicLink()) {
+        logger.warn('PREFERENCES collectFileResources: symlink/junction skipped', {
+          full,
+          notesRoot: root
+        })
+        continue
+      }
+
+      if (st.isDirectory()) {
+        // Lexical containment + realpath containment (refuses reparse escapes).
         if (!isPathInside(full, root)) {
           logger.warn('PREFERENCES collectFileResources: subdirectory outside notes root skipped', {
             full,
@@ -137,17 +168,40 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
           })
           continue
         }
+        try {
+          const realDir = realpathSync(full)
+          if (!isPathInside(realDir, realRoot)) {
+            logger.warn(
+              'PREFERENCES collectFileResources: subdirectory realpath outside notes root skipped',
+              { full, realDir, notesRoot: root }
+            )
+            continue
+          }
+        } catch {
+          continue
+        }
         subdirs.push(full)
-      } else if (e.isFile() && extname(e.name).toLowerCase() === '.md') {
+      } else if (st.isFile() && extname(e.name).toLowerCase() === '.md') {
         // Case-insensitive .md — Notes UI treats README.MD == note.md.
-        // Normalize to relative POSIX, then re-resolve and verify containment so a
-        // crafted name cannot escape via `..` segments in the relative path.
+        // Normalize to relative POSIX, then verify lexical + realpath containment.
         const rel = relative(root, full).split(sep).join('/')
         if (!isPathInside(resolve(root, rel), root)) {
           logger.warn('PREFERENCES collectFileResources: note path outside notes root skipped', {
             rel,
             notesRoot: root
           })
+          continue
+        }
+        try {
+          const realFile = realpathSync(full)
+          if (!isPathInside(realFile, realRoot)) {
+            logger.warn(
+              'PREFERENCES collectFileResources: note realpath outside notes root skipped',
+              { rel, realFile, notesRoot: root }
+            )
+            continue
+          }
+        } catch {
           continue
         }
         out.add(rel)
@@ -175,9 +229,8 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
     )
   }
 
-  // Iterative DFS over the remaining tree. Symlinks are not followed (readdir +
-  // isDirectory matches the stager's own directory check, so a symlinked dir would
-  // be reported missing at stage time rather than duplicated here).
+  // Iterative DFS — symlinks/junctions were filtered in processLevel, so the
+  // walk never descends through a reparse point into a foreign tree.
   while (stack.length > 0) {
     const dir = stack.pop()!
     let entries: Dirent[]
