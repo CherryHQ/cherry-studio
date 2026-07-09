@@ -6,6 +6,8 @@
  * - gemini -> Google SDK
  * - openai-response -> OpenAI Responses SDK
  * - openai / image-generation -> OpenAI Chat SDK
+ * - embedding -> OpenAI Compatible Embedding SDK
+ * - jina-rerank -> OpenAI Compatible Reranking SDK
  * - fallback -> OpenAI Compatible SDK
  *
  * The endpointType is set per-request via provider settings, based on the model's endpoint_type field.
@@ -32,6 +34,7 @@ export type NewApiEndpointType =
   | 'gemini'
   | 'image-generation'
   | 'jina-rerank'
+  | 'embedding'
 
 export interface NewApiProviderSettings {
   apiKey?: string
@@ -123,6 +126,10 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       case 'openai':
       case 'image-generation':
         return createCompatibleModel(modelId)
+      case 'embedding':
+        throw new Error('Use embeddingModel() for embedding endpoint type')
+      case 'jina-rerank':
+        throw new Error('Use rerankingModel() for jina-rerank endpoint type')
       default:
         return createCompatibleModel(modelId)
     }
