@@ -103,6 +103,12 @@ export async function registerLocalEmbeddingModel(): Promise<void> {
       .all()
     if (existing) return
 
+    // Inserted via the raw order-key primitive rather than through ModelService: the
+    // provider row above nests in this outer withWriteTx via providerService.batchUpsertTx,
+    // but ModelService exposes only self-transacting create/batchUpsert (each opens its own
+    // transaction), so there is no composable *Tx form to nest here. Trade-off: this skips
+    // ModelService's guards/error-translation. If a ModelService.insertManyTx (mirroring
+    // ProviderService.batchUpsertTx) ever lands, route this through it.
     insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
       pkColumn: userModelTable.id,
       scope: eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID)

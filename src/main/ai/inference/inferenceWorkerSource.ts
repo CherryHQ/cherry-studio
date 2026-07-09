@@ -1,3 +1,5 @@
+import { l2normalize } from './pooling'
+
 /**
  * Inference worker, shipped as an eval'd `worker_threads` source string.
  *
@@ -6,16 +8,18 @@
  * with multiple inputs — so we cannot emit a separate worker chunk. The existing
  * tool-exec worker uses the same string approach. When this host moves to an
  * Electron `utilityProcess` (for crash isolation), extract this source into its
- * own file unchanged — the message protocol and `InferenceHost` API do not move.
+ * own file unchanged — the message protocol and `InferenceServiceBase` API do not move.
  *
  * The worker only `require`s external packages (resolved from node_modules at
  * runtime, since they are externalized from the bundle) and Node built-ins; it
- * never imports project modules, so the pooling math is inlined here and kept in
- * sync with `pooling.ts` (which unit-tests the same algorithm).
+ * never imports project modules. Pooling math therefore can't be imported at
+ * runtime, so `pooling.ts`'s unit-tested `l2normalize` is baked into the source
+ * string below via `.toString()` at build time — one source, so it can't drift.
  *
  * TODO(packaged): the worker resolves `@huggingface/transformers` and
  * `ppu-paddle-ocr` off `app.root`; verify both resolve once the packaged-app build
- * is exercised, alongside the onnxruntime-node asarUnpack.
+ * is exercised. The onnxruntime-node native binding is downloaded on demand (not
+ * bundled/asarUnpack'd) — see OnnxRuntimeBinaryService.
  */
 export const inferenceWorkerSource = `
 const { parentPort } = require('node:worker_threads')
@@ -27,12 +31,9 @@ let ppu = null
 const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
-function l2normalize(vector) {
-  let sum = 0
-  for (const v of vector) sum += v * v
-  const norm = Math.sqrt(sum)
-  return norm === 0 ? vector : vector.map((v) => v / norm)
-}
+// Injected from pooling.ts (single, unit-tested source). Bound to a const so the
+// call site works even if the bundler renames the function's own symbol.
+const l2normalize = ${l2normalize.toString()}
 
 function getTransformers() {
   if (!transformers) {

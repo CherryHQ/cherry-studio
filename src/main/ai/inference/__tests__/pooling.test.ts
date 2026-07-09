@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { l2normalize, lastTokenPool } from '../pooling'
+import { inferenceWorkerSource } from '../inferenceWorkerSource'
+import { l2normalize } from '../pooling'
 
 describe('pooling', () => {
   it('l2normalize returns a unit vector', () => {
@@ -15,12 +16,11 @@ describe('pooling', () => {
     expect(l2normalize([0, 0, 0])).toEqual([0, 0, 0])
   })
 
-  it('lastTokenPool takes the final token, then normalizes it', () => {
-    const tokens = [
-      [1, 0],
-      [0, 0],
-      [0, 5]
-    ]
-    expect(lastTokenPool(tokens)).toEqual([0, 1])
+  it('is baked into the inference worker source verbatim (single source, no drift)', () => {
+    // The worker runs as an eval'd string and cannot import project modules, so this
+    // function is injected via `.toString()`. Pin that the executed copy IS this tested
+    // one — if someone re-inlines a divergent copy, this fails.
+    expect(inferenceWorkerSource).toContain(l2normalize.toString())
+    expect(inferenceWorkerSource).toContain('const l2normalize =')
   })
 })

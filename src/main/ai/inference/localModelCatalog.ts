@@ -3,8 +3,8 @@
  * runs — *what* to fetch and from *where*. This module is data only; behavior
  * lives with each domain consumer:
  *   - the embedding AI-SDK adapter + runtime (`ai/provider/custom/localEmbedding`)
- *   - the OCR processor + its on-disk path helpers (`fileProcessing/.../local-paddleocr`)
- *   - the two download services (`features/localModel`)
+ *   - the OCR processor + its on-disk path helpers (`fileProcessing/.../localPaddleocr`)
+ *   - the two download services (`services/localModel`)
  *
  * Mirror resolution (HuggingFace / ModelScope) lives in `./modelSource`.
  */

@@ -24,7 +24,9 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     return {
       mode: 'background',
       async execute(executionContext) {
-        const text = await application.get('OcrInferenceHost').recognize(modelPaths, file.path, executionContext.signal)
+        const text = await application
+          .get('OcrInferenceService')
+          .recognize(modelPaths, file.path, executionContext.signal)
         return { kind: 'text', text }
       }
     }

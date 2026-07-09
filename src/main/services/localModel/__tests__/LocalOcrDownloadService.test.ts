@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'OcrInferenceHost') return { terminate, terminateThen }
+    if (name === 'OcrInferenceService') return { terminate, terminateThen }
     return originalGet(name)
   })
   return result

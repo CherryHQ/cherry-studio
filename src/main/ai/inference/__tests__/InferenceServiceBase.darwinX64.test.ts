@@ -20,9 +20,10 @@ vi.mock('node:worker_threads', () => ({
 // spawn point must refuse before it ever constructs a Worker.
 vi.mock('@main/core/platform', () => ({ isDarwinX64: true }))
 
-const { EmbeddingInferenceHost, OcrInferenceHost } = await import('../InferenceHost')
-const embeddingInferenceHost = new EmbeddingInferenceHost()
-const ocrInferenceHost = new OcrInferenceHost()
+const { EmbeddingInferenceService } = await import('../EmbeddingInferenceService')
+const { OcrInferenceService } = await import('../OcrInferenceService')
+const embeddingInferenceService = new EmbeddingInferenceService()
+const ocrInferenceService = new OcrInferenceService()
 
 const SOURCE: InferenceModelSource = {
   remoteHost: 'https://huggingface.co',
@@ -30,24 +31,24 @@ const SOURCE: InferenceModelSource = {
   revision: 'main'
 }
 
-describe('InferenceHost on darwin-x64', () => {
+describe('InferenceService on darwin-x64', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('rejects embed without spawning a worker', async () => {
-    await expect(embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects loadEmbedding without spawning a worker', async () => {
-    await expect(embeddingInferenceHost.loadEmbedding(SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.loadEmbedding(SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects recognize (OCR) without spawning a worker', async () => {
     await expect(
-      ocrInferenceHost.recognize({ detection: '/a', recognition: '/b', charactersDictionary: '/c' }, '/img.png')
+      ocrInferenceService.recognize({ detection: '/a', recognition: '/b', charactersDictionary: '/c' }, '/img.png')
     ).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })

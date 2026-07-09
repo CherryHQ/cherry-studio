@@ -3,16 +3,14 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { InferenceProgress } from '@main/ai/inference/InferenceHost'
+import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
-import {
-  registerLocalEmbeddingModel,
-  unregisterLocalEmbeddingModelIfUnused
-} from '@main/features/localModel/localEmbeddingRegistration'
-import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
-import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
+
+import { registerLocalEmbeddingModel, unregisterLocalEmbeddingModelIfUnused } from './localEmbeddingRegistration'
+import { LocalModelDownloadService } from './LocalModelDownloadService'
+import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 
@@ -62,7 +60,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     })
     const source = await currentModelSource()
     await application
-      .get('EmbeddingInferenceHost')
+      .get('EmbeddingInferenceService')
       .loadEmbedding(source, MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
     // Now that the weights are on disk, register the provider/model so the KB
     // embedding picker lists it (lazy equivalent of the old boot seeder).
@@ -80,7 +78,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // behind the in-flight one from respawning a worker mid-delete (it would otherwise
     // start reading/writing the very files being removed).
     await application
-      .get('EmbeddingInferenceHost')
+      .get('EmbeddingInferenceService')
       .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
   }
 
@@ -89,7 +87,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // The worker may be mid-fetch; terminating it stops the download immediately.
     // Fire-and-forget — cancel doesn't delete files, so it doesn't need to wait
     // for the actual OS-level teardown the way cleanupAfterError/remove do.
-    void application.get('EmbeddingInferenceHost').terminate()
+    void application.get('EmbeddingInferenceService').terminate()
   }
 
   async remove(): Promise<{ removed: boolean }> {
@@ -105,7 +103,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       // terminateThen also blocks a request queued behind it from respawning a worker
       // mid-delete (it would otherwise start reading/writing the very files being removed).
       await application
-        .get('EmbeddingInferenceHost')
+        .get('EmbeddingInferenceService')
         .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
     } catch (error) {
       // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows

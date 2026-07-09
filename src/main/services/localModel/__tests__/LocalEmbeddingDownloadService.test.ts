@@ -28,7 +28,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'EmbeddingInferenceHost') return { loadEmbedding, terminate, terminateThen }
+    if (name === 'EmbeddingInferenceService') return { loadEmbedding, terminate, terminateThen }
     return originalGet(name)
   })
   return result
@@ -45,14 +45,14 @@ vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => (
   currentModelSource: () => ({})
 }))
 
-vi.mock('@main/features/localModel/localEmbeddingRegistration', () => ({
+vi.mock('@main/services/localModel/localEmbeddingRegistration', () => ({
   registerLocalEmbeddingModel,
   unregisterLocalEmbeddingModelIfUnused: unregisterMock
 }))
 
 // onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
 // stub it as always-ready/no-op here so these tests only exercise the model-weight lifecycle.
-vi.mock('@main/features/localModel/OnnxRuntimeBinaryService', () => ({
+vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
   onnxRuntimeBinaryService: {
     isReady: vi.fn(() => true),
     ensure: vi.fn(async () => undefined)
@@ -205,7 +205,7 @@ describe('LocalEmbeddingDownloadService', () => {
     loadEmbedding.mockImplementation(
       (_source, _repo, _dtype, _onProgress, signal: AbortSignal) =>
         new Promise((_resolve, reject) => {
-          // Mirror InferenceHost.send's fail-fast check: an await between download() and
+          // Mirror InferenceServiceBase.send's fail-fast check: an await between download() and
           // this call (e.g. resolving the model source) can let cancel() abort the signal
           // before this listener attaches, so an already-aborted signal must reject directly.
           if (signal.aborted) return reject(signal.reason ?? new Error('aborted'))

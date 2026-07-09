@@ -25,12 +25,6 @@ describe('modelSource', () => {
     )
   })
 
-  it('honors an explicit revision override', () => {
-    expect(resolveModelFileUrl('huggingface', 'org/repo', 'a.onnx', 'v1.0')).toBe(
-      'https://huggingface.co/org/repo/resolve/v1.0/a.onnx'
-    )
-  })
-
   it('getModelSource still returns the transformers.js env triple for embedding', () => {
     expect(getModelSource('modelscope')).toEqual({
       remoteHost: 'https://www.modelscope.cn',

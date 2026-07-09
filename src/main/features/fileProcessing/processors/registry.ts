@@ -2,7 +2,7 @@ import { isLocalPaddleocrModelDownloaded } from '@main/ai/inference/ocrModelPath
 import { isMac, isWin } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
-import { localPaddleocrImageToTextHandler } from './local-paddleocr/image-to-text/handler'
+import { localPaddleocrImageToTextHandler } from './localPaddleocr/imageToText/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
 import { mistralDocumentToMarkdownHandler } from './mistral/document-to-markdown/handler'
 import { mistralImageToTextHandler } from './mistral/image-to-text/handler'

@@ -13,7 +13,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'OcrInferenceHost') return { recognize: recognizeMock }
+    if (name === 'OcrInferenceService') return { recognize: recognizeMock }
     return originalGet(name)
   })
   return result
@@ -24,7 +24,7 @@ vi.mock('@main/ai/inference/ocrModelPaths', () => ({
   ocrModelPaths: ocrModelPathsMock
 }))
 
-import { localPaddleocrImageToTextHandler } from '../image-to-text/handler'
+import { localPaddleocrImageToTextHandler } from '../imageToText/handler'
 
 const MODEL_PATHS = {
   detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',

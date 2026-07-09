@@ -8,12 +8,13 @@ import { loggerService } from '@logger'
 import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
-import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
-import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { net } from 'electron'
 import { parse } from 'yaml'
+
+import { LocalModelDownloadService } from './LocalModelDownloadService'
+import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
 
@@ -103,7 +104,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // the embedding remove, which terminates first for the same reason.
     // terminateThen also blocks a request queued behind it from respawning a
     // worker mid-delete (it would otherwise read/write the very files being removed).
-    await application.get('OcrInferenceHost').terminateThen(() => this.cleanup())
+    await application.get('OcrInferenceService').terminateThen(() => this.cleanup())
     return { removed: true }
   }
 

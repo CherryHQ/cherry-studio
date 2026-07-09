@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/features/localModel/LocalEmbeddingDownloadService', () => ({
+vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
   localEmbeddingDownloadService: {
     getStatus: vi.fn(),
     download: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock('@main/features/localModel/LocalEmbeddingDownloadService', () => ({
   }
 }))
 
-vi.mock('@main/features/localModel/LocalOcrDownloadService', () => ({
+vi.mock('@main/services/localModel/LocalOcrDownloadService', () => ({
   localOcrDownloadService: {
     getStatus: vi.fn(),
     download: vi.fn(),
@@ -18,13 +18,13 @@ vi.mock('@main/features/localModel/LocalOcrDownloadService', () => ({
   }
 }))
 
-vi.mock('@main/features/localModel/OnnxRuntimeBinaryService', () => ({
+vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
   onnxRuntimeBinaryService: { removeIfUnused: vi.fn() }
 }))
 
-const { localEmbeddingDownloadService } = await import('@main/features/localModel/LocalEmbeddingDownloadService')
-const { localOcrDownloadService } = await import('@main/features/localModel/LocalOcrDownloadService')
-const { onnxRuntimeBinaryService } = await import('@main/features/localModel/OnnxRuntimeBinaryService')
+const { localEmbeddingDownloadService } = await import('@main/services/localModel/LocalEmbeddingDownloadService')
+const { localOcrDownloadService } = await import('@main/services/localModel/LocalOcrDownloadService')
+const { onnxRuntimeBinaryService } = await import('@main/services/localModel/OnnxRuntimeBinaryService')
 const { localModelHandlers } = await import('../localModel')
 
 const ctx = { senderId: 'w1' }

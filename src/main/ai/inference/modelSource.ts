@@ -50,8 +50,8 @@ export function modelSourceOrder(inChina: boolean): ModelSourceId[] {
  * Used for manually-fetched model files (OCR); embedding lets transformers.js
  * build its own URLs from the env triple.
  */
-export function resolveModelFileUrl(id: ModelSourceId, repo: string, file: string, revision?: string): string {
+export function resolveModelFileUrl(id: ModelSourceId, repo: string, file: string): string {
   const source = SOURCES[id]
-  const repoPath = source.remotePathTemplate.replace('{model}', repo).replace('{revision}', revision ?? source.revision)
+  const repoPath = source.remotePathTemplate.replace('{model}', repo).replace('{revision}', source.revision)
   return `${source.remoteHost}/${repoPath}/${file}`
 }

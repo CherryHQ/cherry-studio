@@ -2,13 +2,13 @@ import { Worker } from 'node:worker_threads'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
-import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
+import { onnxRuntimeBinaryService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
-import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
+import type { InferenceRequest, InferenceResponse } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
 const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
@@ -43,7 +43,7 @@ interface Pending {
 /**
  * Owns a single `worker_threads` worker that runs onnxruntime-node inference off
  * the main thread. Embedding and OCR get their own instance each (see
- * {@link EmbeddingInferenceHost}/{@link OcrInferenceHost} below), so
+ * {@link EmbeddingInferenceService}/{@link OcrInferenceService}), so
  * cancelling/removing one model's download can never collaterally reject the
  * other's in-flight request or evict its loaded pipeline — they don't share a
  * thread, a `pending` map, or a `terminate()`.
@@ -67,7 +67,7 @@ interface Pending {
  * multiple knowledge bases (or files) can independently reach the same
  * instance's `embed()`/`recognize()` at once with no other coordination.
  */
-abstract class InferenceHostBase extends BaseService {
+export abstract class InferenceServiceBase extends BaseService {
   private worker: Worker | null = null
   private readonly pending = new Map<string, Pending>()
   private readonly queue = new PQueue({ concurrency: 1 })
@@ -81,7 +81,7 @@ abstract class InferenceHostBase extends BaseService {
 
   protected constructor(kind: LocalModelKind) {
     super()
-    this.logger = loggerService.withContext(`InferenceHost:${kind}`)
+    this.logger = loggerService.withContext(`InferenceService:${kind}`)
   }
 
   private ensureWorker(): Worker {
@@ -125,14 +125,24 @@ abstract class InferenceHostBase extends BaseService {
       // path), so this never double-reports.
       this.failAll(new Error(`inference worker exited unexpectedly (code ${code})`))
     })
-    worker.postMessage({
+    const init: { type: 'init'; appPath: string; onnxRuntimeBindingPath: string; cacheDir?: string } = {
       type: 'init',
-      cacheDir: application.getPath('feature.embedding.models'),
       appPath: application.getPath('app.root'),
       onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath()
-    })
+    }
+    // Only the embedding worker reads cacheDir (transformers.js model cache); the OCR
+    // worker uses explicit modelPaths and never reads it, so OCR omits the field.
+    const cacheDir = this.workerCacheDir()
+    if (cacheDir !== undefined) init.cacheDir = cacheDir
+    worker.postMessage(init)
     this.worker = worker
     return worker
+  }
+
+  /** Directory passed to the worker as its model cache. Overridden by the
+   * embedding service; the base (and the OCR service) supply nothing. */
+  protected workerCacheDir(): string | undefined {
+    return undefined
   }
 
   private handleMessage(msg: InferenceResponse): void {
@@ -305,50 +315,5 @@ abstract class InferenceHostBase extends BaseService {
     if (!this.worker || this.queue.pending > 0 || this.queue.size > 0) return
     this.logger.debug('releasing idle inference worker')
     await this.terminateSafely()
-  }
-}
-
-@Injectable('EmbeddingInferenceHost')
-@ServicePhase(Phase.WhenReady)
-export class EmbeddingInferenceHost extends InferenceHostBase {
-  constructor() {
-    super('embedding')
-  }
-
-  /** Embed texts off the main thread; loads the model first if it is not cached. */
-  async embed(
-    texts: string[],
-    source: InferenceModelSource,
-    modelRepo: string,
-    dtype: string,
-    signal?: AbortSignal
-  ): Promise<number[][]> {
-    const result = await this.send({ type: 'embedding.embed', modelRepo, dtype, source, texts }, { signal })
-    return result.embeddings ?? []
-  }
-
-  /** Download/load the embedding model, reporting progress (used by the model card). */
-  async loadEmbedding(
-    source: InferenceModelSource,
-    modelRepo: string,
-    dtype: string,
-    onProgress?: (p: InferenceProgress) => void,
-    signal?: AbortSignal
-  ): Promise<void> {
-    await this.send({ type: 'embedding.load', modelRepo, dtype, source }, { onProgress, signal })
-  }
-}
-
-@Injectable('OcrInferenceHost')
-@ServicePhase(Phase.WhenReady)
-export class OcrInferenceHost extends InferenceHostBase {
-  constructor() {
-    super('ocr')
-  }
-
-  /** OCR an image off the main thread; loads the PaddleOCR model first if not cached. */
-  async recognize(modelPaths: OcrModelPaths, imagePath: string, signal?: AbortSignal): Promise<string> {
-    const result = await this.send({ type: 'ocr.recognize', modelPaths, imagePath }, { signal })
-    return result.text ?? ''
   }
 }

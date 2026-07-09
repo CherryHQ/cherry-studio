@@ -1,7 +1,7 @@
 /**
  * Process-agnostic message protocol for the inference host.
  *
- * The host currently runs a `worker_threads` worker (see `InferenceHost`), but
+ * The host currently runs a `worker_threads` worker (see `InferenceServiceBase`), but
  * both sides exchange only structured-clone-safe values, so the exact same
  * protocol works unchanged when the host later moves to an Electron
  * `utilityProcess` for crash isolation. Keep it free of class instances,

@@ -9,7 +9,7 @@ vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: vi.
 
 // onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
 // stub it as already-ready so these tests only exercise the OCR weight/dictionary lifecycle.
-vi.mock('@main/features/localModel/OnnxRuntimeBinaryService', () => ({
+vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
   onnxRuntimeBinaryService: {
     isReady: vi.fn(() => true),
     ensure: vi.fn(async () => undefined)

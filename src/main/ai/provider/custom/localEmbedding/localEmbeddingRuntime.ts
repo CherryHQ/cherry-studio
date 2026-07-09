@@ -17,5 +17,5 @@ export async function currentModelSource() {
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {
   if (texts.length === 0) return []
   const { repo, dtype } = LOCAL_MODELS.embedding
-  return application.get('EmbeddingInferenceHost').embed(texts, await currentModelSource(), repo, dtype, signal)
+  return application.get('EmbeddingInferenceService').embed(texts, await currentModelSource(), repo, dtype, signal)
 }
