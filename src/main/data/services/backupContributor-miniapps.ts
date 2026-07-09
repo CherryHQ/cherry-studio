@@ -5,7 +5,7 @@
 // schema-only domain: no cross-domain FKs (presetMiniAppId points at an app-builtin
 // preset, NOT a DB row — §5.4 scalar-ID three-way rule: non-DB resource → not an
 // EntityReference candidate), no aggregate members, no file-ref / JSON soft refs,
-// no operations hooks (see openspec simple-domains.md "MINIAPPS").
+// no operations hooks.
 //
 // Preset: full + lite (lite includes miniapps — small config rows).
 
