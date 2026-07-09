@@ -27,7 +27,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -280,6 +280,45 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
       )}
     />
   )
+}
+
+export function useCloseBeforeAction(
+  open: boolean,
+  onOpenChange: (open: boolean) => void
+): (action: () => void) => void {
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        runPendingCloseAction()
+        return
+      }
+
+      onOpenChange(false)
+    },
+    [onOpenChange, open, runPendingCloseAction]
+  )
+
+  useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
+
+  return closeBeforeAction
 }
 
 export function EditDialogShell<TValues extends FieldValues>({

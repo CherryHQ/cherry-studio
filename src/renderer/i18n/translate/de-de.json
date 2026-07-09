@@ -1343,7 +1343,7 @@
     },
     "deeply_thought": "Tiefgehend nachgedacht ({{seconds}} Sekunden)",
     "default": {
-      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
       "name": "Cherry assistant",
       "topic": {
         "name": "Standardthema"
@@ -4034,7 +4034,7 @@
   },
   "models": {
     "action": {
-      "configure_custom": "[to be translated]:Configure custom models",
+      "configure_custom": "Configure custom models",
       "pin": "Dieses Modell anheften",
       "unpin": "Modell lösen"
     },

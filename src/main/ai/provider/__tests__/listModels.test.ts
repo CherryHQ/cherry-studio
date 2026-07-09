@@ -469,6 +469,37 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
   })
 })
 
+describe('listModels — newApiFetcher endpoint type mapping', () => {
+  function makeNewApiProvider() {
+    return makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+  }
+
+  it('maps supported_endpoint_types to canonical endpointTypes and drops unknown entries', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'gpt-4o',
+            owned_by: 'new-api',
+            supported_endpoint_types: ['openai', 'openai-response', 'unknown-endpoint']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+  })
+})
+
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   function makeVertexProvider() {
     return makeProvider({

@@ -14,11 +14,6 @@ import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
 import { ProviderModelMigrator } from '../ProviderModelMigrator'
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
 const registryFixtures = {
   models: new Map<string, unknown>(),
   overrides: new Map<string, unknown>(),

@@ -51,7 +51,8 @@ import {
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
-  TextInputField
+  TextInputField,
+  useCloseBeforeAction
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { TagSelector } from '../components/TagSelector'
@@ -248,6 +249,8 @@ function AssistantEditDialogContent({
     }
   })
 
+  const closeBeforeAction = useCloseBeforeAction(open, onOpenChange)
+
   return (
     <EditDialogShell
       activeTab={activeTab}
@@ -263,44 +266,43 @@ function AssistantEditDialogContent({
       setDialogContentElement={setDialogContentElement}
       tabs={tabs}
       title={t('library.config.dialogs.edit.assistant_title')}>
-      <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-        <AssistantBasicFields
-          form={form}
-          modelFilter={modelFilter}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          allTagNames={allTagNames}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          onSettingsNavigate={(navigate) => {
-            onOpenChange(false)
-            navigate()
-          }}
-        />
-      </TabsContent>
-      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-        <AssistantPromptField
-          form={form}
-          resource={resource}
-          modelName={modelLabels.modelId}
-          portalContainer={dialogContentElement}
-        />
-      </TabsContent>
-      {isAssistantToolTab(activeTab) ? (
-        <TabsContent value={activeTab} forceMount className="m-0">
-          {activeTab === 'tools.mcp' ? (
-            <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
-          ) : (
-            <div className="grid gap-4">
-              <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
-            </div>
-          )}
+      <>
+        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+          <AssistantBasicFields
+            form={form}
+            modelFilter={modelFilter}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            allTagNames={allTagNames}
+            emojiPickerOpen={emojiPickerOpen}
+            setEmojiPickerOpen={setEmojiPickerOpen}
+            onSettingsNavigate={closeBeforeAction}
+          />
         </TabsContent>
-      ) : null}
-      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-        <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
-      </TabsContent>
+        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+          <AssistantPromptField
+            form={form}
+            resource={resource}
+            modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        {isAssistantToolTab(activeTab) ? (
+          <TabsContent value={activeTab} forceMount className="m-0">
+            {activeTab === 'tools.mcp' ? (
+              <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
+            ) : (
+              <div className="grid gap-4">
+                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
+        </TabsContent>
+      </>
     </EditDialogShell>
   )
 }

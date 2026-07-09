@@ -75,11 +75,22 @@ resets the mocks.
 - Handler tests that only verify wiring/routing — these legitimately mock
   the downstream service because the assertion is about the call shape,
   not the DB state.
-- Migrator tests under `src/main/data/migration/v2/migrators/__tests__/*` —
-  their mock context has been deliberately modelled to verify the
-  migrator's orchestration logic (phase ordering, idempotency, source
-  fallbacks). A real DB would not add coverage over what the mock
-  already asserts.
+- Pure migrator unit tests that only verify orchestration logic (phase
+  ordering, idempotency, source fallbacks) under
+  `src/main/data/migration/v2/migrators/__tests__/*` — a real DB would
+  not add coverage over what a mock context already asserts. However,
+  many migrator tests are **integration-style** and use `setupTestDatabase()`
+  to verify actual SQL output (inserts, FK constraints, ordering, pin
+  migration). This is the dominant pattern (~12 of 21 migrator test files).
+  Use `setupTestDatabase()` when your migrator test needs to assert database
+  state; keep a mock-based approach when you only orchestrate sources.
+  
+  If you use `setupTestDatabase()` in a migrator test, **do NOT** add a
+  redundant local `vi.mock('@application', ...)` — the global setup in
+  `tests/main.setup.ts` already mocks `@application` via
+  `mockApplicationFactory()`, and the harness transparently wires the
+  real database through `MockMainDbServiceUtils.setDb()`. Adding a
+  second override is unnecessary and can conflict with the harness.
 - Orchestration-layer service tests that mock their downstream data
   service (`KnowledgeService`, `McpService`) — they test
   coordination, not persistence.

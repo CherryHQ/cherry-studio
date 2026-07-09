@@ -186,7 +186,18 @@ const PRESET_PROVIDER_ID_ALIASES: Record<string, string> = {
   'minimax-global': 'minimax'
 }
 
+function normalizePresetProviderId(presetProviderId: string | undefined): string | null {
+  const normalized = presetProviderId?.trim()
+  if (!normalized) return null
+  return PRESET_PROVIDER_ID_ALIASES[normalized] ?? normalized
+}
+
 function resolvePresetProviderId(legacy: LegacyProvider): string | null {
+  const legacyPresetProviderId = normalizePresetProviderId(legacy.presetProviderId)
+  if (legacyPresetProviderId) {
+    return legacyPresetProviderId
+  }
+
   if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
     return PRESET_PROVIDER_ID_ALIASES[legacy.id] ?? legacy.id
   }

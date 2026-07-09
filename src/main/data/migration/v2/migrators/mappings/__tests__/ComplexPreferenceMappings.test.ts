@@ -11,13 +11,6 @@ import {
 } from '../ComplexPreferenceMappings'
 
 const appFavorite = (id: string) => ({ type: 'app', id })
-const defaultSidebarFavorites = [
-  appFavorite('assistants'),
-  appFavorite('agents'),
-  appFavorite('translate'),
-  appFavorite('paintings'),
-  appFavorite('knowledge')
-]
 
 describe('ComplexPreferenceMappings', () => {
   describe('type exports', () => {
@@ -178,57 +171,71 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_favorites_migrate', () => {
-    it('should ignore legacy visible and disabled favorites and use the canonical default tabs', () => {
+    it('should preserve legacy visible order while filtering removed entries and normalizing aliases', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')
       expect(mapping).toBeDefined()
 
       const result = mapping!.transform({
-        visible: ['assistants', 'minapp', 'translate'],
+        visible: ['assistants', 'store', 'minapp', 'translate'],
         disabled: ['minapp', 'files']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('mini_app'), appFavorite('translate')]
       })
     })
 
-    it('should use the canonical default tabs for visible favorites without legacy aliases', () => {
+    it('should ignore disabled entries when they are still present in visible favorites', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
-        visible: ['assistants', 'translate', 'paintings'],
+        visible: ['assistants', 'translate', 'paintings', 'files'],
         disabled: ['files', 'knowledge']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('translate'),
+          appFavorite('paintings'),
+          appFavorite('files')
+        ]
       })
     })
 
-    it('should use the canonical default tabs when assistants is absent', () => {
+    it('should prepend required favorites when they are absent from legacy visible favorites', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
-        visible: ['store', 'translate'],
+        visible: ['store', 'translate', 'knowledge'],
         disabled: []
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('translate'), appFavorite('knowledge')]
       })
     })
 
-    it('should use the canonical default tabs when agents is already visible', () => {
+    it('should preserve agents when it is already visible without forcing it when absent', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: ['assistants', 'agents', 'translate'],
-        disabled: []
+      expect(
+        mapping.transform({
+          visible: ['assistants', 'agents', 'translate'],
+          disabled: []
+        })
+      ).toEqual({
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('agents'), appFavorite('translate')]
       })
 
-      expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+      expect(
+        mapping.transform({
+          visible: ['assistants', 'translate'],
+          disabled: []
+        })
+      ).toEqual({
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('translate')]
       })
     })
 
-    it('should replace the old default visible sidebar favorites with the canonical default tabs', () => {
+    it('should preserve the old default visible sidebar favorites after filtering removed entries', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
@@ -247,11 +254,21 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes'),
+          appFavorite('openclaw')
+        ]
       })
     })
 
-    it('should replace the old default visible sidebar favorites without openclaw with the canonical default tabs', () => {
+    it('should preserve the old default visible sidebar favorites without openclaw', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
@@ -269,11 +286,20 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes')
+        ]
       })
     })
 
-    it('should ignore hidden legacy favorites when choosing the canonical default tabs', () => {
+    it('should keep hidden legacy favorites if they are present in visible favorites', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
@@ -291,11 +317,20 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes')
+        ]
       })
     })
 
-    it('should include agents even when it was explicitly hidden in legacy settings', () => {
+    it('should not include agents when it was explicitly hidden and absent from visible favorites', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'translate'],
@@ -303,11 +338,11 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('translate')]
       })
     })
 
-    it('should ignore duplicates in legacy favorites when choosing the canonical default tabs', () => {
+    it('should dedupe normalized legacy favorites while preserving first visible position', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'minapp', 'mini_app', 'translate', 'translate'],
@@ -315,12 +350,19 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': defaultSidebarFavorites
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('mini_app'), appFavorite('translate')]
       })
     })
 
     it('should use the canonical default tabs for missing or non-array legacy inputs', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const defaultSidebarFavorites = [
+        appFavorite('assistants'),
+        appFavorite('agents'),
+        appFavorite('translate'),
+        appFavorite('paintings'),
+        appFavorite('knowledge')
+      ]
 
       expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
         'ui.sidebar.favorites': defaultSidebarFavorites

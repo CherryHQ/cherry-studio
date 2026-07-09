@@ -8,7 +8,7 @@ date: 2026-06-12
 
 ## What changed
 
-Fresh v2 databases seed a persisted default assistant backed by the managed CherryAI `cherryai::qwen` model. The seeded assistant name is chosen once from the app locale: Chinese locales (`zh-*`) use `Cherry助手`, and all other locales use `Cherry assistant`.
+Fresh v2 databases seed a persisted default assistant backed by the managed CherryAI `cherryai::qwen` model. The seeded assistant name is chosen once from Electron's preferred system languages: Chinese languages (`zh-*`) use `Cherry助手`, and all other languages use `Cherry assistant`.
 
 The CherryAI default seeder also inserts missing default-model preference rows for:
 
@@ -27,7 +27,7 @@ The managed CherryAI default model is internal app bootstrap data. It is not lis
 
 ## Why this matters to the user
 
-Fresh Chinese-language profiles start with `Cherry助手`; other fresh profiles start with `Cherry assistant`. The seeded assistant remains ordinary user data and can be renamed or deleted, and it is not automatically renamed if the app language changes later.
+Fresh profiles whose preferred system language is Chinese start with `Cherry助手`; other fresh profiles start with `Cherry assistant`. The seeded assistant remains ordinary user data and can be renamed or deleted, and it is not automatically renamed if the app language changes later.
 
 Existing v2 profiles that are missing one of the default-model preference rows may receive `cherryai::qwen` for that missing row the next time the seeder runs. Existing non-empty values and existing `null` values are not overwritten.
 
