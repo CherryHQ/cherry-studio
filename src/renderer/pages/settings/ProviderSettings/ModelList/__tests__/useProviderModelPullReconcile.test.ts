@@ -138,6 +138,17 @@ describe('useProviderModelPullReconcile', () => {
     )
   })
 
+  it('shows an operation failure toast when adding models fails', async () => {
+    createModelsMock.mockRejectedValueOnce(new Error('create failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([fetchedModel as any])
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
   it('removes unique local model ids', async () => {
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
@@ -165,6 +176,17 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
   })
 
+  it('shows an operation failure toast when removing models fails for a non-default error', async () => {
+    deleteModelsMock.mockRejectedValueOnce(new Error('delete failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.removeModels(['openai::local-model'])
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
   it('cleans stale models through reconcile', async () => {
     reconcileTriggerMock.mockResolvedValueOnce([catalogModel, fetchedModel])
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
@@ -189,6 +211,44 @@ describe('useProviderModelPullReconcile', () => {
       }
     })
     expect(toast.success).toHaveBeenCalledWith('settings.models.manage.clean_stale_success')
+  })
+
+  it('warns when cleaning stale models skips models still in use', async () => {
+    reconcileTriggerMock.mockResolvedValueOnce([catalogModel, fetchedModel, localModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+  })
+
+  it('shows an operation failure toast when cleaning stale models fails', async () => {
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('reconcile failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(1)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('keeps load failures in drawer state instead of showing a toast', async () => {
