@@ -2,6 +2,7 @@ import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   createTimeGroupResolver,
@@ -12,6 +13,7 @@ import {
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
+  sortRankedResourceItems,
   withResourceListGroupIdPrefix
 } from '@renderer/components/chat/resourceList/base'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -364,29 +366,21 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   sessions: readonly T[],
   options: SessionDisplaySortOptions
 ): T[] {
+  const isPinned = (session: T) => session.pinned === true
+
   if (options.mode === 'time') {
-    return sessions
-      .map((session, index) => ({
-        session,
-        index,
-        rank:
-          session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
-        updatedAtMs: Date.parse(session.updatedAt)
-      }))
-      .sort((a, b) => {
-        const rankDelta = a.rank - b.rank
-        if (rankDelta !== 0) return rankDelta
-        if (a.session.pinned === true || b.session.pinned === true) return a.index - b.index
-        if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
-          return b.updatedAtMs - a.updatedAtMs || a.index - b.index
-        }
-        return a.index - b.index
-      })
-      .map(({ session }) => session)
+    return sortRankedResourceItems(sessions, {
+      getRank: (session) =>
+        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
+      isPinned,
+      compareWithinGroup: compareResourceRecency((session) => session.updatedAt)
+    })
   }
 
-  return sessions
-    .map((session, index) => {
+  return sortRankedResourceItems(sessions, {
+    getRank: (session) => {
+      if (session.pinned === true) return 0
+
       let displayRank: number
       if (options.mode === 'workdir' && isSystemWorkspaceSession(session)) {
         displayRank = NO_PROJECT_GROUP_RANK
@@ -396,19 +390,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
         displayRank = getWorkdirGroupRank(session, options.workdirDisplay)
       }
 
-      return {
-        session,
-        index,
-        rank: session.pinned === true ? 0 : displayRank >= UNKNOWN_GROUP_RANK ? displayRank : displayRank + 1
-      }
-    })
-    .sort((a, b) => {
-      const rankDelta = a.rank - b.rank
-      if (rankDelta !== 0) return rankDelta
-      if (a.session.pinned === true || b.session.pinned === true) return a.index - b.index
-      return compareResourceOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
-    })
-    .map(({ session }) => session)
+      return displayRank >= UNKNOWN_GROUP_RANK ? displayRank : displayRank + 1
+    },
+    isPinned,
+    compareWithinGroup: (a, b) => compareResourceOrderKey(a.orderKey, b.orderKey)
+  })
 }
 
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
