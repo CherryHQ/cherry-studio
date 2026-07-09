@@ -69,6 +69,6 @@ export const INFRASTRUCTURE_TABLES: ReadonlySet<string> = new Set<string>(['__dr
  * contributor owner.
  *
  * - temp_session: runtime temp-session refs live in CacheService (no table) —
- *   architecture L193 (temp_session ref becomes in-memory-only) + L283 (excluded at runtime).
+ *   backup-architecture §5.1 / §8.5 invariant #11 (temp_session in-memory-only + runtime-excluded).
  */
 export const RUNTIME_EXCLUDED_FILE_REF_SOURCES: readonly FileRefSourceType[] = ['temp_session']
