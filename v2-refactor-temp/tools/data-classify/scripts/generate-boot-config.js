@@ -43,8 +43,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     originalKey: 'userDataRelocation',
     targetKey: 'temp.user_data_relocation',
     type:
-      "\n    | { status: 'pending'; from: string; to: string }" +
-      "\n    | { status: 'failed'; from: string; to: string; error: string; failedAt: string }" +
+      "\n    | { status: 'pending'; from: string; to: string; copy: boolean; overwrite: boolean }" +
+      "\n    | { status: 'failed'; from: string; to: string; copy: boolean; overwrite: boolean; error: string; failedAt: string }" +
       '\n    | null',
     defaultValue: null,
     jsdoc: [
@@ -59,20 +59,19 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Lifecycle:',
       '  - null: no relocation in progress (default).',
-      "  - { status: 'pending', from, to }: an IPC handler wrote this request",
-      '    and the next preboot should execute the copy.',
-      "  - { status: 'failed', from, to, error, failedAt }: a previous preboot",
-      '    attempted the copy and it failed. The record stays in BootConfig',
-      '    until a renderer recovery flow lets the user retry, abandon, or',
-      '    investigate. The app continues running on the previous userData',
-      '    location until then.',
+      "  - { status: 'pending', from, to, copy, overwrite }: an IPC handler",
+      '    wrote this request and the next preboot should execute it.',
+      "  - { status: 'failed', from, to, copy, overwrite, error, failedAt }:",
+      '    a previous preboot attempt failed. The record stays in BootConfig',
+      '    until the dedicated relocation window shows the error and the user',
+      '    explicitly abandons it by restarting on the previous userData path.',
       '',
       'Note: "userData" here means the Electron OS directory',
       "(app.getPath('userData')), not the colloquial sense of user content.",
       'The copy includes everything under that directory — user files,',
       'Chromium runtime state, logs, etc.',
       '',
-      'Consumer: src/main/core/preboot/userDataLocation.ts'
+      'Consumer: src/main/core/preboot/userDataRelocationGate.ts'
     ]
   }
 ]

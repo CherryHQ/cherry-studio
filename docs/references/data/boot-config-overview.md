@@ -108,7 +108,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`. Long-term, BootConfig will fully replace the legacy `config/config.json` — the follow-up PR will rewire `initAppDataDir()` to read `app.user_data_path` from BootConfig instead of parsing the legacy file directly.
+BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch's preboot relocation gate copies or switches the Electron `userData` directory and commits `app.user_data_path`.
 
 ## Access Convention
 
@@ -120,6 +120,8 @@ BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.j
 | Internal `temp.*` keys (any phase) | `bootConfigService.get/set` / `.onChange()`       | Never exposed via PreferenceService — see below  |
 
 **Rule:** Once the lifecycle is running, **always** access **public** boot config values through PreferenceService. Direct `bootConfigService` usage is reserved for two cases: early boot code, and the internal `temp.*` namespace (below).
+
+The userData relocation request writes the internal `temp.user_data_relocation` key directly through `bootConfigService`, then calls `persist()` before relaunch so a failed write rejects the request.
 
 For detailed usage of `usePreference` and `preferenceService`, see [Preference Usage Guide](./preference-usage.md).
 

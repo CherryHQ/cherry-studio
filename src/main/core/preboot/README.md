@@ -100,10 +100,7 @@ from the rest of userData and copy them in two separate phases: the
 renderer copied the unlocked bulk while running, and the main process
 copied the occupied dirs during the next startup's narrow "no renderer
 yet" window. v2 abandons that distinction entirely — the whole directory
-is copied at startup **after** the previous process has fully exited, so
-nothing is locked. See `occupiedDirs` in
-`src/renderer/pages/settings/DataSettings/BasicDataSettings.tsx` for the
-deprecated v1 constant.
+is copied at startup **after** the previous process has fully exited.
 
 ## Layout
 
@@ -113,45 +110,37 @@ preboot/
 │                        second instances. Runs after userData resolution so
 │                        dev instances with different userData suffixes use
 │                        isolated locks.
-├── userDataLocation.ts  decides where userData lives (dev suffix or
-│                        BootConfig-driven), performs relaunch copy; also
-│                        exports the shared isUsableDataDir(p) validator
-│                        (isDirectory ∧ R_OK|W_OK|X_OK) that the v1→v2
-│                        migration path selector reuses for one identical bar
-├── chromiumFlags.ts     Chromium startup flags (command-line switches and
-│                        hardware-acceleration toggles) that must run
-│                        before app.whenReady()
+├── userDataLocation.ts  resolves userData (dev suffix or BootConfig), commits
+│                        completed relocations, and exports the shared
+│                        isUsableDataDir(p) validator used by v1→v2 migration
+├── userDataRelocationGate.ts
+│                        validates and executes a pending relocation after the
+│                        source lock, owns copy/switch/commit, drives progress,
+│                        and stops normal startup
+├── chromiumFlags.ts     Chromium startup flags that must run before
+│                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
-│                        webContents hardening (Document-Policy response
-│                        header and unresponsive renderer call-stack
-│                        collection)
-├── backupRestoreGate.ts
-│                        backup-restore gate; promotes a staged restored DB
-│                        (if any) at the top of startApp(), after the
-│                        single-instance lock and the frozen path registry,
-│                        before v2MigrationGate reads the DB. Thin shell that
-│                        never throws — except when recovery left no live DB
-│                        at all (booting on would create a fresh empty
-│                        database), where it fails fast instead. The
-│                        promotion logic lives in src/main/data/db/restore/
-│                        (same layering as v2MigrationGate → MigrationEngine).
-├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
-│                        bootstrap. Calls resolveMigrationPaths() to
-│                        detect v1 legacy userData before engine init.
-│                        Temporary — scoped for deletion once all
-│                        users have migrated off v1.
+│                        webContents hardening
+├── backupRestoreGate.ts promotes a staged restored DB before v2MigrationGate;
+│                        fails fast only if recovery stranded the live DB
+├── v2MigrationGate.ts   v1→v2 migration decision gate; temporary until all
+│                        users have migrated off v1
 └── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
-than a subdirectory. Subdirectories are reserved for the case where one
-domain genuinely needs multiple files.
+than a subdirectory.
+
+The dedicated preboot BrowserWindow is opened by
+`src/main/services/relocationWindowService.ts`. It lives in `services/`
+because opening and driving a window is an outward side effect. The module is
+stateless and returns one operation-scoped controller, so it is not a Manager.
 
 ### Development userData suffix
 
 Unpackaged development runs never read packaged BootConfig relocation state.
 Instead, `userDataLocation.ts` appends a suffix to Electron's default
-`userData` directory before the path registry and single-instance lock are
+userData directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
 
 Set `CS_DEV_USER_DATA_SUFFIX` to run multiple development instances with

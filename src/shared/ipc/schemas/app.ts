@@ -1,14 +1,14 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
+import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/relocation'
 import { defineRoute } from '../define'
 
-/**
- * App IPC schemas — app-level info + imperative operations (updater, zoom, spellcheck,
- * relaunch) delegated to main services / electron. `get_info` enumerates its 12 fields
- * explicitly rather than mirroring the renderer `AppInfo` type (which omits `notesPath`,
- * a field the handler returns and consumers read).
- */
+const relocationInspectionSchema = z.discriminatedUnion('valid', [
+  z.object({ valid: z.literal(true), targetExists: z.boolean(), targetEmpty: z.boolean() }),
+  z.object({ valid: z.literal(false), reason: z.enum(USER_DATA_RELOCATION_VALIDATION_REASONS) })
+])
+
 export const appRequestSchemas = {
   'app.get_info': defineRoute({
     input: z.void(),
@@ -27,20 +27,27 @@ export const appRequestSchemas = {
       installPath: z.string()
     })
   }),
-  // Adjust the app-wide zoom factor by `delta` (or reset to 1); returns the NEW factor.
+  'app.inspect_user_data_relocation': defineRoute({
+    input: z.object({ path: z.string().min(1) }),
+    output: relocationInspectionSchema
+  }),
+  'app.request_user_data_relocation': defineRoute({
+    input: z.object({
+      path: z.string().min(1),
+      copy: z.boolean(),
+      overwrite: z.boolean()
+    }),
+    output: z.void()
+  }),
   'app.adjust_zoom': defineRoute({
     input: z.object({ delta: z.number(), reset: z.boolean().optional() }),
     output: z.number()
   }),
   'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
-  // Trigger-only: kicks off the update check; the result (available / not / error) arrives
-  // via the app.updater.* broadcast events below, so the caller reads no return value.
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
-  // Fire-and-forget: quits and installs, so no result the caller reads.
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }
 
-// Auto-updater push events (main → renderer), broadcast by AppUpdaterService.
 export type AppEventSchemas = {
   'app.updater.error': Error
   'app.updater.available': UpdateInfo

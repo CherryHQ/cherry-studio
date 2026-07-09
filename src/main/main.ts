@@ -19,6 +19,7 @@ import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
+import { runUserDataRelocationGate } from '@main/core/preboot/userDataRelocationGate'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 
 // should be the first to resolveUserDataLocation()
@@ -39,6 +40,11 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // Relocation owns this launch before any database or lifecycle service opens
+  // files under the source userData directory.
+  const relocationResult = await runUserDataRelocationGate()
+  if (relocationResult === 'handled') return
+
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. Never throws; on any failure the old DB
   // stays live and the app starts normally.

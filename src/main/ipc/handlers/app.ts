@@ -3,16 +3,20 @@ import { arch } from 'node:os'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { canonicalizeUserDataPath } from '@main/core/preboot/userDataLocation'
+import {
+  assertUserDataRelocationRequest,
+  inspectUserDataRelocationTarget
+} from '@main/core/preboot/userDataRelocationGate'
+import { bootConfigService } from '@main/data/bootConfig'
 import { handleZoomFactor } from '@main/utils/zoom'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { app, BrowserWindow, webContents } from 'electron'
 
-/**
- * App-domain handlers: stateless app info + imperative operations delegated to electron /
- * main services (updater via AppUpdaterService, zoom via the zoom util). These act on
- * app-level state, not the caller's window.
- */
+const logger = loggerService.withContext('AppIpc')
+
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
     version: app.getVersion(),
@@ -28,6 +32,30 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
     installPath: application.getPath('app.install')
   }),
+  'app.inspect_user_data_relocation': async ({ path }) =>
+    inspectUserDataRelocationTarget(application.getPath('app.userdata'), path),
+  'app.request_user_data_relocation': async ({ path, copy, overwrite }) => {
+    if (!app.isPackaged) {
+      throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
+    }
+
+    const pending = {
+      status: 'pending' as const,
+      from: canonicalizeUserDataPath(application.getPath('app.userdata')),
+      to: canonicalizeUserDataPath(path),
+      copy,
+      overwrite
+    }
+    assertUserDataRelocationRequest(pending)
+
+    // Runtime BootConfig writes normally go through PreferenceService so all
+    // windows receive the standard change notification. Relocation additionally
+    // flushes the underlying BootConfig file because the request must be durable
+    // before the renderer asks Electron to relaunch.
+    await application.get('PreferenceService').set('BootConfig.temp.user_data_relocation', pending)
+    bootConfigService.flush()
+    logger.info('userData relocation requested; relaunch required', pending)
+  },
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
     return application.get('PreferenceService').get('app.zoom_factor')
@@ -35,7 +63,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.set_spell_check_enabled': async (isEnable) => {
     webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
   },
-  // Trigger only — results reach the renderer via the app.updater.* broadcast events.
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },
