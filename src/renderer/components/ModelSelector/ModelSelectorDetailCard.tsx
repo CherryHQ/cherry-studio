@@ -54,28 +54,60 @@ function getViewportSize() {
   }
 }
 
-function getAvailableSpaceForSide(
-  triggerRect: DOMRect,
-  side: HoverCardSide,
-  viewport: { width: number; height: number }
-) {
+type PlacementBounds = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+function getPlacementBounds(portalContainer: HoverCardPortalContainer | null | undefined): PlacementBounds {
+  const viewport = getViewportSize()
+  const viewportBounds = {
+    left: 0,
+    top: 0,
+    right: viewport.width,
+    bottom: viewport.height
+  }
+
+  if (!(portalContainer instanceof HTMLElement)) {
+    return viewportBounds
+  }
+
+  const containerRect = portalContainer.getBoundingClientRect()
+  const left = Math.max(viewportBounds.left, containerRect.left)
+  const top = Math.max(viewportBounds.top, containerRect.top)
+  const right = Math.min(viewportBounds.right, containerRect.right)
+  const bottom = Math.min(viewportBounds.bottom, containerRect.bottom)
+
+  if (right <= left || bottom <= top) {
+    return viewportBounds
+  }
+
+  return { left, top, right, bottom }
+}
+
+function getAvailableSpaceForSide(triggerRect: DOMRect, side: HoverCardSide, bounds: PlacementBounds) {
   switch (side) {
     case 'right':
-      return viewport.width - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+      return bounds.right - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'left':
-      return triggerRect.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+      return triggerRect.left - bounds.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'bottom':
-      return viewport.height - triggerRect.bottom - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+      return bounds.bottom - triggerRect.bottom - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'top':
-      return triggerRect.top - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+      return triggerRect.top - bounds.top - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
   }
 }
 
-function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
+function getDetailCardSide(
+  trigger: HTMLElement,
+  portalContainer: HoverCardPortalContainer | null | undefined
+): HoverCardSide {
   const triggerRect = trigger.getBoundingClientRect()
-  const viewport = getViewportSize()
-  const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', viewport)
-  const leftSpace = getAvailableSpaceForSide(triggerRect, 'left', viewport)
+  const bounds = getPlacementBounds(portalContainer)
+  const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', bounds)
+  const leftSpace = getAvailableSpaceForSide(triggerRect, 'left', bounds)
 
   if (rightSpace >= DETAIL_CARD_TARGET_WIDTH) {
     return 'right'
@@ -85,8 +117,7 @@ function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
     return 'left'
   }
 
-  return getAvailableSpaceForSide(triggerRect, 'bottom', viewport) >=
-    getAvailableSpaceForSide(triggerRect, 'top', viewport)
+  return getAvailableSpaceForSide(triggerRect, 'bottom', bounds) >= getAvailableSpaceForSide(triggerRect, 'top', bounds)
     ? 'bottom'
     : 'top'
 }
@@ -206,8 +237,8 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
       return
     }
 
-    setSide(getDetailCardSide(triggerRef.current))
-  }, [])
+    setSide(getDetailCardSide(triggerRef.current, portalContainer))
+  }, [portalContainer])
 
   return (
     <HoverCard openDelay={450} closeDelay={100} onOpenChange={(open) => open && updateSide()}>

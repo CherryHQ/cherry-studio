@@ -16,6 +16,7 @@ const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, 
       side?: string
       align?: string
       collisionPadding?: number
+      portalContainer?: HTMLElement | null
     }>,
     mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
   })
@@ -64,15 +65,17 @@ vi.mock('@cherrystudio/ui', () => ({
     className,
     side,
     align,
-    collisionPadding
+    collisionPadding,
+    portalContainer
   }: {
     children: ReactNode
     className?: string
     side?: string
     align?: string
     collisionPadding?: number
+    portalContainer?: HTMLElement | null
   }) => {
-    mockHoverCardContentProps.push({ className, side, align, collisionPadding })
+    mockHoverCardContentProps.push({ className, side, align, collisionPadding, portalContainer })
     return <div className={className}>{children}</div>
   },
   HoverCardTrigger: ({ children, ref }: { children: ReactNode; ref?: Ref<HTMLSpanElement> }) => (
@@ -189,6 +192,56 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
       side: 'bottom',
       align: 'center'
+    })
+  })
+
+  it('uses the portal container bounds when choosing a horizontal side', () => {
+    const model = makeModel()
+    const portalContainer = document.createElement('div')
+    portalContainer.dataset.testPortal = 'true'
+
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1200)
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(700)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement): DOMRect {
+      if (this.dataset.testPortal === 'true') {
+        return {
+          x: 180,
+          y: 120,
+          width: 680,
+          height: 420,
+          top: 120,
+          right: 860,
+          bottom: 540,
+          left: 180,
+          toJSON: () => {}
+        } as DOMRect
+      }
+
+      return {
+        x: 560,
+        y: 180,
+        width: 280,
+        height: 36,
+        top: 180,
+        right: 840,
+        bottom: 216,
+        left: 560,
+        toJSON: () => {}
+      } as DOMRect
+    })
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    act(() => mockHoverCardOpenChange.current?.(true))
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
+      side: 'left',
+      align: 'start',
+      portalContainer
     })
   })
 
