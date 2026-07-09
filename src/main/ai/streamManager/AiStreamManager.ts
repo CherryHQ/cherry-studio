@@ -788,6 +788,32 @@ export class AiStreamManager extends BaseService {
     }
   }
 
+  /**
+   * Settle a topic stream that a chaining turn kept alive (`isTopicDone=false`, terminal lifecycle
+   * skipped) when the agent runtime's queued continuation could NOT be launched — e.g. its drain
+   * re-check found the agent model deleted. `broadcastTopicError` alone only notifies current
+   * subscribers: it leaves the held stream in `activeStreams` with its terminal lifecycle un-run, so
+   * the cross-window status cache stays `streaming` and a re-attaching window still sees the stale
+   * prior turn as live. Surface the error to transport subscribers (persistence skipped — the
+   * continuation turn never opened), write the terminal status, and run the terminal lifecycle so the
+   * status cache settles and the stream is evicted. Mirrors the chat path's `failChatContinuation`.
+   */
+  terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    for (const listener of stream.listeners.values()) {
+      if (listener.id.startsWith('persistence:')) continue
+      try {
+        void listener.onError(result)
+      } catch (err) {
+        logger.warn('terminateHeldTopicStream listener threw', { topicId, err })
+      }
+    }
+    stream.status = 'error'
+    this.runTerminalLifecycle(stream)
+  }
+
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
     stream.lifecycle.onTerminal(stream)

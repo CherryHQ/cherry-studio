@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -152,16 +151,7 @@ export class AgentService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          if (skillIds.length > 0) {
-            const rows = tx
-              .select({ id: agentGlobalSkillTable.id })
-              .from(agentGlobalSkillTable)
-              .where(inArray(agentGlobalSkillTable.id, skillIds))
-              .all()
-            if (rows.length !== skillIds.length) {
-              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
-            }
-          }
+          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -349,6 +339,20 @@ export class AgentService {
 
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
+    const newSkillUpdates = updates.skillUpdates
+
+    // Same two-step validation as createAgent: pre-check each id outside the write
+    // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
+    // fallback). The in-tx recheck that closes the delete-after-prevalidation race
+    // lives inside AgentGlobalSkillService.applyJoinUpdatesByAgentTx. Resolved via the
+    // registry to keep the service↔service edge out of the static import graph.
+    if (newSkillUpdates !== undefined) {
+      for (const update of newSkillUpdates) {
+        if (!getDataService('AgentGlobalSkillService').getById(update.skillId)) {
+          throw DataApiErrorFactory.notFound('Skill', update.skillId)
+        }
+      }
+    }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
     // (description, instructions, disabledTools, configuration). Writing
@@ -374,6 +378,9 @@ export class AgentService {
                 .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
                 .run()
             }
+          }
+          if (newSkillUpdates !== undefined) {
+            getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
         }),
       defaultHandlersFor('Agent', id)

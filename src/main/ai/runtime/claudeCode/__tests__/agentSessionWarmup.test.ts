@@ -115,6 +115,64 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 
+  it('routes with the connection-scoped model override instead of the agent latest model', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+
+    // A live turn's connection pins the model captured at turn creation; the agent may have been
+    // edited to a different model since (here: agent.model is still provider-1::model-1).
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-2' as any
+    )
+
+    expect(request?.sdkModelId).toBe('model-2-api')
+    // The whole route follows the override — the unset plan/small defaults must pin to the captured
+    // model too, not fall back to the agent's latest `provider-1::model-1`.
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api'
+    })
+  })
+
+  it('pins explicit plan/small to the captured primary for an overridden connection instead of the latest edited sub-models', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    // The agent's primary is still provider-1::model-1, but plan/small were edited to point at another
+    // provider in the same begin-turn-before-open-stream window that pinned the connection to model-2.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-2' as any
+    )
+
+    // The captured turn only recorded its primary; the edited plan/small must NOT leak in. They pin to the
+    // captured primary, so every ANTHROPIC_DEFAULT_* stays on model-2 and the cross-provider sub-models do
+    // not force the captured connection onto the gateway route — it stays on the direct provider key.
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api',
+      ANTHROPIC_API_KEY: 'api-key'
+    })
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 

@@ -13,8 +13,9 @@ import { agentService } from '@data/services/AgentService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import { and, asc, eq, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
@@ -153,6 +154,44 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+  }
+
+  /**
+   * Assert every id in `skillIds` still exists in `agent_global_skill` within the
+   * caller's write tx. Callers pre-validate the same ids outside the tx to surface
+   * a precise `Skill` not-found error; this in-tx recheck closes the
+   * delete-after-prevalidation race. `operation` labels the resulting error (e.g.
+   * 'create agent', 'update agent'). Dedupes internally so the count comparison
+   * holds even if the caller passes duplicates.
+   */
+  assertSkillsExistTx(tx: DbOrTx, skillIds: readonly string[], operation: string): void {
+    const uniqueSkillIds = Array.from(new Set(skillIds))
+    if (uniqueSkillIds.length === 0) return
+
+    const rows = tx
+      .select({ id: agentGlobalSkillTable.id })
+      .from(agentGlobalSkillTable)
+      .where(inArray(agentGlobalSkillTable.id, uniqueSkillIds))
+      .all()
+    if (rows.length !== uniqueSkillIds.length) {
+      throw DataApiErrorFactory.invalidOperation(operation, 'a selected skill no longer exists')
+    }
+  }
+
+  applyJoinUpdatesByAgentTx(tx: DbOrTx, agentId: string, skillUpdates: readonly AgentSkillUpdateDto[]): void {
+    const bySkillId = new Map<string, AgentSkillUpdateDto>()
+    for (const update of skillUpdates) bySkillId.set(update.skillId, update)
+
+    const uniqueUpdates = Array.from(bySkillId.values())
+    this.assertSkillsExistTx(
+      tx,
+      uniqueUpdates.map((update) => update.skillId),
+      'update agent'
+    )
+
+    for (const update of uniqueUpdates) {
+      this.upsertJoinTx(tx, agentId, update.skillId, update.isEnabled)
+    }
   }
 
   /** Upsert the join row for every agent in `agent`. Returns the affected agent ids. */
