@@ -31,262 +31,113 @@
       "submit": "送信",
       "title": "エージェントからの質問"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "追加",
-        "bindAgent": "バインドエージェント",
-        "chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
-        "comingSoon": "近日公開",
+    "channels": {
+      "add": "追加",
+      "bindAgent": "バインドエージェント",
+      "chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
+      "comingSoon": "近日公開",
+      "connected": "接続済み",
+      "connecting": "接続",
+      "createError": "チャンネルの作成に失敗しました",
+      "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
+      "deleteError": "チャンネルの削除に失敗しました",
+      "description": "エージェントをメッセージングプラットフォームに接続します。",
+      "disconnected": "切断済み",
+      "discord": {
+        "botToken": "ボットトークン",
+        "botTokenPlaceholder": "Discordボットのトークンを入力してください",
+        "channelIds": "許可されたチャンネルID",
+        "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
+        "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+        "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
+        "title": "ディスコード",
+        "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
+      },
+      "error": "エラー",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
+        "chatIds": "許可するチャットID",
+        "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "接続済み",
-        "connecting": "接続",
-        "createError": "チャンネルの作成に失敗しました",
-        "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
-        "deleteError": "チャンネルの削除に失敗しました",
-        "description": "エージェントをメッセージングプラットフォームに接続します。",
-        "disconnected": "切断済み",
-        "discord": {
-          "botToken": "ボットトークン",
-          "botTokenPlaceholder": "Discordボットのトークンを入力してください",
-          "channelIds": "許可されたチャンネルID",
-          "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
-          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
-          "title": "ディスコード",
-          "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
-        },
-        "error": "エラー",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
-          "chatIds": "許可するチャットID",
-          "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "接続済み",
-          "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
-          "domain": "ドメイン",
-          "domainFeishu": "Feishu（中国）",
-          "domainLark": "Lark（国際版）",
-          "encryptKey": "暗号化キー",
-          "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
-          "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
-          "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
-          "qrHint": "QRコードのスキャンを待っています...",
-          "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
-          "qrTitle": "Feishu QR登録",
-          "title": "Feishu",
-          "verificationToken": "検証トークン",
-          "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
-        },
-        "logs": "ログ",
-        "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
-        "noLogs": "まだログはありません",
-        "notifyReceiver": "タスク通知を受信",
-        "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "QQ Bot の App ID を入力",
-          "chatIds": "許可するチャット ID",
-          "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
-          "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
-          "title": "QQ",
-          "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
-        },
-        "security": {
-          "inheritFromAgent": "エージェントから継承",
-          "permissionMode": "チャンネル権限モード",
-          "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
-        },
-        "selectAgent": "エージェントを選択してバインドしてください",
-        "slack": {
-          "appToken": "アプリレベルトークン",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "ボットトークン",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "許可されたチャンネルID",
-          "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
-          "channelIdsPlaceholder": "C01234567、D89012345",
-          "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
-          "title": "スラック",
-          "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
-        },
-        "soulModeRequired": "このエージェントは自律モードが有効になっていません。チャンネル機能は動作しません。エージェント設定で有効にしてください。",
-        "tab": "チャンネル",
-        "telegram": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "Telegram ボットトークンを入力",
-          "chatIds": "許可するチャット ID",
-          "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
-          "title": "Telegram"
-        },
-        "title": "チャンネル",
-        "updateError": "チャンネルの更新に失敗しました",
-        "wechat": {
-          "addAccount": "WeChatアカウントを追加",
-          "chatIds": "許可されたユーザーID",
-          "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
-          "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
-          "connected": "接続済み",
-          "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
-          "disconnected": "切断されました",
-          "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
-          "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
-          "qrTitle": "WeChat QRコードログイン",
-          "title": "WeChat",
-          "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
-        }
+        "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
+        "domain": "ドメイン",
+        "domainFeishu": "Feishu（中国）",
+        "domainLark": "Lark（国際版）",
+        "encryptKey": "暗号化キー",
+        "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
+        "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
+        "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
+        "qrHint": "QRコードのスキャンを待っています...",
+        "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
+        "qrTitle": "Feishu QR登録",
+        "title": "Feishu",
+        "verificationToken": "検証トークン",
+        "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
       },
-      "heartbeat": {
-        "enabled": "ハートビートを有効化",
-        "enabledHelper": "有効にすると、ワークスペースに heartbeat.md が存在する場合、スケジューラが設定された間隔でその内容を読み取り、メインセッションに送信します。",
-        "interval": "間隔（分）",
-        "intervalHelper": "ハートビートの実行頻度（分単位）。"
+      "logs": "ログ",
+      "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
+      "noLogs": "まだログはありません",
+      "notifyReceiver": "タスク通知を受信",
+      "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "QQ Bot の App ID を入力",
+        "chatIds": "許可するチャット ID",
+        "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
+        "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+        "title": "QQ",
+        "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
       },
-      "sandbox": {
-        "description": "OS レベルのサンドボックスを使用して、エージェントのファイルシステムとネットワークアクセスをワークスペースディレクトリに制限します。",
-        "helper": "ファイルシステムとコマンドアクセスをワークスペースパスに制限します。",
-        "label": "サンドボックスモード"
+      "security": {
+        "inheritFromAgent": "エージェントから継承",
+        "permissionMode": "チャンネル権限モード",
+        "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
       },
-      "scheduler": {
-        "cron": {
-          "helper": "標準の cron 式（例: '*/30 * * * *' で 30 分ごと）。",
-          "label": "Cron 式",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "スケジューラはスケジュールに従ってエージェントを自動的にトリガーします。",
-        "enabled": "スケジューラを有効化",
-        "enabledHelper": "有効にすると、エージェントは設定されたスケジュールに基づいて自動的に実行されます。",
-        "errors": {
-          "invalidCron": "無効な cron 式",
-          "invalidDelay": "遅延は正の数である必要があります",
-          "invalidInterval": "間隔は正の数である必要があります"
-        },
-        "interval": {
-          "helper": "エージェントの実行頻度（秒単位）。",
-          "label": "間隔（秒）"
-        },
-        "lastRun": "前回の実行",
-        "never": "なし",
-        "nextRun": "次回の実行",
-        "oneTime": {
-          "helper": "エージェント実行前の一回限りの遅延（秒単位）。",
-          "label": "遅延（秒）"
-        },
-        "status": {
-          "running": "実行中",
-          "stopped": "停止中",
-          "tickInProgress": "実行中"
-        },
-        "tab": "スケジューラ",
-        "title": "スケジューラ設定",
-        "type": {
-          "cron": "Cron 式",
-          "interval": "固定間隔",
-          "label": "スケジュールタイプ",
-          "one-time": "一回限りの遅延"
-        }
+      "selectAgent": "エージェントを選択してバインドしてください",
+      "slack": {
+        "appToken": "アプリレベルトークン",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "ボットトークン",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "許可されたチャンネルID",
+        "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
+        "channelIdsPlaceholder": "C01234567、D89012345",
+        "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
+        "title": "スラック",
+        "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
       },
-      "soul": {
-        "description": "ソウルはエージェントの個性と基本動作を定義します。ワークスペースルートの soul.md から読み込まれます。",
-        "empty": "ワークスペースルートに soul.md が見つかりません。エージェントの個性を定義するために作成してください。",
-        "enabled": "ソウルを有効化",
-        "enabledHelper": "有効にすると、エージェントはワークスペースルートから soul.md を読み取り、システムプロンプトの先頭に追加します。",
-        "fileLabel": "soul.md",
-        "preview": "ソウルプレビュー",
-        "tab": "ソウル",
-        "title": "ソウル設定"
+      "tab": "チャンネル",
+      "telegram": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "Telegram ボットトークンを入力",
+        "chatIds": "許可するチャット ID",
+        "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "タスクを追加",
-        "cancel": "キャンセル",
-        "channels": {
-          "label": "チャンネルに送信",
-          "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
-          "placeholder": "結果を受け取るチャンネルを選択してください"
-        },
-        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
-        "delete": {
-          "confirm": "このタスクを削除してもよろしいですか？",
-          "label": "削除"
-        },
-        "edit": "編集",
-        "empty": "スケジュールタスクがありません。追加して開始しましょう。",
-        "error": {
-          "createFailed": "タスクの作成に失敗しました",
-          "deleteFailed": "タスクの削除に失敗しました",
-          "loadFailed": "タスクの読み込みに失敗しました",
-          "runFailed": "タスクの実行に失敗しました",
-          "updateFailed": "タスクの更新に失敗しました"
-        },
-        "frequency": {
-          "everyPrefix": "間隔",
-          "everySuffix": "分ごとに実行",
-          "label": "実行頻度"
-        },
-        "intervalPlaceholder": "1以上",
-        "intervalUnit": "議事録",
-        "lastRun": "前回の実行",
-        "logs": {
-          "cancelled": "キャンセル",
-          "completed": "完了",
-          "duration": "所要時間",
-          "empty": "実行履歴がありません。",
-          "failed": "失敗",
-          "justNow": "さっき",
-          "label": "実行履歴",
-          "loadError": "実行履歴の読み込みに失敗しました",
-          "result": "結果",
-          "runAt": "実行時刻",
-          "running": "走っている…",
-          "search": "検索ログ...",
-          "status": "ステータス",
-          "viewSession": "セッションを表示"
-        },
-        "name": {
-          "label": "名前",
-          "placeholder": "例: 毎日のコードレビュー"
-        },
-        "nextRun": "次回の実行",
-        "oncePlaceholder": "日時を選択",
-        "pause": "一時停止",
-        "prompt": {
-          "expand": "エディタを展開",
-          "label": "プロンプト",
-          "placeholder": "このタスク実行時にエージェントが行うべきことは？"
-        },
-        "resume": "再開",
-        "run": "実行",
-        "runTriggered": "タスクがトリガーされました",
-        "save": "保存",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "間隔",
-          "once": "一回限り"
-        },
-        "status": {
-          "active": "アクティブ",
-          "completed": "完了",
-          "paused": "一時停止中"
-        },
-        "tab": "タスク",
-        "time": {
-          "hoursAgo": "{{count}}時間前",
-          "minutesAgo": "{{count}}分前"
-        },
-        "timeout": {
-          "label": "最長実行時間",
-          "placeholder": "制限なし"
-        },
-        "title": "スケジュールタスク"
-      },
-      "warning": {
-        "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
+      "title": "チャンネル",
+      "updateError": "チャンネルの更新に失敗しました",
+      "wechat": {
+        "addAccount": "WeChatアカウントを追加",
+        "chatIds": "許可されたユーザーID",
+        "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
+        "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
+        "connected": "接続済み",
+        "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
+        "disconnected": "切断されました",
+        "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+        "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
+        "qrTitle": "WeChat QRコードログイン",
+        "title": "WeChat",
+        "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
       }
     },
     "delete": {
@@ -339,14 +190,19 @@
     "home": {
       "welcome_title": "今日は何について話しましょうか？"
     },
+    "icon": {
+      "type": "エージェントアイコン"
+    },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
-      "soul_placeholder": "Telegramに接続するのを手伝ってください"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
     },
     "list": {
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
       }
+    },
+    "manage": {
+      "title": "エージェントの管理"
     },
     "pin": {
       "title": "ピンエージェント"
@@ -499,6 +355,7 @@
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
       },
+      "auto_rename": "タスク名を生成",
       "create": {
         "error": {
           "failed": "セッションの追加に失敗しました"
@@ -712,12 +569,6 @@
         "tab": "スキル",
         "title": "インストール済みスキル"
       },
-      "soulMode": {
-        "description": "有効にすると、エージェントはワークスペースのsoulファイルからカスタムシステムプロンプトを使用し、自律的タスク管理ツールを注入し、自律動作には不適切なインタラクティブツールを無効化します。",
-        "disabledBadge": "自律モードにより無効化されました",
-        "disabledTooltip": "このツールは、自律モードがアクティブな場合に自動的に無効になります",
-        "title": "自律モード"
-      },
       "tooling": {
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
@@ -784,6 +635,94 @@
       }
     },
     "sidebar_title": "エージェント",
+    "skill": {
+      "manage": {
+        "title": "スキルを管理する"
+      }
+    },
+    "tasks": {
+      "add": "タスクを追加",
+      "cancel": "キャンセル",
+      "channels": {
+        "label": "チャンネルに送信",
+        "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
+        "placeholder": "結果を受け取るチャンネルを選択してください"
+      },
+      "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
+      "delete": {
+        "confirm": "このタスクを削除してもよろしいですか？",
+        "label": "削除"
+      },
+      "edit": "編集",
+      "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+      "error": {
+        "createFailed": "タスクの作成に失敗しました",
+        "deleteFailed": "タスクの削除に失敗しました",
+        "loadFailed": "タスクの読み込みに失敗しました",
+        "runFailed": "タスクの実行に失敗しました",
+        "updateFailed": "タスクの更新に失敗しました"
+      },
+      "frequency": {
+        "everyPrefix": "間隔",
+        "everySuffix": "分ごとに実行",
+        "label": "実行頻度"
+      },
+      "intervalPlaceholder": "1以上",
+      "intervalUnit": "議事録",
+      "lastRun": "前回の実行",
+      "logs": {
+        "cancelled": "キャンセル",
+        "completed": "完了",
+        "duration": "所要時間",
+        "empty": "実行履歴がありません。",
+        "failed": "失敗",
+        "justNow": "さっき",
+        "label": "実行履歴",
+        "loadError": "実行履歴の読み込みに失敗しました",
+        "result": "結果",
+        "runAt": "実行時刻",
+        "running": "走っている…",
+        "search": "検索ログ...",
+        "status": "ステータス",
+        "viewSession": "セッションを表示"
+      },
+      "name": {
+        "label": "名前",
+        "placeholder": "例: 毎日のコードレビュー"
+      },
+      "nextRun": "次回の実行",
+      "oncePlaceholder": "日時を選択",
+      "pause": "一時停止",
+      "prompt": {
+        "expand": "エディタを展開",
+        "label": "プロンプト",
+        "placeholder": "このタスク実行時にエージェントが行うべきことは？"
+      },
+      "resume": "再開",
+      "run": "実行",
+      "runTriggered": "タスクがトリガーされました",
+      "save": "保存",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "間隔",
+        "once": "一回限り"
+      },
+      "status": {
+        "active": "アクティブ",
+        "completed": "完了",
+        "paused": "一時停止中"
+      },
+      "tab": "タスク",
+      "time": {
+        "hoursAgo": "{{count}}時間前",
+        "minutesAgo": "{{count}}分前"
+      },
+      "timeout": {
+        "label": "最長実行時間",
+        "placeholder": "制限なし"
+      },
+      "title": "スケジュールタスク"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +874,14 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
+          "label": "[to be translated]:Agent Config"
+        },
+        "CherryCron": {
+          "description": "アプリ内スケジューラを管理します",
+          "label": "スケジューラ"
+        },
         "CherryKbManage": {
           "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
           "label": "ナレッジ管理"
@@ -943,6 +890,10 @@
           "description": "ナレッジベースを検索します",
           "label": "ナレッジ検索"
         },
+        "CherryNotify": {
+          "description": "[to be translated]:Sends a notification through a connected channel",
+          "label": "[to be translated]:Notify"
+        },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
           "label": "Web Fetch"
@@ -950,10 +901,6 @@
         "CherryWebSearch": {
           "description": "設定されたプロバイダーを通じてウェブを検索します",
           "label": "ウェブ検索"
-        },
-        "ClawCron": {
-          "description": "アプリ内スケジューラを管理します",
-          "label": "スケジューラ"
         },
         "Edit": {
           "description": "特定のファイルに対してターゲットを絞った編集を行う",
@@ -1087,6 +1034,7 @@
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "menu_title": "すべてのアシスタントとの会話を削除してください",
+      "success_title": "{{count}}トピックをクリアしました",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -1712,6 +1660,7 @@
               "tip": "トピックは、完全な会話コンテキストを含んだ形でナレッジベースに保存されます"
             }
           },
+          "source_fallback": "会話",
           "success": "トピックがナレッジベースに正常に保存されました（{{count}} 個のコンテンツ）",
           "title": "トピックをナレッジベースに保存"
         }
@@ -2986,11 +2935,10 @@
             "placeholder": "エージェントに名前を付けてください"
           },
           "permission_mode": {
-            "help": "bypassPermissionsに切り替えることは、Soulモードを有効にすることと同等です。",
             "label": "パーミッションモード",
             "option": {
               "acceptEdits": "編集を承認する",
-              "bypassPermissions": "権限をバイパス（ソウル）",
+              "bypassPermissions": "権限をバイパス",
               "default": "デフォルト",
               "plan": "プラン モード"
             }
@@ -3002,10 +2950,6 @@
           "small_model": {
             "hint": "軽量なチェックとフォーマット",
             "label": "小型モデル（オプション）"
-          },
-          "soul_enabled": {
-            "help": "有効にすると、bypassPermissions を自動的に付与します",
-            "label": "ソウルモード"
           }
         },
         "model_config": "モデル構成",
@@ -3135,6 +3079,7 @@
           "avatar_aria": "アバターを選択",
           "back": "戻る",
           "capability": {
+            "builtin_badge": "デフォルトで有効",
             "import": "スキルインポート",
             "no_skills": "インストールされているスキルがありません",
             "search": "検索スキル"
@@ -3753,6 +3698,7 @@
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
+      "collapse": "折りたたむ",
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
@@ -3797,6 +3743,7 @@
         "usingTools": "タスクに取り組んでいる"
       },
       "preview": "プレビュー",
+      "processed": "処理済み",
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "runningHeader": "作業中…",
@@ -4048,10 +3995,13 @@
     "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
+    "exportToPDF": "PDFにエクスポート",
     "exportToWord": "Wordにエクスポート",
     "export_failed": "知識ベースへのエクスポートに失敗しました",
     "export_knowledge": "ノートをナレッジベースにエクスポートする",
     "export_success": "知識ベースへのエクスポートが成功しました",
+    "export_to_pdf_failed": "PDFへのエクスポートに失敗しました",
+    "export_to_pdf_success": "PDFにエクスポートされました",
     "export_to_word_failed": "Wordへのエクスポートに失敗しました",
     "folder": "フォルダー",
     "load_failed": "ノートの読み込みに失敗しました",
@@ -4068,6 +4018,8 @@
     "no_valid_files": "有効なファイルがアップロードされていません",
     "open_folder": "外部フォルダーを開きます",
     "open_outside": "外部から開く",
+    "print": "印刷",
+    "print_failed": "ノートの印刷に失敗しました",
     "rename": "名前の変更",
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "rename_failed": "ノートの名前を変更できませんでした",
@@ -5331,6 +5283,13 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
+    "agent": {
+      "position": {
+        "label": "セッション位置",
+        "left": "左",
+        "right": "右"
+      }
+    },
     "appearance": {
       "title": "外観"
     },
@@ -5967,6 +5926,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "アップデートを確認",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
@@ -6004,7 +5964,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "アップデートの確認に失敗しました"
     },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
@@ -7266,6 +7227,7 @@
       "open_tab_in_new_window": "新しいウィンドウでタブを開く",
       "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
+      "print": "印刷",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
       "reset": "リセット",
@@ -7596,6 +7558,7 @@
   },
   "title": {
     "apps": "アプリ",
+    "chat": "チャット",
     "code": "Code",
     "files": "ファイル",
     "home": "ホーム",

@@ -273,7 +273,6 @@ export enum IpcChannel {
   // Global Skills
   Skill_Install = 'skill:install',
   Skill_Uninstall = 'skill:uninstall',
-  Skill_Toggle = 'skill:toggle',
   Skill_InstallFromZip = 'skill:install-from-zip',
   Skill_InstallFromDirectory = 'skill:install-from-directory',
   Skill_ReadFile = 'skill:read-file',

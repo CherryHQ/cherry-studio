@@ -12,7 +12,11 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
-import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import {
+  agentMcpServerTable,
+  assistantKnowledgeBaseTable,
+  assistantMcpServerTable
+} from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -345,6 +349,7 @@ export class MigrationEngine {
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
+      { table: agentMcpServerTable, name: 'agent_mcp_server' },
       { table: agentChannelTable, name: 'agent_channel' },
       // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },

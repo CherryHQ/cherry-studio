@@ -9,7 +9,6 @@ const {
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
-  toggleSkillMock,
   togglePinMock,
   updateAgentMock,
   useMutationMock,
@@ -20,7 +19,6 @@ const {
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   togglePinMock: vi.fn(),
   updateAgentMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -97,8 +95,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: [],
-    loading: false,
-    toggle: toggleSkillMock
+    loading: false
   })
 }))
 
@@ -123,8 +120,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.name': 'Name',
           'common.required_field': 'Required',
           'common.save': 'Save',
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.edit.title': 'Edit agent',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
@@ -142,8 +137,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
-          'library.config.agent.field.soul_enabled.label': 'Soul',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
@@ -200,7 +193,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -222,7 +214,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -496,8 +487,7 @@ describe('AgentSelector', () => {
           skillIds: [],
           configuration: {
             avatar: '🤖',
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
+            permission_mode: 'bypassPermissions'
           }
         }
       })
