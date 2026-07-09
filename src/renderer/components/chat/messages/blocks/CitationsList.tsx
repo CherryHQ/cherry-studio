@@ -1,4 +1,5 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -7,6 +8,8 @@ import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
 import { fetchXOEmbed, isXPostUrl, noContent, xOembedKey } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
+import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +46,17 @@ const truncateText = (text: string, maxLength = 100) => {
 const CITATION_ROW_ESTIMATED_HEIGHT = 76
 const CITATION_ROW_OVERSCAN = 2
 
+const WEB_CONTENT_PREVIEW_POLICY_KEYS = {
+  defaultFetchUrlsProviderId: 'chat.web_search.default_fetch_urls_provider',
+  providerOverrides: 'chat.web_search.provider_overrides',
+  maxResults: 'chat.web_search.max_results',
+  excludeDomains: 'chat.web_search.exclude_domains',
+  compressionMethod: 'chat.web_search.compression.method',
+  cutoffLimit: 'chat.web_search.compression.cutoff_limit'
+} as const
+
+const WEB_CONTENT_PREVIEW_SECRET_SALT = createPreviewSecretSalt()
+
 const getCitationHostname = (citation: Citation) => {
   if (!citation.url) return undefined
   try {
@@ -56,6 +70,76 @@ const getCitationVirtualKey = (citations: Citation[], index: number) => {
   const citation = citations[index]
   if (!citation) return index
   return `${citation.number}-${citation.url || citation.title || index}`
+}
+
+function buildWebContentPreviewPolicyKey(preferences: {
+  defaultFetchUrlsProviderId: string | null
+  providerOverrides: WebSearchProviderOverrides | null
+  maxResults: number | null
+  excludeDomains: string[] | null
+  compressionMethod: string | null
+  cutoffLimit: number | null
+}) {
+  const defaultProviderId = preferences.defaultFetchUrlsProviderId ?? null
+  const providerOverrides = preferences.providerOverrides ?? {}
+  const selectedProviderOverride = defaultProviderId ? providerOverrides[defaultProviderId] : null
+  const maxResults =
+    typeof preferences.maxResults === 'number' && Number.isFinite(preferences.maxResults)
+      ? Math.max(1, preferences.maxResults)
+      : 1
+
+  return JSON.stringify({
+    defaultProviderId,
+    selectedProviderOverride: getProviderOverridePolicySignature(selectedProviderOverride),
+    maxResults,
+    excludeDomains: Array.isArray(preferences.excludeDomains) ? preferences.excludeDomains : [],
+    compressionMethod: preferences.compressionMethod ?? null,
+    cutoffLimit: normalizeWebSearchCutoffLimit(preferences.cutoffLimit)
+  })
+}
+
+function getProviderOverridePolicySignature(override?: WebSearchProviderOverride | null) {
+  if (!override) {
+    return null
+  }
+
+  return {
+    apiKeyFingerprints: override.apiKeys?.map(getSecretPolicyFingerprint),
+    capabilities: override.capabilities,
+    engines: override.engines,
+    basicAuthUsername: override.basicAuthUsername,
+    basicAuthPasswordFingerprint: getSecretPolicyFingerprint(override.basicAuthPassword)
+  }
+}
+
+function getSecretPolicyFingerprint(value?: string) {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return hashString(`${WEB_CONTENT_PREVIEW_SECRET_SALT}:${value}`)
+}
+
+function createPreviewSecretSalt() {
+  const bytes = new Uint32Array(2)
+  globalThis.crypto?.getRandomValues?.(bytes)
+
+  if (bytes[0] || bytes[1]) {
+    return `${bytes[0].toString(36)}:${bytes[1].toString(36)}`
+  }
+
+  return `${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`
+}
+
+function hashString(value: string) {
+  let hash = 0x811c9dc5
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return (hash >>> 0).toString(36)
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
@@ -99,6 +183,12 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 }
 
 export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
+  const [previewPolicyPreferences] = useMultiplePreferences(WEB_CONTENT_PREVIEW_POLICY_KEYS)
+  const previewPolicyKey = useMemo(
+    () => buildWebContentPreviewPolicyKey(previewPolicyPreferences),
+    [previewPolicyPreferences]
+  )
+
   return (
     <DynamicVirtualList
       className="min-h-0 flex-1"
@@ -108,22 +198,28 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
       initialRect={{ width: 400, height: 480 }}
       overscan={CITATION_ROW_OVERSCAN}>
       {(citation, index) => (
-        <CitationPanelRow citation={citation} actions={actions} isLast={index === citations.length - 1} />
+        <CitationPanelRow
+          citation={citation}
+          actions={actions}
+          isLast={index === citations.length - 1}
+          previewPolicyKey={previewPolicyKey}
+        />
       )}
     </DynamicVirtualList>
   )
 }
 
-const CitationPanelRow: React.FC<{ citation: Citation; actions?: CitationPanelActions; isLast: boolean }> = ({
-  citation,
-  actions,
-  isLast
-}) => {
+const CitationPanelRow: React.FC<{
+  citation: Citation
+  actions?: CitationPanelActions
+  isLast: boolean
+  previewPolicyKey: string
+}> = ({ citation, actions, isLast, previewPolicyKey }) => {
   return (
     <div className={`border-border border-b-[0.5px] ${isLast ? 'border-b-0' : ''}`}>
       {citation.type === 'websearch' && (
         <div className="max-w-[min(400px,60vw)] px-3">
-          <WebSearchCitation citation={citation} actions={actions} />
+          <WebSearchCitation citation={citation} actions={actions} previewPolicyKey={previewPolicyKey} />
         </div>
       )}
       {citation.type === 'memory' && (
@@ -191,7 +287,11 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
   )
 }
 
-const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions }> = ({ citation, actions }) => {
+const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions; previewPolicyKey: string }> = ({
+  citation,
+  actions,
+  previewPolicyKey
+}) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
   const previewUrl = citation.url || ''
   const inlineContent = useMemo(() => {
@@ -213,7 +313,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   )
 
   const { data: rawContent, isLoading } = useSWRImmutable(
-    shouldFetchPreview ? `webContent/${previewUrl}` : null,
+    shouldFetchPreview ? ['webContent', previewUrl, previewPolicyKey] : null,
     async () => {
       const res = await ipcApi.request('web_search.fetch_urls', { urls: [previewUrl] })
       const content = res.results[0]?.content ?? ''

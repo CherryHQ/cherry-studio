@@ -1,10 +1,5 @@
-import { WebSearchCapabilitySchema, WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
-import type {
-  WebSearchFetchUrlsRequest,
-  WebSearchResponse,
-  WebSearchResult,
-  WebSearchSearchKeywordsRequest
-} from '@shared/data/types/webSearch'
+import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
+import type { WebSearchFetchUrlsRequest, WebSearchSearchKeywordsRequest } from '@shared/data/types/webSearch'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -18,8 +13,8 @@ import { defineRoute } from '../define'
  * block (unlike window.ts/selection.ts).
  *
  * `search_keywords` is used only by provider checks and returns `output:
- * z.void()`. `fetch_urls` is also used by citation preview, so it returns the
- * service WebSearchResponse while settings callers can still ignore the value.
+ * z.void()`. `fetch_urls` is also used by citation preview, so it returns only
+ * the fetched preview content that renderer callers consume.
  *
  * The request TS types live in `@shared/data/types/webSearch` as plain types (no
  * canonical zod), so each input schema is bound to its type with `z.ZodType<X>` — a
@@ -39,23 +34,16 @@ const fetchUrlsRequestSchema: z.ZodType<WebSearchFetchUrlsRequest> = z.object({
   urls: z.array(z.string())
 })
 
-const webSearchResultSchema: z.ZodType<WebSearchResult> = z.object({
-  title: z.string(),
-  content: z.string(),
-  url: z.string(),
-  sourceInput: z.string()
-})
-
-const webSearchResponseSchema: z.ZodType<WebSearchResponse> = z.object({
-  query: z.string().optional(),
-  providerId: WebSearchProviderIdSchema,
-  capability: WebSearchCapabilitySchema,
-  inputs: z.array(z.string()),
-  results: z.array(webSearchResultSchema)
+const fetchUrlsResponseSchema = z.object({
+  results: z.array(
+    z.object({
+      content: z.string()
+    })
+  )
 })
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const webSearchRequestSchemas = {
   'web_search.search_keywords': defineRoute({ input: searchKeywordsRequestSchema, output: z.void() }),
-  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: webSearchResponseSchema })
+  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: fetchUrlsResponseSchema })
 }

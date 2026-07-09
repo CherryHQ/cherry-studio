@@ -38,20 +38,28 @@ describe('webSearchHandlers', () => {
     expect(result).toBeUndefined()
   })
 
-  it('fetch_urls forwards the request and returns the service response', async () => {
+  it('fetch_urls forwards the request and returns only preview content over IPC', async () => {
     const request = { providerId: 'fetch' as const, urls: ['https://example.com'] }
     const response = {
+      query: 'https://example.com',
       providerId: 'fetch',
       capability: 'fetchUrls',
       inputs: ['https://example.com'],
-      results: []
+      results: [
+        {
+          title: 'Example',
+          content: 'preview content',
+          url: 'https://example.com',
+          sourceInput: 'https://example.com'
+        }
+      ]
     }
     webSearchService.fetchUrls.mockResolvedValue(response)
 
     const result = await webSearchHandlers['web_search.fetch_urls'](request, ctx)
 
     expect(webSearchService.fetchUrls).toHaveBeenCalledWith(request)
-    expect(result).toBe(response)
+    expect(result).toEqual({ results: [{ content: 'preview content' }] })
   })
 
   // The renderer's "check" flow relies on the IPC call REJECTING to show a failure

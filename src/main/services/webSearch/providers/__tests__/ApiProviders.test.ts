@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  lookup: vi.fn(),
   loggerWarn: vi.fn(),
   isInChina: vi.fn()
 }))
@@ -25,6 +26,10 @@ vi.mock('electron', () => ({
   net: {
     fetch: mocks.fetch
   }
+}))
+
+vi.mock('node:dns/promises', () => ({
+  lookup: mocks.lookup
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -157,6 +162,8 @@ describe('main web search API providers', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    mocks.lookup.mockReset()
+    mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     mocks.loggerWarn.mockReset()
     mocks.isInChina.mockReset()
     mocks.isInChina.mockResolvedValue(false)

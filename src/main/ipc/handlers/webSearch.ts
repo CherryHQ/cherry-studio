@@ -10,7 +10,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  *
  * `search_keywords` is a provider-check route, so the adapter awaits the service call
  * and discards the WebSearchResponse. `fetch_urls` also backs citation preview, so it
- * returns the service response while settings callers can still ignore the value. The
+ * returns only preview content while settings callers can still ignore the value. The
  * service methods accept an optional `httpOptions` second argument for in-process
  * (abort-aware) callers; IPC callers never pass it, so the adapters forward only the
  * parsed request.
@@ -20,6 +20,10 @@ export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> =
     await application.get('WebSearchService').searchKeywords(request)
   },
   'web_search.fetch_urls': async (request) => {
-    return application.get('WebSearchService').fetchUrls(request)
+    const response = await application.get('WebSearchService').fetchUrls(request)
+
+    return {
+      results: response.results.map((result) => ({ content: result.content }))
+    }
   }
 }

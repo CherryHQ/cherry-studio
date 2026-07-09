@@ -1,4 +1,5 @@
 import type { Citation } from '@renderer/types/message'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { SWRConfig } from 'swr'
@@ -112,19 +113,22 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('CitationsList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.web_search.default_fetch_urls_provider': 'fetch',
+      'chat.web_search.provider_overrides': {},
+      'chat.web_search.max_results': 4,
+      'chat.web_search.exclude_domains': [],
+      'chat.web_search.compression.method': 'none',
+      'chat.web_search.compression.cutoff_limit': 2000
+    })
     mocks.visibleVirtualRows = 4
     fetchMocks.isXPostUrl.mockReturnValue(false)
     fetchMocks.fetchXOEmbed.mockResolvedValue(null)
     ipcMocks.request.mockResolvedValue({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://example.com'],
       results: [
         {
-          title: 'Example',
-          url: 'https://example.com',
-          content: 'web preview content',
-          sourceInput: 'https://example.com'
+          content: 'web preview content'
         }
       ]
     })
@@ -285,15 +289,9 @@ describe('CitationsList', () => {
 
   it('hides the preview snippet when web-content fetch degrades to noContent', async () => {
     ipcMocks.request.mockResolvedValue({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://example.com'],
       results: [
         {
-          title: 'Example',
-          url: 'https://example.com',
-          content: 'No content found',
-          sourceInput: 'https://example.com'
+          content: 'No content found'
         }
       ]
     })
@@ -309,15 +307,9 @@ describe('CitationsList', () => {
 
   it('copies the truncated preview snippet, not the full content', async () => {
     ipcMocks.request.mockResolvedValue({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://example.com'],
       results: [
         {
-          title: 'Example',
-          url: 'https://example.com',
-          content: 'A'.repeat(250),
-          sourceInput: 'https://example.com'
+          content: 'A'.repeat(250)
         }
       ]
     })
@@ -339,12 +331,7 @@ describe('CitationsList', () => {
     // Two consumers of the same URL share one preview fetch through SWR.
     const a: Citation = { number: 1, url: 'https://dup.com', title: 'A', type: 'websearch' }
     const b: Citation = { number: 2, url: 'https://dup.com', title: 'B', type: 'websearch' }
-    let resolvePreview: (value: {
-      providerId: string
-      capability: string
-      inputs: string[]
-      results: Array<{ title: string; url: string; content: string; sourceInput: string }>
-    }) => void = vi.fn()
+    let resolvePreview: (value: { results: Array<{ content: string }> }) => void = vi.fn()
     ipcMocks.request.mockReturnValue(
       new Promise((resolve) => {
         resolvePreview = resolve
@@ -362,19 +349,159 @@ describe('CitationsList', () => {
     await waitFor(() => expect(screen.getByRole('link', { name: 'B' })).toBeInTheDocument())
     await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(1))
     resolvePreview({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://dup.com'],
       results: [
         {
-          title: 'Duplicate',
-          url: 'https://dup.com',
-          content: 'duplicate preview',
-          sourceInput: 'https://dup.com'
+          content: 'duplicate preview'
         }
       ]
     })
     expect(await screen.findAllByText('duplicate preview')).toHaveLength(2)
+  })
+
+  it('revalidates web previews when the default fetch policy changes for the same URL', async () => {
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    ipcMocks.request
+      .mockResolvedValueOnce({ results: [{ content: 'preview from fetch' }] })
+      .mockResolvedValueOnce({ results: [{ content: 'preview from jina' }] })
+
+    const { rerender } = render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, {
+      wrapper
+    })
+
+    expect(await screen.findByText('preview from fetch')).toBeInTheDocument()
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'jina')
+    rerender(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('preview from jina')).toBeInTheDocument()
+  })
+
+  it('revalidates web previews for selected provider override changes without storing raw secrets in SWR keys', async () => {
+    const firstSecret = 'jina-secret-one'
+    const secondSecret = 'jina-secret-two'
+    const firstPassword = 'auth-secret-one'
+    const secondPassword = 'auth-secret-two'
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.web_search.default_fetch_urls_provider': 'jina',
+      'chat.web_search.provider_overrides': {
+        jina: {
+          apiKeys: [firstSecret],
+          basicAuthPassword: firstPassword
+        }
+      }
+    })
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    ipcMocks.request
+      .mockResolvedValueOnce({ results: [{ content: 'preview from first secret' }] })
+      .mockResolvedValueOnce({ results: [{ content: 'preview from second secret' }] })
+    const swrCache = new Map()
+    const localWrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => swrCache, dedupingInterval: 0 }}>{children}</SWRConfig>
+    )
+
+    const { rerender } = render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, {
+      wrapper: localWrapper
+    })
+
+    expect(await screen.findByText('preview from first secret')).toBeInTheDocument()
+    expect(Array.from(swrCache.keys()).join('\n')).not.toContain(firstSecret)
+    expect(Array.from(swrCache.keys()).join('\n')).not.toContain(firstPassword)
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      jina: {
+        apiKeys: [secondSecret],
+        basicAuthPassword: secondPassword
+      }
+    })
+    rerender(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('preview from second secret')).toBeInTheDocument()
+    const cacheKeys = Array.from(swrCache.keys()).join('\n')
+    expect(cacheKeys).not.toContain(firstSecret)
+    expect(cacheKeys).not.toContain(secondSecret)
+    expect(cacheKeys).not.toContain(firstPassword)
+    expect(cacheKeys).not.toContain(secondPassword)
+  })
+
+  it('revalidates web previews when the selected provider host override changes', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.web_search.default_fetch_urls_provider': 'jina',
+      'chat.web_search.provider_overrides': {
+        jina: {
+          capabilities: {
+            fetchUrls: {
+              apiHost: 'https://reader-one.example'
+            }
+          }
+        }
+      }
+    })
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    ipcMocks.request
+      .mockResolvedValueOnce({ results: [{ content: 'preview from first host' }] })
+      .mockResolvedValueOnce({ results: [{ content: 'preview from second host' }] })
+
+    const { rerender } = render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, {
+      wrapper
+    })
+
+    expect(await screen.findByText('preview from first host')).toBeInTheDocument()
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      jina: {
+        capabilities: {
+          fetchUrls: {
+            apiHost: 'https://reader-two.example'
+          }
+        }
+      }
+    })
+    rerender(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('preview from second host')).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      label: 'exclude domains',
+      initialPreferences: {},
+      updatePreferences: () =>
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.exclude_domains', ['https://blocked.example/*'])
+    },
+    {
+      label: 'compression method',
+      initialPreferences: {},
+      updatePreferences: () => MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
+    },
+    {
+      label: 'compression cutoff',
+      initialPreferences: {
+        'chat.web_search.compression.method': 'cutoff'
+      },
+      updatePreferences: () =>
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 3000)
+    }
+  ])('revalidates web previews when $label changes', async ({ label, initialPreferences, updatePreferences }) => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues(initialPreferences)
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    ipcMocks.request
+      .mockResolvedValueOnce({ results: [{ content: `preview before ${label}` }] })
+      .mockResolvedValueOnce({ results: [{ content: `preview after ${label}` }] })
+
+    const { rerender } = render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, {
+      wrapper
+    })
+
+    expect(await screen.findByText(`preview before ${label}`)).toBeInTheDocument()
+
+    updatePreferences()
+    rerender(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText(`preview after ${label}`)).toBeInTheDocument()
   })
 
   it('keeps virtual row keys unique when citations share the same URL', () => {

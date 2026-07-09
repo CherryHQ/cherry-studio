@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { sanitizeRemoteUrl } from '../remoteUrlSafety'
+const lookupMock = vi.hoisted(() => vi.fn())
+
+vi.mock('node:dns/promises', () => ({
+  lookup: lookupMock
+}))
+
+import { sanitizeRemoteFetchUrl, sanitizeRemoteUrl } from '../remoteUrlSafety'
 
 function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
   expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError(
@@ -9,6 +15,11 @@ function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
 }
 
 describe('sanitizeRemoteUrl', () => {
+  beforeEach(() => {
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  })
+
   it.each([
     'https://example.com/path?q=1',
     'http://example.com/path',
@@ -24,6 +35,12 @@ describe('sanitizeRemoteUrl', () => {
     expect(sanitizeRemoteUrl('https://[2001:4860:4860::8888]/a b?x=y z')).toBe(
       'https://[2001:4860:4860::8888]/a%20b?x=y%20z'
     )
+  })
+
+  it('does not perform DNS lookup for literal URL normalization', () => {
+    expect(sanitizeRemoteUrl('https://example.com/file')).toBe('https://example.com/file')
+
+    expect(lookupMock).not.toHaveBeenCalled()
   })
 
   it.each(['file:///etc/passwd', 'ftp://example.com/file', 'gopher://example.com/file'])(
@@ -94,4 +111,38 @@ describe('sanitizeRemoteUrl', () => {
       )
     }
   )
+})
+
+describe('sanitizeRemoteFetchUrl', () => {
+  beforeEach(() => {
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  })
+
+  it('returns the normalized URL after validating the hostname DNS results', async () => {
+    await expect(sanitizeRemoteFetchUrl('https://example.com/a b')).resolves.toBe('https://example.com/a%20b')
+
+    expect(lookupMock).toHaveBeenCalledWith('example.com', { all: true })
+  })
+
+  it('rejects hostnames that resolve to private addresses', async () => {
+    lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+
+    await expect(sanitizeRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
+  })
+
+  it('rejects hostnames when any resolved address is private', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: 'fd00::1', family: 6 }
+    ])
+
+    await expect(sanitizeRemoteFetchUrl('https://example.com/file')).rejects.toThrow(/DNS resolved/)
+  })
+
+  it('rejects private literal addresses without DNS lookup', async () => {
+    await expect(sanitizeRemoteFetchUrl('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/local or private/)
+
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
 })

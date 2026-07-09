@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises'
+
 import * as ipaddr from 'ipaddr.js'
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
@@ -107,10 +109,14 @@ function hasMatchingConfiguredOrigin(url: URL, configuredApiHost: string): boole
 }
 
 /**
- * SSRF guard for outbound fetch URLs: rejects non-http(s) schemes, embedded
- * credentials, and local/private addresses, returning the normalized URL.
+ * Literal URL guard: rejects non-http(s) schemes, embedded credentials, and
+ * literal local/private addresses, returning the normalized URL.
+ *
  * Pass `configuredApiHost` to allow a provider's own loopback/private endpoint
  * when it matches the user-configured host.
+ *
+ * Direct main-process fetches should use `sanitizeRemoteFetchUrl()` instead so
+ * hostname DNS results are checked before the network request.
  */
 export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): string {
   const parsedUrl = parseRemoteUrl(rawUrl)
@@ -123,6 +129,38 @@ export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): s
   }
 
   return parsedUrl.toString()
+}
+
+/**
+ * SSRF guard for direct main-process fetches. Combines literal URL validation
+ * with DNS-level rejection for hostnames that resolve to private/local addresses.
+ */
+export async function sanitizeRemoteFetchUrl(rawUrl: string): Promise<string> {
+  const safeUrl = sanitizeRemoteUrl(rawUrl)
+  await assertRemoteUrlResolvesPublic(safeUrl)
+
+  return safeUrl
+}
+
+async function assertRemoteUrlResolvesPublic(rawUrl: string): Promise<void> {
+  const parsedUrl = parseRemoteUrl(rawUrl)
+
+  if (isBlockedHostname(parsedUrl.hostname)) {
+    throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
+  }
+
+  if (parseIpHostname(parsedUrl.hostname)) {
+    return
+  }
+
+  const addresses = await lookup(normalizeHostname(parsedUrl.hostname), { all: true })
+  const blockedAddress = addresses.find((address) => isBlockedIpHostname(address.address))
+
+  if (blockedAddress) {
+    throw new Error(
+      `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
+    )
+  }
 }
 
 function parseRemoteUrl(rawUrl: string): URL {

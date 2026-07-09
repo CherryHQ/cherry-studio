@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { sanitizeRemoteFetchUrl } from '@main/utils/remoteUrlSafety'
 import { Readability } from '@mozilla/readability'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
 import { net } from 'electron'
@@ -26,13 +26,13 @@ function buildHeaders(headers?: HeadersInit) {
 
 export async function fetchWebSearchContent(url: string, httpOptions: RequestInit = {}): Promise<WebSearchResult> {
   try {
-    // SSRF guard before fetching in the main process: rejects non-http(s) schemes, embedded
-    // credentials, and private/loopback/link-local/metadata-endpoint hosts. web_fetch is reachable
-    // from untrusted channel input and auto-allowed, so this can't be left to the caller.
-    const safeUrl = sanitizeRemoteUrl(url)
+    // web_fetch is reachable from untrusted channel input and auto-allowed, so
+    // direct main-process fetches must validate literal URLs and DNS results.
+    const safeUrl = await sanitizeRemoteFetchUrl(url)
 
     const response = await net.fetch(safeUrl, {
       ...httpOptions,
+      redirect: 'error',
       headers: buildHeaders(httpOptions.headers),
       signal: httpOptions.signal
         ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])

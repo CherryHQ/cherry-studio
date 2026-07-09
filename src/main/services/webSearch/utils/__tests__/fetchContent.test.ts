@@ -2,6 +2,7 @@ import type * as JsdomModule from 'jsdom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
+const lookupMock = vi.hoisted(() => vi.fn())
 const jsdomConstructorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
@@ -19,6 +20,10 @@ vi.mock('electron', () => ({
   net: {
     fetch: fetchMock
   }
+}))
+
+vi.mock('node:dns/promises', () => ({
+  lookup: lookupMock
 }))
 
 vi.mock('jsdom', async () => {
@@ -49,6 +54,8 @@ function createTextResponse(body: string, contentType: string, status = 200) {
 describe('fetchWebSearchContent', () => {
   beforeEach(() => {
     fetchMock.mockReset()
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     jsdomConstructorMock.mockReset()
   })
 
@@ -84,5 +91,36 @@ describe('fetchWebSearchContent', () => {
     await expect(fetchWebSearchContent('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/local or private/)
     // Blocked before any network call.
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects hostnames that resolve to private addresses before fetching', async () => {
+    lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+
+    await expect(fetchWebSearchContent('https://example.com/article')).rejects.toThrow(/DNS resolved/)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects hostnames when any resolved address is private', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: 'fd00::1', family: 6 }
+    ])
+
+    await expect(fetchWebSearchContent('https://example.com/article')).rejects.toThrow(/DNS resolved/)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('disables automatic redirects for direct content fetches', async () => {
+    const html = '<html><body><article><p>hello</p></article></body></html>'
+    fetchMock.mockResolvedValue(createTextResponse(html, 'text/html'))
+
+    await fetchWebSearchContent('https://example.com/article', { redirect: 'follow' })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/article',
+      expect.objectContaining({ redirect: 'error' })
+    )
   })
 })
