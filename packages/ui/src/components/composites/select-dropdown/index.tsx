@@ -24,7 +24,7 @@ export interface SelectDropdownProps<T extends { id: string }> {
   /**
    * Extra classes appended to the trigger button.
    * Use `data-[state=open]:*` selectors to override the open-state border/ring
-   * (defaults follow `--color-primary`, which tracks the user theme color).
+   * (defaults use `--color-ring` for a neutral focus affordance).
    */
   triggerClassName?: string
 }
@@ -190,7 +190,7 @@ export function SelectDropdown<T extends { id: string }>({
           type="button"
           className={cn(
             'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
-            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-muted',
+            open ? 'border-ring ring-1 ring-ring/50' : 'border-border-muted',
             triggerClassName
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">

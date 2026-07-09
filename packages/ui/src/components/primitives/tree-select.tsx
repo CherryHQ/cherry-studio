@@ -18,7 +18,7 @@ const treeSelectTriggerVariants = cva(
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
+        default: 'border-border aria-expanded:border-ring aria-expanded:ring-3 aria-expanded:ring-ring/50',
         error: 'border border-destructive aria-expanded:ring-3 aria-expanded:ring-red-600/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
