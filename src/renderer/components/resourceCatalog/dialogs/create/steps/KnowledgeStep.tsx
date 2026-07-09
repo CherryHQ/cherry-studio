@@ -18,8 +18,8 @@ type KnowledgeStepProps = {
 export function KnowledgeStep({ form, onClose, portalContainer }: KnowledgeStepProps) {
   const { openTab } = useTabs()
   const openKnowledgePage = useCallback(() => {
-    openTab('/app/knowledge')
     onClose?.()
+    openTab('/app/knowledge')
   }, [onClose, openTab])
 
   return (

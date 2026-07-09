@@ -168,5 +168,6 @@ describe('EditDialogShared', () => {
 
     expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
     expect(onClose).toHaveBeenCalledOnce()
+    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(mockOpenTab.mock.invocationCallOrder[0])
   })
 })
