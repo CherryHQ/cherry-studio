@@ -341,6 +341,10 @@ const TaskDetail: FC<{
     timeoutMinutes: task.timeoutMinutes?.toString() ?? ''
   })
   const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
+  const selectedChannelIds = useMemo(() => {
+    const ownedChannelIds = new Set(taskChannels.map((channel) => channel.id))
+    return channelIds.filter((channelId) => ownedChannelIds.has(channelId))
+  }, [channelIds, taskChannels])
   const [workspaceId, setWorkspaceId] = useState<string | null>(
     task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   )
@@ -547,7 +551,7 @@ const TaskDetail: FC<{
           />
           <TaskChannelSelector
             channels={taskChannels}
-            channelIds={channelIds}
+            channelIds={selectedChannelIds}
             onChange={(value) => {
               setChannelIds(value)
               saveField({ channelIds: value })

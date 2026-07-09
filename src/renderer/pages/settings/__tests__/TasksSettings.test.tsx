@@ -37,7 +37,7 @@ const taskDataMock = vi.hoisted(() => {
     trigger: { kind: 'interval', ms: 60000 },
     timeoutMinutes: 10,
     workspace: { type: 'system' },
-    channelIds: [],
+    channelIds: [] as string[],
     nextRun: null,
     lastRun: null,
     enabled: true,
@@ -163,16 +163,38 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     Combobox: ({
+      multiple,
+      onChange,
       options,
-      placeholder
+      placeholder,
+      value
     }: {
+      multiple?: boolean
+      onChange?: (value: string | string[]) => void
       options?: Array<{ value: string; label: React.ReactNode }>
       placeholder?: React.ReactNode
+      value?: string | string[]
     }) => (
       <div>
         {placeholder && <span>{placeholder}</span>}
         {options?.map((option) => (
-          <span key={option.value}>{option.label}</span>
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              if (!multiple) {
+                onChange?.(option.value)
+                return
+              }
+              const current = Array.isArray(value) ? value : []
+              onChange?.(
+                current.includes(option.value)
+                  ? current.filter((currentValue) => currentValue !== option.value)
+                  : [...current, option.value]
+              )
+            }}>
+            {option.label}
+          </button>
         ))}
       </div>
     ),
@@ -465,6 +487,37 @@ describe('TasksSettings task logs', () => {
 
     expect(screen.getByText('Agent One Telegram')).toBeInTheDocument()
     expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
+  })
+
+  it('drops stale channel ids from the update payload when channel selection changes', async () => {
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      channelIds: ['channel-agent-1', 'channel-agent-2']
+    }
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      },
+      {
+        id: 'channel-agent-2',
+        agentId: 'agent-2',
+        name: 'Agent Two Slack',
+        isActive: true,
+        activeChatIds: ['chat-2']
+      }
+    ]
+
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
+    )
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
