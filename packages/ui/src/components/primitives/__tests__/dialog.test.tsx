@@ -179,6 +179,45 @@ describe('Dialog primitive', () => {
 
     expect(handleOpenChange).not.toHaveBeenCalled()
   })
+
+  it('keeps the overlay mounted when overlay click close is toggled', () => {
+    const handleOpenChange = vi.fn()
+    const { rerender } = render(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    rerender(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick={false}>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    fireEvent.click(overlay!)
+    expect(handleOpenChange).not.toHaveBeenCalled()
+
+    rerender(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    fireEvent.click(overlay!)
+    expect(handleOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('keeps the dialog open when dismissing an in-dialog select from another dialog field', async () => {
     const handleOpenChange = vi.fn()
 

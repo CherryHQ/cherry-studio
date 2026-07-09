@@ -89,13 +89,15 @@ function DialogContent({
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      {closeOnOverlayClick ? (
-        <DialogPrimitive.Close asChild>
-          <DialogOverlay className={overlayClassName} />
-        </DialogPrimitive.Close>
-      ) : (
-        <DialogOverlay className={overlayClassName} />
-      )}
+      {/* Keep this tree stable when async flows temporarily disable overlay dismissal. */}
+      <DialogPrimitive.Close asChild>
+        <DialogOverlay
+          className={overlayClassName}
+          onClick={(event) => {
+            if (!closeOnOverlayClick) event.preventDefault()
+          }}
+        />
+      </DialogPrimitive.Close>
       <PortalContainerProvider container={contentElement}>
         {/*
           The `duration-200` close animation below must equal DIALOG_CLOSE_DURATION_MS
