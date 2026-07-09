@@ -6006,6 +6006,7 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Install",
       "installError": "Failed to install tool",
+      "installErrorHint": "The install command failed. Copy the log below to troubleshoot, or paste it to an AI assistant for help.",
       "installManaged": "Install a managed copy",
       "installManagedHint": "Already available. Install a separate Cherry-managed copy only if you want a pinned version that updates independently.",
       "installSettings": {

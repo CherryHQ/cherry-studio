@@ -277,6 +277,25 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('settings.dependencies.openInCodeTools')).not.toBeInTheDocument()
   })
 
+  it('surfaces a failed install in a persistent, copyable error dialog', async () => {
+    // A failed install must not vanish like a toast: the full mise log stays on
+    // screen and is copyable so the user can read it or paste it to an AI.
+    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+    ipcMocks.installTool.mockRejectedValue(new Error('boom: mise blew up'))
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('settings.mcp.install'))
+
+    await waitFor(() => expect(screen.getByText('boom: mise blew up')).toBeInTheDocument())
+    expect(screen.getByText('settings.dependencies.installError: mytool')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('common.copy'))
+    expect(writeTextMock).toHaveBeenCalledWith('boom: mise blew up')
+  })
+
   it('renders nothing in mini mode once core deps are available', async () => {
     ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
     const { container } = render(<EnvironmentDependencies mini />)

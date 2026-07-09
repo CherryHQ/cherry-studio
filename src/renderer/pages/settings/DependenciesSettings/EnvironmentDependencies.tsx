@@ -43,6 +43,8 @@ import type { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
+  Check,
+  Copy,
   Download,
   ExternalLink,
   Eye,
@@ -114,6 +116,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
   // Retain the last target name so the confirm dialog keeps its message during the close animation.
   const deleteNameRef = useRef('')
   if (deleteTarget) deleteNameRef.current = deleteTarget
@@ -200,14 +203,19 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
-  const installTool = async (tool: ManagedBinary) => {
+  // Returns whether the install succeeded so callers can react (e.g. the add flow
+  // only persists a custom tool once its install lands) without a floating throw.
+  const installTool = async (tool: ManagedBinary): Promise<boolean> => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
     try {
       await ipcApi.request('binary.install_tool', tool)
+      return true
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      toast.error(`${t('settings.dependencies.installError')}: ${formatErrorMessage(error)}`)
-      throw error
+      // Surface the full mise error in a persistent, copyable dialog — a toast
+      // auto-dismisses before the user can read the multi-line log or copy it.
+      setInstallError({ name: tool.name, message: formatErrorMessage(error) })
+      return false
     } finally {
       setInstallingTools((prev) => {
         const next = new Set(prev)
@@ -232,7 +240,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    await installTool(tool)
+    // Keep the add dialog open (throw) and skip persistence when the install fails.
+    if (!(await installTool(tool))) throw new Error('install-failed')
     await setCustomTools([...customTools, tool])
   }
 
@@ -419,6 +428,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
 
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
+
+      <InstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -1023,6 +1034,49 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             onCheckedChange={(checked) => update('verifySignatures', checked)}
           />
         </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Install failures carry multi-line mise stderr the user needs to read in full and
+// often paste to an AI for help. A toast auto-dismisses before either is possible,
+// so surface it in a persistent dialog with the full log selectable and copyable.
+const InstallErrorDialog: FC<{
+  error: { name: string; message: string } | null
+  onOpenChange: (open: boolean) => void
+}> = ({ error, onOpenChange }) => {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  // Keep the last error so the text stays put through the close animation.
+  const lastRef = useRef<{ name: string; message: string }>({ name: '', message: '' })
+  if (error) lastRef.current = error
+  const { name, message } = lastRef.current
+
+  const copy = () => {
+    void navigator.clipboard.writeText(message).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <Dialog open={!!error} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{`${t('settings.dependencies.installError')}: ${name}`}</DialogTitle>
+          <DialogDescription>{t('settings.dependencies.installErrorHint')}</DialogDescription>
+        </DialogHeader>
+        <pre className="max-h-72 select-text overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 font-mono text-muted-foreground text-xs leading-5">
+          {message}
+        </pre>
+        <DialogFooter>
+          <Button variant="outline" onClick={copy}>
+            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+            {copied ? t('common.copied') : t('common.copy')}
+          </Button>
+          <Button onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

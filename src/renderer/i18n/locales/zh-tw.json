@@ -6006,6 +6006,7 @@
       "fieldVersion": "版本（選填，預設為最新）",
       "install": "安裝",
       "installError": "工具安裝失敗",
+      "installErrorHint": "安裝指令執行失敗。複製下方日誌以排查問題，或貼給 AI 助手尋求協助。",
       "installManaged": "安裝託管版本",
       "installManagedHint": "此工具已可用。僅當你想要一份由 Cherry 託管、可固定並獨立更新的版本時才需要安裝。",
       "installSettings": {
