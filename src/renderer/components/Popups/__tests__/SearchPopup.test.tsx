@@ -1,22 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps, PropsWithChildren, ReactElement } from 'react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps, PropsWithChildren } from 'react'
 import type * as ReactModule from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  hide: vi.fn(),
-  show: vi.fn()
-}))
-
-vi.mock('../../TopView/TopView', () => ({
-  TopView: {
-    hide: mocks.hide,
-    show: mocks.show
-  }
-}))
+// This suite exercises the real popup store + host, so opt out of the global mock.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPanel', async () => {
   const React = await vi.importActual<typeof ReactModule>('react')
@@ -89,20 +80,32 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+
 import SearchPopup from '../SearchPopup'
 
 afterEach(() => {
+  // Unmount the host first so settling/removing leftover entries triggers no React
+  // update on a still-mounted host (which would fire act warnings). Then drain the
+  // singleton store so the next test starts empty and single-flight is cleared. Fake
+  // timers fire the exit phase synchronously (no wall-clock wait).
   cleanup()
-  vi.clearAllMocks()
+  vi.useFakeTimers()
+  for (const entry of [...popupService.getSnapshot()]) {
+    popupService.settle(entry.instanceId, {})
+  }
+  vi.advanceTimersByTime(POPUP_EXIT_MS)
+  vi.useRealTimers()
 })
 
 describe('SearchPopup', () => {
   it('allows the search panel to autofocus the search input when opened', async () => {
-    mocks.show.mockImplementation((element: ReactElement) => {
-      render(element)
-    })
+    render(<PopupHost />)
 
-    void SearchPopup.show()
+    act(() => {
+      void SearchPopup.show()
+    })
 
     await waitFor(() => {
       expect(screen.getByLabelText('Search input')).toHaveFocus()
@@ -110,11 +113,13 @@ describe('SearchPopup', () => {
   })
 
   it('closes when the blank overlay area is clicked', async () => {
-    mocks.show.mockImplementation((element: ReactElement) => {
-      render(element)
+    render(<PopupHost />)
+
+    act(() => {
+      void SearchPopup.show()
     })
 
-    void SearchPopup.show()
+    await screen.findByLabelText('Search input')
 
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
@@ -123,14 +128,18 @@ describe('SearchPopup', () => {
     })
   })
 
-  it('renders above chat shell overlays', () => {
-    mocks.show.mockImplementation((element: ReactElement) => {
-      render(element)
+  it('renders above chat shell overlays', async () => {
+    render(<PopupHost />)
+
+    act(() => {
+      void SearchPopup.show()
     })
 
-    void SearchPopup.show()
-
-    expect(screen.getByTestId('dialog-overlay')).toHaveClass('z-1001')
+    const overlay = await screen.findByTestId('dialog-overlay')
+    expect(overlay).toHaveClass('z-1001')
     expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
+
+    // Flush the lazy panel's Suspense resolution inside act before the test ends.
+    await screen.findByLabelText('Search input')
   })
 })

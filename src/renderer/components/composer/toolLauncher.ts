@@ -39,6 +39,7 @@ export interface ComposerToolLauncher {
   description?: ReactNode | string
   tooltip?: ReactNode | string
   disabledReason?: ReactNode | string
+  searchAliases?: readonly string[]
   icon: ReactNode | string
   suffix?: ReactNode | string
   active?: boolean

@@ -11,6 +11,8 @@ import {
   getSelectedMessagesRichClipboardContent
 } from '@renderer/components/chat/messages/utils/messageSelection'
 import { messagesToMarkdown } from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -65,6 +67,9 @@ export function useMessageSelectionController({
 
   useEffect(() => {
     toggleMultiSelectMode(false)
+    return () => {
+      toggleMultiSelectMode(false)
+    }
   }, [topicId, toggleMultiSelectMode])
 
   const selectMessage = useCallback(
@@ -87,7 +92,7 @@ export function useMessageSelectionController({
     (messageIds?: readonly string[]) => {
       const ids = resolveMessageIds(messageIds)
       if (ids.length === 0) {
-        window.toast.warning(t('chat.multiple.select.empty'))
+        toast.warning(t('chat.multiple.select.empty'))
         return null
       }
       return ids
@@ -111,12 +116,12 @@ export function useMessageSelectionController({
           await copyRichContent(richContent, { successMessage: t('message.copied') })
         } else {
           await navigator.clipboard.writeText(contentToCopy)
-          window.toast.success(t('message.copied'))
+          toast.success(t('message.copied'))
         }
         toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to copy selected messages:', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
       }
     },
     [copyRichContent, ensureSelection, messages, partsByMessageId, t, toggleMultiSelectMode]
@@ -128,7 +133,7 @@ export function useMessageSelectionController({
       if (!ids) return
 
       if (!saveTextFile) {
-        window.toast.error(t('common.save_failed'))
+        toast.error(t('common.save_failed'))
         return
       }
 
@@ -145,11 +150,11 @@ export function useMessageSelectionController({
         const savedPath = await saveTextFile(fileName, contentToSave)
         if (savedPath === null) return
 
-        window.toast.success(t('message.save.success.title'))
+        toast.success(t('message.save.success.title'))
         toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to save selected messages:', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       }
     },
     [ensureSelection, messages, partsByMessageId, saveTextFile, t, toggleMultiSelectMode]
@@ -161,28 +166,28 @@ export function useMessageSelectionController({
       if (!ids) return
 
       if (!deleteMessage) {
-        window.toast.error(t('message.delete.failed'))
+        toast.error(t('message.delete.failed'))
         return
       }
 
-      window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('message.delete.confirm.title'),
         content: t('message.delete.confirm.content', { count: ids.length }),
         okButtonProps: { danger: true },
-        centered: true,
-        onOk: async () => {
-          try {
-            for (const messageId of ids) {
-              await deleteMessage(messageId)
-            }
-            window.toast.success(t('message.delete.success'))
-            toggleMultiSelectMode(false)
-          } catch (error) {
-            logger.error('Failed to delete selected messages:', error as Error)
-            window.toast.error(t('message.delete.failed'))
-          }
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      try {
+        for (const messageId of ids) {
+          await deleteMessage(messageId)
+        }
+        toast.success(t('message.delete.success'))
+        toggleMultiSelectMode(false)
+      } catch (error) {
+        logger.error('Failed to delete selected messages:', error as Error)
+        toast.error(t('message.delete.failed'))
+      }
     },
     [deleteMessage, ensureSelection, t, toggleMultiSelectMode]
   )

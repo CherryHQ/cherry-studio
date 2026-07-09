@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -11,6 +12,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Pencil, Plus, Zap } from 'lucide-react'
@@ -44,7 +46,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     refresh: ['/prompts'],
     onError: (error) => {
       logger.error('Failed to create prompt', error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
     }
   })
 
@@ -210,6 +212,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         order: 70,
         label: t('settings.prompts.title'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
         icon: <Zap />,
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)

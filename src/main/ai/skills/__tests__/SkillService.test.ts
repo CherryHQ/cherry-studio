@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/markdownParser', () => ({
@@ -134,14 +135,32 @@ describe('SkillService', () => {
       expect(two?.isEnabled).toBe(false)
     })
 
-    it('returns isEnabled: false for all skills when agentId has no skill rows', async () => {
+    it('defaults isEnabled to false for non-builtin skills and true for builtin skills when agentId has no skill rows', async () => {
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
 
       const result = await skillService.list({ agentId: AGENT_ID })
 
-      expect(result.every((s) => s.isEnabled === false)).toBe(true)
+      const nonBuiltin = result.filter((s) => s.id !== SKILL_ID_BUILTIN)
+      const builtin = result.find((s) => s.id === SKILL_ID_BUILTIN)
+      expect(nonBuiltin.every((s) => s.isEnabled === false)).toBe(true)
+      expect(builtin?.isEnabled).toBe(true)
+    })
+
+    it('an explicit disabled row for a builtin skill overrides the enabled-by-default fallback', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_BUILTIN,
+        isEnabled: false
+      })
+
+      const result = await skillService.list({ agentId: AGENT_ID })
+
+      expect(result.find((s) => s.id === SKILL_ID_BUILTIN)?.isEnabled).toBe(false)
     })
 
     it('filters by search against name or description in the database', async () => {
@@ -342,6 +361,16 @@ describe('SkillService', () => {
       expect(spy).toHaveBeenCalledWith('owner/repo/skill')
     })
 
+    it('rejects ambiguous claude-plugins identifiers without a directory path', async () => {
+      const skillService = new SkillService()
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+
+      await expect(skillService.install({ installSource: 'claude-plugins:owner/repo/' })).rejects.toThrow(
+        'Invalid claude-plugins identifier: owner/repo/'
+      )
+      expect(createTempDirSpy).not.toHaveBeenCalled()
+    })
+
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)
@@ -354,6 +383,71 @@ describe('SkillService', () => {
       const spy = vi.spyOn(skillService as never, 'installFromClawhub').mockResolvedValue({} as never)
       await skillService.install({ installSource: 'clawhub:my-skill' })
       expect(spy).toHaveBeenCalledWith('my-skill')
+    })
+
+    it('installs clawhub skills through current API endpoints and owner source URL', async () => {
+      const skillService = new SkillService()
+      const tempDir = await createTempDir('skill-clawhub-install-')
+      const extractDir = path.join(tempDir, 'extracted')
+      const locatedSkillDir = path.join(extractDir, 'code')
+      const installedSkill = {
+        id: '44444444-4444-4444-8444-444444444444',
+        name: 'Code',
+        description: 'Coding workflow',
+        folderName: 'code',
+        source: 'marketplace',
+        sourceUrl: 'https://clawhub.ai/ivangdavila/skills/code',
+        namespace: null,
+        author: null,
+        sourceTags: [],
+        contentHash: 'hash-code',
+        isEnabled: false,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+
+      vi.mocked(net.fetch)
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ owner: { handle: 'ivangdavila' } }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200
+          })
+        )
+        .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(tempDir as never)
+      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockResolvedValue(undefined as never)
+      const locateSkillDirSpy = vi
+        .spyOn(skillService as never, 'locateSkillDir')
+        .mockResolvedValue(locatedSkillDir as never)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as never, 'installSkillDir')
+        .mockResolvedValue(installedSkill as never)
+
+      try {
+        const result = await skillService.install({ installSource: 'clawhub:code' })
+
+        expect(result).toBe(installedSkill)
+        expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code', {
+          headers: { 'User-Agent': 'CherryStudio' }
+        })
+        expect(net.fetch).toHaveBeenNthCalledWith(2, 'https://clawhub.ai/api/v1/download?slug=code', {
+          headers: { 'User-Agent': 'CherryStudio' }
+        })
+        expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')
+        expect(extractZipSpy).toHaveBeenCalledWith(path.join(tempDir, 'skill.zip'), extractDir)
+        expect(locateSkillDirSpy).toHaveBeenCalledWith(extractDir)
+        expect(installSkillDirSpy).toHaveBeenCalledWith(
+          locatedSkillDir,
+          'marketplace',
+          'https://clawhub.ai/ivangdavila/skills/code'
+        )
+      } finally {
+        createTempDirSpy.mockRestore()
+        extractZipSpy.mockRestore()
+        locateSkillDirSpy.mockRestore()
+        installSkillDirSpy.mockRestore()
+        vi.mocked(net.fetch).mockReset()
+      }
     })
   })
 
@@ -372,9 +466,10 @@ describe('SkillService', () => {
       } as never)
     })
 
-    it('is a no-op when skill exists and files were not updated', async () => {
+    it('does not re-hash or re-parse metadata when skill exists and files were not updated', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash1')
+      await seedAgent()
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
         name: 'My Builtin',
@@ -387,6 +482,26 @@ describe('SkillService', () => {
       await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
 
       expect(skillService['installer'].computeContentHash).not.toHaveBeenCalled()
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+
+    it('never writes agent_skill rows, leaving per-agent enablement to the read-time builtin default', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'My Builtin',
+        folderName: FOLDER_NAME,
+        source: 'builtin',
+        contentHash: 'hash1',
+        isEnabled: false
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_BUILTIN, isEnabled: false })
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      expect(rows).toEqual([expect.objectContaining({ agentId: AGENT_ID, isEnabled: false })])
     })
 
     it('updates metadata when skill exists and files were updated', async () => {
@@ -411,10 +526,9 @@ describe('SkillService', () => {
       expect(row?.contentHash).toBe('hash2')
     })
 
-    it('inserts and enables for all agents on first install', async () => {
+    it('inserts a new builtin skill on first install, already enabled for existing agents without any agent_skill row', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash3')
-      const enableSpy = vi.spyOn(skillService, 'enableForAllAgents').mockResolvedValue(undefined)
       await seedAgent()
 
       await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
@@ -425,7 +539,11 @@ describe('SkillService', () => {
         .where(eq(agentGlobalSkillTable.folderName, FOLDER_NAME))
       expect(rows).toHaveLength(1)
       expect(rows[0]?.source).toBe('builtin')
-      expect(enableSpy).toHaveBeenCalledOnce()
+
+      const joinRows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
+      expect(joinRows).toHaveLength(0)
+      const [installed] = await skillService.list({ agentId: AGENT_ID })
+      expect(installed?.isEnabled).toBe(true)
     })
   })
 

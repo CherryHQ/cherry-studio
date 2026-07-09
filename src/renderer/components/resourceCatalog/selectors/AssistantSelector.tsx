@@ -6,6 +6,7 @@ import {
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
+import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -155,7 +156,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         await togglePin(id)
       } catch (error) {
         logger.error('Failed to toggle assistant pin', error as Error, { id })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isPinActionDisabled, togglePin, t]
@@ -218,7 +219,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
-        window.toast?.error(t('selector.create_dialog.refresh_failed'))
+        toast.error(t('selector.create_dialog.refresh_failed'))
       }
       if (autoSelectOnCreate && props.multi !== true) {
         if (props.selectionType === 'item') {
@@ -247,7 +248,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       await refetch()
     } catch (error) {
       logger.warn('Failed to refresh assistants after selector edit', { error })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [refetch, t])
 

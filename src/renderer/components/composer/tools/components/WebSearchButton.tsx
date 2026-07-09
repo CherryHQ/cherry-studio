@@ -1,9 +1,12 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
@@ -77,9 +80,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const isDisabled = Boolean(disabledReason)
 
   const onClick = useCallback(
-    (restoreFocus?: () => void) => {
+    async (restoreFocus?: () => void) => {
       if (!assistant || !model) {
-        window.toast.error(t('error.model.not_exists'))
+        toast.error(t('error.model.not_exists'))
         return
       }
       if (enableWebSearch) {
@@ -90,24 +93,27 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       // Built-in web search bypasses the external-provider requirement; the
       // toggle simply flips the assistant flag and the model handles search.
       if (!hasBuiltinWebSearch && !activeProviderId) {
-        let skipFocusRestore = false
+        let navigatedAway = false
 
-        window.modal.confirm({
+        const confirmed = await popup.confirm({
           centered: true,
           title: t('settings.tool.websearch.search_provider'),
           content: t('settings.tool.websearch.search_provider_placeholder'),
-          afterClose: restoreFocus
+          // Return focus to the trigger (button or composer input) once the dialog
+          // closes, unless the user navigated to settings. focusOnClose overrides
+          // Radix's default focus-return, so there is no race and no rAF needed.
+          focusOnClose: restoreFocus
             ? () => {
-                if (!skipFocusRestore) {
-                  window.requestAnimationFrame(restoreFocus)
+                if (!navigatedAway) {
+                  restoreFocus()
                 }
               }
-            : undefined,
-          onOk: () => {
-            skipFocusRestore = true
-            return navigate({ to: '/settings/websearch' })
-          }
+            : undefined
         })
+        if (!confirmed) return
+
+        navigatedAway = true
+        await navigate({ to: '/settings/websearch' })
         return
       }
 
@@ -145,6 +151,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         order: 30,
         label: t('chat.input.web_search.label'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
         icon,
         active: enableWebSearch,
         disabled: isDisabled,
@@ -167,7 +174,7 @@ const WebSearchButton: FC<Props> = (props) => {
   const handleClick = useCallback<MouseEventHandler<HTMLButtonElement>>(
     (event) => {
       const trigger = event.currentTarget
-      onClick(() => trigger.focus())
+      void onClick(() => trigger.focus())
     },
     [onClick]
   )

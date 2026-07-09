@@ -1,4 +1,5 @@
 import type * as AssistantCatalogPresetsModule from '@renderer/hooks/useAssistantCatalogPresets'
+import { toast } from '@renderer/services/toast'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useState } from 'react'
@@ -7,8 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
 
 const createAssistantMock = vi.fn(async () => ({ id: 'assistant-1' }))
-const toastSuccess = vi.fn()
-const toastError = vi.fn()
 
 type VirtualizerOptionsMock = {
   count: number
@@ -127,7 +126,6 @@ beforeEach(() => {
   virtualizerMocks.measureElement.mockClear()
   assistantCatalogMocks.state.isLoading = false
   assistantCatalogMocks.state.presets = assistantCatalogMocks.presetsFixture
-  Object.assign(window, { toast: { ...window.toast, success: toastSuccess, error: toastError } })
 })
 
 afterEach(cleanup)
@@ -219,7 +217,7 @@ describe('AssistantLibraryDialog', () => {
     await waitFor(() => expect(createAssistantMock).toHaveBeenCalledTimes(1))
     expect(createAssistantMock).toHaveBeenCalledWith(expect.objectContaining({ name: 'Web Generator' }))
     expect(onAssistantAdded).toHaveBeenCalledTimes(1)
-    expect(toastSuccess).toHaveBeenCalledWith('common.add_success')
+    expect(toast.success).toHaveBeenCalledWith('common.add_success')
     expect(await screen.findByText('library.assistant_catalog.go_to_chat')).toBeInTheDocument()
   })
 

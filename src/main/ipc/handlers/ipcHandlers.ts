@@ -10,6 +10,7 @@ import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
+import { printHandlers } from './print'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -33,6 +34,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...knowledgeHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
+  ...printHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers

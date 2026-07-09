@@ -1,5 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { searchSkills } from '@renderer/utils/skillSearch'
 import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,7 +19,7 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
 function reportSkillMutationError(action: string, error: unknown): string {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
-  window.toast.error(message)
+  toast.error(message)
   return message
 }
 
@@ -38,36 +39,17 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 /**
  * Hook to manage installed skills.
  *
- * Pass `agentId` to get per-agent enablement state and to scope toggle calls
- * to that agent. Without `agentId`, the hook returns the global skill library
- * with `isEnabled` forced to false — callers without an agent context (e.g.
- * the global Settings → Skills page) should rely on uninstall only.
+ * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
+ * hook returns the global skill library with `isEnabled` forced to false.
+ * Per-agent enablement is edited through the agent form and saved via
+ * PATCH /agents (see `AgentEditDialog`), not through this hook.
  */
-export function useInstalledSkills(agentId?: string) {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery(
-    '/skills',
-    agentId ? { query: { agentId } } : undefined
-  )
+export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+    enabled: options.enabled !== false,
+    ...(agentId ? { query: { agentId } } : {})
+  })
   const invalidate = useInvalidateCache()
-
-  const toggle = useCallback(
-    async (skillId: string, isEnabled: boolean) => {
-      if (!agentId) {
-        logger.warn('skill.toggle called without agentId; ignoring', { skillId, isEnabled })
-        return false
-      }
-      try {
-        const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
-        const skill = unwrapSkillResult(result)
-        if (!skill) throw new Error('Skill toggle returned no result')
-        await refreshSkillsBestEffort(invalidate)
-        return skill.isEnabled === isEnabled
-      } catch (error) {
-        reportAndRethrowSkillMutationError('toggle skill', error)
-      }
-    },
-    [agentId, invalidate]
-  )
 
   const uninstall = useCallback(
     async (skillId: string) => {
@@ -88,7 +70,6 @@ export function useInstalledSkills(agentId?: string) {
     loading: isLoading || isRefreshing,
     error: error?.message ?? null,
     refresh: refetch,
-    toggle,
     uninstall
   }
 }
@@ -233,12 +214,36 @@ export function useSkillSearch() {
  * Hook for installing a skill from search results.
  */
 export function useSkillInstall() {
-  const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const [installingCounts, setInstallingCounts] = useState<Map<string, number>>(() => new Map())
   const invalidate = useInvalidateCache()
+  const installingKey = useMemo(() => installingCounts.keys().next().value ?? null, [installingCounts])
+
+  const beginInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const next = new Map(current)
+      next.set(key, (next.get(key) ?? 0) + 1)
+      return next
+    })
+  }, [])
+
+  const finishInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const count = current.get(key) ?? 0
+      if (count <= 0) return current
+
+      const next = new Map(current)
+      if (count === 1) {
+        next.delete(key)
+      } else {
+        next.set(key, count - 1)
+      }
+      return next
+    })
+  }, [])
 
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
-      setInstallingKey(installSource)
+      beginInstalling(installSource)
       try {
         const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
         await refreshSkillsBestEffort(invalidate)
@@ -246,15 +251,15 @@ export function useSkillInstall() {
       } catch (err) {
         return { skill: null, error: skillErrorMessage(err) }
       } finally {
-        setInstallingKey(null)
+        finishInstalling(installSource)
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('zip')
+      beginInstalling('zip')
       try {
         const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
@@ -262,15 +267,15 @@ export function useSkillInstall() {
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('zip')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromDirectory = useCallback(
     async (directoryPath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('directory')
+      beginInstalling('directory')
       try {
         const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
         await refreshSkillsBestEffort(invalidate)
@@ -278,19 +283,18 @@ export function useSkillInstall() {
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('directory')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const isInstalling = useCallback(
     (key?: string) => {
-      if (!installingKey) return false
-      if (!key) return !!installingKey
-      return installingKey === key
+      if (!key) return installingCounts.size > 0
+      return installingCounts.has(key)
     },
-    [installingKey]
+    [installingCounts]
   )
 
   return { installingKey, isInstalling, install, installFromZip, installFromDirectory }

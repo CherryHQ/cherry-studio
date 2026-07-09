@@ -50,6 +50,12 @@ describe('buildInitialAgentFormState', () => {
     })
   })
 
+  it('uses the provided enabled skill ids as form state', () => {
+    const state = buildInitialAgentFormState(createAgent(), ['skill-1', 'skill-2'])
+
+    expect(state.skillIds).toEqual(['skill-1', 'skill-2'])
+  })
+
   it('lifts configuration sub-keys onto the flat form object', () => {
     const agent = createAgent({
       configuration: {
@@ -149,6 +155,29 @@ describe('diffAgentUpdate', () => {
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('includes skillUpdates when the enabled skill set changes', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1'])
+    const next = { ...baseline, skillIds: ['skill-2'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toEqual({
+      skillUpdates: [
+        { skillId: 'skill-1', isEnabled: false },
+        { skillId: 'skill-2', isEnabled: true }
+      ]
+    })
+  })
+
+  it('does not emit skillUpdates when the enabled skill set is only reordered', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
+    const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {

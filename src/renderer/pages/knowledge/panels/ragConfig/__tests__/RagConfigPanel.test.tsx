@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -282,12 +283,6 @@ describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
-    Object.assign(window, {
-      toast: {
-        success: vi.fn(),
-        error: vi.fn()
-      }
-    })
 
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -359,7 +354,7 @@ describe('RagConfigPanel', () => {
         })
       )
     })
-    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+    expect(toast.success).toHaveBeenCalledWith('已保存')
   })
 
   it('shows and saves the threshold slider only after a rerank model is selected', async () => {
@@ -396,7 +391,7 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('保存失败: save failed')
+      expect(toast.error).toHaveBeenCalledWith('保存失败: save failed')
     })
   })
 
@@ -557,7 +552,7 @@ describe('RagConfigPanel', () => {
       })
     })
     expect(onRestoreBase).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+    expect(toast.success).toHaveBeenCalledWith('已保存')
   })
 
   it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
@@ -570,7 +565,7 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
+      expect(toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
     })
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).not.toHaveBeenCalled()

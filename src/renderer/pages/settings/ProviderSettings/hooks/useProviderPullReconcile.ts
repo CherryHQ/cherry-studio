@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,9 +63,9 @@ export function useProviderPullReconcile(providerId: string) {
         if (isCurrent()) {
           setPreview(null)
           if (error instanceof ModelSyncError && error.code === 'NO_ENABLED_API_KEY') {
-            window.toast.error(t('settings.models.check.no_api_keys'))
+            toast.error(t('settings.models.check.no_api_keys'))
           } else {
-            window.toast.error(t('settings.models.manage.sync_pull_failed'))
+            toast.error(t('settings.models.manage.sync_pull_failed'))
           }
         }
         throw error instanceof Error ? error : new Error(String(error))

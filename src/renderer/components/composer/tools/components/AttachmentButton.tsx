@@ -1,4 +1,6 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { Paperclip } from 'lucide-react'
@@ -51,7 +53,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         }
 
         if (supportedFiles.length !== _files.length) {
-          window.toast.info(
+          toast.info(
             t('chat.input.file_not_supported_count', {
               count: _files.length - supportedFiles.length
             })
@@ -72,6 +74,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         order: 10,
         label: t('chat.input.upload.attachment'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
         tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
         icon: <Paperclip />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
