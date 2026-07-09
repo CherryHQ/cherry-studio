@@ -250,8 +250,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   },
   backupPolicy: {},
   // All aggregates are renamable:false → cloneAggregate is NOT required (#16).
-  // TODO(C/D track): afterImport must re-arm job_schedule(type='agent.task') timers
-  // (DB import does not call registerJobSchedule — agent tasks would not fire until
-  // restart, §5). Not a finalize concern; wired with the C/D restore track.
+  // D model (#16714 / architecture §9): no afterImport re-arm — relaunch after
+  // preboot promotion re-arms agent.task schedules via JobManager startup recovery.
   operations: undefined
 })
