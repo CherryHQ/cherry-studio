@@ -8,7 +8,6 @@
  * data would be written twice.
  */
 
-import { application } from '@application'
 import {
   ENDPOINT_TYPE,
   type EndpointType,
@@ -30,6 +29,7 @@ import {
   synthesizePresetFromOverride
 } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
@@ -233,11 +233,7 @@ export class ProviderModelMigrator extends BaseMigrator {
 
   private getLoader(): RegistryLoader {
     if (!this.loader) {
-      this.loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this.loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this.loader
   }
