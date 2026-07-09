@@ -740,23 +740,10 @@ describe('ModelSelector', () => {
     expect(screen.getByTestId('model-selector-content')).toHaveAttribute('hidden')
   })
 
-  it('opens provider settings from the provider group action without selecting a model', async () => {
-    mockUseModelSelectorData.mockReturnValue(makeData())
-    const onSelect = vi.fn()
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
-
-    fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
-
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
-    )
-    expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('opens provider settings from the bottom custom model action and closes without selecting a model', async () => {
+  it('opens provider settings from the provider group action in the settings tab and closes without selecting a model', async () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
     const onOpenChange = vi.fn()
+    const onSettingsNavigate = vi.fn()
     const onSelect = vi.fn()
 
     render(
@@ -765,6 +752,34 @@ describe('ModelSelector', () => {
         multiple={false}
         trigger={<button type="button">open</button>}
         onOpenChange={onOpenChange}
+        onSettingsNavigate={onSettingsNavigate}
+        onSelect={onSelect}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(onSettingsNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockOpenSettingsTab.mock.invocationCallOrder[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('opens provider settings from the bottom custom model action and closes without selecting a model', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const onOpenChange = vi.fn()
+    const onSettingsNavigate = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSettingsNavigate={onSettingsNavigate}
         onSelect={onSelect}
       />
     )
@@ -774,6 +789,8 @@ describe('ModelSelector', () => {
     expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
     expect(mockNavigate).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(onSettingsNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockOpenSettingsTab.mock.invocationCallOrder[0])
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -845,9 +862,8 @@ describe('ModelSelector', () => {
     expect(screen.queryByText('cherryin')).toBeNull()
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'cherryin' } })
-    )
+    await waitFor(() => expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
+    expect(mockNavigate).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
   })
 

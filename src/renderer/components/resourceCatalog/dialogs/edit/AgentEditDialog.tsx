@@ -326,6 +326,7 @@ function AgentEditDialogContent({
           patchAgentForm={patchAgentForm}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
+          onSettingsNavigate={() => onOpenChange(false)}
         />
       </TabsContent>
       <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
@@ -368,6 +369,7 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onSettingsNavigate?: () => void
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
@@ -400,6 +402,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -411,6 +414,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -422,6 +426,7 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+          onSettingsNavigate={onSettingsNavigate}
         />
       </div>
       <TextInputField

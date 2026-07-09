@@ -274,6 +274,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
+                    onSettingsNavigate={() => onOpenChange(false)}
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (

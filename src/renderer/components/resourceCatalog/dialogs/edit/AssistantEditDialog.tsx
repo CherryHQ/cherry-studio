@@ -273,6 +273,7 @@ function AssistantEditDialogContent({
           allTagNames={allTagNames}
           emojiPickerOpen={emojiPickerOpen}
           setEmojiPickerOpen={setEmojiPickerOpen}
+          onSettingsNavigate={() => onOpenChange(false)}
         />
       </TabsContent>
       <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
@@ -319,6 +320,7 @@ function AssistantBasicFields({
   allTagNames: string[]
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onSettingsNavigate?: () => void
 }) {
   const { t } = useTranslation()
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
@@ -362,6 +364,7 @@ function AssistantBasicFields({
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
             onModelChange={handleAssistantModelChange}
+            onSettingsNavigate={onSettingsNavigate}
           />
         </div>
         <FormField

@@ -8,7 +8,6 @@ import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
 import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -264,10 +263,10 @@ export function ModelSelector(props: ModelSelectorProps) {
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
+    onSettingsNavigate,
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -478,17 +477,17 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
-        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
-      })
+      onSettingsNavigate?.()
+      openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
     },
-    [navigate, setOpen]
+    [onSettingsNavigate, setOpen]
   )
 
   const handleNavigateToCustomModelSettings = useCallback(() => {
     setOpen(false)
+    onSettingsNavigate?.()
     openSettingsTab('/settings/provider')
-  }, [setOpen])
+  }, [onSettingsNavigate, setOpen])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
