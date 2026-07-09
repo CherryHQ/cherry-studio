@@ -446,6 +446,39 @@ describe('AgentTaskService (thin facade)', () => {
       expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, [])
     })
 
+    it('rolls back schedule fields when channel subscription replacement fails', async () => {
+      setupApplicationMocks()
+      const existingSnapshot = makeSnapshot()
+      const nextTrigger = { kind: 'interval' as const, ms: 120_000 }
+      const error = new Error('subscription failed')
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(existingSnapshot).mockReturnValueOnce(existingSnapshot)
+      updateJobScheduleMock.mockReturnValueOnce(makeSnapshot({ name: 'new-name', trigger: nextTrigger }))
+      replaceTaskSubscriptionsMock.mockImplementationOnce(() => {
+        throw error
+      })
+
+      await expect(
+        agentTaskService.updateTask(AGENT_ID, TASK_ID, {
+          name: 'new-name',
+          trigger: nextTrigger,
+          prompt: 'new prompt',
+          channelIds: ['channel-3']
+        })
+      ).rejects.toThrow(error)
+
+      expect(updateJobScheduleMock).toHaveBeenCalledTimes(2)
+      expect(updateJobScheduleMock).toHaveBeenNthCalledWith(
+        2,
+        TASK_ID,
+        expect.objectContaining({
+          name: existingSnapshot.name,
+          trigger: existingSnapshot.trigger,
+          jobInputTemplate: existingSnapshot.jobInputTemplate
+        })
+      )
+      expect(updateJobScheduleMock.mock.calls[1][1]).not.toHaveProperty('enabled')
+    })
+
     it('returns null when the task does not exist', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(null)

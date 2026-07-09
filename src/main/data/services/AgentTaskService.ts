@@ -203,7 +203,26 @@ export class AgentTaskService {
     if (!updated) return null
 
     if (patch.channelIds !== undefined) {
-      agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
+      try {
+        agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
+      } catch (error) {
+        const rollbackPatch: UpdateJobScheduleDto = {}
+        if (updatePatch.name !== undefined) rollbackPatch.name = existingSnapshot.name
+        if (updatePatch.trigger !== undefined) rollbackPatch.trigger = existingSnapshot.trigger
+        if (updatePatch.enabled !== undefined) rollbackPatch.enabled = existingSnapshot.enabled
+        if (updatePatch.jobInputTemplate !== undefined)
+          rollbackPatch.jobInputTemplate = existingSnapshot.jobInputTemplate
+
+        try {
+          application.get('JobManager').updateJobSchedule(taskId, rollbackPatch)
+        } catch (rollbackError) {
+          logger.warn('Failed to rollback task schedule after channel subscription failure', {
+            taskId,
+            rollbackError
+          })
+        }
+        throw error
+      }
     }
 
     logger.info('Task updated', { taskId, agentId })
