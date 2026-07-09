@@ -72,11 +72,13 @@ export const useSession = (sessionId: string | null) => {
  * gate the restore decision on `isLoading`.
  */
 export function useLatestSession(opts?: { enabled?: boolean }) {
-  const { data, isLoading, refetch, mutate } = useQuery('/agent-sessions/latest', { enabled: opts?.enabled })
+  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
+    enabled: opts?.enabled
+  })
 
   return {
     latestSession: data?.session ?? undefined,
-    isLoading,
+    isLoading: isLoading || isRefreshing,
     refetch,
     mutate
   }
@@ -131,7 +133,7 @@ export const useSessions = (
     enabled
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions')
+  const { applyReorderedList } = useReorder('/agent-sessions', { refresh: ['/agent-sessions/latest'] })
 
   // AgentSessionService returns the persisted session order (`orderKey`, `id`).
   // The `/pins` map is composed in the renderer for row indicators, toggle
@@ -242,7 +244,7 @@ export const useSessions = (
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
-    refresh: ['/agent-sessions']
+    refresh: ['/agent-sessions', '/agent-sessions/latest']
   })
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
@@ -317,13 +319,18 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => [
+      '/agent-sessions',
+      '/agent-sessions/latest',
+      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
+    ]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
     refresh: ({ args }) => [
       '/agent-sessions',
+      '/agent-sessions/latest',
       `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
       '/agent-workspaces'
     ]
@@ -377,7 +384,7 @@ export function useAgentSessionAutoRenameSync() {
     const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
     if (!onAutoRenamed) return
     const unsubscribe = onAutoRenamed(({ sessionId }) => {
-      void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+      void invalidate(['/agent-sessions', '/agent-sessions/latest', `/agent-sessions/${sessionId}`])
     })
     return () => {
       unsubscribe()

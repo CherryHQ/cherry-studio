@@ -342,7 +342,7 @@ describe('Chat panels', () => {
       ],
       topicId: 'topic-1'
     })
-    expect(renderCounters.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
+    expect(renderCounters.invalidateCache).toHaveBeenCalledWith(['/topics/topic-1/messages', '/topics/latest'])
     expect(renderCounters.invalidateCache).not.toHaveBeenCalledWith('/topics/topic-1/tree')
     expect(renderCounters.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
   })

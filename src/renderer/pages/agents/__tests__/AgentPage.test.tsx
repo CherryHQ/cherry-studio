@@ -1642,6 +1642,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
     expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
       '/agent-sessions',
+      '/agent-sessions/latest',
       '/agent-workspaces',
       '/agent-sessions/session-composer-empty'
     ])

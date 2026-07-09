@@ -75,6 +75,8 @@ export interface UseReorderOptions {
    * Defaults to `true`. Failure always revalidates regardless of this flag.
    */
   revalidateOnSuccess?: boolean
+  /** Extra cache keys to revalidate after successful reorder writes. */
+  refresh?: ConcreteApiPaths[]
   /**
    * Name of the item field used as identity. Defaults to `'id'`.
    *
@@ -216,6 +218,7 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const unrecognizedWarnedRef = useRef(false)
 
   const revalidate = options?.revalidateOnSuccess !== false
+  const refreshKeys = options?.refresh ? ([collectionUrl, ...options.refresh] as ConcreteApiPaths[]) : [collectionUrl]
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
 
@@ -226,13 +229,13 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const { trigger: patchOrder } = useMutation(
     'PATCH',
     `${collectionUrl}/:id/order` as TemplateApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    revalidate ? { refresh: refreshKeys } : undefined
   )
 
   const { trigger: patchBatch } = useMutation(
     'PATCH',
     `${collectionUrl}/order:batch` as ConcreteApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    revalidate ? { refresh: refreshKeys } : undefined
   )
 
   /**

@@ -4,7 +4,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useTopicMutations } from '../useTopic'
+import { useLatestTopic, useTopicMutations } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -91,5 +91,24 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
+  })
+})
+
+describe('useLatestTopic', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('keeps first-entry restore gated while cached latest topic is revalidating', () => {
+    MockUseDataApiUtils.mockQueryResult('/topics/latest', {
+      data: { topic: { id: 'topic-a' } } as never,
+      isRefreshing: true
+    })
+
+    const { result } = renderHook(() => useLatestTopic())
+
+    expect(result.current.latestTopic?.id).toBe('topic-a')
+    expect(result.current.isLoading).toBe(true)
   })
 })

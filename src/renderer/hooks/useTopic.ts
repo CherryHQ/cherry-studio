@@ -277,11 +277,11 @@ export function useTopicById(topicId: string | undefined) {
  * gate the restore decision on `isLoading`.
  */
 export function useLatestTopic(opts?: { enabled?: boolean }) {
-  const { data, isLoading, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
+  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
 
   return {
     latestTopic: data?.topic ?? undefined,
-    isLoading,
+    isLoading: isLoading || isRefreshing,
     refetch,
     mutate
   }
@@ -298,7 +298,7 @@ export function useTopicMutations() {
     refresh: ['/topics', '/topics/latest']
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
-    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+    refresh: ({ args }) => ['/topics', '/topics/latest', `/topics/${args!.params.id}`]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list + latest — refreshing `/topics/:id`
@@ -313,7 +313,7 @@ export function useTopicMutations() {
     refresh: ['/topics', '/topics/latest', '/pins']
   })
 
-  const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
+  const refreshTopics = useCallback(() => invalidate(['/topics', '/topics/latest']), [invalidate])
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<Topic> => {
@@ -398,7 +398,7 @@ export function useTopicAutoRenameSync() {
     const onAutoRenamed = window.api?.topic?.onAutoRenamed
     if (!onAutoRenamed) return
     const unsubscribe = onAutoRenamed(({ topicId }) => {
-      void invalidate(['/topics', `/topics/${topicId}`])
+      void invalidate(['/topics', '/topics/latest', `/topics/${topicId}`])
     })
     return () => {
       unsubscribe()

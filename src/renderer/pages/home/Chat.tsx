@@ -198,7 +198,7 @@ const Chat: FC<Props> = (props) => {
 
       setTopicBranchLiveState(activeTopicId, draftState)
       void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
-      await invalidateCache(`/topics/${activeTopicId}/messages`)
+      await invalidateCache([`/topics/${activeTopicId}/messages`, '/topics/latest'])
     },
     [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
   )

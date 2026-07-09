@@ -17,7 +17,13 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
-  toastWarning: vi.fn()
+  toastWarning: vi.fn(),
+  invalidateCache: vi.fn(),
+  turnControllerOptions: undefined as
+    | {
+        refreshMetadata?: (conversation: { topicId: string }, ack: unknown) => unknown
+      }
+    | undefined
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
@@ -33,6 +39,10 @@ vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: mocks.useAgentSessionParts
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => mocks.invalidateCache
+}))
+
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: mocks.useChatWithHistory
 }))
@@ -42,9 +52,12 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
-  useConversationTurnController: () => ({
-    send: mocks.sendTurn
-  })
+  useConversationTurnController: (options: {
+    refreshMetadata?: (conversation: { topicId: string }, ack: unknown) => unknown
+  }) => {
+    mocks.turnControllerOptions = options
+    return { send: mocks.sendTurn }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -119,6 +132,8 @@ describe('useAgentChatRuntimeState', () => {
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
+    mocks.invalidateCache.mockResolvedValue(undefined)
+    mocks.turnControllerOptions = undefined
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       isLoading: false,
@@ -202,6 +217,27 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.refresh).toHaveBeenCalled()
     expect(mocks.resetOverlay).toHaveBeenCalled()
     expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
+  })
+
+  it('refreshes session metadata after the stream opens', async () => {
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        activeAgent: undefined,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await mocks.turnControllerOptions?.refreshMetadata?.({ topicId: 'agent-session:session-1' }, {})
+    })
+
+    expect(mocks.invalidateCache).toHaveBeenCalledWith([
+      '/agent-sessions',
+      '/agent-sessions/latest',
+      '/agent-sessions/session-1'
+    ])
   })
 
   it('merges live assistant metadata into displayed session messages', () => {
