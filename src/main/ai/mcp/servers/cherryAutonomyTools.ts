@@ -1,3 +1,13 @@
+/**
+ * Agent autonomy tools (cron / notify / config) hosted by the in-process
+ * `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
+ *
+ * Unlike the stateless builtin lookup tools, these act on behalf of a specific
+ * agent (schedule its tasks, notify through its channels, manage its own
+ * configuration), so they take the per-session agent context
+ * `CherryBuiltinToolsServer` is constructed with.
+ */
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
@@ -5,16 +15,24 @@ import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
-const logger = loggerService.withContext('McpServer:Claw')
+const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+/** Per-session agent context the autonomy tools act on behalf of. */
+export interface CherryAgentContext {
+  agentId: string
+  workspaceSource: AgentSessionWorkspaceSource
+  workspacePath: string
+  sourceChannelId?: string
+}
 
 /**
  * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
@@ -37,7 +55,7 @@ function parseDurationToMinutes(duration: string): number {
 }
 
 const CRON_TOOL: Tool = {
-  name: 'cron',
+  name: CRON_TOOL_NAME,
   description:
     "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
   inputSchema: {
@@ -73,7 +91,7 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to auto-bind all agent channels. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
       },
       timeout_minutes: {
         type: 'number',
@@ -90,7 +108,7 @@ const CRON_TOOL: Tool = {
 }
 
 const NOTIFY_TOOL: Tool = {
-  name: 'notify',
+  name: NOTIFY_TOOL_NAME,
   description:
     'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
   inputSchema: {
@@ -124,10 +142,10 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     description: 'Telegram Bot. Get bot_token from @BotFather.'
   },
   feishu: {
-    required: [],
-    optional: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'allowed_chat_ids', 'domain'],
+    required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
+    optional: ['allowed_chat_ids'],
     description:
-      'Feishu/Lark bot. If app_id and app_secret are omitted, a QR code is returned for the user to scan with Feishu to auto-create a bot app and obtain credentials. domain defaults to "feishu" (use "lark" for international).'
+      'Feishu/Lark bot. Full credentials are required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI. domain must be "feishu" or "lark".'
   },
   qq: {
     required: ['app_id', 'client_secret'],
@@ -135,10 +153,10 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     description: 'QQ official bot via QQ Open Platform.'
   },
   wechat: {
-    required: [],
-    optional: ['token_path', 'allowed_chat_ids'],
+    required: ['token_path'],
+    optional: ['allowed_chat_ids'],
     description:
-      'WeChat via local WeChat desktop client bridge. After adding, a QR code image is returned — display it inline for the user to scan with their phone.'
+      'WeChat via local WeChat desktop client bridge. token_path is required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI.'
   },
   discord: {
     required: ['bot_token'],
@@ -172,7 +190,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_TOOL: Tool = {
-  name: 'config',
+  name: CONFIG_TOOL_NAME,
   description:
     "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' to mark the onboarding ritual as done. Use 'reset_bootstrap' to re-run the onboarding in the next session.",
   inputSchema: {
@@ -211,108 +229,92 @@ const CONFIG_TOOL: Tool = {
       },
       enabled: {
         type: 'boolean',
-        description: 'Enable or disable the channel (optional for add/update, defaults to true)'
+        description:
+          'Enable or disable the channel (optional; defaults to true on add, unchanged when omitted on update)'
       }
     },
     required: ['action']
   }
 }
 
-class ClawServer {
-  public mcpServer: McpServer
+const AUTONOMY_TOOLS: readonly Tool[] = [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
+
+export class CherryAutonomyTools {
   private agentId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
   private sourceChannelId: string | undefined
 
-  constructor(
-    agentId: string,
-    workspace: AgentSessionWorkspaceSource,
-    workspacePath: string,
-    sourceChannelId?: string
-  ) {
-    this.agentId = agentId
-    this.workspace = workspace
-    this.workspacePath = workspacePath
-    this.sourceChannelId = sourceChannelId
-    this.mcpServer = new McpServer(
-      {
-        name: 'claw',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.setupHandlers()
+  constructor(context: CherryAgentContext) {
+    this.agentId = context.agentId
+    this.workspace = context.workspaceSource
+    this.workspacePath = context.workspacePath
+    this.sourceChannelId = context.sourceChannelId
   }
 
-  private setupHandlers() {
-    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
-    }))
+  tools(): Tool[] {
+    return [...AUTONOMY_TOOLS]
+  }
 
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const toolName = request.params.name
-      const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
+  handles(toolName: string): boolean {
+    return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
+  }
 
-      try {
-        switch (toolName) {
-          case 'cron': {
-            const action = args.action
-            switch (action) {
-              case 'add':
-                return await this.addJob(args)
-              case 'list':
-                return this.listJobs()
-              case 'remove':
-                return await this.removeJob(args)
-              default:
-                throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
-            }
+  async call(toolName: string, args: Record<string, string | undefined>): Promise<CallToolResult> {
+    try {
+      switch (toolName) {
+        case CRON_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'add':
+              return await this.addJob(args)
+            case 'list':
+              return this.listJobs()
+            case 'remove':
+              return await this.removeJob(args)
+            default:
+              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
           }
-          case 'notify':
-            return await this.sendNotification(args)
-          case 'config': {
-            const action = args.action
-            switch (action) {
-              case 'status':
-                return this.configStatus()
-              case 'rename':
-                return this.configRename(args)
-              case 'add_channel':
-                return await this.configAddChannel(args)
-              case 'update_channel':
-                return await this.configUpdateChannel(args)
-              case 'remove_channel':
-                return await this.configRemoveChannel(args)
-              case 'reconnect_channel':
-                return await this.configReconnectChannel(args)
-              case 'complete_bootstrap':
-                return this.configCompleteBootstrap()
-              case 'reset_bootstrap':
-                return this.configResetBootstrap()
-              default:
-                throw new McpError(
-                  ErrorCode.InvalidParams,
-                  `Unknown action "${action}", expected status/rename/add_channel/update_channel/remove_channel/reconnect_channel/complete_bootstrap/reset_bootstrap`
-                )
-            }
+        }
+        case NOTIFY_TOOL_NAME:
+          return await this.sendNotification(args)
+        case CONFIG_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'status':
+              return this.configStatus()
+            case 'rename':
+              return this.configRename(args)
+            case 'add_channel':
+              return await this.configAddChannel(args)
+            case 'update_channel':
+              return await this.configUpdateChannel(args)
+            case 'remove_channel':
+              return await this.configRemoveChannel(args)
+            case 'reconnect_channel':
+              return await this.configReconnectChannel(args)
+            case 'complete_bootstrap':
+              return this.configCompleteBootstrap()
+            case 'reset_bootstrap':
+              return this.configResetBootstrap()
+            default:
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Unknown action "${action}", expected status/rename/add_channel/update_channel/remove_channel/reconnect_channel/complete_bootstrap/reset_bootstrap`
+              )
           }
-          default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${message}` }],
-          isError: true
-        }
+        default:
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
       }
-    })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
+      return {
+        content: [{ type: 'text' as const, text: `Error: ${message}` }],
+        isError: true
+      }
+    }
   }
 
   private async addJob(args: Record<string, unknown>) {
@@ -344,9 +346,17 @@ class ClawServer {
       trigger = { kind: 'once', at: date.getTime() }
     }
 
-    // Resolve channel_ids: explicit array, or default to the current channel
+    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
+    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
+    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
+    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
     let channelIds: string[] | undefined
     if (Array.isArray(rawChannelIds)) {
+      for (const channelId of rawChannelIds) {
+        const channel = channelService.getChannel(channelId)
+        if (!channel || channel.agentId !== this.agentId)
+          throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+      }
       channelIds = rawChannelIds
     } else if (this.sourceChannelId) {
       channelIds = [this.sourceChannelId]
@@ -507,7 +517,6 @@ class ClawServer {
         optional_fields: schema.optional
       })),
       channels: channelSummary,
-      soul_enabled: config?.soul_enabled ?? false,
       heartbeat_enabled: config?.heartbeat_enabled ?? false
     }
 
@@ -647,6 +656,8 @@ class ClawServer {
 
     const existing = channelService.getChannel(channelId)
     if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (existing.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
     if (args.name !== undefined) updates.name = args.name as string
@@ -669,6 +680,8 @@ class ClawServer {
 
     const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await agentChannelWorkflowService.deleteChannel(channelId)
 
@@ -684,6 +697,8 @@ class ClawServer {
 
     const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
@@ -814,5 +829,3 @@ class ClawServer {
     }
   }
 }
-
-export default ClawServer
