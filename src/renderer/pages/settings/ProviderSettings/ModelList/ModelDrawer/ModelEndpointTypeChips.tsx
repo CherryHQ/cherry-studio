@@ -1,5 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { cn } from '@renderer/utils/style'
+import { Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
@@ -17,6 +19,9 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
   const toggle = (id: ModelDrawerEndpointType) => {
     const next = new Set(selected)
     if (next.has(id)) {
+      if (next.size <= 1) {
+        return
+      }
       next.delete(id)
     } else {
       next.add(id)
@@ -31,6 +36,7 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
     <div className={drawerClasses.endpointChipRow}>
       {MODEL_ENDPOINT_OPTIONS.map((option) => {
         const active = selected.has(option.id as ModelDrawerEndpointType)
+        const isLastSelected = active && selected.size <= 1
         return (
           <Button
             key={option.id}
@@ -38,7 +44,10 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
             variant={active ? 'secondary' : 'outline'}
             size="sm"
             aria-pressed={active}
+            aria-disabled={isLastSelected}
+            className={cn(active && 'border border-border text-foreground', isLastSelected && 'cursor-default')}
             onClick={() => toggle(option.id as ModelDrawerEndpointType)}>
+            {active ? <Check aria-hidden className="size-3" /> : null}
             {t(option.label)}
           </Button>
         )

@@ -331,4 +331,43 @@ describe('Model drawers', () => {
       })
     )
   })
+
+  it('prevents clearing the last endpoint type from the edit drawer', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="cherryin"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'cherryin::claude-4-sonnet',
+            providerId: 'cherryin',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const responseEndpointButton = screen.getByRole('button', { name: 'endpoint_type.openai-response' })
+    expect(responseEndpointButton).toHaveAttribute('aria-disabled', 'true')
+    expect(responseEndpointButton).not.toBeDisabled()
+
+    await act(async () => {
+      fireEvent.click(responseEndpointButton)
+    })
+
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
 })
