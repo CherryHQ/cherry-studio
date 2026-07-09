@@ -86,8 +86,8 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // it via the context — a set-but-unavailable custom path fails the export
     // rather than falling back to the managed default. This hook scans it
     // recursively and returns relative POSIX paths so the stager + archive carry the
-    // bodies (full mode). A missing root = "no notes configured" (empty set); an
-    // unreadable root (permission) throws — never a silent empty backup.
+    // bodies (full mode). undefined notesRoot = "no notes configured" (empty set);
+    // a provided but unreadable root throws — never a silent empty backup.
     // restoreResources (dir-swap preboot promotion) is the D restore track (#16714).
     collectFileResources: collectNotesMarkdown
   }
@@ -110,8 +110,8 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
  * containment against the notes root's real path refuse that escape.
  *
  * Root vs subtree read errors are handled differently:
- *  - Root: ENOENT = "no Notes configured" → empty set; any other error (EACCES,
- *    EPERM, …) → throw so the export fails loudly instead of archiving zero notes.
+ *  - Root: any error (ENOENT / EACCES / …) → throw. "No notes" is `notesRoot`
+ *    undefined from the resolver, not a missing directory after injection.
  *  - Subtree: skip + warn (permission / removed mid-scan); the stager re-reports a
  *    collected path under a skipped subtree as missing at stage time.
  *
@@ -210,20 +210,15 @@ async function collectNotesMarkdown(ctx: FileResourceContext): Promise<Set<strin
     return subdirs
   }
 
-  // Root read is separate from subtree reads: a missing root is a legitimate
-  // "no notes configured" state (empty set), but an unreadable root must NOT
-  // silently produce an empty backup — throw so the export fails loudly.
+  // Root was already resolved as present (or injected by tests). Any read failure
+  // — including ENOENT after a TOCTOU race — must fail the export loudly rather
+  // than archive note overlays with zero markdown bodies. "No notes configured"
+  // is expressed by omitting notesRoot (undefined), not by a missing directory.
   let stack: string[]
   try {
     stack = processLevel(root, await readdir(root, { withFileTypes: true }))
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code
-    if (code === 'ENOENT') {
-      logger.warn('PREFERENCES collectFileResources: notes root does not exist (no notes configured)', {
-        notesRoot: root
-      })
-      return out
-    }
     throw new Error(
       `PREFERENCES collectFileResources: cannot read notes root (${code ?? 'unknown'}): ${root}`
     )

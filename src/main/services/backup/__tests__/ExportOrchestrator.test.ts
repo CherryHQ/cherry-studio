@@ -384,7 +384,9 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
-        notesRoot: () => join(dir, 'notes-root'),
+        // No Notes root for this fixture — undefined skips notes collect (a missing
+        // path string would now throw after the ENOENT harden).
+        notesRoot: () => undefined,
         stripper: new SqliteBackupStripper()
       })
       const out = join(dir, 'missing.cbu')
@@ -496,13 +498,17 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await writeFile(join(dir, 'notes-root', 'secret.md'), '# must NOT appear in lite archive')
 
       const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
+      // notesRoot must NOT be evaluated on lite — an unavailable custom Notes path
+      // would otherwise abort an export that never stages notes.
       const orch = new ExportOrchestrator({
         copier: new SqliteBackupCopier(liveRow.file),
         registry: contributorManager.getRegistry(),
         tempDir: dir,
         filesRoot: join(dir, 'files-root'),
         knowledgeRoot: join(dir, 'kb-root'),
-        notesRoot: () => join(dir, 'notes-root'),
+        notesRoot: () => {
+          throw new Error('notesRoot must not be called on lite export')
+        },
         // Real stripper — runs step 2.5 against the copy.
         stripper: new SqliteBackupStripper()
       })
