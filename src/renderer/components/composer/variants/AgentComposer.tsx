@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
@@ -548,19 +548,21 @@ const AgentComposerWorkspaceControl = ({
             )}
           />
           {canQuickClearWorkspace && (
-            <span
-              data-clear-workspace-button
-              data-testid="clear-workspace-button"
-              aria-hidden
-              className={cn(
-                'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
-                !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
-                workspaceChanging && 'cursor-not-allowed opacity-50'
-              )}
-              onMouseDown={(e) => e.preventDefault()}
-              onPointerDown={(e) => e.preventDefault()}>
-              <X size={10} className="stroke-[2.5]" />
-            </span>
+            <NormalTooltip content={t('agent.session.workspace_selector.no_project')} side="top">
+              <span
+                data-clear-workspace-button
+                data-testid="clear-workspace-button"
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
+                  workspaceChanging && 'cursor-not-allowed opacity-50'
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}>
+                <X size={10} className="stroke-[2.5]" />
+              </span>
+            </NormalTooltip>
           )}
         </span>
       )}
