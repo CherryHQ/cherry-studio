@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
+  toggleExpanded: vi.fn(),
   getDraft: vi.fn(),
   reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
@@ -116,7 +117,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
         },
-        toggleExpanded: vi.fn(),
+        toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         getDraft: mocks.getDraft
@@ -580,6 +581,7 @@ describe('ChatComposer', () => {
     mocks.updateAssistant.mockReset()
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
+    mocks.toggleExpanded.mockReset()
     mocks.getDraft.mockReset()
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
     mocks.reconcileTokens.mockReset()
@@ -832,6 +834,7 @@ describe('ChatComposer', () => {
         promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
       })
     )
+    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 

@@ -7,15 +7,18 @@ import { uuid } from '@renderer/utils/uuid'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export const useAppUpdateState = () => {
   const [appUpdateState, setAppUpdateState] = useCache('app.dist.update_state')
 
-  const updateAppUpdateState = (state: Partial<CacheAppUpdateState>) => {
-    setAppUpdateState({ ...appUpdateState, ...state })
-  }
+  const updateAppUpdateState = useCallback(
+    (state: Partial<CacheAppUpdateState>) => {
+      setAppUpdateState((previous) => ({ ...previous, ...state }))
+    },
+    [setAppUpdateState]
+  )
 
   return {
     appUpdateState,
@@ -29,9 +32,8 @@ export const useAppUpdateState = () => {
 // belongs in a notification/service layer, not the window render tree. — fullex
 export function useAppUpdateHandler() {
   const { t } = useTranslation()
-  const { updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
   // notificationService is imported as a module-level singleton
-  const { appUpdateState } = useAppUpdateState()
   const manualCheckRef = useRef(appUpdateState.manualCheck)
 
   // Keep ref in sync with current state

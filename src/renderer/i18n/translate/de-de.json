@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "Wovon sollen wir heute sprechen?"
     },
+    "icon": {
+      "type": "Agent-Symbol"
+    },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
       "soul_placeholder": "Hilf mir, mich mit Telegram zu verbinden"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
+    },
+    "manage": {
+      "title": "Agenten verwalten"
     },
     "pin": {
       "title": "Pin-Agent"
@@ -499,6 +505,7 @@
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
       },
+      "auto_rename": "Aufgabenname generieren",
       "create": {
         "error": {
           "failed": "Sitzung hinzufügen fehlgeschlagen"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Agenten",
+    "skill": {
+      "manage": {
+        "title": "Fähigkeiten verwalten"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Das Leeren von Themen löscht alle Themen und Dateien unter dem Assistenten. Möchten Sie fortfahren?",
       "menu_title": "Lösche alle Assistenten-Konversationen",
+      "success_title": "{{count}} Themen gelöscht",
       "title": "Themen leeren"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "Das Thema wird mit vollständigem Gesprächskontext in der Wissensdatenbank gespeichert"
             }
           },
+          "source_fallback": "Unterhaltung",
           "success": "Thema erfolgreich in Wissensdatenbank gespeichert ({{count}} Inhalte)",
           "title": "Thema in Wissensdatenbank speichern"
         }
@@ -3135,6 +3149,7 @@
           "avatar_aria": "Avatar auswählen",
           "back": "Zurück",
           "capability": {
+            "builtin_badge": "Standardmäßig aktiviert",
             "import": "Fertigkeit importieren",
             "no_skills": "Keine Fähigkeiten installiert",
             "search": "Suchfähigkeiten"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
+      "collapse": "Zusammenklappen",
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
       "groupHeader": "{{count}} Toolaufrufe",
@@ -3797,6 +3813,7 @@
         "usingTools": "Arbeit an der Aufgabe"
       },
       "preview": "Vorschau",
+      "processed": "Verarbeitet",
       "raw": "Roh",
       "runningCount": "{{count}} Werkzeuge laufen",
       "runningHeader": "Arbeiten…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": ".md-Datei oder Verzeichnis hierher ziehen zum Importieren",
     "empty": "Keine Notizen vorhanden",
     "expand": "Ausklappen",
+    "exportToPDF": "In PDF exportieren",
     "exportToWord": "In Word exportieren",
     "export_failed": "Export in Wissensdatenbank fehlgeschlagen",
     "export_knowledge": "Notiz in Wissensdatenbank exportieren",
     "export_success": "Erfolgreich in Wissensdatenbank exportiert",
+    "export_to_pdf_failed": "Fehler beim Exportieren als PDF",
+    "export_to_pdf_success": "Exportiert nach PDF",
     "export_to_word_failed": "Export nach Word fehlgeschlagen",
     "folder": "Ordner",
     "load_failed": "Fehler beim Laden der Notiz",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "Keine gültigen Dateien hochgeladen",
     "open_folder": "Externen Ordner öffnen",
     "open_outside": "Extern öffnen",
+    "print": "Drucken",
+    "print_failed": "Drucken der Notiz fehlgeschlagen",
     "rename": "Umbenennen",
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
     "rename_failed": "Fehler beim Umbenennen der Notiz",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
+    "agent": {
+      "position": {
+        "label": "Sitzungsposition",
+        "left": "Links",
+        "right": "Richtig"
+      }
+    },
     "appearance": {
       "title": "Erscheinung"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Auf Updates prüfen",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
@@ -6004,7 +6034,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Aktualisierungsprüfung fehlgeschlagen"
     },
     "developer": {
       "enable_developer_mode": "Entwicklermodus aktivieren",
@@ -7266,6 +7297,7 @@
       "open_tab_in_new_window": "Registerkarte in neuem Fenster öffnen",
       "pin_tab": "Registerkarte anheften/anhängen umschalten",
       "press_shortcut": "Shortcut drücken",
+      "print": "Drucken",
       "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
       "reset": "Zurücksetzen",
@@ -7596,6 +7628,7 @@
   },
   "title": {
     "apps": "Mini-Apps",
+    "chat": "Chat",
     "code": "Code",
     "files": "Datei",
     "home": "Startseite",
