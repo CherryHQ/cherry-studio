@@ -231,13 +231,14 @@ export function buildQwenConfig(
   const existingEnv = omitKeysByPrefix(asRecord(existing.env), 'CHERRY_')
   existingEnv[envKey] = resolved.apiKey
 
+  const security = asRecord(existing.security)
   const merged = {
     ...existing,
-    modelProviders: { ...existing.modelProviders, openai: userModels },
+    modelProviders: { ...asRecord(existing.modelProviders), openai: userModels },
     env: existingEnv,
     security: {
-      ...existing.security,
-      auth: { ...existing.security?.auth, selectedType: 'openai' }
+      ...security,
+      auth: { ...asRecord(security.auth), selectedType: 'openai' }
     },
     model: { name: resolved.model }
   }

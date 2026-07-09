@@ -4402,7 +4402,6 @@
       "hint": "macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
       "title": "Git Required"
     },
-    "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "migration": {
       "description": "An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
@@ -4463,7 +4462,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "Uninstall Progress",
     "uninstalled": {
       "description": "OpenClaw has been successfully uninstalled.",
       "title": "Uninstall Complete"

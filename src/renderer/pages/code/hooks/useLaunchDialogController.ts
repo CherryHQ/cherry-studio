@@ -56,6 +56,11 @@ export function useLaunchDialogController({
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
 
+  // The picker displays a fallback terminal before the user has ever chosen one
+  // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
+  // launch payload matches what's on screen instead of sending `undefined`.
+  const effectiveTerminal = selectedTerminal ?? availableTerminals[0]?.id
+
   const handleSelectFolder = useCallback(async () => {
     try {
       await selectFolder()
@@ -83,7 +88,7 @@ export function useLaunchDialogController({
           model: '',
           providerId: '',
           directory,
-          options: { terminal: selectedTerminal ?? undefined, ownLogin: isOwnLoginSelected || undefined }
+          options: { terminal: effectiveTerminal, ownLogin: isOwnLoginSelected || undefined }
         })
         if (!runResult.success) {
           toast.error(runResult.message)
@@ -123,7 +128,7 @@ export function useLaunchDialogController({
         model: cliConfigContext.rawModelId,
         providerId: cliConfigContext.providerId,
         directory,
-        options: { terminal: selectedTerminal ?? undefined }
+        options: { terminal: effectiveTerminal }
       })
       if (!runResult.success) {
         toast.error(runResult.message)
@@ -143,7 +148,7 @@ export function useLaunchDialogController({
     isOwnLoginSelected,
     upsertProviderConfig,
     selectedCliTool,
-    selectedTerminal,
+    effectiveTerminal,
     setCurrentProvider,
     t
   ])
@@ -155,7 +160,7 @@ export function useLaunchDialogController({
       toolName,
       directory,
       terminals: availableTerminals,
-      selectedTerminal,
+      selectedTerminal: effectiveTerminal,
       onSelectFolder: () => void handleSelectFolder(),
       onSelectTerminal: (terminal) => void setTerminal(terminal),
       onLaunch: () => void handleLaunch(),

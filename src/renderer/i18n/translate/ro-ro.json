@@ -4221,7 +4221,6 @@
       "hint": "macOS: brew install git | Windows: Descarcă de pe git-scm.com (asigură-te că adaugi Git la PATH în timpul instalării)",
       "title": "Git Necesar"
     },
-    "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
     "migration": {
       "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
@@ -4282,7 +4281,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
-    "uninstall_progress": "Progresul dezinstalării",
     "uninstalled": {
       "description": "OpenClaw a fost dezinstalat cu succes.",
       "title": "Dezinstalare completă"

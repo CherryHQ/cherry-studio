@@ -4402,7 +4402,6 @@
       "hint": "macOS: brew install git | Windows: 从 git-scm.com 下载（安装时请确保勾选将 Git 添加到 PATH）",
       "title": "需要安装 Git"
     },
-    "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "migration": {
       "description": "检测到 PATH 中存在外部 OpenClaw 安装，但 Cherry Studio 只使用托管的 OpenClaw 二进制文件。请安装托管版本后继续。",
@@ -4463,7 +4462,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
-    "uninstall_progress": "卸载进度",
     "uninstalled": {
       "description": "OpenClaw 已成功卸载。",
       "title": "卸载完成"

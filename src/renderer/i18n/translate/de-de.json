@@ -4221,7 +4221,6 @@
       "hint": "macOS: brew install git | Windows: Von git-scm.com herunterladen (stelle sicher, dass Git während der Installation zum PATH hinzugefügt wird)",
       "title": "Git erforderlich"
     },
-    "install_progress": "Installationsfortschritt",
     "installed_at": "OpenClaw installiert unter",
     "migration": {
       "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
@@ -4282,7 +4281,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sind Sie sicher, dass Sie OpenClaw deinstallieren möchten? Drücken Sie OK, um zu bestätigen.",
-    "uninstall_progress": "Deinstallationsfortschritt",
     "uninstalled": {
       "description": "OpenClaw wurde erfolgreich deinstalliert.",
       "title": "Deinstallation abgeschlossen"

@@ -23,9 +23,9 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const showTerminals = (isMac || isWin) && terminals.length > 0
-  // Prefer the persisted terminal; fall back to the first available one so the
-  // picker never shows a blank value before the user makes a choice.
-  const effectiveTerminal = selectedTerminal ?? terminals[0]?.id ?? ''
+  // The caller already resolves `selectedTerminal` to the same fallback used for
+  // launching (see useLaunchDialogController), so display and launch stay in sync.
+  const effectiveTerminal = selectedTerminal ?? ''
 
   return (
     <div className="space-y-3">

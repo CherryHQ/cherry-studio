@@ -4221,7 +4221,6 @@
       "hint": "macOS: brew install git | Windows: git-scm.com からダウンロード（インストール時に Git を PATH に追加するよう設定してください）",
       "title": "Gitが必要"
     },
-    "install_progress": "インストール進行状況",
     "installed_at": "OpenClawのインストール先",
     "migration": {
       "description": "npm経由でインストールされた古いバージョンのOpenClawが検出されました。最新の公式バージョンを入手するために、再インストールをお願いします。",
@@ -4282,7 +4281,6 @@
     },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
-    "uninstall_progress": "アンインストールの進行状況",
     "uninstalled": {
       "description": "OpenClawは正常にアンインストールされました。",
       "title": "アンインストール完了"

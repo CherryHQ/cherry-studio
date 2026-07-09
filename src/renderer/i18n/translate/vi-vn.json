@@ -4221,7 +4221,6 @@
       "hint": "macOS: brew install git | Windows: Tải từ git-scm.com (đảm bảo thêm Git vào PATH trong quá trình cài đặt)",
       "title": "Git Bắt buộc"
     },
-    "install_progress": "Tiến trình cài đặt",
     "installed_at": "OpenClaw đã được cài đặt tại",
     "migration": {
       "description": "Đã phát hiện phiên bản OpenClaw lỗi thời được cài qua npm. Vui lòng cài lại để nhận phiên bản chính thức mới nhất.",
@@ -4282,7 +4281,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Bạn có chắc chắn muốn gỡ cài đặt OpenClaw không? Nhấn OK để xác nhận.",
-    "uninstall_progress": "Tiến trình Gỡ cài đặt",
     "uninstalled": {
       "description": "OpenClaw đã được gỡ cài đặt thành công.",
       "title": "Gỡ cài đặt hoàn tất"
