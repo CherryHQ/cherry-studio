@@ -729,7 +729,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
     <NormalTooltip
       content={content}
       delayDuration={300}
-      align="start"
+      align="center"
       sideOffset={0}
       contentProps={{
         portalContainer,

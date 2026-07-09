@@ -5,8 +5,15 @@ import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+type TooltipAlign = 'start' | 'center' | 'end'
+type TooltipSide = 'top' | 'right' | 'bottom' | 'left'
+
 const { mockNormalTooltipProps, mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
-  mockNormalTooltipProps: [] as Array<{ sideOffset?: number }>,
+  mockNormalTooltipProps: [] as Array<{
+    align?: TooltipAlign
+    side?: TooltipSide
+    sideOffset?: number
+  }>,
   mockLoggerWarn: vi.fn(),
   mockUseQuery: vi.fn(),
   mockOpenTab: vi.fn(),
@@ -78,13 +85,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     NormalTooltip: ({
       children,
       content,
+      align,
+      side,
       sideOffset
     }: {
       children: ReactNode
       content: ReactNode
+      align?: TooltipAlign
+      side?: TooltipSide
       sideOffset?: number
     }) => {
-      mockNormalTooltipProps.push({ sideOffset })
+      mockNormalTooltipProps.push({ align, side, sideOffset })
       return (
         <div>
           {children}
@@ -123,7 +134,7 @@ describe('EditDialogShared', () => {
     expect(writeText).toHaveBeenCalledWith('{{date}}')
     await vi.waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Copied'))
     expect(mockLoggerWarn).not.toHaveBeenCalled()
-    expect(mockNormalTooltipProps.at(-1)).toMatchObject({ sideOffset: 0 })
+    expect(mockNormalTooltipProps.at(-1)).toMatchObject({ align: 'center', side: undefined, sideOffset: 0 })
   })
 
   it('opens the knowledge page from the empty knowledge step', () => {

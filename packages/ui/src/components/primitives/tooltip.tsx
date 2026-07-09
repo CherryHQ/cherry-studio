@@ -1,5 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
+  Arrow as RadixArrow,
   Content as RadixContent,
   Portal as RadixPortal,
   Provider as RadixProvider,
@@ -71,8 +72,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
 const contentStyles =
   'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95'
 
-const arrowContentStyles =
-  "relative before:pointer-events-none before:absolute before:size-2 before:rotate-45 before:rounded-[1px] before:bg-neutral-900 before:content-[''] data-[side=bottom]:before:-top-1 data-[side=bottom]:before:left-1/2 data-[side=bottom]:before:-translate-x-1/2 data-[side=bottom]:data-[align=start]:before:left-3 data-[side=bottom]:data-[align=start]:before:translate-x-0 data-[side=bottom]:data-[align=end]:before:right-3 data-[side=bottom]:data-[align=end]:before:left-auto data-[side=bottom]:data-[align=end]:before:translate-x-0 data-[side=top]:before:-bottom-1 data-[side=top]:before:left-1/2 data-[side=top]:before:-translate-x-1/2 data-[side=top]:data-[align=start]:before:left-3 data-[side=top]:data-[align=start]:before:translate-x-0 data-[side=top]:data-[align=end]:before:right-3 data-[side=top]:data-[align=end]:before:left-auto data-[side=top]:data-[align=end]:before:translate-x-0 data-[side=left]:before:-right-1 data-[side=left]:before:top-1/2 data-[side=left]:before:-translate-y-1/2 data-[side=left]:data-[align=start]:before:top-3 data-[side=left]:data-[align=start]:before:translate-y-0 data-[side=left]:data-[align=end]:before:top-auto data-[side=left]:data-[align=end]:before:bottom-3 data-[side=left]:data-[align=end]:before:translate-y-0 data-[side=right]:before:-left-1 data-[side=right]:before:top-1/2 data-[side=right]:before:-translate-y-1/2 data-[side=right]:data-[align=start]:before:top-3 data-[side=right]:data-[align=start]:before:translate-y-0 data-[side=right]:data-[align=end]:before:top-auto data-[side=right]:data-[align=end]:before:bottom-3 data-[side=right]:data-[align=end]:before:translate-y-0"
+const arrowStyles = 'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 [paint-order:stroke_fill]'
 
 function TooltipContent({
   className,
@@ -88,9 +88,10 @@ function TooltipContent({
       <RadixContent
         data-slot="tooltip-content"
         sideOffset={sideOffset}
-        className={cn(contentStyles, showArrow && arrowContentStyles, className)}
+        className={cn(contentStyles, className)}
         {...props}>
         {children}
+        {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
       </RadixContent>
     </RadixPortal>
   )
@@ -174,8 +175,9 @@ export const Tooltip = ({
             side={side}
             align={align}
             sideOffset={sideOffset}
-            className={cn(contentStyles, showArrow && arrowContentStyles, classNames?.content, className)}>
+            className={cn(contentStyles, classNames?.content, className)}>
             {tooltipContent}
+            {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
           </RadixContent>
         </RadixPortal>
       </RadixRoot>
