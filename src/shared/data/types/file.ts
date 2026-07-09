@@ -616,8 +616,8 @@ export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
  * file IPC; every other form (emoji / default `''`) passes through. Distinct
  * from an already-resolved `file://…` URL.
  *
- * Provider / mini-app uploaded logos do NOT use this tag — they're stored as a
- * `logo_file_id` column and resolved main-side onto the DTO's `logoSrc`.
+ * Provider / mini-app uploaded logos do NOT use this tag — their file id lives
+ * in the logo `file_ref` table and resolves main-side onto the DTO's `logoSrc`.
  */
 export const STORED_FILE_REF_PREFIX = 'file:'
 

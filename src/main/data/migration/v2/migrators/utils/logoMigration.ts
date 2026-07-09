@@ -130,8 +130,8 @@ export function insertPreparedImageFileTx(
 /**
  * Insert only the prepared ref row (the `file_entry` is inserted separately via
  * {@link insertPreparedImageEntryTx}). Split out so a migrator can order its
- * inserts `file_entry → owner row → ref row`: the owner's `logo_file_id` FK
- * needs the file first, and the ref's `source_id` FK needs the owner first.
+ * inserts `file_entry → owner row → ref row`: the ref's `file_entry_id` FK
+ * needs the file first, and its `source_id` FK needs the owner first.
  */
 export function insertPreparedImageRefTx(
   tx: Pick<DbType, 'insert'>,

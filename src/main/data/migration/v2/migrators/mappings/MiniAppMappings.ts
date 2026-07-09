@@ -73,8 +73,9 @@ export function transformMiniApp(
   }
 
   // Custom app — full data from source. A base64 data-URL logo lands on
-  // `logoKey` here and is promoted to an on-disk `logoFileId` by the migrator's
-  // execute() (where the write tx lives); url / icon refs stay on `logoKey`.
+  // `logoKey` here and is promoted to an on-disk file_entry + logo ref row by
+  // the migrator's execute() (where the write tx lives); url / icon refs stay
+  // on `logoKey`.
   const rawLogo = source.logo
   const logoKey = typeof rawLogo === 'string' && rawLogo.length > 0 ? rawLogo : null
 

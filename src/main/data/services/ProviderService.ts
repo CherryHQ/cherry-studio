@@ -14,7 +14,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { clearSingleFileRefTx, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
+import { clearSingleFileRefTx, getLogoFileId, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
 import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
@@ -130,11 +130,12 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    // Preset icon key stays on `logo`; an uploaded logo resolves main-side to a
-    // ready `file://` URL on `logoSrc` (mutually exclusive) so the renderer
-    // never reconstructs a disk path.
+    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
+    // ref table (single source of truth) and resolves main-side to a ready
+    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
+    // renderer never reconstructs a disk path.
     logo: row.logoKey ?? undefined,
-    logoSrc: resolveLogoSrc(row.logoFileId),
+    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
@@ -222,15 +223,13 @@ class ProviderService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo) ?? {
-            logoKey: null,
-            logoFileId: null
+            logoKey: null
           }
           const values: NewUserProviderInput = {
             providerId: dto.providerId,
             presetProviderId: dto.presetProviderId ?? null,
             name: dto.name,
             logoKey: logoCols.logoKey,
-            logoFileId: logoCols.logoFileId,
             endpointConfigs: dto.endpointConfigs ?? null,
             defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
             apiKeys: dto.apiKeys ?? [],
@@ -283,11 +282,10 @@ class ProviderService {
       const updates: Partial<InsertUserProviderRow> = {}
 
       if (dto.name !== undefined) updates.name = dto.name
-      // DB-only logo reconcile: replace the slot's file_ref + set columns.
+      // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
       const logoCols = reconcileLogoSlotTx(tx, logoSlot(providerId), dto.logo)
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
-        updates.logoFileId = logoCols.logoFileId
       }
       if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint

@@ -24,7 +24,7 @@ import { miniAppLogoRef } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import { clearSingleFileRefTx, reconcileLogoSlotTx } from './utils/logoRef'
+import { clearSingleFileRefTx, getLogoFileId, reconcileLogoSlotTx } from './utils/logoRef'
 import { resolveLogoSrc } from './utils/logoSrc'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -69,11 +69,12 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     presetMiniAppId,
     name: clean.name,
     url: clean.url,
-    // Preset icon key stays on `logo`; an uploaded logo resolves main-side to a
-    // ready `file://` URL on `logoSrc` (mutually exclusive) so the renderer
-    // never reconstructs a disk path.
+    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
+    // ref table (single source of truth) and resolves main-side to a ready
+    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
+    // renderer never reconstructs a disk path.
     logo: clean.logoKey,
-    logoSrc: resolveLogoSrc(clean.logoFileId),
+    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(clean.appId))),
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
@@ -140,8 +141,7 @@ export class MiniAppService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto.logo) ?? {
-            logoKey: null,
-            logoFileId: null
+            logoKey: null
           }
           const inserted = insertWithOrderKey(
             tx,
@@ -152,7 +152,6 @@ export class MiniAppService {
               name: dto.name,
               url: dto.url,
               logoKey: logoCols.logoKey,
-              logoFileId: logoCols.logoFileId,
               status
             },
             {
@@ -221,11 +220,10 @@ export class MiniAppService {
 
           if (dto.name !== undefined) updates.name = dto.name
           if (dto.url !== undefined) updates.url = dto.url
-          // DB-only logo reconcile: replace the slot's file_ref + set columns.
+          // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
           const logoCols = reconcileLogoSlotTx(tx, logoSlot(appId), dto.logo)
           if (logoCols) {
             updates.logoKey = logoCols.logoKey
-            updates.logoFileId = logoCols.logoFileId
           }
 
           if (hasStatusUpdate) {

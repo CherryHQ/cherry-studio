@@ -465,26 +465,30 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userProviderTable.providerId, 'with-logo'))
       // Base64 upload becomes an on-disk WebP file_entry; logoKey stays null.
       expect(withLogo.logoKey).toBeNull()
-      expect(withLogo.logoFileId).toBeTruthy()
 
-      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, withLogo.logoFileId!))
-      expect(entry?.origin).toBe('internal')
-      expect(entry?.ext).toBe('webp')
-      expect(existsSync(path.join(filesDataDir, `${withLogo.logoFileId}.webp`))).toBe(true)
-
+      // The uploaded logo's file id lives ONLY in the ref row (single source of truth).
       const refs = await dbh.db
         .select()
         .from(providerLogoFileRefTable)
         .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
       expect(refs).toHaveLength(1)
-      expect(refs[0]?.fileEntryId).toBe(withLogo.logoFileId)
+      const logoFileId = refs[0]!.fileEntryId
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+      expect(existsSync(path.join(filesDataDir, `${logoFileId}.webp`))).toBe(true)
 
       const [withoutLogo] = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'no-logo'))
       expect(withoutLogo.logoKey).toBeNull()
-      expect(withoutLogo.logoFileId).toBeNull()
+      const noLogoRefs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'no-logo'))
+      expect(noLogoRefs).toHaveLength(0)
     })
 
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {

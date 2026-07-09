@@ -17,18 +17,19 @@ import * as z from 'zod'
  *   it has minted the `file_entry`. The `file` variant only ever originates
  *   main-side, never from the renderer.
  *
- * The flat `(logoKey, logoFileId)` columns and the single-file `file_ref` slot
- * are unchanged; reads resolve to one `logo` string (`logoFileId ?? logoKey`,
- * the former tagged `file:<id>`).
+ * An uploaded logo lives only in the single-file `file_ref` slot (the source of
+ * truth); the owner row keeps just `logoKey`. The DTO exposes `logo` (the key)
+ * plus a main-resolved `logoSrc` (the uploaded file's `file://` URL) — mutually
+ * exclusive.
  */
 
 /**
  * Preset icon id / `icon:<id>` ref. Short — uploads go through the set-logo
  * command. Inline bytes (`data:`), stored-file refs (`file:` / `file://`), and
  * remote URLs (`http:` / `https:`) are rejected: a key must never carry image
- * bytes, mint a stored-image ref with no `logo_file_id` FK / `file_ref`
- * ownership, or (re)open a remote-image write surface. Legacy URL/data values
- * stay isolated to the migration/compat boundary, not this write contract.
+ * bytes, mint a stored-image `file_ref`, or (re)open a remote-image write
+ * surface. Legacy URL/data values stay isolated to the migration/compat
+ * boundary, not this write contract.
  */
 export const LogoKeySchema = z
   .string()

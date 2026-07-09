@@ -417,15 +417,16 @@ export class ProviderModelMigrator extends BaseMigrator {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         // v1 stored custom provider logos in Dexie settings under
         // `image://provider-{id}` (via ImageStorage) as a base64 data URL.
-        // Promote it to an on-disk WebP file_entry referenced via logoFileId;
-        // `logoKey` stays for preset/url refs only.
+        // Promote it to an on-disk WebP file_entry referenced by the logo ref
+        // row (the single source of truth); `logoKey` stays for preset/url refs
+        // only and is nulled for an uploaded logo.
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
           ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
           : null
         if (logoFile) {
           providerLogoFiles.push(logoFile)
-          providerRowsWithoutOrderKey.push({ ...row, logoFileId: logoFile.id, logoKey: null })
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
         } else {
           providerRowsWithoutOrderKey.push(row)
         }
@@ -434,9 +435,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        // Insert file_entries before the owner rows (the provider's
-        // `logo_file_id` FK needs them); the ref rows go in after the owner rows
-        // exist (their `source_id` FK needs the provider), below.
+        // Insert file_entries before the ref rows (their `file_entry_id` FK
+        // needs them); the ref rows themselves go in after the owner rows exist
+        // (their `source_id` FK needs the provider), below.
         for (const logoFile of providerLogoFiles) {
           insertPreparedImageEntryTx(tx, logoFile)
         }

@@ -1,11 +1,13 @@
 /**
  * Single-file entity-image ref reconciliation — DB-only.
  *
- * Shared by ProviderService / MiniAppService (logo slots). Keeps a single-file
- * association row (`provider_logo_file_ref`, `mini_app_logo_file_ref`) in sync
- * with its owner, entirely within the caller's write tx. Each owner holds at
- * most one file per slot, so a write clears the existing row before inserting
- * the new one.
+ * Shared by ProviderService / MiniAppService (logo slots). The single-file
+ * association row (`provider_logo_file_ref`, `mini_app_logo_file_ref`) is the
+ * **single source of truth** for an owner's uploaded logo — the owner row keeps
+ * only `logo_key` (preset / URL refs), never a duplicate `logo_file_id`. Each
+ * owner holds at most one file per slot, so a write clears the existing row
+ * before inserting the new one; reads look the file id back up via
+ * {@link getLogoFileId}.
  *
  * The file bytes are stored beforehand (the caller passes an opaque `fileId`);
  * this layer never touches the filesystem. Superseded files are preserved per
@@ -13,6 +15,7 @@
  * here, so the DataApi services stay 100% DB-only.
  */
 
+import { application } from '@application'
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import type { DbOrTx, DbType } from '@data/db/types'
 import type { LogoBindInput } from '@shared/data/api/schemas/logo'
@@ -30,10 +33,39 @@ export interface SingleFileRefSlot {
   sourceId: string
 }
 
-/** Resolved `(logoKey, logoFileId)` column values for a logo slot. */
+/** The owner-row column value a logo reconcile resolves to. */
 export interface LogoColumns {
   logoKey: string | null
-  logoFileId: FileEntryId | null
+}
+
+/**
+ * The uploaded logo's file-entry id for `slot`, from its ref row — or null when
+ * the slot holds a preset key / nothing. This is the read side of the single
+ * source of truth: one indexed lookup on the unique `(sourceId)` index, cheap
+ * at the low logo read frequency.
+ */
+export function getLogoFileId(slot: SingleFileRefSlot): FileEntryId | null {
+  const db = application.get('DbService').getDb()
+  switch (slot.sourceType) {
+    case providerLogoRef.sourceType: {
+      const [row] = db
+        .select({ fileEntryId: providerLogoFileRefTable.fileEntryId })
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, slot.sourceId))
+        .limit(1)
+        .all()
+      return (row?.fileEntryId as FileEntryId | undefined) ?? null
+    }
+    case miniAppLogoRef.sourceType: {
+      const [row] = db
+        .select({ fileEntryId: miniAppLogoFileRefTable.fileEntryId })
+        .from(miniAppLogoFileRefTable)
+        .where(eq(miniAppLogoFileRefTable.sourceId, slot.sourceId))
+        .limit(1)
+        .all()
+      return (row?.fileEntryId as FileEntryId | undefined) ?? null
+    }
+  }
 }
 
 /** Remove the single-file ref row owned by `slot`, inside `tx`. */
@@ -76,15 +108,15 @@ export function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: 
 }
 
 /**
- * Reconcile the logo slot inside `tx`: replace the slot's ref and return the
- * `(logoKey, logoFileId)` column values to persist on the owner row. Returns
- * `null` when `input` is `undefined` (update no-op — leave columns untouched).
+ * Reconcile the logo slot inside `tx`: replace the slot's ref (the single
+ * source of truth for an uploaded file) and return the `logoKey` to persist on
+ * the owner row. Returns `null` when `input` is `undefined` (update no-op —
+ * leave the column untouched).
  *
  * - `{ kind: 'file', fileId }` → uploaded file: point the slot's ref at it,
- *   `logoFileId = fileId`, `logoKey = null`.
- * - `{ kind: 'key', key }` → preset/url ref: drop the slot's ref,
- *   `logoKey = key`, `logoFileId = null`.
- * - `{ kind: 'default' }` → drop the slot's ref, both columns null.
+ *   `logoKey = null` (the file id lives only in the ref row).
+ * - `{ kind: 'key', key }` → preset/url ref: drop the slot's ref, `logoKey = key`.
+ * - `{ kind: 'default' }` → drop the slot's ref, `logoKey = null`.
  */
 export function reconcileLogoSlotTx(
   tx: DbOrTx,
@@ -95,9 +127,9 @@ export function reconcileLogoSlotTx(
 
   if (input.kind === 'file') {
     setSingleFileRefTx(tx, slot, input.fileId)
-    return { logoKey: null, logoFileId: input.fileId }
+    return { logoKey: null }
   }
 
   clearSingleFileRefTx(tx, slot)
-  return { logoKey: input.kind === 'key' ? input.key : null, logoFileId: null }
+  return { logoKey: input.kind === 'key' ? input.key : null }
 }

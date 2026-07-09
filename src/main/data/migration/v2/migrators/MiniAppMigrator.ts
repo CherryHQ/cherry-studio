@@ -197,9 +197,9 @@ export class MiniAppMigrator extends BaseMigrator {
       const BATCH_SIZE = 100
       const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
 
-      // Promote any base64 data-URL logo to an on-disk WebP file_entry +
-      // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL
-      // logoKey (url / icon ref) is left as-is.
+      // Promote any base64 data-URL logo to an on-disk WebP file_entry + logo
+      // ref row (the single source of truth); base64 never stays on logoKey,
+      // which is nulled. A non-data-URL logoKey (url / icon ref) is left as-is.
       for (const row of this.preparedRows) {
         if (row.logoKey?.startsWith('data:')) {
           const logoFile = await prepareBase64ImageFileEntry(
@@ -207,14 +207,13 @@ export class MiniAppMigrator extends BaseMigrator {
             miniAppLogoSlot(row.appId),
             row.logoKey
           )
-          row.logoFileId = logoFile?.id ?? null
           row.logoKey = null
           if (logoFile) logoFiles.push(logoFile)
         }
       }
 
       ctx.db.transaction((tx) => {
-        // Insert file_entries first (the mini-app's `logo_file_id` FK needs
+        // Insert file_entries first (the ref rows' `file_entry_id` FK needs
         // them), then the owner rows, then the ref rows (whose `source_id` FK
         // needs the owner) — see logoRef ordering.
         for (const logoFile of logoFiles) {

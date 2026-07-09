@@ -469,10 +469,9 @@ describe('MiniAppService', () => {
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoKey).toBeNull()
-      expect(row.logoFileId).toBe(FILE_ID)
-      // The uploaded logo lives on `logoFileId`; the DTO's `logo` key stays
-      // clear and the renderer-facing URL resolves main-side onto `logoSrc`
-      // (FileManager mock → deterministic file:// path).
+      // The uploaded logo lives ONLY in the ref row (single source of truth);
+      // the DTO's `logo` key stays clear and the renderer-facing URL resolves
+      // main-side onto `logoSrc` (FileManager mock → deterministic file:// path).
       expect(updated.logo).toBeUndefined()
       expect(updated.logoSrc).toBe(`file:///mock/files/${FILE_ID}.webp`)
       const refs = await logoRefs('logo-app')
@@ -489,7 +488,6 @@ describe('MiniAppService', () => {
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoKey).toBe('application')
-      expect(row.logoFileId).toBeNull()
       expect(updated.logo).toBe('application')
       expect(await logoRefs('logo-app')).toHaveLength(0)
       // DB-only: the file_entry is preserved (no permanentDelete), per file policy.
@@ -505,8 +503,6 @@ describe('MiniAppService', () => {
 
       miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID_2 } })
 
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
-      expect(row.logoFileId).toBe(FILE_ID_2)
       const refs = await logoRefs('logo-app')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID_2)

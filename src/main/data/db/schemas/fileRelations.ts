@@ -86,21 +86,23 @@ export const paintingFileRefTable = sqliteTable(
 /**
  * Single-file entity-image refs (provider logo, mini-app logo).
  *
- * Unlike the collection refs (`chat_message`, `painting`) these model a
- * single-file slot whose file id also lives directly on the owning row's
- * `logo_file_id` column, kept in sync through the `logoRef` helpers
- * (`reconcileLogoSlotTx` / `clearSingleFileRefTx`). `sourceId` carries a **FK to
- * the owner** (`onDelete: 'cascade'`), matching the collection ref tables:
- * dropping a provider / mini-app drops its ref row, and `fileEntryId` cascades
- * on file delete so orphan-counting stays exact. Because both ends are
- * enforced, the two write paths must order their inserts `file_entry → owner
- * row → ref row` (the owner's `logo_file_id` FK needs the file first, the ref's
- * `sourceId` FK needs the owner first): the live `set_logo` path always updates
- * an existing owner, and the migrators sequence the three inserts explicitly.
- * There is **no `role` column**: the slot's role is a constant ('logo') read by
- * nothing, so the unique `(sourceId)` index alone enforces at most one file per
- * slot. (The user avatar deliberately has no slot table — it is persisted only
- * in the `app.user.avatar` preference.)
+ * These model a single-file slot and are the **single source of truth** for an
+ * owner's uploaded logo — the owner row keeps only `logo_key` (preset / URL
+ * refs), never a duplicate `logo_file_id`. Writes go through the `logoRef`
+ * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`); reads look the file
+ * id back up via `getLogoFileId` (one indexed lookup on the unique `(sourceId)`
+ * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
+ * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
+ * collection ref tables (`chat_message`, `painting`): dropping a provider /
+ * mini-app or its file drops the ref row, so orphan-counting stays exact.
+ * Because both FKs are enforced, a write must order its inserts
+ * `file_entry → owner row → ref row` (the ref's `fileEntryId` FK needs the file,
+ * its `sourceId` FK needs the owner): the live `set_logo` path always updates an
+ * existing owner, and the migrators sequence the inserts explicitly. There is
+ * **no `role` column**: the slot's role is a constant ('logo') read by nothing,
+ * so the unique `(sourceId)` index alone enforces at most one file per slot.
+ * (The user avatar deliberately has no slot table — it is persisted only in the
+ * `app.user.avatar` preference.)
  */
 export const providerLogoFileRefTable = sqliteTable(
   'provider_logo_file_ref',
