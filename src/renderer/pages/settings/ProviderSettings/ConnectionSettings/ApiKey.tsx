@@ -16,6 +16,7 @@ interface ApiKeyProps {
   providerId: string
   apiKeyConnectivity: ApiKeyConnectivity
   onOpenConnectionCheck: () => void
+  requiresApiKey?: boolean
   onRequestModelPullGuide?: () => void
 }
 
@@ -23,6 +24,7 @@ export default function ApiKey({
   providerId,
   apiKeyConnectivity,
   onOpenConnectionCheck,
+  requiresApiKey = true,
   onRequestModelPullGuide
 }: ApiKeyProps) {
   const { t } = useTranslation()
@@ -121,7 +123,9 @@ export default function ApiKey({
               <span className="inline-flex shrink-0">
                 <button
                   type="button"
-                  disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
+                  disabled={
+                    provider.id === 'copilot' || (requiresApiKey && !inputApiKey) || apiKeyConnectivity.checking
+                  }
                   className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.check')}
                   onClick={onOpenConnectionCheck}>

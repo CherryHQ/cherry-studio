@@ -33,6 +33,7 @@ export function AuthenticationSectionContent({
         providerId={providerId}
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
         onOpenConnectionCheck={connectionCheck.openConnectionCheck}
+        requiresApiKey={connectionCheck.requiresApiKey}
         onRequestModelPullGuide={onRequestModelPullGuide}
       />
       <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
@@ -42,6 +43,7 @@ export function AuthenticationSectionContent({
         apiKeys={connectionCheck.checkableApiKeys}
         connectionError={connectionCheck.apiKeyConnectivity.error}
         isSubmitting={connectionCheck.apiKeyConnectivity.checking ?? false}
+        requiresApiKey={connectionCheck.requiresApiKey}
         onClose={connectionCheck.closeConnectionCheck}
         onStart={connectionCheck.startConnectionCheck}
         onOpenModelHealthCheck={onOpenModelHealthCheck}

@@ -9,6 +9,7 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
+import { isNoApiKeyProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +40,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
+  const requiresApiKey = !isNoApiKeyProvider(provider)
 
   // AbortController + runId pair guards against stale callbacks landing on the
   // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
@@ -67,14 +69,14 @@ export function useProviderConnectionCheck(providerId: string) {
       return
     }
 
-    if (isEmpty(checkableApiKeys)) {
+    if (requiresApiKey && isEmpty(checkableApiKeys)) {
       toast.error(i18n.t('message.error.enter.api.label'))
       return
     }
 
     setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(true)
-  }, [checkableApiKeys, i18n, provider])
+  }, [checkableApiKeys, i18n, provider, requiresApiKey])
 
   const startConnectionCheck = useCallback(
     async ({ model, apiKey }: { model?: Model; apiKey: string }) => {
@@ -83,7 +85,7 @@ export function useProviderConnectionCheck(providerId: string) {
         return
       }
 
-      if (!apiKey) {
+      if (requiresApiKey && !apiKey) {
         toast.error(i18n.t('message.error.enter.api.label'))
         return
       }
@@ -107,7 +109,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        await runCheckApi(model.id, { apiKey, signal: controller.signal })
+        await runCheckApi(model.id, { apiKey: apiKey || undefined, signal: controller.signal })
 
         if (runId !== runIdRef.current) return
 
@@ -159,7 +161,16 @@ export function useProviderConnectionCheck(providerId: string) {
         })
       }
     },
-    [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
+    [
+      abortInFlightCheck,
+      checkableModels.length,
+      commitInputApiKeyNow,
+      i18n,
+      provider,
+      requiresApiKey,
+      setTimeoutTimer,
+      updateProvider
+    ]
   )
 
   const checkApi = useCallback(async () => {
@@ -202,6 +213,7 @@ export function useProviderConnectionCheck(providerId: string) {
     openConnectionCheck,
     closeConnectionCheck,
     startConnectionCheck,
+    requiresApiKey,
     resetApiKeyConnectivity
   }
 }

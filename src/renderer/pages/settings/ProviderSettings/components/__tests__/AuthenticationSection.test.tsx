@@ -125,7 +125,8 @@ describe('AuthenticationSection', () => {
       expect.objectContaining({
         providerId: 'openai',
         apiKeyConnectivity: { status: 'failed', checking: false, error: connectionError },
-        onOpenConnectionCheck: openConnectionCheckMock
+        onOpenConnectionCheck: openConnectionCheckMock,
+        requiresApiKey: undefined
       })
     )
     expect(apiHostPropsSpy).toHaveBeenCalledWith(
@@ -138,6 +139,7 @@ describe('AuthenticationSection', () => {
         open: true,
         apiKeys: ['sk-test'],
         connectionError,
+        requiresApiKey: undefined,
         onOpenModelHealthCheck: openModelHealthCheck
       })
     )

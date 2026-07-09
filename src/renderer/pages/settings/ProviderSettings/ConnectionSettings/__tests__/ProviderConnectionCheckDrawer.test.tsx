@@ -159,6 +159,25 @@ describe('ProviderConnectionCheckDrawer', () => {
     expect(onStart).toHaveBeenCalledWith({ model, apiKey: 'sk-second' })
   })
 
+  it('allows starting without an api key when the provider does not require one', () => {
+    const model = { id: 'ollama::llama3', name: 'Llama 3', providerId: 'ollama' } as any
+    const onStart = vi.fn()
+
+    render(
+      <ProviderConnectionCheckDrawer
+        {...baseProps}
+        models={[model]}
+        apiKeys={[]}
+        requiresApiKey={false}
+        onStart={onStart}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Start|开始/ }))
+
+    expect(onStart).toHaveBeenCalledWith({ model, apiKey: '' })
+  })
+
   it('shows the connection failure message and opens the error detail popup', () => {
     const connectionError = { name: 'HealthCheckError', message: 'invalid api key', stack: null }
 

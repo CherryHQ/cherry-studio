@@ -116,6 +116,46 @@ describe('useProviderConnectionCheck', () => {
     ])
   })
 
+  it('opens the connection drawer without API keys for no-key providers', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
+      updateProvider: updateProviderMock
+    })
+    useAuthenticationApiKeyMock.mockReturnValue({
+      inputApiKey: '',
+      commitInputApiKeyNow: commitInputApiKeyNowMock
+    })
+    const { result } = renderHook(() => useProviderConnectionCheck('ollama'))
+
+    act(() => {
+      result.current.openConnectionCheck()
+    })
+
+    expect(result.current.connectionCheckOpen).toBe(true)
+    expect(result.current.requiresApiKey).toBe(false)
+    expect(toast.error).not.toHaveBeenCalledWith('message.error.enter.api.label')
+  })
+
+  it('opens the connection drawer without API keys for providers derived from no-key presets', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'custom-ollama', presetProviderId: 'ollama', name: 'Custom Ollama', isEnabled: false },
+      updateProvider: updateProviderMock
+    })
+    useAuthenticationApiKeyMock.mockReturnValue({
+      inputApiKey: '',
+      commitInputApiKeyNow: commitInputApiKeyNowMock
+    })
+    const { result } = renderHook(() => useProviderConnectionCheck('custom-ollama'))
+
+    act(() => {
+      result.current.openConnectionCheck()
+    })
+
+    expect(result.current.connectionCheckOpen).toBe(true)
+    expect(result.current.requiresApiKey).toBe(false)
+    expect(toast.error).not.toHaveBeenCalledWith('message.error.enter.api.label')
+  })
+
   it('uses the anthropic host for anthropic endpoint models and closes the drawer after checking', async () => {
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
@@ -136,6 +176,31 @@ describe('useProviderConnectionCheck', () => {
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()
+  })
+
+  it('runs no-key provider checks without an API key override', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
+      updateProvider: updateProviderMock
+    })
+    useAuthenticationApiKeyMock.mockReturnValue({
+      inputApiKey: '',
+      commitInputApiKeyNow: commitInputApiKeyNowMock
+    })
+    const { result } = renderHook(() => useProviderConnectionCheck('ollama'))
+
+    await act(async () => {
+      await result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: ''
+      })
+    })
+
+    expect(checkApiMock).toHaveBeenCalledWith(
+      result.current.checkableModels[0].id,
+      expect.objectContaining({ apiKey: undefined, signal: expect.any(AbortSignal) })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('message.error.enter.api.label')
   })
 
   it('enables a disabled provider after a successful model connection check', async () => {

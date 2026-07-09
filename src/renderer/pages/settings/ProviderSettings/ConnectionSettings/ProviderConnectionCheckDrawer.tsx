@@ -29,6 +29,7 @@ interface ProviderConnectionCheckDrawerProps {
   apiKeys: string[]
   connectionError?: SerializedError
   isSubmitting: boolean
+  requiresApiKey?: boolean
   onClose: () => void
   onStart: (config: { model: Model; apiKey: string }) => Promise<void>
   onOpenModelHealthCheck?: () => void
@@ -66,6 +67,7 @@ export default function ProviderConnectionCheckDrawer({
   apiKeys,
   connectionError,
   isSubmitting,
+  requiresApiKey = true,
   onClose,
   onStart,
   onOpenModelHealthCheck
@@ -220,7 +222,7 @@ export default function ProviderConnectionCheckDrawer({
               {t('common.cancel')}
             </Button>
             <Button
-              disabled={!selectedModel || !selectedApiKey}
+              disabled={!selectedModel || (requiresApiKey && !selectedApiKey)}
               loading={isSubmitting}
               onClick={() => selectedModel && void onStart({ model: selectedModel, apiKey: selectedApiKey })}>
               {t('settings.models.check.start')}
