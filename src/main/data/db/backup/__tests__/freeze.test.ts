@@ -82,4 +82,14 @@ describe('deepFreeze', () => {
     expect(Object.isFrozen(value.a)).toBe(true)
     expect(Object.isFrozen(value.a.b)).toBe(true)
   })
+
+  it('is idempotent on an already-frozen root with a pre-frozen child (WeakSet visited guard)', () => {
+    const inner = { x: 1 }
+    Object.freeze(inner)
+    const root = { a: inner }
+    Object.freeze(root)
+    expect(() => deepFreeze(root)).not.toThrow()
+    expect(Object.isFrozen(root)).toBe(true)
+    expect(Object.isFrozen(root.a)).toBe(true)
+  })
 })

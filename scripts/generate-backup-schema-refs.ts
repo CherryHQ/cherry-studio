@@ -285,7 +285,7 @@ function collectAutoIncrement(tables: readonly SQLiteTable[]): Set<string> {
 
 /** Quote a string literal for emission. */
 function str(value: string): string {
-  return `'${value}'`
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 }
 
 /** Emit the dbSchemaRefs.ts file content from the extracted facts. */
