@@ -1,4 +1,6 @@
 import { KnowledgeBaseField } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
+import { useTabs } from '@renderer/hooks/tab'
+import { useCallback } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -13,5 +15,17 @@ type KnowledgeStepProps = {
  * knowledge sub-form — picker popover + linked list — bound to `knowledgeBaseIds`.
  */
 export function KnowledgeStep({ form, portalContainer }: KnowledgeStepProps) {
-  return <KnowledgeBaseField form={form} portalContainer={portalContainer} formLabel={false} />
+  const { openTab } = useTabs()
+  const openKnowledgePage = useCallback(() => {
+    openTab('/app/knowledge')
+  }, [openTab])
+
+  return (
+    <KnowledgeBaseField
+      form={form}
+      portalContainer={portalContainer}
+      formLabel={false}
+      onOpenKnowledgePage={openKnowledgePage}
+    />
+  )
 }

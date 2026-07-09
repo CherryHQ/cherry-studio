@@ -1,11 +1,15 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Form } from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNormalTooltipProps, mockLoggerWarn } = vi.hoisted(() => ({
+const { mockNormalTooltipProps, mockLoggerWarn, mockUseQuery, mockOpenTab } = vi.hoisted(() => ({
   mockNormalTooltipProps: [] as Array<{ sideOffset?: number }>,
-  mockLoggerWarn: vi.fn()
+  mockLoggerWarn: vi.fn(),
+  mockUseQuery: vi.fn(),
+  mockOpenTab: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -20,6 +24,17 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
+        'library.config.knowledge.add': 'Add knowledge base',
+        'library.config.knowledge.create_first': 'Open Knowledge to create one',
+        'library.config.knowledge.doc_count': `${options?.count ?? 0} docs`,
+        'library.config.knowledge.empty_desc': 'Link knowledge bases first.',
+        'library.config.knowledge.empty_title': 'No knowledge bases linked',
+        'library.config.knowledge.invalid_suffix': ' unavailable',
+        'library.config.knowledge.linked': 'Linked knowledge bases',
+        'library.config.knowledge.linked_hint': 'Controls knowledge bases.',
+        'library.config.knowledge.no_more': 'No more knowledge bases',
+        'library.config.knowledge.remove_aria': 'Remove knowledge base',
+        'library.config.knowledge.search': 'Search knowledge bases',
         'library.config.prompt.copy_variable': `Copy ${options?.variable}`,
         'library.config.prompt.variables_description': 'Variables can be used in prompts.',
         'library.config.prompt.variables_example': `Example ${options?.variable}`,
@@ -35,6 +50,16 @@ vi.mock('react-i18next', () => ({
       }
       return labels[key] ?? key
     }
+  })
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: mockUseQuery
+}))
+
+vi.mock('@renderer/hooks/tab/useTabs', () => ({
+  useTabs: () => ({
+    openTab: mockOpenTab
   })
 }))
 
@@ -62,12 +87,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
+import type { ResourceCreateWizardFormValues } from '../../create/types'
 import { PromptVariablesPopover } from '../EditDialogShared'
 
-describe('PromptVariablesPopover', () => {
+describe('EditDialogShared', () => {
   const writeText = vi.fn()
 
   beforeEach(() => {
+    mockUseQuery.mockReturnValue({ data: { items: [] }, isLoading: false })
+    mockOpenTab.mockReset()
     writeText.mockResolvedValue(undefined)
     mockLoggerWarn.mockReset()
     mockNormalTooltipProps.length = 0
@@ -85,5 +114,32 @@ describe('PromptVariablesPopover', () => {
     expect(writeText).toHaveBeenCalledWith('{{date}}')
     expect(mockLoggerWarn).not.toHaveBeenCalled()
     expect(mockNormalTooltipProps.at(-1)).toMatchObject({ sideOffset: 0 })
+  })
+
+  it('opens the knowledge page from the empty knowledge step', () => {
+    function Harness() {
+      const form = useForm<ResourceCreateWizardFormValues>({
+        defaultValues: {
+          avatar: '💬',
+          name: '',
+          description: '',
+          modelId: null,
+          prompt: '',
+          knowledgeBaseIds: [],
+          skillIds: []
+        }
+      })
+      return (
+        <Form {...form}>
+          <KnowledgeStep form={form} portalContainer={null} />
+        </Form>
+      )
+    }
+
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
+
+    expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
   })
 })

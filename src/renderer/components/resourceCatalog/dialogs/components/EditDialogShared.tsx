@@ -27,7 +27,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -184,11 +184,13 @@ type KnowledgeBaseFieldValues = FieldValues & {
 export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
-  formLabel = true
+  formLabel = true,
+  onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
@@ -237,6 +239,17 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
               <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
               <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
+              {!isLoading && bases.length === 0 && onOpenKnowledgePage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-1.5"
+                  onClick={onOpenKnowledgePage}>
+                  <ArrowUpRight size={12} />
+                  <span>{t('library.config.knowledge.create_first')}</span>
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
