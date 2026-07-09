@@ -3,13 +3,16 @@ import { useReorder } from '@data/hooks/useReorder'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback, useMemo } from 'react'
 
-import type { ProviderReorderActions } from '../utils/providerEnablement'
-
 export class ProviderListNotReadyForReorderError extends Error {
   constructor() {
     super('Provider list cache is not ready for reorder')
     this.name = 'ProviderListNotReadyForReorderError'
   }
+}
+
+export interface ProviderReorderActions {
+  assertCanMoveProviderToFirst: () => void
+  moveProviderToFirst: (providerId: Provider['id']) => Promise<unknown>
 }
 
 /** Moves providers through the list cache-aware reorder contract used by ProviderSettings. */

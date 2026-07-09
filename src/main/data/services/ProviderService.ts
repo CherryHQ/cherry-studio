@@ -289,6 +289,52 @@ class ProviderService {
     return rowToRuntimeProvider(row)
   }
 
+  enableAndMoveToFirst(providerId: string): Provider {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `enable and move provider ${providerId} to first`)
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      const [current] = tx
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+        .all()
+
+      if (!current) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+
+      if (current.isEnabled) {
+        return current
+      }
+
+      try {
+        applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
+          pkColumn: userProviderTable.providerId
+        })
+      } catch (error) {
+        this.rethrowOrderError(error)
+      }
+
+      const [updated] = tx
+        .update(userProviderTable)
+        .set({ isEnabled: true })
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning()
+        .all()
+
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+
+      return updated
+    })
+
+    logger.info('Enabled provider and moved it to first', { providerId })
+
+    return rowToRuntimeProvider(row)
+  }
+
   /**
    * Batch insert providers (used by PresetProviderSeeder for preset seeding).
    * Insert-only — existing providers are filtered out before order keys are assigned.

@@ -183,6 +183,17 @@ export type ProviderSchemas = {
   }
 
   /**
+   * Enable a provider and move it to the top in one persisted operation.
+   * @example PATCH /providers/openai-main/enable:pin-to-top
+   */
+  '/providers/:providerId/enable:pin-to-top': {
+    PATCH: {
+      params: { providerId: string }
+      response: Provider
+    }
+  }
+
+  /**
    * Get API key values for a provider settings editor.
    * Pass `?enabled=true` to get only enabled keys (e.g. for runtime / rotation
    * consumers); omit it to get all keys (for the management UI that needs to

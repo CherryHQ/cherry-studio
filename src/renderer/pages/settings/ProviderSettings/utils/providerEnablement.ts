@@ -1,61 +1,54 @@
 import { loggerService } from '@logger'
-import type { UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('ProviderSettings:EnableProviderWhenModelsAvailable')
 
-export interface ProviderReorderActions {
-  assertCanMoveProviderToFirst: () => void
-  moveProviderToFirst: (providerId: Provider['id']) => Promise<unknown>
+export type ProviderEnablementResult =
+  | { status: 'skipped'; reason: 'missing_provider' | 'already_enabled' | 'no_models' }
+  | { status: 'enabled' }
+  | { status: 'failed'; error: unknown }
+
+function getSkippedResult(
+  provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
+  modelCount: number
+): ProviderEnablementResult | null {
+  if (!provider) {
+    return { status: 'skipped', reason: 'missing_provider' }
+  }
+  if (provider.isEnabled) {
+    return { status: 'skipped', reason: 'already_enabled' }
+  }
+  if (modelCount <= 0) {
+    return { status: 'skipped', reason: 'no_models' }
+  }
+  return null
 }
 
 /** Enables a disabled provider once a flow has confirmed it has usable models, then moves it to the top. */
 export async function enableProviderWhenModelsAvailable(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
-  updateProvider: (updates: UpdateProviderDto) => Promise<unknown>,
-  providerReorder: ProviderReorderActions,
+  enableProviderAndMoveToFirst: () => Promise<unknown>,
   modelCount: number,
   source: string
-): Promise<boolean> {
-  if (!provider || provider.isEnabled || modelCount <= 0) {
-    return false
+): Promise<ProviderEnablementResult> {
+  const skipped = getSkippedResult(provider, modelCount)
+  if (skipped) {
+    return skipped
+  }
+  if (!provider) {
+    return { status: 'skipped', reason: 'missing_provider' }
   }
 
   try {
-    providerReorder.assertCanMoveProviderToFirst()
+    await enableProviderAndMoveToFirst()
+    return { status: 'enabled' }
   } catch (error) {
-    logger.error('Provider list is not ready for enabling with pin-to-top', {
+    logger.error('Failed to enable provider with pin-to-top when models are available', {
       providerId: provider.id,
       modelCount,
       source,
       error
     })
-    return false
-  }
-
-  try {
-    await updateProvider({ isEnabled: true })
-  } catch (error) {
-    logger.error('Failed to enable provider when models are available', {
-      providerId: provider.id,
-      modelCount,
-      source,
-      error
-    })
-    return false
-  }
-
-  try {
-    await providerReorder.moveProviderToFirst(provider.id)
-    return true
-  } catch (error) {
-    await updateProvider({ isEnabled: provider.isEnabled }).catch(() => undefined)
-    logger.error('Failed to move enabled provider to the top', {
-      providerId: provider.id,
-      modelCount,
-      source,
-      error
-    })
-    return false
+    return { status: 'failed', error }
   }
 }

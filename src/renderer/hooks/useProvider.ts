@@ -113,6 +113,10 @@ export function useProviderMutations(providerId: string) {
     error: deleteError
   } = useMutation('DELETE', '/providers/:providerId', { refresh })
 
+  const { trigger: enableAndMoveToFirstTrigger } = useMutation('PATCH', '/providers/:providerId/enable:pin-to-top', {
+    refresh
+  })
+
   // addApiKey/deleteApiKey use template paths so body/response types are schema-inferred.
   const {
     trigger: addApiKeyTrigger,
@@ -154,6 +158,15 @@ export function useProviderMutations(providerId: string) {
       throw error
     }
   }, [deleteTrigger, providerId])
+
+  const enableProviderAndMoveToFirst = useCallback(async () => {
+    try {
+      return await enableAndMoveToFirstTrigger({ params: { providerId } })
+    } catch (error) {
+      logger.error('Failed to enable provider and move it to first', { providerId, error })
+      throw error
+    }
+  }, [enableAndMoveToFirstTrigger, providerId])
 
   const updateAuthConfig = useCallback(
     async (authConfig: AuthConfig) => {
@@ -222,6 +235,7 @@ export function useProviderMutations(providerId: string) {
     deleteProvider,
     isDeleting,
     deleteError,
+    enableProviderAndMoveToFirst,
     updateAuthConfig,
     addApiKey,
     isAddingApiKey,
