@@ -4034,6 +4034,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },

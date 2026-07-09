@@ -4034,6 +4034,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Закрепить эту модель",
       "unpin": "Открепить модель"
     },

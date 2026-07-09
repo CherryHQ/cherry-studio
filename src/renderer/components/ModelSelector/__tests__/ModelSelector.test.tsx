@@ -3,6 +3,7 @@ import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type {
   ButtonHTMLAttributes,
   CSSProperties,
@@ -20,6 +21,7 @@ import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult }
 const {
   mockUseModelSelectorData,
   mockNavigate,
+  mockOpenSettingsTab,
   mockScrollToIndex,
   mockLoggerError,
   mockVirtualListSizes,
@@ -28,6 +30,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
   mockNavigate: vi.fn().mockResolvedValue(undefined),
+  mockOpenSettingsTab: vi.fn(),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
   mockVirtualListSizes: [] as number[],
@@ -51,6 +54,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate
+}))
+
+vi.mock('@renderer/services/settingsNavigation', () => ({
+  openSettingsTab: mockOpenSettingsTab
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -352,6 +359,7 @@ describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
     mockNavigate.mockReset()
+    mockOpenSettingsTab.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
@@ -428,7 +436,8 @@ describe('ModelSelector', () => {
     expect(screen.queryByText('models.type.vision')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.reasoning')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('button.transition-colors svg')).toHaveLength(3)
+    const filterIcons = container.querySelectorAll('[data-selector-shell-chrome="filter"] button.transition-colors svg')
+    expect(filterIcons).toHaveLength(3)
   })
 
   it('uses neutral color on the row action when the model row is selected', () => {
@@ -745,6 +754,57 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('opens provider settings from the bottom custom model action and closes without selecting a model', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('does not select the focused model when pressing Enter on the bottom custom model action', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(1, { align: 'start' }))
+    const bottomAction = screen.getByRole('button', { name: 'models.action.configure_custom' })
+    bottomAction.focus()
+
+    await user.keyboard('{Enter}')
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('opens CherryAI provider settings from the group action without rendering a row navigation tag', async () => {
     const cherryProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
     const modelId = 'cherryai::Qwen/Qwen3-8B' as UniqueModelId
@@ -897,7 +957,7 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(100))
+    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(48))
   })
 
   it('honors a measured zero available list height', async () => {

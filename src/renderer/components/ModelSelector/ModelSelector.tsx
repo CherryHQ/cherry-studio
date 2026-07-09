@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
@@ -484,6 +485,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     [navigate, setOpen]
   )
 
+  const handleNavigateToCustomModelSettings = useCallback(() => {
+    setOpen(false)
+    openSettingsTab('/settings/provider')
+  }, [setOpen])
+
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
       if (isPinActionDisabled) {
@@ -726,6 +732,15 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
+  const bottomAction = useMemo(
+    () => ({
+      icon: <Settings2 className="size-3.5" />,
+      label: t('models.action.configure_custom'),
+      onClick: handleNavigateToCustomModelSettings
+    }),
+    [handleNavigateToCustomModelSettings, t]
+  )
+
   const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
 
   return (
@@ -745,6 +760,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        bottomAction={bottomAction}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

@@ -4034,6 +4034,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "設定自訂模型",
       "pin": "置頂此模型",
       "unpin": "取消置頂"
     },
