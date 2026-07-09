@@ -4,7 +4,6 @@ export {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneShortcut,
   ResourcePaneTab,
   useResourcePane
 } from './resourcePane'

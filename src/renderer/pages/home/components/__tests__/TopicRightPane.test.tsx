@@ -14,6 +14,11 @@ vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
 }))
 
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useIsActiveTab: () => true
+}))
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
     key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]
@@ -91,19 +96,51 @@ describe('TopicRightPane', () => {
     developerModeEnabled.mockReturnValue(true)
   })
 
-  it('does not register the right sidebar keyboard shortcut for conversation panes', () => {
+  const triggerRightSidebarShortcut = () => {
+    const handler = useCommandHandlerMock.mock.calls
+      .filter(([command]) => command === 'topic.sidebar.toggle')
+      .at(-1)?.[1] as (() => void) | undefined
+
+    expect(handler).toBeDefined()
+    handler?.()
+  }
+
+  it('registers the right sidebar keyboard shortcut for the branch pane', () => {
     render(
       <TopicRightPane>
-        <TopicRightPane.Shortcuts topicId="topic-a" />
         <TopicRightPane.Host topicId="topic-a" />
       </TopicRightPane>
     )
 
-    expect(useCommandHandlerMock).not.toHaveBeenCalledWith(
+    expect(useCommandHandlerMock).toHaveBeenCalledWith(
       'topic.sidebar.toggle',
       expect.any(Function),
-      expect.anything()
+      expect.objectContaining({ enabled: true })
     )
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('opens the resource pane from the right sidebar keyboard shortcut when resources are available', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
   })
 
   it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
@@ -216,6 +253,24 @@ describe('TopicRightPane', () => {
     fireEvent.click(openStateShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('switches to another pane entry without closing the docked pane', () => {
+    render(
+      <TopicRightPane>
+        <TopicRightPane.Shortcuts topicId="topic-a" />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      </TopicRightPane>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
+    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
+    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {

@@ -9,11 +9,14 @@ import {
   Shell,
   type ShellTabShortcutOpenBehavior,
   useResourcePane,
+  useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
@@ -120,10 +123,30 @@ function TopicRightPaneProvider({
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
+        <TopicRightPaneKeyboardShortcut />
         <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
       </ResourcePaneProvider>
     </Shell>
   )
+}
+
+function TopicRightPaneKeyboardShortcut() {
+  const resourcePane = useResourcePane()
+  const { open } = useShellState()
+  const actions = useShellActions()
+  const isActiveTab = useIsActiveTab()
+  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'branch'
+  const handleToggle = useCallback(() => {
+    if (open) {
+      actions.close()
+      return
+    }
+    actions.openTab(targetTab)
+  }, [actions, open, targetTab])
+
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled: isActiveTab })
+
+  return null
 }
 
 function TopicRightPaneSurface({
