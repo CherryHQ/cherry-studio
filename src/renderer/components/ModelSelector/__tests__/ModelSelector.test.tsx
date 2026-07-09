@@ -2,7 +2,7 @@ import { toast } from '@renderer/services/toast'
 import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
   ButtonHTMLAttributes,
@@ -12,6 +12,7 @@ import type {
   ReactNode,
   RefObject
 } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../../SelectorShell'
@@ -353,6 +354,25 @@ function mockSelectorChromeHeight(height: number) {
       toJSON: () => {}
     }
   })
+}
+
+function mockDeferredAnimationFrames() {
+  const callbacks: FrameRequestCallback[] = []
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+
+  return {
+    flushNextFrame: () => {
+      const callback = callbacks.shift()
+      if (!callback) {
+        throw new Error('No pending animation frame')
+      }
+
+      act(() => callback(0))
+    }
+  }
 }
 
 describe('ModelSelector', () => {
@@ -740,7 +760,7 @@ describe('ModelSelector', () => {
     expect(screen.getByTestId('model-selector-content')).toHaveAttribute('hidden')
   })
 
-  it('opens provider settings from the provider group action in the settings tab and closes without selecting a model', async () => {
+  it('defers provider settings navigation from the provider group action until after close frames', async () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
     const onOpenChange = vi.fn()
     const onSettingsNavigate = vi.fn()
@@ -756,18 +776,29 @@ describe('ModelSelector', () => {
         onSelect={onSelect}
       />
     )
+    const frames = mockDeferredAnimationFrames()
 
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(mockNavigate).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSettingsNavigate).not.toHaveBeenCalled()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
     expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(onSettingsNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockOpenSettingsTab.mock.invocationCallOrder[0])
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('opens provider settings from the bottom custom model action and closes without selecting a model', async () => {
+  it('defers provider settings navigation from the bottom custom model action until after close frames', async () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
     const onOpenChange = vi.fn()
     const onSettingsNavigate = vi.fn()
@@ -783,14 +814,69 @@ describe('ModelSelector', () => {
         onSelect={onSelect}
       />
     )
+    const frames = mockDeferredAnimationFrames()
 
     fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
 
-    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
     expect(mockNavigate).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSettingsNavigate).not.toHaveBeenCalled()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
     expect(onSettingsNavigate).toHaveBeenCalledTimes(1)
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
     expect(onSettingsNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockOpenSettingsTab.mock.invocationCallOrder[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps a host dialog closed before navigating when settings navigation unmounts the selector', async () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+    const onSelect = vi.fn()
+
+    function HostDialog() {
+      const [dialogOpen, setDialogOpen] = useState(true)
+
+      return dialogOpen ? (
+        <div role="dialog">
+          <ModelSelector
+            open
+            multiple={false}
+            trigger={<button type="button">open</button>}
+            onSettingsNavigate={() => setDialogOpen(false)}
+            onSelect={onSelect}
+          />
+        </div>
+      ) : (
+        <div data-testid="dialog-closed" />
+      )
+    }
+
+    render(<HostDialog />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getByRole('button', { name: 'models.action.configure_custom' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('dialog-closed')).toBeInTheDocument()
+    expect(mockOpenSettingsTab).not.toHaveBeenCalled()
+
+    frames.flushNextFrame()
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockOpenSettingsTab).toHaveBeenCalledWith('/settings/provider')
     expect(onSelect).not.toHaveBeenCalled()
   })
 

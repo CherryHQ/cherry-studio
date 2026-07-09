@@ -474,20 +474,28 @@ export function ModelSelector(props: ModelSelectorProps) {
     setOpen(false)
   }, [setOpen])
 
-  const handleNavigateToProviderSettings = useCallback(
-    (providerId: string) => {
+  const closeBeforeSettingsNavigation = useCallback(
+    (path: string) => {
       setOpen(false)
-      onSettingsNavigate?.()
-      openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+
+      window.requestAnimationFrame(() => {
+        onSettingsNavigate?.()
+        window.requestAnimationFrame(() => openSettingsTab(path))
+      })
     },
     [onSettingsNavigate, setOpen]
   )
 
+  const handleNavigateToProviderSettings = useCallback(
+    (providerId: string) => {
+      closeBeforeSettingsNavigation(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+    },
+    [closeBeforeSettingsNavigation]
+  )
+
   const handleNavigateToCustomModelSettings = useCallback(() => {
-    setOpen(false)
-    onSettingsNavigate?.()
-    openSettingsTab('/settings/provider')
-  }, [onSettingsNavigate, setOpen])
+    closeBeforeSettingsNavigation('/settings/provider')
+  }, [closeBeforeSettingsNavigation])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
