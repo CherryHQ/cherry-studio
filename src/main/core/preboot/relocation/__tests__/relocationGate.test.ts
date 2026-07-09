@@ -15,8 +15,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const whenReady = vi.fn().mockResolvedValue(undefined)
 const ipcHandle = vi.fn()
+const showMessageBoxSync = vi.fn()
 
 const wm = {
+  hasWindow: vi.fn(() => true),
   create: vi.fn(),
   waitForReady: vi.fn().mockResolvedValue(undefined),
   sendProgress: vi.fn(),
@@ -41,6 +43,7 @@ function stubElectron(isPackaged: boolean) {
   vi.doMock('electron', () => ({
     __esModule: true,
     app: { isPackaged, whenReady },
+    dialog: { showMessageBoxSync },
     ipcMain: { handle: ipcHandle }
   }))
 }
@@ -63,25 +66,32 @@ function stubFsAndFsp(
     Record<
       | 'existsSync'
       | 'accessSync'
+      | 'lstatSync'
       | 'statSync'
       | 'readdirSync'
+      | 'realpathSync'
       | 'readdir'
       | 'stat'
       | 'statfs'
       | 'mkdir'
       | 'copyFile'
-      | 'rm',
+      | 'rm'
+      | 'rename',
       ReturnType<typeof vi.fn>
     >
   > = {}
 ) {
   vi.doMock('node:fs', () => {
+    const realpathSync = overrides.realpathSync ?? vi.fn((p: string) => p)
+    ;(realpathSync as ReturnType<typeof vi.fn> & { native?: ReturnType<typeof vi.fn> }).native = realpathSync
     const m = {
       existsSync: overrides.existsSync ?? vi.fn(() => true),
       accessSync: overrides.accessSync ?? vi.fn(() => undefined),
+      lstatSync: overrides.lstatSync ?? vi.fn(() => ({ isSymbolicLink: () => false })),
       statSync: overrides.statSync ?? vi.fn(() => ({ dev: 1, isDirectory: () => true })),
       readdirSync: overrides.readdirSync ?? vi.fn(() => []),
-      constants: { W_OK: 2 }
+      realpathSync,
+      constants: { W_OK: 2, R_OK: 4 }
     }
     return { ...m, default: m }
   })
@@ -94,6 +104,7 @@ function stubFsAndFsp(
       mkdir: overrides.mkdir ?? vi.fn(async () => undefined),
       copyFile: overrides.copyFile ?? vi.fn(async () => undefined),
       rm: overrides.rm ?? vi.fn(async () => undefined),
+      rename: overrides.rename ?? vi.fn(async () => undefined),
       symlink: vi.fn(async () => undefined),
       readlink: vi.fn(async () => '')
     }
@@ -130,7 +141,9 @@ beforeEach(() => {
   vi.resetModules()
   whenReady.mockReset().mockResolvedValue(undefined)
   ipcHandle.mockReset()
+  showMessageBoxSync.mockReset()
   wm.create.mockReset()
+  wm.hasWindow.mockReset().mockReturnValue(true)
   wm.waitForReady.mockReset().mockResolvedValue(undefined)
   wm.sendProgress.mockReset()
   wm.restartApp.mockReset()
@@ -184,6 +197,12 @@ describe('runUserDataRelocationGate', () => {
     const result = await runUserDataRelocationGate()
     expect(result).toBe('skipped')
     expect(wm.create).not.toHaveBeenCalled()
+    expect(showMessageBoxSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        detail: expect.stringContaining('boom')
+      })
+    )
     expect(store['temp.user_data_relocation']).toBeNull()
     expect(bootConfigFlush).toHaveBeenCalled()
   })
@@ -224,6 +243,30 @@ describe('runUserDataRelocationGate', () => {
     expect(wm.sendProgress).toHaveBeenCalledWith(
       expect.objectContaining({ stage: 'failed', error: expect.stringMatching(/failed to load/i) })
     )
+    expect(wm.restartApp).toHaveBeenCalledTimes(1)
+  })
+
+  it('window creation failure persists failed status and restarts headlessly', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp()
+    stubDeps()
+    wm.create.mockImplementation(() => {
+      throw new Error('BrowserWindow failed')
+    })
+    wm.hasWindow.mockReturnValue(false)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      from: '/old',
+      to: '/new/data',
+      error: 'BrowserWindow failed'
+    })
     expect(wm.restartApp).toHaveBeenCalledTimes(1)
   })
 
@@ -440,17 +483,20 @@ describe('runUserDataRelocationGate', () => {
 
   it('copy to non-empty target is allowed after explicit overwrite confirmation', async () => {
     const rm = vi.fn(async () => undefined)
+    const rename = vi.fn(async () => undefined)
     stubElectron(true)
     stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true, overwriteExisting: true })
     stubFsAndFsp({
       readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : [])),
-      rm
+      rm,
+      rename
     })
     stubDeps()
     const { runUserDataRelocationGate } = await loadGate()
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
     expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(rename).toHaveBeenCalledWith(expect.stringMatching(/\.data\.relocation-/), '/new/data')
     expect(commitRelocation).toHaveBeenCalledWith('/new/data')
   })
 
@@ -533,7 +579,7 @@ describe('runUserDataRelocationGate', () => {
     })
   })
 
-  it('copy failure removes the partial target tree before reporting failed', async () => {
+  it('copy failure removes only the temporary target tree before reporting failed', async () => {
     const fileEntry = {
       name: 'db.sqlite',
       isSymbolicLink: () => false,
@@ -556,7 +602,8 @@ describe('runUserDataRelocationGate', () => {
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
     expect(commitRelocation).not.toHaveBeenCalled()
-    expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(rm).not.toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(rm).toHaveBeenCalledWith(expect.stringMatching(/\.data\.relocation-/), { recursive: true, force: true })
     expect(rm).toHaveBeenCalledTimes(2)
   })
 
@@ -587,6 +634,7 @@ describe('runUserDataRelocationGate', () => {
     expect(result).toBe('handled')
     expect(commitRelocation).not.toHaveBeenCalled()
     expect(rm).toHaveBeenCalledTimes(2)
+    expect(rm).not.toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
       error: 'copy failed'
@@ -594,7 +642,7 @@ describe('runUserDataRelocationGate', () => {
     expect(wm.restartApp).toHaveBeenCalledTimes(1)
   })
 
-  it('copy failure reports manual cleanup when partial target removal also fails', async () => {
+  it('copy failure reports manual cleanup when temporary target removal also fails', async () => {
     const fileEntry = {
       name: 'db.sqlite',
       isSymbolicLink: () => false,
@@ -655,6 +703,105 @@ describe('runUserDataRelocationGate', () => {
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
       error: expect.stringMatching(/not have enough free space/i)
+    })
+  })
+
+  it('copy=true: rejects a source path that is a file before touching the target', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      statSync: vi.fn((p: string) => ({ dev: 1, isDirectory: () => p !== '/old' })),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/source exists and is not a directory/i)
+    })
+  })
+
+  it('copy=true: rejects an unreadable source root before touching the target', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      accessSync: vi.fn((p: string, mode?: number) => {
+        if (p === '/old' && mode === 4) {
+          throw new Error('EACCES')
+        }
+      }),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/source directory is not readable.*EACCES/i)
+    })
+  })
+
+  it('copy=true: rejects an unreadable nested source directory before touching the target', async () => {
+    const nestedDir = {
+      name: 'nested',
+      isSymbolicLink: () => false,
+      isDirectory: () => true,
+      isFile: () => false
+    }
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdir: vi.fn(async (p: string) => {
+        if (p === '/old') return [nestedDir]
+        throw new Error('EACCES')
+      }),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/source directory is not readable.*nested.*EACCES/i)
+    })
+  })
+
+  it('copy=true: rejects a symlink target before touching the target', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({
+      status: 'pending',
+      from: '/old',
+      to: '/new/data',
+      copy: true,
+      overwriteExisting: true
+    })
+    stubFsAndFsp({
+      lstatSync: vi.fn((p: string) => ({ isSymbolicLink: () => p === '/new/data' })),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/target must not be a symlink/i)
     })
   })
 })

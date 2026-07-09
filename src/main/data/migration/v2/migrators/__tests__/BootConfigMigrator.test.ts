@@ -151,6 +151,24 @@ describe('BootConfigMigrator', () => {
 
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', multiInstall)
     })
+
+    it('merges configfile app.user_data_path with existing BootConfig entries', async () => {
+      bootConfigStore['app.user_data_path'] = {
+        '/normalized/exe': '/Normalized/Data'
+      }
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        legacyHomeConfig: { '/legacy/exe': '/Legacy/Data' }
+      })
+
+      await migrator.prepare(ctx)
+      await migrator.execute()
+
+      expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', {
+        '/normalized/exe': '/Normalized/Data',
+        '/legacy/exe': '/Legacy/Data'
+      })
+    })
   })
 
   describe('redux source regression', () => {

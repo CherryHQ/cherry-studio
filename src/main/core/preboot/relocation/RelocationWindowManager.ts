@@ -18,7 +18,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
 import { RelocationIpcChannels, type RelocationProgress, type RelocationStage } from '@shared/data/relocation/types'
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 
 const logger = loggerService.withContext('RelocationWindowManager')
@@ -100,7 +100,7 @@ export class RelocationWindowManager {
 
     const window = this.window
     this.readyPromise = this.createReadyPromise(window, () => {
-      if (process.env['ELECTRON_RENDERER_URL']) {
+      if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
         return window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/windows/relocation/index.html`)
       }
       return window.loadFile(join(__dirname, '../renderer/windows/relocation/index.html'))

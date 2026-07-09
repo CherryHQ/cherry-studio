@@ -147,7 +147,7 @@ export class BootConfigService {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
-      this.saveSync()
+      this.saveSync({ throwOnError: true })
     }
   }
 
@@ -231,7 +231,7 @@ export class BootConfigService {
    * Synchronously save config to file (atomic write via temp file + rename).
    * Only writes keys that differ from defaults. Deletes file if all values are defaults.
    */
-  private saveSync(): void {
+  private saveSync(options: { throwOnError?: boolean } = {}): void {
     try {
       const diff: Record<string, unknown> = {}
       for (const key of Object.keys(this.config) as BootConfigKey[]) {
@@ -261,6 +261,9 @@ export class BootConfigService {
       logger.debug(`Boot config saved to ${this.filePath}`)
     } catch (error) {
       logger.error(`Failed to save boot config to ${this.filePath}`, error as Error)
+      if (options.throwOnError) {
+        throw error
+      }
     }
   }
 

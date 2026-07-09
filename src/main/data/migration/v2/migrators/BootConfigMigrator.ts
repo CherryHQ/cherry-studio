@@ -40,6 +40,11 @@ interface PreparedData {
   originalKey: string
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  return Object.values(value).every((entry) => typeof entry === 'string')
+}
+
 export class BootConfigMigrator extends BaseMigrator {
   readonly id = 'bootConfig'
   readonly name = 'Boot Config'
@@ -132,7 +137,7 @@ export class BootConfigMigrator extends BaseMigrator {
       let processedCount = 0
 
       for (const item of this.preparedItems) {
-        bootConfigService.set(item.targetKey, item.value as never)
+        this.writePreparedItem(item)
         processedCount++
 
         const progress = Math.round((processedCount / this.preparedItems.length) * 100)
@@ -159,6 +164,16 @@ export class BootConfigMigrator extends BaseMigrator {
         error: error instanceof Error ? error.message : String(error)
       }
     }
+  }
+
+  private writePreparedItem(item: PreparedData): void {
+    if (item.targetKey === 'app.user_data_path' && isStringRecord(item.value)) {
+      const current = bootConfigService.get('app.user_data_path') ?? {}
+      bootConfigService.set('app.user_data_path', { ...current, ...item.value })
+      return
+    }
+
+    bootConfigService.set(item.targetKey, item.value as never)
   }
 
   async validate(): Promise<ValidateResult> {

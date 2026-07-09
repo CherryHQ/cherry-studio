@@ -70,9 +70,22 @@ export function getNormalizedExecutablePath(): string {
  * after the previous process has fully exited and no file is locked.
  */
 export function requestRelocation(from: string, to: string, copy: boolean, overwriteExisting = false): void {
-  bootConfigService.set('temp.user_data_relocation', { status: 'pending', from, to, copy, overwriteExisting })
+  const canonicalFrom = canonicalizeUserDataPath(from)
+  const canonicalTo = canonicalizeUserDataPath(to)
+  bootConfigService.set('temp.user_data_relocation', {
+    status: 'pending',
+    from: canonicalFrom,
+    to: canonicalTo,
+    copy,
+    overwriteExisting
+  })
   bootConfigService.flush()
-  logger.info('userData relocation requested; relaunch required', { from, to, copy, overwriteExisting })
+  logger.info('userData relocation requested; relaunch required', {
+    from: canonicalFrom,
+    to: canonicalTo,
+    copy,
+    overwriteExisting
+  })
 }
 
 /**
@@ -84,12 +97,20 @@ export function requestRelocation(from: string, to: string, copy: boolean, overw
  * gate after the copy (if any) succeeds.
  */
 export function commitRelocation(targetPath: string): void {
+  const canonicalTargetPath = canonicalizeUserDataPath(targetPath)
   const exe = getNormalizedExecutablePath()
   const current = bootConfigService.get('app.user_data_path') ?? {}
-  bootConfigService.set('app.user_data_path', { ...current, [exe]: targetPath })
+  bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
   bootConfigService.set('temp.user_data_relocation', null)
   bootConfigService.flush()
-  logger.info('userData relocation committed to BootConfig', { exe, targetPath })
+  logger.info('userData relocation committed to BootConfig', { exe, targetPath: canonicalTargetPath })
+}
+
+export function canonicalizeUserDataPath(userDataPath: string): string {
+  if (!path.isAbsolute(userDataPath)) {
+    throw new Error(`userData path must be absolute: ${userDataPath}`)
+  }
+  return path.normalize(userDataPath)
 }
 
 /**
@@ -170,7 +191,12 @@ function resolveDevUserDataSuffix(): string {
  */
 function isValidDataDir(p: string): boolean {
   try {
+    if (!path.isAbsolute(p)) return false
     if (!fs.existsSync(p)) return false
+    const lstat = fs.lstatSync(p)
+    if (typeof lstat.isSymbolicLink === 'function' && lstat.isSymbolicLink()) return false
+    const stat = fs.statSync(p)
+    if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) return false
     fs.accessSync(p, fs.constants.W_OK)
     return true
   } catch {

@@ -23,6 +23,8 @@ describe('BootConfigService', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    mockFs.writeFileSync.mockImplementation(() => undefined)
+    mockRenameSync.mockImplementation(() => undefined)
   })
 
   afterEach(() => {
@@ -273,16 +275,28 @@ describe('BootConfigService', () => {
       expect(mockFs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
     })
 
-    it('does not throw when save fails', async () => {
+    it('throws when forced flush save fails', async () => {
       mockFs.existsSync.mockReturnValue(false)
       mockFs.writeFileSync.mockImplementation(() => {
         throw new Error('ENOSPC')
       })
 
       const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
 
-      // Should not throw
-      expect(() => service.flush()).not.toThrow()
+      expect(() => service.flush()).toThrow(/ENOSPC/)
+    })
+
+    it('does not throw from debounced background save failures', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+      mockFs.writeFileSync.mockImplementation(() => {
+        throw new Error('ENOSPC')
+      })
+
+      const service = await createService()
+      service.set('app.disable_hardware_acceleration', true)
+
+      expect(() => vi.advanceTimersByTime(350)).not.toThrow()
     })
   })
 

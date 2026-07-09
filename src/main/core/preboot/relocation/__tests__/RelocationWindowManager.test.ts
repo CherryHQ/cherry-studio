@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const relaunch = vi.fn()
 
@@ -43,7 +43,7 @@ class FakeBrowserWindow extends EventEmitter {
   }
 }
 
-async function loadWindowManager() {
+async function loadWindowManager(isPackaged = true) {
   vi.doMock('@application', async () => {
     const { mockApplicationFactory } = await import('@test-mocks/main/application')
     const appModule = mockApplicationFactory()
@@ -65,7 +65,7 @@ async function loadWindowManager() {
     }
   }))
   vi.doMock('@main/core/platform', () => ({ isMac: false }))
-  vi.doMock('electron', () => ({ BrowserWindow: FakeBrowserWindow }))
+  vi.doMock('electron', () => ({ app: { isPackaged }, BrowserWindow: FakeBrowserWindow }))
 
   return import('../RelocationWindowManager')
 }
@@ -76,7 +76,35 @@ beforeEach(() => {
   FakeBrowserWindow.lastCreated = null
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('RelocationWindowManager renderer loss handling', () => {
+  it('loads the bundled relocation window in packaged builds even when a dev server URL is present', async () => {
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:5173')
+    const { RelocationWindowManager } = await loadWindowManager(true)
+    const manager = new RelocationWindowManager()
+    manager.create()
+
+    expect(FakeBrowserWindow.lastCreated!.loadFile).toHaveBeenCalledWith(
+      expect.stringContaining('renderer/windows/relocation/index.html')
+    )
+    expect(FakeBrowserWindow.lastCreated!.loadURL).not.toHaveBeenCalled()
+  })
+
+  it('loads the dev server relocation window only in unpackaged builds', async () => {
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:5173')
+    const { RelocationWindowManager } = await loadWindowManager(false)
+    const manager = new RelocationWindowManager()
+    manager.create()
+
+    expect(FakeBrowserWindow.lastCreated!.loadURL).toHaveBeenCalledWith(
+      'http://127.0.0.1:5173/windows/relocation/index.html'
+    )
+    expect(FakeBrowserWindow.lastCreated!.loadFile).not.toHaveBeenCalled()
+  })
+
   it('rejects waitForReady and marks headless when the window fails to load before ready', async () => {
     const { RelocationWindowManager } = await loadWindowManager()
     const manager = new RelocationWindowManager()

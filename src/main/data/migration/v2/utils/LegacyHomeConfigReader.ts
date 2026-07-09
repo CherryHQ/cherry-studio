@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { app } from 'electron'
+import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 
 /**
  * Reader for the legacy v1 home config file (typically ~/.cherrystudio/config/config.json).
@@ -13,7 +13,7 @@ import { app } from 'electron'
  *   - Normalize the `appDataPath` field into a `Record<executablePath, dataPath>`.
  *     Handles two historical shapes:
  *       1. Legacy string: `{ "appDataPath": "/some/path" }` — wrapped into a
- *          single-entry record keyed by the current `app.getPath('exe')`.
+ *          single-entry record keyed by the normalized executable path.
  *       2. Array: `{ "appDataPath": [{ executablePath, dataPath }, ...] }` —
  *          entries missing either field are skipped.
  *
@@ -25,12 +25,9 @@ import { app } from 'electron'
  * is still accessible or writable. That concern belongs to downstream
  * consumers (e.g. the future `initAppDataDir()` rewire).
  *
- * Known limitation: AppImage / Windows portable builds write a special
- * `executablePath` (cherry-studio.appimage / cherry-studio-portable.exe)
- * that differs from `app.getPath('exe')`. This reader does not reproduce
- * that normalization — the legacy-string fallback uses the raw exe path,
- * and array entries are preserved verbatim. Consumers of `app.user_data_path`
- * will need their own exe-path normalization (see `src/main/utils/init.ts:51-60`).
+ * Legacy string entries use the same executable-path normalization as
+ * preboot userData resolution. Array entries already carry explicit legacy
+ * executable paths, so they are preserved verbatim.
  */
 export class LegacyHomeConfigReader {
   private readonly userDataPath: Record<string, string> | null
@@ -83,7 +80,7 @@ export class LegacyHomeConfigReader {
       if (appDataPath.length === 0) {
         return null
       }
-      return { [app.getPath('exe')]: appDataPath }
+      return { [getNormalizedExecutablePath()]: appDataPath }
     }
 
     // Array format → filter invalid entries and build a record.

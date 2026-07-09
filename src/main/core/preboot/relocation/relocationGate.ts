@@ -43,7 +43,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { RelocationIpcChannels, type RelocationProgress } from '@shared/data/relocation/types'
 import { isProtectedSystemPath } from '@shared/utils/file'
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 
 const logger = loggerService.withContext('RelocationGate')
 
@@ -77,6 +77,8 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
       to: pending.to,
       error: pending.error
     })
+    await app.whenReady()
+    showFailedRelocationDialog(pending)
     bootConfigService.set('temp.user_data_relocation', null)
     bootConfigService.flush()
     return 'skipped'
@@ -90,9 +92,9 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
 
   await app.whenReady()
   registerRelocationIpcHandlers()
-  relocationWindowManager.create()
 
   try {
+    relocationWindowManager.create()
     await relocationWindowManager.waitForReady()
 
     // Paint the window immediately so the user sees "preparing" before the
@@ -149,7 +151,7 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
     bootConfigService.flush()
     currentProgress = makeProgress('failed', pending, 0, 0, message)
     relocationWindowManager.sendProgress(currentProgress)
-    if (relocationWindowManager.shouldRestartAfterTerminalFailure()) {
+    if (relocationWindowManager.shouldRestartAfterTerminalFailure() || !relocationWindowManager.hasWindow()) {
       logger.warn('Restarting after headless relocation failure')
       await relocationWindowManager.restartApp()
     }
@@ -164,6 +166,22 @@ function registerRelocationIpcHandlers(): void {
     void relocationWindowManager.restartApp()
     return true
   })
+}
+
+function showFailedRelocationDialog(
+  pending: Extract<NonNullable<BootConfigSchema['temp.user_data_relocation']>, { status: 'failed' }>
+): void {
+  try {
+    dialog.showMessageBoxSync({
+      type: 'error',
+      buttons: ['OK'],
+      title: 'Data directory relocation failed',
+      message: 'Cherry Studio could not relocate the data directory.',
+      detail: `The app will continue using the previous data directory.\n\nFrom: ${pending.from}\nTo: ${pending.to}\n\nError: ${pending.error}`
+    })
+  } catch (error) {
+    logger.error('Failed to show relocation failure dialog', { error: (error as Error).message })
+  }
 }
 
 function makeProgress(
@@ -192,9 +210,16 @@ function makeProgress(
 function preflight(from: string, to: string, copy: boolean, overwriteExisting: boolean): void {
   const fromAbs = resolveForPathCompare(from)
   const toAbs = resolveForPathCompare(to)
+  if (!isAbsolutePath(from)) {
+    throw new Error(`source must be an absolute path: ${from}`)
+  }
+  if (!isAbsolutePath(to)) {
+    throw new Error(`target must be an absolute path: ${to}`)
+  }
   if (fromAbs === toAbs) {
     throw new Error(`source and target are the same path: ${fromAbs}`)
   }
+  assertSourceDirectoryReadable(from)
   if (getPathDepth(toAbs) <= 1) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
   }
@@ -213,25 +238,42 @@ function preflight(from: string, to: string, copy: boolean, overwriteExisting: b
   if (isPathInside(fromAbs, toAbs)) {
     throw new Error(`source is inside target (would merge userData into an ancestor): ${toAbs}`)
   }
-  const installPath = resolveForPathCompare(application.getPath('app.install'))
-  if (toAbs === installPath || isPathInside(toAbs, installPath)) {
-    throw new Error(`target must not be inside the app install path: ${toAbs}`)
-  }
-  if (!fs.existsSync(from)) {
-    throw new Error(`source does not exist: ${from}`)
-  }
   const toParent = path.dirname(to)
   if (!fs.existsSync(toParent)) {
     throw new Error(`target parent directory does not exist: ${toParent}`)
   }
   fs.accessSync(toParent, fs.constants.W_OK)
+  const installPath = resolveForPathCompare(application.getPath('app.install'))
+  const toRealAbs = resolveTargetRealPathForCompare(to)
+  if (toRealAbs === installPath || isPathInside(toRealAbs, installPath)) {
+    throw new Error(`target must not be inside the app install path: ${toRealAbs}`)
+  }
+  if (toRealAbs !== toAbs && (isProtectedSystemPath(toRealAbs) || isPathInside(toRealAbs, fromAbs))) {
+    throw new Error(`target real path is not safe: ${toRealAbs}`)
+  }
   assertTargetDirectoryIsSafeToReplace(to, copy, overwriteExisting)
+}
+
+function isAbsolutePath(p: string): boolean {
+  const ops = isWin ? path.win32 : path
+  return ops.isAbsolute(p)
 }
 
 function resolveForPathCompare(p: string): string {
   const ops = isWin ? path.win32 : path
   const resolved = ops.resolve(p)
   return isWin ? resolved.toLowerCase() : resolved
+}
+
+function resolveTargetRealPathForCompare(to: string): string {
+  const ops = isWin ? path.win32 : path
+  const rawRealPath = fs.existsSync(to) ? getRealPath(to) : ops.join(getRealPath(ops.dirname(to)), ops.basename(to))
+  return resolveForPathCompare(rawRealPath)
+}
+
+function getRealPath(p: string): string {
+  const realpathSync = fs.realpathSync as typeof fs.realpathSync & { native?: typeof fs.realpathSync }
+  return realpathSync.native?.(p) ?? realpathSync(p)
 }
 
 function isPathInside(child: string, parent: string): boolean {
@@ -269,6 +311,11 @@ function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwri
     return
   }
 
+  const lstat = fs.lstatSync(to)
+  if (typeof lstat.isSymbolicLink === 'function' && lstat.isSymbolicLink()) {
+    throw new Error(`target must not be a symlink: ${to}`)
+  }
+
   const stat = fs.statSync(to)
   if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) {
     throw new Error(`target exists and is not a directory: ${to}`)
@@ -288,6 +335,25 @@ function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwri
   const entries = fs.readdirSync(to)
   if (entries.length > 0) {
     throw new Error(`target directory is not empty and overwrite was not confirmed: ${to}`)
+  }
+}
+
+function assertSourceDirectoryReadable(from: string): void {
+  if (!fs.existsSync(from)) {
+    throw new Error(`source does not exist: ${from}`)
+  }
+  const lstat = fs.lstatSync(from)
+  if (typeof lstat.isSymbolicLink === 'function' && lstat.isSymbolicLink()) {
+    throw new Error(`source must not be a symlink: ${from}`)
+  }
+  const stat = fs.statSync(from)
+  if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) {
+    throw new Error(`source exists and is not a directory: ${from}`)
+  }
+  try {
+    fs.accessSync(from, fs.constants.R_OK)
+  } catch (error) {
+    throw new Error(`source directory is not readable: ${from}: ${(error as Error).message}`)
   }
 }
 
@@ -317,9 +383,8 @@ async function calcTotalBytes(src: string): Promise<number> {
     let entries: fs.Dirent[]
     try {
       entries = await fsp.readdir(dir, { withFileTypes: true })
-    } catch {
-      // Unreadable subdir (e.g. permission) — skip rather than fail.
-      continue
+    } catch (error) {
+      throw new Error(`source directory is not readable: ${dir}: ${(error as Error).message}`)
     }
     for (const entry of entries) {
       const p = path.join(dir, entry.name)
@@ -330,8 +395,8 @@ async function calcTotalBytes(src: string): Promise<number> {
         try {
           const s = await fsp.stat(p)
           total += s.size
-        } catch {
-          // stat failure (broken sock / fifo) — skip.
+        } catch (error) {
+          throw new Error(`source file is not readable: ${p}: ${(error as Error).message}`)
         }
       }
     }
@@ -346,10 +411,9 @@ async function calcTotalBytes(src: string): Promise<number> {
  * overwrite, keep symlinks as symlinks), but async so the main process
  * isn't blocked and progress can stream to the window.
  *
- * The target is removed before copying so the operation replaces the old
- * target tree rather than merging into it. If copying fails, the partial
- * target is removed before the error is rethrown and the relocation remains
- * uncommitted.
+ * Copy first into a sibling temporary directory. Only after the source tree
+ * has been fully copied do we replace the requested target, so a late source
+ * read/copy failure does not destroy the user's existing target directory.
  */
 async function copyTreeWithProgress(
   from: string,
@@ -358,23 +422,30 @@ async function copyTreeWithProgress(
   onTick: (copied: number) => void
 ): Promise<void> {
   const acc = { bytes: 0 }
-  await fsp.rm(to, { recursive: true, force: true })
+  const tempTo = makeTemporaryTargetPath(to)
+  await fsp.rm(tempTo, { recursive: true, force: true })
   try {
-    await copyDir(from, to, total, onTick, acc)
+    await copyDir(from, tempTo, total, onTick, acc)
+    await fsp.rm(to, { recursive: true, force: true })
+    await fsp.rename(tempTo, to)
   } catch (error) {
-    await fsp.rm(to, { recursive: true, force: true }).catch((cleanupError) => {
+    await fsp.rm(tempTo, { recursive: true, force: true }).catch((cleanupError) => {
       logger.error('Failed to remove partial relocation target', {
-        to,
+        to: tempTo,
         error: (cleanupError as Error).message
       })
       throw new Error(
-        `copy failed: ${(error as Error).message}; partial target cleanup failed, manual cleanup required at ${to}: ${
+        `copy failed: ${(error as Error).message}; partial target cleanup failed, manual cleanup required at ${tempTo}: ${
           (cleanupError as Error).message
         }`
       )
     })
     throw error
   }
+}
+
+function makeTemporaryTargetPath(to: string): string {
+  return path.join(path.dirname(to), `.${path.basename(to)}.relocation-${process.pid}-${Date.now()}`)
 }
 
 async function copyDir(

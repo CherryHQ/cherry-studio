@@ -36,6 +36,8 @@ interface ElectronStubOptions {
 interface FsStubOptions {
   existsSyncImpl?: (p: string) => boolean
   accessSyncImpl?: (p: string, mode?: number) => void
+  lstatSyncImpl?: (p: string) => { isSymbolicLink?: () => boolean }
+  statSyncImpl?: (p: string) => { isDirectory?: () => boolean }
 }
 
 type BootConfigStore = {
@@ -109,11 +111,15 @@ function stubBootConfig(store: BootConfigStore = {}) {
 function stubFs(opts: FsStubOptions = {}) {
   const existsSync = vi.fn(opts.existsSyncImpl ?? (() => true))
   const accessSync = vi.fn(opts.accessSyncImpl ?? (() => undefined))
+  const lstatSync = vi.fn(opts.lstatSyncImpl ?? (() => ({ isSymbolicLink: () => false })))
+  const statSync = vi.fn(opts.statSyncImpl ?? (() => ({ isDirectory: () => true })))
   vi.doMock('node:fs', () => {
     const fsMock = {
       existsSync,
       accessSync,
-      constants: { W_OK: 2 },
+      lstatSync,
+      statSync,
+      constants: { W_OK: 2, R_OK: 4 },
       promises: {
         access: vi.fn(),
         readFile: vi.fn(),
@@ -203,7 +209,7 @@ describe('requestRelocation', () => {
     const store = stubBootConfig({})
     stubFs()
     const { requestRelocation } = await loadModule()
-    requestRelocation('/old/data', '/new/data', true)
+    requestRelocation('/old/data/../data', '/new/data/../data', true)
     expect(store['temp.user_data_relocation']).toEqual({
       status: 'pending',
       from: '/old/data',
@@ -215,6 +221,17 @@ describe('requestRelocation', () => {
     // requestRelocation never mutates the live path — relocation runs in
     // preboot on the next launch.
     expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects relative relocation paths before persisting', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({})
+    stubFs()
+    const { requestRelocation } = await loadModule()
+    expect(() => requestRelocation('old/data', '/new/data', true)).toThrow(/must be absolute/i)
+    expect(store['temp.user_data_relocation']).toBeUndefined()
+    expect(bootConfigFlushMock).not.toHaveBeenCalled()
   })
 
   it('copy=false is recorded faithfully', async () => {
@@ -247,7 +264,7 @@ describe('commitRelocation', () => {
     })
     stubFs()
     const { commitRelocation } = await loadModule()
-    commitRelocation('/new/data')
+    commitRelocation('/new/data/../data')
     expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/new/data' })
     expect(store['temp.user_data_relocation']).toBeNull()
     expect(bootConfigFlushMock).toHaveBeenCalled()
@@ -314,6 +331,26 @@ describe('resolveUserDataLocation', () => {
     resolveUserDataLocation()
     expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
     expect(setPathMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('BootConfig has matching exe but path is relative: falls through, no setPath', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': 'custom/data' } })
+    stubFs()
+    const { resolveUserDataLocation } = await loadModule()
+    resolveUserDataLocation()
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('BootConfig has matching exe but path is a symlink: falls through, no setPath', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+    stubFs({ lstatSyncImpl: () => ({ isSymbolicLink: () => true }) })
+    const { resolveUserDataLocation } = await loadModule()
+    resolveUserDataLocation()
+    expect(setPathMock).not.toHaveBeenCalled()
   })
 
   it('BootConfig has matching exe but path is invalid (existsSync false): falls through, no setPath', async () => {

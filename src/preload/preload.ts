@@ -8,6 +8,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
+import { unwrapIpcResult } from '@shared/ipc/errors/unwrapIpcResult'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
@@ -101,7 +102,7 @@ const api = {
   isPathInside: (childPath: string, parentPath: string) =>
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
   setAppDataPath: (request: { path: string; copyData?: boolean; overwriteExisting?: boolean }) =>
-    ipcApi.request('app.set_user_data_path', request),
+    unwrapIpcResult(ipcApi.request('app.set_user_data_path', request)),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
     allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
