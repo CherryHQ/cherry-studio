@@ -5,7 +5,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -561,6 +561,21 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.contextWindow).toBeNull()
       expect(modelRow.inputModalities).toBeNull()
       expect(modelRow.outputModalities).toBeNull()
+    })
+
+    it('infers rerank capability for legacy rerank model ids without capability metadata', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('voyageai', [{ id: 'rerank-2' }])]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
     it('tolerates a provider whose models field is null or undefined', async () => {

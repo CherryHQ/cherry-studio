@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
@@ -62,6 +62,22 @@ describe('fetchResolvedProviderModels', () => {
       name: 'DeepSeek V3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
+  })
+
+  it('infers rerank capability for upstream rerank model ids when registry metadata is absent', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'voyageai::rerank-2' as UniqueModelId,
+        providerId: 'voyageai',
+        apiModelId: 'rerank-2',
+        name: 'rerank-2',
+        capabilities: []
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('voyageai')
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
   })
 })
 
@@ -135,6 +151,40 @@ describe('toCreateModelDto', () => {
       providerId: 'new-api',
       modelId: 'gpt-4o',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+  })
+
+  it('preserves fetched rerank capability in the create payload', () => {
+    const dto = toCreateModelDto('ppio', {
+      id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
+      providerId: 'ppio',
+      apiModelId: 'bge-reranker-v2-m3',
+      name: 'BGE Reranker',
+      capabilities: [MODEL_CAPABILITY.RERANK],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as Model)
+
+    expect(dto).toMatchObject({
+      providerId: 'ppio',
+      modelId: 'bge-reranker-v2-m3',
+      capabilities: [MODEL_CAPABILITY.RERANK],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+  })
+
+  it('infers rerank capability in the create payload when upstream omits capabilities', () => {
+    const dto = toCreateModelDto('voyageai', {
+      id: 'voyageai::rerank-2' as UniqueModelId,
+      providerId: 'voyageai',
+      apiModelId: 'rerank-2',
+      name: 'rerank-2',
+      capabilities: []
+    } as Model)
+
+    expect(dto).toMatchObject({
+      providerId: 'voyageai',
+      modelId: 'rerank-2',
+      capabilities: [MODEL_CAPABILITY.RERANK]
     })
   })
 })

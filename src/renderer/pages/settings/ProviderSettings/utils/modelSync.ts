@@ -3,8 +3,15 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  type EndpointType as RuntimeEndpointType,
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { inferRerankFromModelId } from '@shared/utils/model'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -41,19 +48,34 @@ export function resolveCreateModelEndpointTypes(
   return provider.defaultChatEndpoint ? [provider.defaultChatEndpoint] : undefined
 }
 
+function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string {
+  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
+}
+
+function inferModelCapabilities(model: Pick<Partial<Model>, 'apiModelId' | 'id' | 'capabilities'>): ModelCapability[] {
+  const capabilities = new Set<ModelCapability>(model.capabilities ?? [])
+  const rawModelId = getRawModelId(model)
+  if (rawModelId && inferRerankFromModelId(rawModelId)) {
+    capabilities.add(MODEL_CAPABILITY.RERANK)
+  }
+  return [...capabilities]
+}
+
 export function toCreateModelDto(
   providerId: string,
   model: Model,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
-  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const capabilities = inferModelCapabilities(model)
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities.length > 0 ? { capabilities } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -112,7 +134,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
 
     if (!registry) {
-      return base
+      return { ...base, capabilities: inferModelCapabilities(base) }
     }
 
     const merged = { ...base }
@@ -127,7 +149,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
-    return merged
+    return { ...merged, capabilities: inferModelCapabilities(merged) }
   })
 }
 
