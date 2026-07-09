@@ -208,26 +208,25 @@ describe('TopicService', () => {
       expect(result.nextCursor).toBeUndefined()
     })
 
-    it('orders unpinned topics by updatedAt DESC with id tiebreaker', async () => {
-      // Default list-time sort is recency ("most recent activity first") —
-      // topic.orderKey is maintained on the row but not consulted here.
-      // Without the id tiebreaker, two topics tied on updatedAt would have
-      // an undefined relative order and could swap on revalidate.
+    it('orders unpinned topics by orderKey ASC with id tiebreaker', async () => {
+      // Default list order is the manual/creation `orderKey` (drag order), not
+      // recency. orderKey here disagrees with updatedAt so the assertion pins the
+      // key; the id tiebreak keeps rows tied on orderKey stable across revalidates.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
-        { id: 'older', name: 'older', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'first', name: 'first', orderKey: 'a0', createdAt: 1, updatedAt: 300 },
         { id: 'tied-b', name: 'tied-b', orderKey: 'a1', createdAt: 1, updatedAt: 200 },
-        { id: 'tied-a', name: 'tied-a', orderKey: 'a2', createdAt: 1, updatedAt: 200 },
-        { id: 'newest', name: 'newest', orderKey: 'a3', createdAt: 1, updatedAt: 300 }
+        { id: 'tied-a', name: 'tied-a', orderKey: 'a1', createdAt: 1, updatedAt: 100 },
+        { id: 'last', name: 'last', orderKey: 'a2', createdAt: 1, updatedAt: 250 }
       ])
 
       const result = service.listByCursor()
-      expect(result.items.map((t) => t.id)).toEqual(['newest', 'tied-a', 'tied-b', 'older'])
+      expect(result.items.map((t) => t.id)).toEqual(['first', 'tied-a', 'tied-b', 'last'])
     })
 
-    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by updatedAt DESC', async () => {
+    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by orderKey ASC', async () => {
       // Two pinned topics + two unpinned. Pin order follows pin.orderKey
-      // (user-controlled drag); unpinned section follows updatedAt DESC.
+      // (user-controlled drag); unpinned section follows topic.orderKey ASC.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't-pinned-1', name: 'P1', orderKey: 'a3', createdAt: 1, updatedAt: 1 },
@@ -348,14 +347,14 @@ describe('TopicService', () => {
 
     it.each([
       'gibberish',
-      'topic:not-a-number:id',
-      'topic:NaN:id',
+      'topic:123:legacy-id', // legacy pre-rename cursor → unknown section, safe fallback
+      'entity:orphan-no-id', // malformed: entity section missing id separator
       'unknown-section:foo',
       'pin' // missing colon
     ])('falls back to first page when cursor is malformed (%s)', async (badCursor) => {
       // A renderer holding a stale cursor from a previous app version should
-      // not be locked out — the warn+fallback in decodeCursor returns the
-      // first page instead of throwing VALIDATION_ERROR.
+      // not be locked out — the warn+fallback in decodePinnedListCursor returns
+      // the first page instead of throwing VALIDATION_ERROR.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
@@ -365,7 +364,7 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
 
-    it('stale pin cursor (anchor pin row deleted) advances to topic section, no duplicates', async () => {
+    it('stale pin cursor (anchor pin row deleted) advances to unpinned section, no duplicates', async () => {
       // Renderer paged into the pin section, the anchor pin was unpinned
       // before the next page. Without the empty-result guard, the unpinned
       // section would restart from the top and the renderer would see
@@ -378,10 +377,10 @@ describe('TopicService', () => {
       // Cursor points at a pin orderKey for a row that no longer exists.
       const result = service.listByCursor({ cursor: 'pin:a99' })
       expect(result.items).toHaveLength(0)
-      expect(result.nextCursor).toBe('topic:')
+      expect(result.nextCursor).toBe('entity:')
 
       const next = service.listByCursor({ cursor: result.nextCursor })
-      expect(next.items.map((t) => t.id)).toEqual(['u2', 'u1'])
+      expect(next.items.map((t) => t.id)).toEqual(['u1', 'u2'])
     })
   })
 

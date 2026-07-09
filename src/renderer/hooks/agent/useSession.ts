@@ -67,7 +67,7 @@ export const useSession = (sessionId: string | null) => {
  *
  * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
  * last-touched session without waiting for the full session history to paginate
- * in and without depending on the `orderKey`-paged `/agent-sessions` list order.
+ * in and without depending on the pinned-first `/agent-sessions` list order.
  *
  * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
  * cache coherent would mean every updatedAt-bumping write invalidating it (an
@@ -140,9 +140,10 @@ export const useSessions = (
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 
-  // AgentSessionService returns the persisted session order (`orderKey`, `id`).
-  // The `/pins` map is composed in the renderer for row indicators, toggle
-  // handling, and display grouping/sorting that promotes pinned sessions.
+  // AgentSessionService returns sessions pinned-first (by `pin.orderKey`) then by
+  // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
+  // for row indicators, toggle handling, and display grouping/sorting that
+  // promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
   const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(
