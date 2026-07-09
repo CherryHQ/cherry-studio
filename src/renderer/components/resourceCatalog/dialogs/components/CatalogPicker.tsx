@@ -151,6 +151,7 @@ export const AddCatalogPopover: FC<{
   emptyLabel: string
   disabled?: boolean
   align?: 'start' | 'end'
+  footer?: ReactNode
   triggerClassName?: string
   triggerPosition?: 'start' | 'end'
   portalContainer?: HTMLElement | null
@@ -163,6 +164,7 @@ export const AddCatalogPopover: FC<{
   emptyLabel,
   disabled,
   align = 'end',
+  footer,
   triggerClassName,
   triggerPosition = 'end',
   portalContainer
@@ -256,6 +258,7 @@ export const AddCatalogPopover: FC<{
             )}
           </CommandList>
         </Command>
+        {footer ? <div className="border-border/60 border-t px-2 py-2">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   )

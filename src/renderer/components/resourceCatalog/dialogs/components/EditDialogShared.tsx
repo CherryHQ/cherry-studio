@@ -240,17 +240,6 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
               <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
               <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
-              {!isLoading && bases.length === 0 && onOpenKnowledgePage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 gap-1.5"
-                  onClick={onOpenKnowledgePage}>
-                  <ArrowUpRight size={12} />
-                  <span>{t('library.config.knowledge.create_first')}</span>
-                </Button>
-              ) : null}
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
@@ -291,6 +280,19 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             triggerPosition="start"
             triggerClassName="mt-2"
             portalContainer={portalContainer}
+            footer={
+              onOpenKnowledgePage ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-full justify-start gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground"
+                  onClick={onOpenKnowledgePage}>
+                  <ArrowUpRight size={12} />
+                  <span>{t('library.config.knowledge.create_first')}</span>
+                </Button>
+              ) : null
+            }
           />
           <FormMessage />
         </FormItem>

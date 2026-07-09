@@ -137,7 +137,7 @@ describe('EditDialogShared', () => {
     expect(mockNormalTooltipProps.at(-1)).toMatchObject({ align: 'center', side: undefined, sideOffset: 0 })
   })
 
-  it('opens the knowledge page from the empty knowledge step', () => {
+  it('opens the knowledge page from the add knowledge popover footer', () => {
     function Harness() {
       const form = useForm<ResourceCreateWizardFormValues>({
         defaultValues: {
@@ -159,6 +159,9 @@ describe('EditDialogShared', () => {
 
     render(<Harness />)
 
+    expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
 
     expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
