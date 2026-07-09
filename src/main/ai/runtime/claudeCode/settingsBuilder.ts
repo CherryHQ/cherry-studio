@@ -81,6 +81,8 @@ const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'rename',
+  'complete_bootstrap',
+  'reset_bootstrap',
   'add_channel',
   'update_channel',
   'remove_channel',

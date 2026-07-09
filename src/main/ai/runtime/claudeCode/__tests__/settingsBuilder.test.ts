@@ -555,21 +555,28 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const results = await Promise.all(
-      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
-        hook(
-          {
-            hook_event_name: 'PreToolUse',
-            tool_name: 'mcp__cherry-tools__config',
-            tool_input: { action: 'add_channel' }
-          } as never,
-          'tool-use-1',
-          {} as never
+    const runConfigAction = (action: string) =>
+      Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            {
+              hook_event_name: 'PreToolUse',
+              tool_name: 'mcp__cherry-tools__config',
+              tool_input: { action }
+            } as never,
+            'tool-use-1',
+            {} as never
+          )
         )
       )
-    )
 
-    expect(results).toContainEqual(
+    for (const action of ['add_channel', 'complete_bootstrap', 'reset_bootstrap']) {
+      await expect(runConfigAction(action)).resolves.toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+    }
+
+    await expect(runConfigAction('status')).resolves.not.toContainEqual(
       expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
     )
   })
