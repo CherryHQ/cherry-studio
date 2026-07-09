@@ -3533,6 +3533,8 @@ describe('ComposerSurface', () => {
     const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandleKeyDown = initialEditorProps.handleKeyDown
 
     let enterHandled = true
     let ctrlEnterHandled = false
@@ -3542,13 +3544,12 @@ describe('ComposerSurface', () => {
       flushSync(() => {
         rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
       })
-      enterHandled = mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
-      ctrlEnterHandled = mocks.editorOptions.editorProps.handleKeyDown(
-        null,
-        new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true })
-      )
+      enterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+      ctrlEnterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
     })
 
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
     expect(enterHandled).toBe(false)
     expect(ctrlEnterHandled).toBe(true)
     expect(onSendDraft).toHaveBeenCalledTimes(1)
@@ -3561,6 +3562,8 @@ describe('ComposerSurface', () => {
     const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={initialSendDraft} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandleKeyDown = initialEditorProps.handleKeyDown
 
     let handled = false
     act(() => {
@@ -3568,9 +3571,11 @@ describe('ComposerSurface', () => {
       flushSync(() => {
         rerender(<ComposerSurface {...baseProps} onSendDraft={nextSendDraft} />)
       })
-      handled = mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+      handled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
     })
 
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
     expect(handled).toBe(true)
     expect(initialSendDraft).not.toHaveBeenCalled()
     expect(nextSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
@@ -3581,10 +3586,16 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
     const initialSuggestionSources = mocks.editorPresetOptions.suggestionSources
+    const initialEditorProps = mocks.editorOptions.editorProps
+    const initialHandlePaste = mocks.editorOptions.handlePaste
+    const initialExtensions = mocks.editorOptions.extensions
 
     rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     expect(mocks.editorPresetOptions.suggestionSources).toBe(initialSuggestionSources)
+    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
+    expect(mocks.editorOptions.handlePaste).toBe(initialHandlePaste)
+    expect(mocks.editorOptions.extensions).toBe(initialExtensions)
   })
 
   it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {

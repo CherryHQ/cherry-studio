@@ -29,7 +29,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
@@ -513,7 +513,6 @@ export default function ComposerSurface({
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const quickPanelRef = useRef(quickPanel)
-  quickPanelRef.current = quickPanel
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
@@ -535,14 +534,18 @@ export default function ComposerSurface({
   const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
-  isExpandedRef.current = isExpanded
-  filesCountRef.current = filesCount
-  sendDisabledRef.current = sendDisabled
-  sendBlockedReasonRef.current = sendBlockedReason
-  sendMessageShortcutRef.current = sendMessageShortcut
-  setFilesRef.current = setFiles
-  onSendDraftRef.current = onSendDraft
   const editingHighlightKey = editingState?.highlightKey
+
+  useLayoutEffect(() => {
+    quickPanelRef.current = quickPanel
+    isExpandedRef.current = isExpanded
+    filesCountRef.current = filesCount
+    sendDisabledRef.current = sendDisabled
+    sendBlockedReasonRef.current = sendBlockedReason
+    sendMessageShortcutRef.current = sendMessageShortcut
+    setFilesRef.current = setFiles
+    onSendDraftRef.current = onSendDraft
+  }, [filesCount, isExpanded, onSendDraft, quickPanel, sendBlockedReason, sendDisabled, sendMessageShortcut, setFiles])
 
   useEffect(() => {
     textRef.current = text
@@ -655,7 +658,10 @@ export default function ComposerSurface({
     setTimeoutTimer
   })
   const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
-  toggleEditorExpandedRef.current = toggleEditorExpanded
+
+  useLayoutEffect(() => {
+    toggleEditorExpandedRef.current = toggleEditorExpanded
+  }, [toggleEditorExpanded])
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
@@ -770,16 +776,28 @@ export default function ComposerSurface({
     rootPanelAdditionalItems,
     unifiedResourceItems
   })
-  rootSuggestionStateRef.current = {
+
+  useLayoutEffect(() => {
+    rootSuggestionStateRef.current = {
+      getToolLaunchers,
+      onRootPanelOpen,
+      onToolLauncherSelect,
+      quickPanel,
+      resourceProvider,
+      rootPanelLeadingItems,
+      rootPanelAdditionalItems,
+      unifiedResourceItems
+    }
+  }, [
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
     quickPanel,
     resourceProvider,
-    rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    rootPanelLeadingItems,
     unifiedResourceItems
-  }
+  ])
 
   const createUnifiedPanelOptions = useCallback(
     ({
@@ -1043,7 +1061,10 @@ export default function ComposerSurface({
   )
 
   const suggestionPanelStateRef = useRef({ quickPanel })
-  suggestionPanelStateRef.current = { quickPanel }
+
+  useLayoutEffect(() => {
+    suggestionPanelStateRef.current = { quickPanel }
+  }, [quickPanel])
 
   const quickPanelSuggestionSources = useMemo<ComposerSuggestionSource[]>(
     () =>
