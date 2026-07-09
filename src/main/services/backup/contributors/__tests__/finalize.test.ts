@@ -26,10 +26,10 @@ import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributor-knowledge'
 import { describe, expect, it } from 'vitest'
 
-import { ContributorFinalizeError } from './ContributorFinalizeError'
-import { ContributorManager } from './ContributorManager'
-import { finalize } from './finalize'
-import { READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
+import { ContributorFinalizeError } from '../ContributorFinalizeError'
+import { ContributorManager } from '../ContributorManager'
+import { finalize } from '../finalize'
+import { READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from '../ReadonlyBackupRegistryImpl'
 
 // finalizedAt is fixed for determinism.
 const META = { finalizedAt: '2026-06-27T00:00:00.000Z' }

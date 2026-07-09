@@ -8,7 +8,7 @@ import {
   presetIncludesFiles,
   presetIncludesKnowledge,
   resolvePreset
-} from './presets'
+} from '../presets'
 
 const ALL = new Set<BackupDomain>(BACKUP_DOMAINS)
 const LITE_EXCLUDED_SET = new Set<BackupDomain>(LITE_EXCLUDED)

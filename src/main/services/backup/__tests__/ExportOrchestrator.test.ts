@@ -20,10 +20,10 @@ import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
-import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
-import { contributorManager } from './contributors/ContributorManager'
-import { SqliteBackupStripper, StubStripper } from './ExcludedDomainStripper'
-import { ExportOrchestrator } from './ExportOrchestrator'
+import { SqliteBackupCopier, StubBackupCopier } from '../BackupDbCopier'
+import { contributorManager } from '../contributors/ContributorManager'
+import { SqliteBackupStripper, StubStripper } from '../ExcludedDomainStripper'
+import { ExportOrchestrator } from '../ExportOrchestrator'
 
 /**
  * Minimal registry stub — the orchestrator's first slice only calls `topoSort`.
