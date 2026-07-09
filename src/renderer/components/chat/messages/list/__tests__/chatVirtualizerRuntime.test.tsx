@@ -1061,6 +1061,86 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('keeps ownership with block anchors while a streaming turn has no pin and no active writer', () => {
+    // A follow-up steered into a live turn (or streaming-on-mount) does NOT pin
+    // (the pin effect bails via `wasStreamingBeforeUserMessage`), so
+    // preserveScrollAnchor is true yet nothing writes scrollTop: no pin, bottom-
+    // follow is suppressed so auto-stick bails, and no smooth scroll is running.
+    // `isScrollOwned()` must be false so a block toggle runs its own restore
+    // instead of jumping the reading position. (A bare bottom-follow-suppression
+    // check would wrongly report ownership here.)
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    render(
+      <RuntimeProbe items={['user-a']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+    runtime!.scrollerRef.current = { scrollTop: 0, scrollHeight: 2000, clientHeight: 400 } as HTMLDivElement
+    runtime!.vlistHandleRef.current = createHandle()
+
+    expect(runtime!.isScrollOwned()).toBe(false)
+  })
+
+  it('reports ownership while a smooth scroll is in flight and releases it when cancelled', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      let scrollTop = 800
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      // Drain the mount's scroll-to-newest rAF, then establish a deterministic
+      // not-at-bottom / not-pinned / not-animating baseline so the only thing that
+      // can flip ownership below is the smooth-scroll animation itself.
+      raf.tick(60)
+      scrollTop = 800
+      act(() => runtime!.scrollerProps.onScroll(800))
+      expect(runtime!.isScrollOwned()).toBe(false)
+
+      // A smooth scroll is an active scrollTop writer for the whole animation.
+      act(() => handle!.scrollToTop('smooth'))
+      expect(runtime!.isScrollOwned()).toBe(true)
+
+      // Cancelling it (an instant scroll cancels the in-flight animation) hands
+      // ownership back to the block anchors.
+      act(() => handle!.scrollToTop('instant'))
+      expect(runtime!.isScrollOwned()).toBe(false)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('exposes a stable isScrollOwned identity across rerenders', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(<RuntimeProbe items={['a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    const before = runtime!.isScrollOwned
+    view.rerender(
+      <RuntimeProbe items={['a', 'b']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+    // Ref-backed getter: identity must survive an unrelated rerender so the
+    // ScrollOwnershipProvider value stays stable and the block tree doesn't churn.
+    expect(runtime!.isScrollOwned).toBe(before)
+  })
+
   it('ignores a large programmatic backward jump during bottom-follow (no input) and keeps following', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

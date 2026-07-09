@@ -200,18 +200,22 @@ export function useChatVirtualizerRuntime<T>({
   })
 
   // Single predicate the collapsible blocks consult (via ScrollOwnershipProvider)
-  // before running their own scroll-anchor restore: true whenever the runtime is
-  // already the authoritative scrollTop writer. Reuses the exact bottom-follow
-  // lock (top-pin, or a streaming turn the user has NOT taken over) plus the two
-  // other owners — at-bottom auto-stick and an in-flight smooth scroll. It must
-  // NOT be bare `preserveScrollAnchor`: once the user scrolls away mid-stream
-  // (`userTookControl`), the pin is gone and auto-stick has bowed out, so the
-  // runtime stops writing scrollTop — ownership has to return to the block anchor
-  // or a toggle would jump the position the user is reading. Ref-backed so its
-  // identity never changes, keeping the context value stable (no extra re-renders
-  // of the block tree).
+  // before running their own scroll-anchor restore: true ONLY when a runtime writer
+  // is actively holding scrollTop, so a block toggle must not fight it:
+  //   - the top-pin re-asserts scrollTop        -> anchor.isPinned()
+  //   - auto-stick follows the live bottom       -> atBottom.isAtBottom() && !isBottomFollowSuppressed()
+  //     (mirrors useAutoStickToBottom's own `isLocked() || !isAtBottom()` bail-out)
+  //   - a smooth-scroll animation is in flight   -> smoothScroll.isAnimating()
+  // Deliberately NOT `isBottomFollowSuppressed()` / bare `preserveScrollAnchor`:
+  // suppression only means "don't let auto-stick follow", which stays true through a
+  // streaming turn that has no pin and isn't at the bottom (a follow-up steered into
+  // a live turn, or streaming-on-mount) — there the runtime writes nothing, so the
+  // block anchor must keep ownership or a toggle would jump the reading position.
+  // Ref-backed so its identity never changes, keeping the context value stable
+  // (no extra re-renders of the block tree).
   const isScrollOwnedRef = useRef<() => boolean>(() => false)
-  isScrollOwnedRef.current = () => isBottomFollowSuppressed() || atBottom.isAtBottom() || smoothScroll.isAnimating()
+  isScrollOwnedRef.current = () =>
+    anchor.isPinned() || (atBottom.isAtBottom() && !isBottomFollowSuppressed()) || smoothScroll.isAnimating()
   const isScrollOwned = useCallback(() => isScrollOwnedRef.current(), [])
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
