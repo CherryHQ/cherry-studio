@@ -181,10 +181,9 @@ export const detectLanguageOrUnknown = async (
  */
 export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
-  const { languages } = useLanguages()
+  const { languages, status } = useLanguages()
   const { quickModel } = useDefaultModel()
 
-  const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)
 
   const detectLanguage = useCallback(
@@ -192,12 +191,18 @@ export const useDetectLang = () => {
       const text = inputText.trim()
       if (!text) return UNKNOWN_LANG_CODE
 
+      if (status === 'loading') {
+        logger.warn('useDetectLang invoked while languages were loading, returning UNKNOWN')
+        return UNKNOWN_LANG_CODE
+      }
+
+      if (status === 'error') {
+        logger.warn('useDetectLang invoked after languages failed to load, returning UNKNOWN')
+        return UNKNOWN_LANG_CODE
+      }
+
       if (languages === undefined) {
         logger.warn('useDetectLang invoked before languages were ready, returning UNKNOWN')
-        if (!toastedNotReadyRef.current) {
-          toastedNotReadyRef.current = true
-          toast.error(i18n.t('translate.error.languages_load_failed'))
-        }
         return UNKNOWN_LANG_CODE
       }
 
@@ -219,7 +224,7 @@ export const useDetectLang = () => {
       logger.info(`Detected language: ${result}`)
       return result
     },
-    [method, languages, quickModel]
+    [method, languages, quickModel, status]
   )
 
   return detectLanguage

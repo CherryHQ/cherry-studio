@@ -2,24 +2,30 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => {
   const english = { langCode: 'en-us', value: 'English', emoji: '🇺🇸' }
   const chinese = { langCode: 'zh-cn', value: 'Chinese', emoji: '🇨🇳' }
+  const languages = [chinese, english]
 
   return {
     english,
     chinese,
-    languages: [chinese, english],
+    languages,
+    getLanguage: vi.fn((langCode: TranslateLangCode) => languages.find((lang) => lang.langCode === langCode) ?? null),
     detectLanguage: vi.fn(),
     translate: vi.fn(),
     cancel: vi.fn(),
     scrollToBottom: vi.fn()
   }
 })
+
+const i18nMock = vi.hoisted(() => ({
+  t: vi.fn((key: string, fallback?: string) => fallback ?? key)
+}))
 
 import ActionTranslate from '../ActionTranslate'
 
@@ -65,8 +71,7 @@ vi.mock('@renderer/hooks/translate', () => ({
   }),
   useLanguages: () => ({
     languages: state.languages as TranslateLanguage[],
-    getLanguage: (langCode: TranslateLangCode) =>
-      (state.languages as TranslateLanguage[]).find((lang) => lang.langCode === langCode) ?? null
+    getLanguage: state.getLanguage
   })
 }))
 
@@ -104,7 +109,7 @@ vi.mock('../WindowFooter', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key
+    t: i18nMock.t
   })
 }))
 
@@ -122,6 +127,7 @@ function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionAc
 describe('ActionTranslate', () => {
   beforeEach(() => {
     state.detectLanguage.mockReset()
+    state.getLanguage.mockClear()
     state.translate.mockReset()
     state.cancel.mockReset()
     state.scrollToBottom.mockReset()
@@ -145,5 +151,25 @@ describe('ActionTranslate', () => {
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
     expect(screen.getByText('translate.detected.language')).toBeInTheDocument()
     expect(screen.queryByText('translate.detected_source')).not.toBeInTheDocument()
+  })
+
+  it('keeps the detected language badge after detection resolves while translation is preparing', async () => {
+    state.detectLanguage.mockResolvedValue('en-us')
+    let resolveTranslate: (value: string) => void = () => {}
+    state.translate.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    expect(screen.queryByText('translate.detecting')).not.toBeInTheDocument()
+    expect(screen.getByText('English')).toBeInTheDocument()
+
+    await act(async () => {
+      resolveTranslate('translated text')
+    })
   })
 })

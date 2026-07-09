@@ -34,6 +34,7 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import {
   isUniqueModelId,
@@ -392,13 +393,17 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
+      const nextTargetLanguage =
+        history.targetLanguage ??
+        (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+
       setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
-      void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
+      void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
-    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput, targetLanguage]
   )
 
   const inputScrollHandler = useMemo(

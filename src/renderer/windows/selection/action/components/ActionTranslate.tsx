@@ -123,6 +123,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void initialize()
   }, [initialize])
 
+  const [isDetecting, setIsDetecting] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
 
@@ -165,13 +166,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     )
   }, [isTranslating, translationParts])
 
-  const isStreaming = isTranslating || isPreparing
+  const isStreaming = isTranslating || isDetecting || isPreparing
   const error = completionError
 
   const clear = useCallback(() => {
     cancelTranslate()
     setContent('')
     setCompletionError(null)
+    setIsDetecting(false)
     setIsPreparing(false)
   }, [cancelTranslate])
 
@@ -179,8 +181,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (!selectedText || !initialized) return
     clear()
 
+    setIsDetecting(true)
     const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
       logger.error('Error detecting language:', error as Error)
+    }).finally(() => {
+      setIsDetecting(false)
     })
 
     const detectedLang = getLanguage(sourceLanguageCode) ?? null
@@ -289,6 +294,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const handlePause = () => {
     cancelTranslate()
+    setIsDetecting(false)
     setIsPreparing(false)
   }
 
@@ -303,7 +309,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
             <div className="flex shrink-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
-              {isPreparing ? (
+              {isDetecting ? (
                 <span>{t('translate.detecting')}</span>
               ) : (
                 <>
@@ -373,7 +379,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </div>
         )}
         <div className="mt-4 w-full whitespace-pre-wrap break-words">
-          {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <MessageContentProvider
               messages={[latestAssistantMessage]}
