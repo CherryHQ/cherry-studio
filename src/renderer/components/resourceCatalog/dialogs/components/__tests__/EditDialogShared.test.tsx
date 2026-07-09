@@ -138,6 +138,8 @@ describe('EditDialogShared', () => {
   })
 
   it('opens the knowledge page from the add knowledge popover footer', () => {
+    const onClose = vi.fn()
+
     function Harness() {
       const form = useForm<ResourceCreateWizardFormValues>({
         defaultValues: {
@@ -152,7 +154,7 @@ describe('EditDialogShared', () => {
       })
       return (
         <Form {...form}>
-          <KnowledgeStep form={form} portalContainer={null} />
+          <KnowledgeStep form={form} onClose={onClose} portalContainer={null} />
         </Form>
       )
     }
@@ -165,5 +167,6 @@ describe('EditDialogShared', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
 
     expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

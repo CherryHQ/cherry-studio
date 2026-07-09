@@ -297,7 +297,11 @@ export function ResourceCreateWizard({
                   <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} portalContainer={dialogContentElement} />
+                  <KnowledgeStep
+                    form={form}
+                    onClose={() => onOpenChange(false)}
+                    portalContainer={dialogContentElement}
+                  />
                 ) : null}
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
