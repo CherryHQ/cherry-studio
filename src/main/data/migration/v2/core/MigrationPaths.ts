@@ -5,19 +5,21 @@
  * `app.getPath()` or constructing paths with `path.join()` from scratch.
  *
  * WARNING: Bypassing MigrationPaths and calling `app.getPath('userData')`
- * directly will cause data loss for v1 users who configured a custom
- * userData directory via `~/.cherrystudio/config/config.json`. On the
- * first v2 launch, `app.getPath('userData')` returns the Electron default
- * — not the user's actual data directory — because `resolveUserDataLocation()`
- * has not yet migrated the legacy config into boot-config.json.
+ * directly will bypass the preboot path contract. `resolveUserDataLocation()`
+ * applies BootConfig and first-v2 legacy `appDataPath` before the migration
+ * gate runs, so migration code should consume this frozen path object instead
+ * of re-resolving paths ad hoc.
  */
 
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { CHERRY_HOME } from '@main/core/paths/constants'
-import { getNormalizedExecutablePath, validateUserDataDir } from '@main/core/preboot/userDataLocation'
+import {
+  getNormalizedExecutablePath,
+  readLegacyAppDataPath,
+  validateUserDataDir
+} from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
 
@@ -87,8 +89,8 @@ export interface MigrationPathsResult {
  *
  * Detection logic:
  *   1. Start with the current `app.getPath('userData')` (set by
- *      `resolveUserDataLocation()` in preboot — may be the Electron
- *      default if boot-config.json had no entry).
+ *      `resolveUserDataLocation()` in preboot from BootConfig, first-v2
+ *      legacy config, portable fallback, or Electron default).
  *   2. Read `~/.cherrystudio/config/config.json` for a legacy `appDataPath`.
  *   3. If a valid custom path is found and differs from current:
  *      - Call `app.setPath('userData', ...)` so Chromium-level storage
@@ -103,17 +105,11 @@ export interface MigrationPathsResult {
  *   4. Pre-compute all derived paths from the final userData.
  *   5. Object.freeze and return.
  *
- * Timing: this function is called inside `runV2MigrationGate()`, which
- * runs AFTER `initPathRegistry()` has frozen the path registry. The
- * `app.setPath('userData', ...)` call therefore creates a temporary
- * divergence between the frozen registry (`application.getPath()`) and
- * Electron's runtime path (`app.getPath('userData')`). This is
- * intentional and safe:
- *   - Migration code uses MigrationPaths, not the frozen registry.
- *   - The app always relaunches after migration (or after the
- *     `userDataChanged` edge case), rebuilding the registry correctly.
- *   - `initPathRegistry()` cannot be moved after the migration gate
- *     because other preboot modules and `bootstrap()` depend on it.
+ * Timing: this function is called inside `runV2MigrationGate()`, after
+ * `resolveUserDataLocation()` has already aligned Electron's userData,
+ * the single-instance lock, and the frozen path registry for normal cases.
+ * The legacy fallback below remains as a belt-and-suspenders path for older
+ * states, and still relaunches if it ever has to redirect userData.
  */
 export function resolveMigrationPaths(): MigrationPathsResult {
   const legacyConfigFile = path.join(CHERRY_HOME, 'config', 'config.json')
@@ -192,64 +188,4 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   })
 
   return { paths, userDataChanged, inaccessibleLegacyPath }
-}
-
-// ── Private helpers ─────────────────────────────────────────────────────
-
-/**
- * Read the legacy v1 config.json and extract the custom userData path
- * for the current executable.
- *
- * Handles two historical shapes:
- *   - String: `{ "appDataPath": "/some/path" }` → returned directly
- *     (applies to all executables).
- *   - Array: `{ "appDataPath": [{ executablePath, dataPath }, ...] }` →
- *     looked up by the normalized exe path.
- *
- * Returns `null` on any I/O error, parse failure, missing field, or no
- * matching entry. Never throws.
- */
-function readLegacyAppDataPath(configFile: string, normalizedExe: string): string | null {
-  let raw: string
-  try {
-    if (!fs.existsSync(configFile)) return null
-    raw = fs.readFileSync(configFile, 'utf-8')
-  } catch {
-    return null
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return null
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) return null
-
-  const appDataPath = (parsed as Record<string, unknown>).appDataPath
-
-  // String format: applies to all executables.
-  if (typeof appDataPath === 'string' && appDataPath.length > 0) {
-    return appDataPath
-  }
-
-  // Array format: look up by normalized exe path.
-  if (Array.isArray(appDataPath)) {
-    for (const entry of appDataPath) {
-      if (
-        typeof entry === 'object' &&
-        entry !== null &&
-        typeof (entry as Record<string, unknown>).executablePath === 'string' &&
-        typeof (entry as Record<string, unknown>).dataPath === 'string'
-      ) {
-        const { executablePath, dataPath } = entry as { executablePath: string; dataPath: string }
-        if (executablePath === normalizedExe && dataPath.length > 0) {
-          return dataPath
-        }
-      }
-    }
-  }
-
-  return null
 }

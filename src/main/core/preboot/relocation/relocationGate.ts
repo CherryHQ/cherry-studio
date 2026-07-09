@@ -42,7 +42,7 @@ import { commitRelocation } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { RelocationIpcChannels, type RelocationProgress } from '@shared/data/relocation/types'
-import { isProtectedSystemPathOrDescendant } from '@shared/utils/file'
+import { isProtectedSystemPathOrDescendant, isRootOrTopLevelPath } from '@shared/utils/file'
 import { app, dialog, ipcMain } from 'electron'
 
 const logger = loggerService.withContext('RelocationGate')
@@ -225,7 +225,7 @@ function preflight(from: string, to: string, copy: boolean): void {
   if (copy) {
     assertSourceDirectoryReadable(from)
   }
-  if (getPathDepth(toAbs) <= 1) {
+  if (isRootOrTopLevelPath(toAbs)) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
   }
   if (isProtectedSystemPathOrDescendant(toAbs)) {
@@ -308,12 +308,6 @@ function isPathInside(child: string, parent: string): boolean {
   const ops = isWin ? path.win32 : path
   const relative = ops.relative(parent, child)
   return relative.length > 0 && !relative.startsWith('..') && !ops.isAbsolute(relative)
-}
-
-function getPathDepth(p: string): number {
-  const ops = isWin ? path.win32 : path
-  const parsed = ops.parse(p)
-  return p.slice(parsed.root.length).split(ops.sep).filter(Boolean).length
 }
 
 function isExistingMountRoot(p: string): boolean {

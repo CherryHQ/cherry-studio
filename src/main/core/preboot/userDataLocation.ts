@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { CHERRY_HOME } from '@main/core/paths/constants'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
@@ -160,15 +161,19 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
  *      and the relocation gate are bypassed entirely in dev.
  *
  *   2. BootConfig as single source of truth: resolve from
- *      `app.user_data_path[exe]`. If valid, setPath. Otherwise fall through.
+ *      `app.user_data_path[exe]`. If valid, setPath.
  *
- *   3. Portable fallback for Windows portable builds.
+ *   3. First-v2 legacy fallback: when BootConfig has no entry yet, read
+ *      v1's `~/.cherrystudio/config/config.json` appDataPath before the
+ *      single-instance lock is claimed, then commit it into BootConfig.
  *
- *   4. Fall through to Electron default.
+ *   4. Portable fallback for Windows portable builds.
  *
- * Normal-flow path: BootConfig is the single source of truth. The v1→v2
- * migration handles its own userData detection inside the migration
- * system — do NOT add fallbacks to v1 config.json here.
+ *   5. Fall through to Electron default.
+ *
+ * Normal-flow path: BootConfig is the single source of truth. The legacy
+ * fallback exists only to align first-v2 startup ordering before
+ * BootConfigMigrator has had a chance to persist `app.user_data_path`.
  */
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
@@ -204,6 +209,24 @@ export function resolveUserDataLocation(): void {
     return
   }
 
+  const legacyPath = readLegacyAppDataPath(path.join(CHERRY_HOME, 'config', 'config.json'), exe)
+  if (legacyPath) {
+    const validation = validateUserDataDir(legacyPath)
+    if (validation.ok) {
+      const current = bootConfigService.get('app.user_data_path') ?? {}
+      bootConfigService.set('app.user_data_path', { ...current, [exe]: legacyPath })
+      bootConfigService.flush()
+      app.setPath('userData', legacyPath)
+      logger.info('userData set from legacy appDataPath and committed to BootConfig', { exe, legacyPath })
+      return
+    }
+    logger.warn('Legacy userData path is not usable; falling back to default/portable path for migration warning', {
+      exe,
+      legacyPath,
+      reason: validation.reason
+    })
+  }
+
   // Portable fallback.
   if (isPortable) {
     const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
@@ -214,6 +237,59 @@ export function resolveUserDataLocation(): void {
   }
 
   // Electron default.
+}
+
+/**
+ * Read the legacy v1 config.json and extract the custom userData path
+ * for the current executable.
+ *
+ * Handles two historical shapes:
+ *   - String: `{ "appDataPath": "/some/path" }` applies to all executables.
+ *   - Array: `{ "appDataPath": [{ executablePath, dataPath }, ...] }` is
+ *     looked up by normalized executable path.
+ *
+ * Returns `null` on I/O errors, parse errors, missing fields, or no match.
+ */
+export function readLegacyAppDataPath(configFile: string, normalizedExe: string): string | null {
+  let raw: string
+  try {
+    if (!fs.existsSync(configFile)) return null
+    raw = fs.readFileSync(configFile, 'utf-8')
+  } catch {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) return null
+
+  const appDataPath = (parsed as Record<string, unknown>).appDataPath
+  if (typeof appDataPath === 'string' && appDataPath.length > 0) {
+    return appDataPath
+  }
+
+  if (Array.isArray(appDataPath)) {
+    for (const entry of appDataPath) {
+      if (
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as Record<string, unknown>).executablePath === 'string' &&
+        typeof (entry as Record<string, unknown>).dataPath === 'string'
+      ) {
+        const { executablePath, dataPath } = entry as { executablePath: string; dataPath: string }
+        if (executablePath === normalizedExe && dataPath.length > 0) {
+          return dataPath
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 function resolveDevUserDataSuffix(): string {

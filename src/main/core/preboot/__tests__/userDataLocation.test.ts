@@ -38,6 +38,7 @@ interface FsStubOptions {
   accessSyncImpl?: (p: string, mode?: number) => void
   lstatSyncImpl?: (p: string) => { isSymbolicLink?: () => boolean }
   statSyncImpl?: (p: string) => { isDirectory?: () => boolean }
+  readFileSyncImpl?: (p: string, encoding?: string) => string
 }
 
 type BootConfigStore = {
@@ -113,6 +114,7 @@ function stubFs(opts: FsStubOptions = {}) {
   const accessSync = vi.fn(opts.accessSyncImpl ?? (() => undefined))
   const lstatSync = vi.fn(opts.lstatSyncImpl ?? (() => ({ isSymbolicLink: () => false })))
   const statSync = vi.fn(opts.statSyncImpl ?? (() => ({ isDirectory: () => true })))
+  const readFileSync = vi.fn(opts.readFileSyncImpl ?? (() => ''))
   vi.doMock('node:fs', () => {
     const fsMock = {
       existsSync,
@@ -126,7 +128,7 @@ function stubFs(opts: FsStubOptions = {}) {
         writeFile: vi.fn(),
         mkdir: vi.fn()
       },
-      readFileSync: vi.fn(),
+      readFileSync,
       writeFileSync: vi.fn(),
       mkdirSync: vi.fn()
     }
@@ -386,6 +388,24 @@ describe('resolveUserDataLocation', () => {
     const { resolveUserDataLocation } = await loadModule()
     resolveUserDataLocation()
     expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('BootConfig empty + valid legacy appDataPath: sets userData before single-instance lock and commits BootConfig', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({ 'app.user_data_path': {} })
+    stubFs({
+      existsSyncImpl: (p) => p === '/mock/legacy-data' || p.endsWith('/config/config.json'),
+      readFileSyncImpl: () =>
+        JSON.stringify({
+          appDataPath: [{ executablePath: '/mock/exe', dataPath: '/mock/legacy-data' }]
+        })
+    })
+    const { resolveUserDataLocation } = await loadModule()
+    resolveUserDataLocation()
+    expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/legacy-data')
+    expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/mock/legacy-data' })
+    expect(bootConfigFlushMock).toHaveBeenCalled()
   })
 
   it('BootConfig empty + isPortable=true: setPath called with portableDir/data', async () => {

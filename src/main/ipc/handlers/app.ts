@@ -42,5 +42,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
 
     requestRelocation(application.getPath('app.userdata'), path, copyData)
+    setTimeout(() => application.relaunchGracefully(), 500).unref?.()
   }
 }

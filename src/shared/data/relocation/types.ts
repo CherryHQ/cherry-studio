@@ -1,9 +1,9 @@
 /**
  * Shared types for the v2 userData relocation flow.
  *
- * Relocation is driven entirely from preboot: the renderer only ever writes
- * a `pending` request to `temp.user_data_relocation` (via
- * `app.set_user_data_path`) and relaunches. On the next launch the
+ * Relocation is driven entirely from preboot: the renderer only ever requests
+ * a `pending` record in `temp.user_data_relocation` (via
+ * `app.set_user_data_path`); main then relaunches gracefully. On the next launch the
  * preboot relocation gate (`core/preboot/relocation/relocationGate.ts`)
  * opens a dedicated window, performs the copy (if requested), commits the
  * new path to BootConfig, and relaunches again. These channels are the

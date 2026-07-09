@@ -12,13 +12,12 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { isProtectedSystemPathOrDescendant } from '@shared/utils/file'
+import { isProtectedSystemPathOrDescendant, isRootOrTopLevelPath } from '@shared/utils/file'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -29,7 +28,6 @@ const BasicDataSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
   const { theme } = useTheme()
-  const { setTimeoutTimer } = useTimer()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
@@ -59,8 +57,7 @@ const BasicDataSettings: React.FC = () => {
     }
 
     // check new app data path is root path
-    const pathParts = newAppDataPath.split(/[/\\]/).filter((part: string) => part !== '')
-    if (pathParts.length <= 1) {
+    if (isRootOrTopLevelPath(newAppDataPath)) {
       toast.error(t('settings.data.app_data.select_error_root_path'))
       return
     }
@@ -163,19 +160,12 @@ const BasicDataSettings: React.FC = () => {
 
     try {
       // Both "copy" and "switch-only" go through the same preboot
-      // relocation protocol: write a `pending` request to BootConfig
-      // and relaunch. The actual copy (if any) and path switch happen
-      // in the preboot relocation gate on the next launch, when no
-      // file in the old userData is locked.
+      // relocation protocol: write a `pending` request to BootConfig.
+      // Main then performs a graceful relaunch; the actual copy (if any)
+      // and path switch happen in the preboot relocation gate on the next
+      // launch, when no file in the old userData is locked.
       await window.api.setAppDataPath({ path: newPath, copyData: shouldCopyData })
       toast.info({ title: t('settings.data.app_data.restart_notice'), timeout: 3000 })
-      setTimeoutTimer(
-        'showMigrationConfirmModal',
-        () => {
-          void window.api.application.relaunch()
-        },
-        500
-      )
     } catch (error) {
       toast.error({
         title: t('settings.data.app_data.path_change_failed') + ': ' + error,

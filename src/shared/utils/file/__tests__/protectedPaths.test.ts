@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isProtectedSystemPath, isProtectedSystemPathOrDescendant } from '../protectedPaths'
+import { isProtectedSystemPath, isProtectedSystemPathOrDescendant, isRootOrTopLevelPath } from '../protectedPaths'
 
 describe('isProtectedSystemPath', () => {
   it('matches the v1 POSIX system-root guard', () => {
@@ -58,5 +58,19 @@ describe('isProtectedSystemPathOrDescendant', () => {
   it('allows user-owned directories', () => {
     expect(isProtectedSystemPathOrDescendant('/Users/me/Data')).toBe(false)
     expect(isProtectedSystemPathOrDescendant('C:\\Users\\me\\Data')).toBe(false)
+  })
+})
+
+describe('isRootOrTopLevelPath', () => {
+  it('blocks POSIX roots and top-level directories', () => {
+    expect(isRootOrTopLevelPath('/')).toBe(true)
+    expect(isRootOrTopLevelPath('/CherryData')).toBe(true)
+    expect(isRootOrTopLevelPath('/Users/me/CherryData')).toBe(false)
+  })
+
+  it('blocks Windows drive roots and top-level directories', () => {
+    expect(isRootOrTopLevelPath('D:\\')).toBe(true)
+    expect(isRootOrTopLevelPath('D:\\CherryData')).toBe(true)
+    expect(isRootOrTopLevelPath('D:\\Users\\me\\CherryData')).toBe(false)
   })
 })

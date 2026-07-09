@@ -5399,7 +5399,7 @@
         "select": "修改目录",
         "select_error": "更改数据目录失败",
         "select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
-        "select_error_root_path": "新路径不能是根路径",
+        "select_error_root_path": "新路径不能是根路径或顶层目录",
         "select_error_same_path": "新路径与旧路径相同，请选择其他路径",
         "select_error_system_path": "新路径不能是系统根目录（如 /System、C:\\），请选择其他路径",
         "select_error_write_permission": "新路径没有写入权限",

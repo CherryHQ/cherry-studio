@@ -27,6 +27,26 @@ export function isProtectedSystemPath(candidate: string): boolean {
   )
 }
 
+export function getPathDepthForSafety(candidate: string): number {
+  const normalized = candidate.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (normalized === '' || normalized === '/') return 0
+
+  const driveTrimmed = normalized.replace(/^[A-Za-z]:\/?/, '')
+  if (driveTrimmed === '') return 0
+
+  if (driveTrimmed.startsWith('//')) {
+    const uncParts = driveTrimmed.split('/').filter(Boolean)
+    return Math.max(0, uncParts.length - 2)
+  }
+
+  return driveTrimmed.split('/').filter(Boolean).length
+}
+
+export function isRootOrTopLevelPath(candidate: string): boolean {
+  if (!candidate || candidate.trim() === '') return false
+  return getPathDepthForSafety(candidate) <= 1
+}
+
 /**
  * Stricter relocation target guard.
  *

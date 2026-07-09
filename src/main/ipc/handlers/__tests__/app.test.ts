@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
@@ -6,6 +6,7 @@ const {
   browserWindowGetAllWindowsMock,
   defaultSessionMock,
   requestRelocationMock,
+  relaunchGracefullyMock,
   webviewSessionMock,
   windowSessionMock
 } = vi.hoisted(() => {
@@ -23,11 +24,14 @@ const {
     browserWindowGetAllWindowsMock: vi.fn(),
     defaultSessionMock: createSessionMock(),
     requestRelocationMock: vi.fn(),
+    relaunchGracefullyMock: vi.fn(),
     webviewSessionMock: createSessionMock(),
     windowSessionMock: createSessionMock()
   }
 })
-vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
+vi.mock('@application', () => ({
+  application: { get: appGetMock, getPath: appGetPathMock, relaunchGracefully: relaunchGracefullyMock }
+}))
 vi.mock('@main/core/preboot/userDataLocation', () => ({
   requestRelocation: requestRelocationMock
 }))
@@ -52,6 +56,7 @@ const appUpdaterService = {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.clearAllMocks()
   browserWindowGetAllWindowsMock.mockReturnValue([])
   appGetPathMock.mockImplementation((name: string) => {
@@ -62,6 +67,11 @@ beforeEach(() => {
     if (name === 'AppUpdaterService') return appUpdaterService
     throw new Error(`Unexpected application.get(${name})`)
   })
+})
+
+afterEach(() => {
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
 })
 
 // app handlers ignore IpcContext (app-level, not window-scoped), so senderId is
@@ -105,6 +115,7 @@ describe('appHandlers', () => {
 
     expect(result).toBeUndefined()
     expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false)
+    expect(relaunchGracefullyMock).not.toHaveBeenCalled()
   })
 
   it('set_user_data_path copyData=true requests copy relocation persistence', async () => {
@@ -114,6 +125,7 @@ describe('appHandlers', () => {
 
     expect(result).toBeUndefined()
     expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true)
+    expect(relaunchGracefullyMock).not.toHaveBeenCalled()
   })
 
   it('set_user_data_path copyData=true flushes app data sessions before requesting copy relocation', async () => {
@@ -149,5 +161,15 @@ describe('appHandlers', () => {
     expect(webviewSessionMock.cookies.flushStore).not.toHaveBeenCalled()
     expect(webviewSessionMock.closeAllConnections).not.toHaveBeenCalled()
     expect(browserWindowGetAllWindowsMock).not.toHaveBeenCalled()
+  })
+
+  it('set_user_data_path schedules graceful relaunch after returning', async () => {
+    const targetPath = '/new/user/data'
+
+    await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
+
+    expect(relaunchGracefullyMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(relaunchGracefullyMock).toHaveBeenCalledTimes(1)
   })
 })

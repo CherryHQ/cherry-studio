@@ -314,6 +314,32 @@ export class Application {
       return
     }
 
+    app.relaunch(this.prepareRelaunchOptions(options))
+    app.exit(0)
+  }
+
+  /**
+   * Graceful relaunch: schedule the next process, then quit through
+   * before-quit / will-quit so lifecycle services can flush and stop.
+   * Falls back to app.exit() if quit prevention or window shutdown stalls.
+   */
+  public relaunchGracefully(options?: Electron.RelaunchOptions, timeoutMs = SHUTDOWN_TIMEOUT_MS): void {
+    if (isDev || !app.isPackaged) {
+      this.relaunch(options)
+      return
+    }
+
+    app.relaunch(this.prepareRelaunchOptions(options))
+    const timer = setTimeout(() => {
+      logger.warn('Forced exit after graceful relaunch timeout')
+      app.exit(0)
+    }, timeoutMs)
+    timer.unref?.()
+    app.once('will-quit', () => clearTimeout(timer))
+    this.quit()
+  }
+
+  private prepareRelaunchOptions(options?: Electron.RelaunchOptions): Electron.RelaunchOptions | undefined {
     // Platform-specific fixes
     if (isLinux && process.env.APPIMAGE) {
       options = options || {}
@@ -328,8 +354,7 @@ export class Application {
       options.args = options.args || []
     }
 
-    app.relaunch(options)
-    app.exit(0)
+    return options
   }
 
   /**

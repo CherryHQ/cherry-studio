@@ -5399,7 +5399,7 @@
         "select": "Modify Directory",
         "select_error": "Failed to change data directory",
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
-        "select_error_root_path": "New path cannot be the root path",
+        "select_error_root_path": "New path cannot be a root or top-level path",
         "select_error_same_path": "New path is the same as the old path, please select another path",
         "select_error_system_path": "New path cannot be a system root directory (e.g. /System, C:\\), please select another path",
         "select_error_write_permission": "New path does not have write permission",
