@@ -16,12 +16,14 @@ describe('UserAvatar', () => {
     expect(screen.queryByText(avatar)).not.toBeInTheDocument()
   })
 
-  it('renders emoji avatars via EmojiIcon (no gradient initials fallback)', () => {
+  it('renders emoji avatars via EmojiAvatar (no gradient initials fallback)', () => {
     const { container } = render(<UserAvatar user={{ name: 'User', avatar: '🌈' }} />)
 
-    const emojiIcon = container.firstElementChild?.firstElementChild as HTMLElement
-    expect(emojiIcon).toHaveStyle({ fontSize: '14px' })
-    expect(emojiIcon.querySelectorAll('svg[data-fluent-emoji="🌈"]')).toHaveLength(2)
+    const emojiAvatar = container.firstElementChild?.firstElementChild as HTMLElement
+    expect(emojiAvatar).toHaveClass('h-full', 'w-full', 'rounded-full', 'border-0')
+    expect(emojiAvatar).toHaveStyle({ width: '100%', height: '100%', fontSize: '14px' })
+    expect(emojiAvatar).toHaveTextContent('🌈')
+    expect(emojiAvatar.querySelector('svg[data-fluent-emoji="🌈"]')).not.toBeInTheDocument()
     // Emoji avatars must not fall through to the gradient-initial branch.
     // The gradient classes live on the inner fallback div, so query that element directly.
     expect(container.querySelector('.from-blue-400')).not.toBeInTheDocument()
