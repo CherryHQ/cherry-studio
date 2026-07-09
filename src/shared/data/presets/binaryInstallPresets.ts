@@ -4,10 +4,12 @@
  * override, i.e. today's behavior).
  *
  * GitHub mirror entries are in **proxy-prefix** form: BinaryManager appends
- * `/https://github.com` (and the api host) at env-build time, matching the
- * ghproxy-family usage `https://<mirror>/https://github.com/owner/repo/...`.
+ * `/https://github.com` at env-build time, matching the ghproxy-family usage
+ * `https://<mirror>/https://github.com/owner/repo/...` (asset downloads only —
+ * api.github.com is left direct since these mirrors 403 the GitHub API).
  * Mirror availability rots — treat this list as cheaply updatable, not a
- * guarantee. Cherry never routes downloads through a mirror unless the user
+ * guarantee, and verify a candidate proxies both release downloads before
+ * adding it. Cherry never routes downloads through a mirror unless the user
  * explicitly picks or types one.
  */
 export interface InstallSettingPreset {
@@ -19,7 +21,6 @@ export interface InstallSettingPreset {
 
 export const GITHUB_MIRROR_PRESETS: InstallSettingPreset[] = [
   { url: 'https://ghfast.top', label: 'ghfast.top' },
-  { url: 'https://gh-proxy.com', label: 'gh-proxy.com' },
   { url: 'https://ghproxy.net', label: 'ghproxy.net' }
 ]
 
