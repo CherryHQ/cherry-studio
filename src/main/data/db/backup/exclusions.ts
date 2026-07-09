@@ -16,8 +16,8 @@
  * - app_state: runtime process state (seed journal, caches) — not user data.
  * - job: runtime job queue — not user data.
  * - message_fts / agent_session_message_fts: FTS5 virtual tables — rebuilt post-restore
- *   from their content tables (see DB_FTS_VIRTUAL_TABLES in dbSchemaRefs.ts — track A2,
- *   not yet generated), never exported verbatim.
+ *   from their content tables (see DB_FTS_VIRTUAL_TABLES in dbSchemaRefs.ts), never
+ *   exported verbatim.
  *
  * finalize invariant #4 asserts no contributor owns these.
  */

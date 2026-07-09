@@ -17,7 +17,7 @@ import type { BackupDomain, ConflictStrategy } from './domains'
 // ─── Reference + identity classification ───────────────────────────────────────
 
 /**
- * How a foreign-key reference is consumed by the owning domain (spec.md L30-38).
+ * How a foreign-key reference is consumed by the owning domain.
  * - optional: source row still meaningful when target is missing (default SET_NULL).
  * - owning:   source row meaningless without target (default DELETE_ROW).
  * - junction: co-owned many-to-many (dual cascade FK, NOT NULL composite PK) —
@@ -26,7 +26,7 @@ import type { BackupDomain, ConflictStrategy } from './domains'
 export type ReferenceKind = 'optional' | 'owning' | 'junction'
 
 /**
- * Cross-device identity class of an aggregate root (spec.md L63-70). Drives the
+ * Cross-device identity class of an aggregate root. Drives the
  * default conflict strategy: uuid-entity → SKIP (safe); natural-key/slot →
  * FIELD_MERGE (collision likely). codegen-derived unless the root has a UNIQUE
  * non-PK key (→ natural-key) or is a preset slot (→ slot, contributor-declared).
@@ -34,7 +34,7 @@ export type ReferenceKind = 'optional' | 'owning' | 'junction'
 export type IdentityClass = 'uuid-entity' | 'natural-key' | 'slot'
 
 /**
- * JSON soft-reference propagation strength (spec.md L111-116).
+ * JSON soft-reference propagation strength.
  * - tolerant: missing/merged target only degrades (toast + orphan check); no rewrite.
  * - required: target missing breaks functionality; target merge must rewrite the ref.
  */
@@ -86,7 +86,7 @@ export interface AggregateBoundary {
 }
 
 /**
- * Row-scope ownership for a SHARED table (spec.md L136-140, F1). e.g. job_schedule
+ * Row-scope ownership for a SHARED table (F1). e.g. job_schedule
  * rows with type='agent.task' belong to AGENTS — rows not matching the filter must
  * be explicitly excluded (with reason) or fail-loud at export, never silently dropped.
  */
@@ -96,7 +96,7 @@ export interface RowScope {
   readonly filter: { readonly column: DbColumnName; readonly op: 'eq'; readonly value: string }
 }
 
-/** How a file_ref.sourceType is owned and resourced (spec.md L104-109, finalize #11). */
+/** How a file_ref.sourceType is owned and resourced (finalize #11). */
 export interface FileRefSourcePolicy {
   readonly sourceType: FileRefSourceType
   readonly ownerDomain: BackupDomain | 'excluded'
@@ -104,7 +104,7 @@ export interface FileRefSourcePolicy {
   readonly sourceTable?: DbTableName
 }
 
-/** A soft reference embedded in a JSON column (spec.md L118-124). */
+/** A soft reference embedded in a JSON column. */
 export interface JsonSoftReferencePolicy {
   readonly table: DbTableName
   readonly column: DbColumnName
@@ -126,14 +126,14 @@ export interface OmittedReferenceOverride {
 
 /**
  * A table with non-PK unique columns needing merge-before-insert on restore.
- * Shape inferred from spec.md L143 (verbatim shape not given).
+ * Shape (verbatim shape not given).
  */
 export interface UniqueMergeRule {
   readonly table: DbTableName
   readonly uniqueColumns: readonly DbColumnName[]
 }
 
-/** Field-level merge rule for FIELD_MERGE conflict strategy (M4, spec.md L146-150). */
+/** Field-level merge rule for FIELD_MERGE conflict strategy (M4). */
 export interface FieldMergePolicy {
   readonly table: DbTableName
   readonly column: DbColumnName
@@ -246,7 +246,7 @@ export interface EntityGraphSchema {
   readonly rowScopes?: readonly RowScope[]
 }
 
-/** Domain-level backup policy (spec.md L143-151). */
+/** Domain-level backup policy. */
 export interface BackupContributorPolicy {
   /** Only exceptions; each binds a declared reference + non-redundant action + reason. */
   readonly omittedReferenceOverrides?: readonly OmittedReferenceOverride[]

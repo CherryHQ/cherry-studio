@@ -23,8 +23,8 @@ See `docs/references/backup/backup-architecture.md` §7 (placement / neutral lay
 
 | File | Contents |
 |------|----------|
-| `dbSchemaRefs.ts` | `@generated` product — `DB_TABLES` / `DB_COLUMNS_BY_TABLE` / `DB_PRIMARY_KEYS` / `DB_FOREIGN_KEYS` / `DB_FTS_VIRTUAL_TABLES` + `DbTableName` / `DbColumnName` brand types + `table()`/`column()`/`columns()` helpers. Never hand-edit. |
-| `dbSchemaRefs.test.ts` | Product tests — membership, camelCase keys, PK heuristic (H1–H5), FK edge cases, FTS mapping |
+| `dbSchemaRefs.ts` | `@generated` product — `DB_TABLES` / `DB_COLUMNS_BY_TABLE` / `DB_PRIMARY_KEYS` / `DB_FOREIGN_KEYS` / `DB_UNIQUE_KEYS` / `DB_FTS_VIRTUAL_TABLES` + `DbTableName` / `DbColumnName` / `UniqueKeyFact` brand types + `table()`/`column()`/`columns()`/`mirrorPk()` helpers. Never hand-edit. |
+| `dbSchemaRefs.test.ts` | Product tests — membership, camelCase keys, PK heuristic (H1–H5), FK edge cases, unique-key coverage (single/composite/partial/expression), FTS mapping |
 | `scripts/generate-backup-schema-refs.ts` | The codegen — Drizzle runtime reflection (`getTableConfig`) over `src/main/data/db/schemas/`, biome-formatted emit. Run `pnpm backup:refs:generate`; verify with `pnpm backup:refs:check` (byte-equal, CI-enforced). |
 
 ### Track A1b — contributor type contracts
