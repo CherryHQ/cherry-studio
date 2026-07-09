@@ -419,7 +419,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
-                'focus-visible:border-border-hover focus-visible:ring-3 focus-visible:ring-border/30',
+                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
                 error && 'border-destructive! focus-visible:ring-red-600/20',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],
