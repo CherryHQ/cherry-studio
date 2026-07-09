@@ -878,6 +878,34 @@ describe('AgentComposer', () => {
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
   })
 
+  it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const initialSuggestionSources = mocks.surfaceProps?.suggestionSources
+    expect(initialSuggestionSources).toEqual([])
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    expect(mocks.surfaceProps?.isLoading).toBe(true)
+    expect(mocks.surfaceProps?.suggestionSources).toBe(initialSuggestionSources)
+  })
+
   it('changes the unified panel resource provider when the workspace scope changes', () => {
     const { rerender } = render(
       <AgentComposer

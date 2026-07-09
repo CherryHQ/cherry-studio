@@ -14,6 +14,11 @@ import type {
 } from './types'
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
+type RegisteredKeyDownHandler = {
+  generation: number
+  handler: QuickPanelKeyDownHandler
+}
+
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [symbol, setSymbol] = useState<string>('')
@@ -38,7 +43,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
   const clearTimer = useRef<number | null>(null)
-  const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const keyDownHandlerRef = useRef<RegisteredKeyDownHandler | undefined>(undefined)
   const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)
   const contextRef = useRef<QuickPanelContextType | null>(null)
@@ -175,10 +180,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const registerKeyDownHandler = useCallback((handler: QuickPanelKeyDownHandler | undefined) => {
-    keyDownHandlerRef.current = handler
+    const registeredHandler = handler ? { generation: panelGenerationRef.current, handler } : undefined
+    keyDownHandlerRef.current = registeredHandler
 
     return () => {
-      if (keyDownHandlerRef.current === handler) {
+      if (keyDownHandlerRef.current === registeredHandler) {
         keyDownHandlerRef.current = undefined
       }
     }
@@ -186,7 +192,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
     if (!isVisibleRef.current) return false
-    return keyDownHandlerRef.current?.(event) ?? false
+    const registeredHandler = keyDownHandlerRef.current
+    if (!registeredHandler || registeredHandler.generation !== panelGenerationRef.current) return false
+    return registeredHandler.handler(event)
   }, [])
 
   const getPanelGeneration = useCallback(() => panelGenerationRef.current, [])
