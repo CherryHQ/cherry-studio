@@ -156,6 +156,10 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
+    // Must be set before the first lazy require of @huggingface/transformers /
+    // ppu-paddle-ocr below (getTransformers/getPpu), both of which transitively
+    // require onnxruntime-node — see patches/onnxruntime-node@1.24.3.patch.
+    if (msg.onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = msg.onnxRuntimeBindingPath
     return
   }
   const run =

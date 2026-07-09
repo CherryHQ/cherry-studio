@@ -55,6 +55,7 @@ patchedDependencies:
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   ollama-ai-provider-v2@3.3.1: 8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb
+  onnxruntime-node@1.24.3: 71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
 importers:
@@ -117,7 +118,7 @@ importers:
         version: 4.2.0
       onnxruntime-node:
         specifier: 1.24.3
-        version: 1.24.3
+        version: 1.24.3(patch_hash=71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4)
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
@@ -139,6 +140,9 @@ importers:
       sqlite-vec:
         specifier: npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2
         version: '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
+      tar:
+        specifier: ^7.5.9
+        version: 7.5.9
       tesseract.js:
         specifier: 6.0.1
         version: 6.0.1(patch_hash=a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e)(encoding@0.1.13)
@@ -1007,9 +1011,6 @@ importers:
       tailwindcss:
         specifier: ^4.1.13
         version: 4.1.18
-      tar:
-        specifier: ^7.5.9
-        version: 7.5.9
       telegram-markdown-v2:
         specifier: ^0.0.4
         version: 0.0.4
@@ -16119,7 +16120,7 @@ snapshots:
     dependencies:
       '@huggingface/jinja': 0.5.9
       '@huggingface/tokenizers': 0.1.3
-      onnxruntime-node: 1.24.3
+      onnxruntime-node: 1.24.3(patch_hash=71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4)
       onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
       sharp: 0.34.5
 
@@ -25458,7 +25459,7 @@ snapshots:
 
   onnxruntime-common@1.24.3: {}
 
-  onnxruntime-node@1.24.3:
+  onnxruntime-node@1.24.3(patch_hash=71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4):
     dependencies:
       adm-zip: 0.5.17
       global-agent: 3.0.0
@@ -25848,7 +25849,7 @@ snapshots:
     dependencies:
       ppu-ocv: 3.3.0
     optionalDependencies:
-      onnxruntime-node: 1.24.3
+      onnxruntime-node: 1.24.3(patch_hash=71c99c82df12db37179886add68418fed961d54020a6fa126ff5b1e8c0cb77b4)
 
   prebuild-install@5.3.6:
     dependencies:

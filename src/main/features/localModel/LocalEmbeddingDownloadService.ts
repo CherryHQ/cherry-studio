@@ -11,6 +11,7 @@ import {
   unregisterLocalEmbeddingModelIfUnused
 } from '@main/features/localModel/localEmbeddingRegistration'
 import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
+import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
@@ -50,10 +51,15 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   protected isReady(): boolean {
-    return containsFile(this.modelDir(), MODEL_FILE)
+    return onnxRuntimeBinaryService.isReady() && containsFile(this.modelDir(), MODEL_FILE)
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
+    await onnxRuntimeBinaryService.ensure(signal, (fraction) => {
+      // Reserve the bar's first 10% for the onnxruntime binary; the 614MB model
+      // weights dominate, so this keeps the bar monotonic without a second UI.
+      this.broadcast({ status: 'downloading', percent: Math.round(fraction * 10) })
+    })
     const source = await currentModelSource()
     await application
       .get('EmbeddingInferenceHost')

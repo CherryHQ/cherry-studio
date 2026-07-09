@@ -31,6 +31,8 @@ export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
+  const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -87,7 +89,11 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
-    'feature.embedding.models': path.join(appUserDataData, 'Models', 'embedding'),
+    'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
+
+    // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
+    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
@@ -130,7 +136,7 @@ export function buildPathRegistry() {
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
     // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
-    'feature.ocr.paddleocr': path.join(appUserDataData, 'Models', 'ocr', 'paddleocr'),
+    'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),

@@ -9,6 +9,7 @@ import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localMode
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
+import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { net } from 'electron'
@@ -46,18 +47,26 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
   protected readonly kind: LocalModelKind = 'ocr'
 
   protected isReady(): boolean {
-    return isLocalPaddleocrModelDownloaded()
+    return onnxRuntimeBinaryService.isReady() && isLocalPaddleocrModelDownloaded()
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
     const paths = ocrModelPaths()
     const weights = LOCAL_MODELS.ocr.weights
     // The dictionary is a tiny fetch-and-parse step; weight it lightly so the
-    // bar doesn't sit at 100% while it finishes.
+    // bar doesn't sit at 100% while it finishes. onnxruntime is weighted roughly
+    // proportional to its ~20-60MB against the ~130MB of OCR weights.
     const DICTIONARY_WEIGHT = 1
-    const totalWeight = Object.values(weights).reduce((sum, file) => sum + file.weight, 0) + DICTIONARY_WEIGHT
-    await fs.promises.mkdir(ocrModelDir(), { recursive: true })
+    const ONNXRUNTIME_WEIGHT = 20
+    const totalWeight =
+      Object.values(weights).reduce((sum, file) => sum + file.weight, 0) + DICTIONARY_WEIGHT + ONNXRUNTIME_WEIGHT
     let doneWeight = 0
+    await onnxRuntimeBinaryService.ensure(signal, (fraction) => {
+      const percent = Math.round((100 * ONNXRUNTIME_WEIGHT * fraction) / totalWeight)
+      this.broadcast({ status: 'downloading', percent })
+    })
+    doneWeight += ONNXRUNTIME_WEIGHT
+    await fs.promises.mkdir(ocrModelDir(), { recursive: true })
     for (const key of Object.keys(weights) as (keyof typeof weights)[]) {
       const file = weights[key]
       await this.downloadFile(file, paths[key], signal, (fraction) => {

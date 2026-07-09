@@ -4,6 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
+import { onnxRuntimeBinaryService } from '@main/features/localModel/OnnxRuntimeBinaryService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
@@ -127,7 +128,8 @@ abstract class InferenceHostBase extends BaseService {
     worker.postMessage({
       type: 'init',
       cacheDir: application.getPath('feature.embedding.models'),
-      appPath: application.getPath('app.root')
+      appPath: application.getPath('app.root'),
+      onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath()
     })
     this.worker = worker
     return worker

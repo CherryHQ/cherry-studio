@@ -69,6 +69,7 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
+  - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -78,7 +79,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
-  - "node_modules/onnxruntime-node/bin/**" # onnxruntime native libs (.node/.dylib/.so/.dll) must be on disk to dlopen
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
 extraResources:
   - from: "migrations/sqlite-drizzle"

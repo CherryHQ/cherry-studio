@@ -50,6 +50,15 @@ vi.mock('@main/features/localModel/localEmbeddingRegistration', () => ({
   unregisterLocalEmbeddingModelIfUnused: unregisterMock
 }))
 
+// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
+// stub it as always-ready/no-op here so these tests only exercise the model-weight lifecycle.
+vi.mock('@main/features/localModel/OnnxRuntimeBinaryService', () => ({
+  onnxRuntimeBinaryService: {
+    isReady: vi.fn(() => true),
+    ensure: vi.fn(async () => undefined)
+  }
+}))
+
 // Pin to a supported platform so the ready probe is deterministic regardless of
 // the machine this runs on (see LocalModelDownloadService.darwinX64.test.ts for the gate).
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))

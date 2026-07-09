@@ -7,6 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: vi.fn().mockResolvedValue(false) } }))
 
+// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
+// stub it as already-ready so these tests only exercise the OCR weight/dictionary lifecycle.
+vi.mock('@main/features/localModel/OnnxRuntimeBinaryService', () => ({
+  onnxRuntimeBinaryService: {
+    isReady: vi.fn(() => true),
+    ensure: vi.fn(async () => undefined)
+  }
+}))
+
 const { createWriteStream, mkdir, rename, writeFile, rm } = vi.hoisted(() => ({
   createWriteStream: vi.fn(),
   mkdir: vi.fn(),

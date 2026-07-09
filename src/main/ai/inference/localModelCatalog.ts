@@ -73,3 +73,40 @@ export const LOCAL_MODELS = {
     dictionary: { repo: string; sourceFile: string; fileName: string; minBytes: number }
   }
 }
+
+/** Must match package.json's pinned `onnxruntime-node` dependency version. */
+export const ONNXRUNTIME_NODE_VERSION = '1.24.3'
+
+/** sha256 of the whole `onnxruntime-node@{ONNXRUNTIME_NODE_VERSION}` npm tarball — the
+ * per-platform native binary + shared lib(s) are extracted from this same verified stream,
+ * so there is no separate sub-file checksum to track. Regenerate with:
+ * `curl -sL https://registry.npmjs.org/onnxruntime-node/-/onnxruntime-node-{version}.tgz | shasum -a 256` */
+export const ONNXRUNTIME_TARBALL_SHA256 = 'aa1bb5fa261ea68de05dd53efbba210cd7adf2d2850f4c3a201054c74cc78040'
+
+/** Platform+arch leaf inside the onnxruntime-node npm tarball; mirrors dist/binding.js's own
+ * `bin/napi-v6/${process.platform}/${process.arch}` addressing. */
+export interface OnnxRuntimeLeaf {
+  binding: string
+  sharedLibs: string[]
+}
+
+/** No `darwin.x64` entry — onnxruntime-node ships no darwin-x64 binding (see `isDarwinX64`). */
+export const ONNXRUNTIME_LEAVES: Record<string, Record<string, OnnxRuntimeLeaf>> = {
+  darwin: {
+    arm64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.1.24.3.dylib'] }
+  },
+  linux: {
+    x64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.so.1'] },
+    arm64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.so.1'] }
+  },
+  win32: {
+    x64: {
+      binding: 'onnxruntime_binding.node',
+      sharedLibs: ['onnxruntime.dll', 'DirectML.dll', 'dxil.dll', 'dxcompiler.dll']
+    },
+    arm64: {
+      binding: 'onnxruntime_binding.node',
+      sharedLibs: ['onnxruntime.dll', 'DirectML.dll', 'dxil.dll', 'dxcompiler.dll']
+    }
+  }
+}

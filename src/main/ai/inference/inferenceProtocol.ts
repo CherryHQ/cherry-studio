@@ -27,6 +27,10 @@ export interface InferenceInitMessage {
   cacheDir: string
   /** App root, used by the worker to resolve `@huggingface/transformers`. */
   appPath: string
+  /** Absolute path to the downloaded onnxruntime-node native binding — set as
+   * `CHERRY_ONNXRUNTIME_BINDING_PATH` in the worker's own env before its first lazy
+   * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see OnnxRuntimeBinaryService). */
+  onnxRuntimeBindingPath: string
 }
 
 /** Load (downloading if absent) the embedding pipeline; emits progress. */
