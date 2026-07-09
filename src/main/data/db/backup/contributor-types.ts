@@ -190,9 +190,17 @@ export interface RowTransformContext extends BackupContextBase {
 }
 
 /**
- * Context for afterImport. backupDb is write-scoped to the contributor's tables
- * (backup-copy cleanup / redaction); liveDb is read-only (FTS rebuild and cache
- * reload go through business Services, never a direct ctx.liveDb write).
+ * Context for afterImport (D model / #16714).
+ *
+ * Target semantics (C-import wires the handles):
+ * - `backupDb`: write-scoped `BackupScopedDb` over the detached `work.sqlite`
+ *   (own tables only) — FTS rebuild and in-tx derived writes land here.
+ * - `liveDb`: read-only view of the **same** detached work copy (not the live
+ *   DbService DB). Name is historical; C-import may rename later.
+ *
+ * Cache reload / timer re-arm are NOT done here — D model completes them via
+ * relaunch after preboot promotion (`PreferenceService.onInit` /
+ * `JobManager` startup recovery). Never write the live DB from this hook.
  */
 export interface AfterImportContext extends BackupContextBase {
   readonly importedRowCount: number
@@ -207,9 +215,14 @@ export interface RestoreResourceResult {
 }
 
 /**
- * Context for restoreResources. Paths are pre-resolved strings (the orchestrator
- * centralizes application.getPath); filesAffected is the pre-write planned set
- * (the file-snapshot source) that restoreResources only reads to verify.
+ * Context for restoreResources (D model / #16714 / architecture §9).
+ *
+ * Runtime writes restored blobs into the staging tree under `backupRoot`; the
+ * preboot promotion gate later promotes staging → live per the restore journal.
+ * `liveFileRoot` is only used to compute journal `livePath` targets — contributors
+ * MUST NOT write live paths in-place. `filesAffected` is the pre-write planned set
+ * that restoreResources only reads to verify. Paths are pre-resolved by the
+ * orchestrator (`application.getPath`).
  */
 export interface RestoreResourceContext extends BackupContextBase {
   readonly backupRoot: string
