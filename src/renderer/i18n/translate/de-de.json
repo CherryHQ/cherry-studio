@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Tiefgehend nachgedacht ({{seconds}} Sekunden)",
     "default": {
-      "description": "Hallo, ich bin der Standardassistent. Sie können sofort mit mir chatten",
-      "name": "Standardassistent",
+      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "Standardthema"
       }

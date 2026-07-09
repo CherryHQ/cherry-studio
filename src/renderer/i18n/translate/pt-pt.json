@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Profundamente pensado (demorou {{seconds}} segundos)",
     "default": {
-      "description": "Olá, eu sou o assistente padrão. Você pode começar a conversar comigo agora.",
-      "name": "Assistente Padrão",
+      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "Tópico Padrão"
       }

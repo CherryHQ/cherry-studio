@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Profundamente pensado (tomó {{seconds}} segundos)",
     "default": {
-      "description": "Hola, soy el asistente predeterminado. Puedes comenzar a conversar conmigo de inmediato.",
-      "name": "Asistente predeterminado",
+      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "Tema predeterminado"
       }

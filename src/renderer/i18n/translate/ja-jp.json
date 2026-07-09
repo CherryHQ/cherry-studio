@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "深く考えています（{{seconds}} 秒）",
     "default": {
-      "description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
-      "name": "デフォルトアシスタント",
+      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "デフォルトトピック"
       }

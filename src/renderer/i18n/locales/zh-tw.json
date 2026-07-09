@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是預設助手。你可以立即開始與我聊天",
-      "name": "預設助手",
+      "description": "你好，我是 Cherry助手。你可以立即開始與我聊天",
+      "name": "Cherry助手",
       "topic": {
         "name": "預設對話"
       }

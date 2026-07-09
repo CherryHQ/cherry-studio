@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Мыслим ({{seconds}} секунд)",
     "default": {
-      "description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
-      "name": "Ассистент по умолчанию",
+      "description": "[to be translated]:Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "Топик по умолчанию"
       }
