@@ -3599,6 +3599,41 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['Enter', new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })],
+    ['Ctrl+Enter', new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })]
+  ])('suppresses %s sends while the visible QuickPanel has no active key handler', async (shortcut, event) => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = shortcut
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('preserves Shift+Enter newline while the visible QuickPanel has no active key handler', async () => {
+    const onSendDraft = vi.fn()
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
   it('uses the latest send-message shortcut from preference updates', async () => {
     const onSendDraft = vi.fn()
     const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)

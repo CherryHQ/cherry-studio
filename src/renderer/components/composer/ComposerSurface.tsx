@@ -1217,6 +1217,11 @@ export default function ComposerSurface({
           ) {
             return false
           }
+          if (qp.isVisible && event.key === 'Enter') {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
         }
 
         if (event.key === 'Escape' && isExpandedRef.current) {
