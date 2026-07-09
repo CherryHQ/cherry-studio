@@ -3,8 +3,7 @@
 // Co-located in the MCP owning module (McpServerService lives in this flat
 // data-services dir) per backup-architecture §7 placement. Schema-only domain:
 // no cross-domain references, no aggregate members, no operations hooks, no
-// file/JSON soft-refs (mcp_server.logoUrl is a URL string, not a file_entry ref)
-// — see openspec simple-domains.md "MCP_SERVERS".
+// file/JSON soft-refs (mcp_server.logoUrl is a URL string, not a file_entry ref).
 //
 // Preset: full + lite.
 

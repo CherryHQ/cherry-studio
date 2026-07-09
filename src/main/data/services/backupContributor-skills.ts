@@ -4,8 +4,7 @@
 // flat data-services dir) per backup-architecture §7 placement. `agent_global_skill`
 // is the USER-ENABLED global skill registry — distinct from AGENTS' `agent_skill`
 // junction (which maps agents→skills and belongs to AGENTS). Schema-only domain:
-// no cross-domain references, no aggregate members, no operations hooks
-// (see openspec simple-domains.md "SKILLS").
+// no cross-domain references, no aggregate members, no operations hooks.
 //
 // Preset: full + lite.
 
@@ -40,7 +39,7 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   },
   backupPolicy: {},
   // TODO(C/D track + spec clarification): the domain spec marks SKILLS schema-only
-  // ("无文件资源"), but SkillService reads + symlinks skill content from the directory
+  // (no file resources), but SkillService reads + symlinks skill content from the directory
   // {userData}/feature.agents.skills/{folderName}. A schema-only restore re-creates the
   // agent_global_skill ROW but leaves that directory absent → file reads + agent skill
   // reconciliation point at a missing folder (codex review P2). Resolve before the
