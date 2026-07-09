@@ -166,6 +166,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   const MockArtifactPane = ({
     workspacePath,
+    maximized,
     previewFileSelection,
     onPreviewClose,
     selectedFile,
@@ -176,6 +177,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     onFileTreeSearchKeywordChange
   }: {
     workspacePath?: string
+    maximized?: boolean
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
     selectedFile?: string | null
@@ -201,6 +203,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       <div
         data-testid="artifact-pane"
         data-workspace-path={workspacePath ?? ''}
+        data-maximized={String(Boolean(maximized))}
         data-selected-file={selectedFile ?? ''}
         data-view-mode={viewMode}
         data-expanded-ids={Array.from(resolvedExpandedIds).sort().join(',')}
@@ -268,6 +271,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     selectedFile,
     onSelectedFileChange,
     workspacePath,
+    maximized,
     previewFileSelection,
     onPreviewClose
   }: {
@@ -280,11 +284,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     selectedFile: string | null
     onSelectedFileChange: (file: string | null) => void
     workspacePath?: string
+    maximized?: boolean
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
   }) => (
     <MockArtifactPane
       workspacePath={workspacePath}
+      maximized={maximized}
       previewFileSelection={previewFileSelection}
       onPreviewClose={onPreviewClose}
       selectedFile={selectedFile}
@@ -682,6 +688,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-composer-elevated', 'true')
     expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })

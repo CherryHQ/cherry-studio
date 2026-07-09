@@ -404,6 +404,7 @@ function AgentRightPaneFilesPanel() {
   return (
     <ArtifactPaneView
       workspacePath={state.workspacePath}
+      maximized={shellState.maximized}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={shellState.pdfLayoutPending}
@@ -647,7 +648,7 @@ function AgentRightPaneSurface() {
         </Shell.Panel>
       ))}
       {hasStatus && (
-        <Shell.Panel value="status" className="overflow-auto">
+        <Shell.Panel value="status" className="overflow-auto pb-[var(--chat-maximized-pane-safe-bottom,0px)]">
           <AgentAgentRightPaneStatusPanel />
         </Shell.Panel>
       )}

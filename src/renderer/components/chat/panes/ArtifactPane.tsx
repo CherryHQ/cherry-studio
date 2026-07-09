@@ -77,6 +77,9 @@ interface ArtifactFilePreviewProps {
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS = 'pb-[var(--chat-maximized-pane-safe-bottom,0px)]'
+const MAXIMIZED_PANE_FRAMED_PREVIEW_HEIGHT_CLASS =
+  'h-[calc(100%_-_2.25rem_-_var(--chat-maximized-pane-safe-bottom,0px))]'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
 // not text-vs-binary classification. Text detection lives in `useIsTextFile`.
@@ -647,6 +650,8 @@ export function ArtifactPaneView({
   const isSelectedPdfPreview = isPdfSelection
   const isSelectedOfficePreview = isOfficeDocumentSelection
   const isSelectedImagePreview = isImageSelection
+  const isSelectedFramedPreview =
+    isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
 
   const renderOverlay = () => {
     if (!overlaySelection) return null
@@ -659,9 +664,8 @@ export function ArtifactPaneView({
         onKeyDown={handleOverlayKeyDown}
         className={cn(
           'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-            ? 'overflow-hidden'
-            : 'overflow-auto'
+          isSelectedFramedPreview ? 'overflow-hidden' : 'overflow-auto',
+          !isSelectedFramedPreview && MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS
         )}>
         <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
@@ -679,7 +683,7 @@ export function ArtifactPaneView({
             </Button>
           </Tooltip>
         </div>
-        <div className="min-h-0 flex-1">
+        <div className={cn('min-h-0', isSelectedFramedPreview ? MAXIMIZED_PANE_FRAMED_PREVIEW_HEIGHT_CLASS : 'flex-1')}>
           <ArtifactFilePreview
             workspacePath={overlaySelection.workspacePath}
             filePath={overlaySelection.filePath}
@@ -769,7 +773,12 @@ export function ArtifactPaneView({
       )}>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            data-artifact-file-tree-scroll-region
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto overflow-x-hidden',
+              MAXIMIZED_PANE_SAFE_BOTTOM_PADDING_CLASS
+            )}>
             {renderFileTree()}
           </div>
         </aside>

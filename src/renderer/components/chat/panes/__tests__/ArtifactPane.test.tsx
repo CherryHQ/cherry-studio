@@ -754,6 +754,17 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
   })
 
+  it('keeps the file tree scrollable above the composer safe area while maximized', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(document.querySelector('[data-artifact-file-tree-scroll-region]')).toHaveClass(
+      'pb-[var(--chat-maximized-pane-safe-bottom,0px)]'
+    )
+  })
+
   it('renders an external preview selection even when no workspace tree is available', async () => {
     mocks.fsReadText.mockResolvedValue('# External')
 
@@ -1158,7 +1169,7 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.fsReadText.mockResolvedValue('const value = "a very long line";')
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src/index.ts')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
@@ -1168,6 +1179,9 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass(
+      'pb-[var(--chat-maximized-pane-safe-bottom,0px)]'
+    )
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
@@ -1176,7 +1190,7 @@ describe('ArtifactPane', () => {
       '<!doctype html><html><head><title>Hello</title></head><body><a href="about.html">About</a></body></html>'
     )
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" maximized />)
     await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-index.html'))
@@ -1191,6 +1205,9 @@ describe('ArtifactPane', () => {
     expect(iframe).toHaveAttribute('title', 'index.html')
     expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('artifact-file-preview-overlay').children.item(1)).toHaveClass(
+      'h-[calc(100%_-_2.25rem_-_var(--chat-maximized-pane-safe-bottom,0px))]'
+    )
   })
 
   it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
