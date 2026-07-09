@@ -38,9 +38,9 @@
       "comingSoon": "即将推出",
       "connected": "已连接",
       "connecting": "连接中",
-      "createError": "",
+      "createError": "创建频道失败",
       "deleteConfirm": "确定删除频道「{{name}}」？",
-      "deleteError": "",
+      "deleteError": "删除频道失败",
       "description": "将您的智能体连接到消息平台。",
       "disconnected": "已断开",
       "discord": {
@@ -124,7 +124,7 @@
         "title": "Telegram"
       },
       "title": "频道",
-      "updateError": "",
+      "updateError": "更新频道失败",
       "wechat": {
         "addAccount": "添加微信账号",
         "chatIds": "允许的用户 ID",
@@ -658,7 +658,7 @@
       "error": {
         "createFailed": "创建任务失败",
         "deleteFailed": "删除任务失败",
-        "loadFailed": "",
+        "loadFailed": "加载任务失败",
         "runFailed": "运行任务失败",
         "updateFailed": "更新任务失败"
       },
@@ -678,7 +678,7 @@
         "failed": "失败",
         "justNow": "刚刚",
         "label": "运行历史",
-        "loadError": "",
+        "loadError": "加载运行历史失败",
         "result": "结果",
         "runAt": "运行时间",
         "running": "运行中...",
