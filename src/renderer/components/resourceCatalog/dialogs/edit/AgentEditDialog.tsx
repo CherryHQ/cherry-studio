@@ -31,6 +31,7 @@ import {
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
@@ -65,6 +66,7 @@ type AgentEditFormValues = {
   smallModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  skillIds: string[]
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
@@ -121,6 +123,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     smallModelId: form.smallModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
+    skillIds: [...form.skillIds],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
@@ -149,6 +152,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     smallModel: values.smallModelId || '',
     instructions: values.instructions,
     mcps: values.mcps,
+    skillIds: values.skillIds,
     disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
@@ -163,6 +167,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
+  form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('soulEnabled', next.soulEnabled, { shouldDirty: true })
@@ -204,15 +209,32 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
+  const { skills, loading: skillsLoading } = useInstalledSkills(resource.id || undefined, {
+    enabled: open && Boolean(resource.id)
+  })
+  const skillIdsFromQueryKey = useMemo(
+    () =>
+      skills
+        .filter((skill) => skill.isEnabled)
+        .map((skill) => skill.id)
+        .join('\0'),
+    [skills]
+  )
+  const skillIdsFromQuery = useMemo(
+    () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
+    [skillIdsFromQueryKey]
+  )
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource)
+    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
     return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+  }, [baselineSkillIds, resource, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -240,7 +262,16 @@ function AgentEditDialogContent({
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
+    setBaselineSkillIds([])
+    setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
+
+  useEffect(() => {
+    if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
+    setBaselineSkillIds(skillIdsFromQuery)
+    form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
+    setBaselineSkillAgentId(resource.id)
+  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
@@ -311,6 +342,8 @@ function AgentEditDialogContent({
             form={form}
             activeToolTab={activeTab}
             portalContainer={dialogContentElement}
+            skills={skills}
+            skillsLoading={skillsLoading}
           />
         </TabsContent>
       ) : null}
@@ -589,16 +622,21 @@ function AgentToolsFields({
   agent,
   form,
   activeToolTab,
-  portalContainer
+  portalContainer,
+  skills,
+  skillsLoading
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
+  skills: InstalledSkill[]
+  skillsLoading: boolean
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
+  const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
@@ -638,7 +676,6 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
-  const { skills, loading: skillsLoading, toggle: toggleSkill } = useInstalledSkills(agent.id || undefined)
   const skillCatalog = useMemo<CatalogItem[]>(
     () =>
       skills.map((skill) => ({
@@ -649,17 +686,13 @@ function AgentToolsFields({
       })),
     [skills]
   )
-  const enabledSkillIds = useMemo(
-    () => new Set(skills.filter((skill) => skill.isEnabled).map((skill) => skill.id)),
-    [skills]
-  )
-  const flipSkill = async (id: string, nextEnabled: boolean) => {
-    try {
-      await toggleSkill(id, nextEnabled)
-    } catch {
-      // useInstalledSkills owns toast/logging for toggle failures.
-    }
-  }
+  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
+  const setSkillEnabled = (id: string, enabled: boolean) =>
+    form.setValue(
+      'skillIds',
+      enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
+      { shouldDirty: true }
+    )
 
   return (
     <div className="grid gap-4">
@@ -694,7 +727,7 @@ function AgentToolsFields({
           enabledIds={enabledSkillIds}
           loading={skillsLoading}
           disabled={!canManageSkills}
-          onToggle={flipSkill}
+          onToggle={setSkillEnabled}
           emptyLabel={
             canManageSkills
               ? t('library.config.agent.section.tools.no_skills_enabled')
