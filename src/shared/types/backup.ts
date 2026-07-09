@@ -29,8 +29,8 @@ export type S3Config = {
 }
 
 /**
- * V2 export progress update (spec backup-service-lifecycle.md "Export/Restore 触发
- * emit 进度"). Progress is UI-only — never participates in correctness. The renderer
+ * V2 export progress update, emitted during export/restore. Progress is UI-only —
+ * never participates in correctness. The renderer
  * routes updates by `backupId` (the startBackup return value, also the cancel key).
  *
  * `phase` is the coarse pipeline step; export uses `snapshot` (DB copy), `collect`

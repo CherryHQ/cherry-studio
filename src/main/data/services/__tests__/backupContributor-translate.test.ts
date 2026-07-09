@@ -1,6 +1,6 @@
 // Unit tests for the TRANSLATE_HISTORY contributor — pure declaration assertions (no DB),
-// mirroring the other 12 contributor test files per contributor-testing.md
-// "contributor 单元测试（每域 __tests__/）".
+// mirroring the other 12 contributor test files — "contributor unit tests
+// (per-domain __tests__/)".
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { TRANSLATE_HISTORY_CONTRIBUTOR } from '@main/services/translate/backupContributor'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +15,7 @@ describe('TRANSLATE_HISTORY contributor', () => {
 
   it('two INDEPENDENT aggregates (translate_history is NOT a member of translate_language)', () => {
     // Independence matters: a history row survives a langCode-group SKIP/FIELD_MERGE —
-    // member semantics would wrongly drop it. See openspec simple-domains.md.
+    // member semantics would wrongly drop it.
     const language = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find(
       (a) => a.root === table('translate_language')
     )!

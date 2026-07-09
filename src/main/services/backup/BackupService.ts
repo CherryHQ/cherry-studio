@@ -149,7 +149,7 @@ export class BackupService extends BaseService {
     this.activeExport = active
     try {
       // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
-      // here rather than a mid-export SQLITE_FULL (spec export-orchestrator.md §磁盘预算).
+      // here rather than a mid-export SQLITE_FULL (disk budget).
       await this.preflightDisk(preset, outputPath)
       const result = await this.orchestrator.exportBackup({
         preset,
@@ -169,8 +169,8 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Verify enough free space for the export. The 1.2× safety factor matches spec
-   * §磁盘预算.
+   * Verify enough free space for the export. The 1.2× safety factor matches the
+   * disk budget.
    *
    * Budget per preset:
    * - DB online copy + DB embedded in archive = 2× live DB (both presets).

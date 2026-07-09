@@ -1,9 +1,9 @@
 // ContributorManager.finalize() core — validates the 26 registry invariants
-// (registry.md §"finalize 26 不变量") against the codegen facts (DB_TABLES /
+// (the 26 finalize invariants) against the codegen facts (DB_TABLES /
 // DB_COLUMNS_BY_TABLE / DB_FOREIGN_KEYS) and the contributor declarations,
 // then builds the immutable registry data. Pure / in-memory — never touches
-// SQLite (full-table coverage is the coverage test's job, registry.md §"finalize
-// 不连 DB 与覆盖率守门").
+// SQLite (full-table coverage is the coverage test's job; pure-declaration tests
+// do not connect to the DB).
 //
 // `finalize` takes the contributors as a parameter so it is unit-testable with
 // synthetic contributors; the production ContributorManager wires the real 14
@@ -76,7 +76,7 @@ function isLegalGlob(glob: string): boolean {
 }
 
 /**
- * Map a generated FK's onDelete to the ReferenceKind it implies (registry.md #19).
+ * Map a generated FK's onDelete to the ReferenceKind it implies (finalize invariant #19).
  * cascade/restrict → owning; set null/no action → optional; set default → rejected.
  */
 const expectedKindForOnDelete = (
@@ -96,7 +96,7 @@ const expectedKindForOnDelete = (
  */
 export function finalize(
   contributors: readonly BackupContributor[],
-  meta: { finalizedAt: string; schemaCommit: string }
+  meta: { finalizedAt: string }
 ): ReadonlyBackupRegistry {
   // ── #1: exactly one contributor per domain; the set is the 14 BACKUP_DOMAINS ─
   const byDomain = new Map<BackupDomain, BackupContributor>()
@@ -180,7 +180,7 @@ export function finalize(
 
   // ── #11: every FileRefSourceType is owned or runtime-only-excluded (set diff) ─
   // Runtime-only sourceTypes (in-memory, no owner) are pre-covered — architecture
-  // L193/L283 "temp_session excluded（runtime）", contributor-spec §11 runtime-only-exclude.
+  // L193/L283 "temp_session excluded (runtime)", contributor-spec §11 runtime-only-exclude.
   const coveredSources = new Set<FileRefSourceType>(RUNTIME_EXCLUDED_FILE_REF_SOURCES)
   for (const c of contributors) {
     for (const p of c.schema.fileRefSourcePolicies) {
@@ -270,7 +270,7 @@ export function finalize(
       }
       // #14: each member derives from an in-domain OWNING reference on viaColumn
       //      (junction tables and cross-domain refs are explicitly excluded,
-      //      registry.md #14); only `include`-cascade members are derived this way.
+      //      finalize invariant #14); only `include`-cascade members are derived this way.
       //      The member→parent chain must also be acyclic.
       const members = agg.members ?? []
       for (const m of members) {
@@ -282,7 +282,7 @@ export function finalize(
       }
       detectMemberParentCycle(agg.root, members, c.domain, agg.root)
       // #15: member tables owned by this domain; viaColumn is a real FK bound to
-      //      the root or the member's declared parent (registry.md #15).
+      //      the root or the member's declared parent (finalize invariant #15).
       for (const m of members) {
         if (!owned.has(m.table)) fail({ invariant: 15, domain: c.domain, aggregate: agg.root, member: m.table })
         const parentTable = m.parent ?? agg.root
@@ -493,7 +493,7 @@ export function finalize(
     }
   }
 
-  // ── Build finalized aggregates with derived defaults filled (registry.md #14) ─
+  // ── Build finalized aggregates with derived defaults filled (finalize invariant #14) ─
   // The registry exposes finalized boundaries (identityKey/identityClass/
   // conflictDefault/members derived where the contributor omitted them), so
   // consumers never see a half-specified aggregate.
@@ -512,13 +512,12 @@ export function finalize(
     domainDependencies: new Map([...domainDependencies.entries()].map(([d, deps]) => [d, [...deps]] as const)),
     finalizedAggregatesByDomain,
     finalizedAt: meta.finalizedAt,
-    schemaCommit: meta.schemaCommit
   }
   return new ReadonlyBackupRegistryImpl(data)
 }
 
 /**
- * Fill an aggregate's derived defaults (registry.md #14): identityKey (root PK),
+ * Fill an aggregate's derived defaults (finalize invariant #14): identityKey (root PK),
  * identityClass (PK kind), conflictDefault (identityClass→strategy), and members
  * (in-domain owning references whose FK targets the root). Explicit values win;
  * only omitted fields are derived — so the registry always exposes a complete
@@ -531,7 +530,7 @@ function finalizeAggregate(agg: AggregateBoundary, c: BackupContributor): Aggreg
     agg.identityClass ?? (rootPk?.kind === 'uuid-v4' || rootPk?.kind === 'uuid-v7' ? 'uuid-entity' : 'natural-key')
   const conflictDefault = agg.conflictDefault ?? (identityClass === 'uuid-entity' ? 'SKIP' : 'FIELD_MERGE')
   // members: explicit if provided, else derived from in-domain OWNING references
-  // whose generated FK targets the root (registry.md #14 derivation rule).
+  // whose generated FK targets the root (finalize invariant #14 derivation rule).
   const members =
     agg.members ??
     c.schema.references

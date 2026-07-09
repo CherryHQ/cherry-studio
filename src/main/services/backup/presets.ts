@@ -1,7 +1,7 @@
 // Backup export presets — resolve 'full' | 'lite' to a domain set.
 //
-// Source of truth for the preset → domain-set mapping (backup-architecture.md §2 +
-// export-orchestrator.md; domains.ts L14-17 documents the lite exclusion). The
+// Source of truth for the preset → domain-set mapping (backup-architecture.md §2;
+// domains.ts L14-17 documents the lite exclusion). The
 // orchestrator further topo-sorts the result by reference dependency before
 // invoking contributor hooks; this module only selects the domain subset.
 
