@@ -80,22 +80,53 @@ vi.mock('@renderer/components/command', async () => {
   }
 })
 
-function mockSelection(text: string) {
+function mockSelection(text: string, fragment?: DocumentFragment) {
+  const hasSelection = text.length > 0 || !!fragment
   const selection = {
     getRangeAt: () => ({
-      cloneContents: () => document.createDocumentFragment()
+      cloneContents: () =>
+        (fragment?.cloneNode(true) as DocumentFragment | undefined) ?? document.createDocumentFragment()
     }),
-    isCollapsed: text.length === 0,
-    rangeCount: text.length > 0 ? 1 : 0,
+    isCollapsed: !hasSelection,
+    rangeCount: hasSelection ? 1 : 0,
     toString: () => text
   } as unknown as Selection
 
   vi.spyOn(window, 'getSelection').mockReturnValue(selection)
 }
 
+function createCodeSelectionFragment(lines: string[]) {
+  const fragment = document.createDocumentFragment()
+
+  lines.forEach((lineText, index) => {
+    const line = document.createElement('div')
+    line.className = 'line'
+
+    const lineNumber = document.createElement('span')
+    lineNumber.className = 'line-number'
+    lineNumber.textContent = String(index + 1)
+    line.append(lineNumber)
+
+    const lineContent = document.createElement('span')
+    lineContent.className = 'line-content'
+    lineContent.append(document.createTextNode(lineText))
+    line.append(lineContent)
+
+    fragment.append(line)
+  })
+
+  return fragment
+}
+
 describe('SelectionContextMenu', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      }
+    })
     ;(window as any).api = { quoteToMainWindow: vi.fn() }
     ;(window as any).toast = {
       error: vi.fn(),
@@ -119,6 +150,39 @@ describe('SelectionContextMenu', () => {
 
   it('shows selection actions when text is selected', () => {
     mockSelection('selected text')
+
+    render(
+      <SelectionContextMenu>
+        <div data-testid="target">message</div>
+      </SelectionContextMenu>
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('target'))
+
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Quote' })).toBeInTheDocument()
+  })
+
+  it('preserves indentation when selected code includes line numbers', () => {
+    mockSelection(
+      '1    const value = 1\n2  return value',
+      createCodeSelectionFragment(['    const value = 1', '  return value'])
+    )
+
+    render(
+      <SelectionContextMenu>
+        <div data-testid="target">message</div>
+      </SelectionContextMenu>
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('target'))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('    const value = 1\n  return value')
+  })
+
+  it('keeps whitespace-only code selections actionable', () => {
+    mockSelection('1    ', createCodeSelectionFragment(['    ']))
 
     render(
       <SelectionContextMenu>

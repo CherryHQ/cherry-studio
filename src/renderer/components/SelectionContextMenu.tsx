@@ -51,7 +51,7 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.trim()
+  return result.startsWith('\n') ? result.slice(1) : result
 }
 
 /**
