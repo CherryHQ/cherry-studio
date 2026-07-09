@@ -81,6 +81,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn()
 }))
 

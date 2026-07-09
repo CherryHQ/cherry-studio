@@ -29,7 +29,11 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import {
+  isProvisioned,
+  loadBuiltinAgentDefinition,
+  provisionBuiltinAgent
+} from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
@@ -74,6 +78,8 @@ import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
+const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
+  'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
 const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
@@ -961,13 +967,24 @@ export async function buildSystemPrompt(
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
 
-  // Provision builtin agent workspace
+  // Builtin contract: empty DB instructions means the bundle owns the definition,
+  // so app upgrades and language changes apply at session build time. A non-empty
+  // user edit is user-owned and is never overwritten. Clearing the field returns
+  // to bundled behavior; blocking that edge case belongs in future UI validation.
   let instructions = agent.instructions
-  if (builtinRole && cwd && !isProvisioned(cwd)) {
-    const provisioned = await provisionBuiltinAgent(cwd, builtinRole)
-    if (provisioned?.instructions && !instructions) {
-      instructions = provisioned.instructions
+  if (builtinRole && !instructions) {
+    const definition = loadBuiltinAgentDefinition(builtinRole)
+    if (definition?.instructions) {
+      instructions = definition.instructions
+    } else if (isAssistant) {
+      logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
+      instructions = MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS
     }
+  }
+
+  // Provision builtin agent workspace resources independently from prompt resolution.
+  if (builtinRole && cwd && !isProvisioned(cwd)) {
+    await provisionBuiltinAgent(cwd, builtinRole)
   }
 
   // Channel security (still scoped per session — channels link to a session)

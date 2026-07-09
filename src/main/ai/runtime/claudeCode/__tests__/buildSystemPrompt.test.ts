@@ -10,11 +10,20 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFindBySessionId, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted(() => ({
+const {
+  mockFindBySessionId,
+  mockMkdir,
+  mockRealpath,
+  mockGetPath,
+  mockApplicationGet,
+  mockLoadBuiltinAgentDefinition
+} = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
+  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockApplicationGet: vi.fn(),
+  mockLoadBuiltinAgentDefinition: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -33,7 +42,7 @@ vi.mock('node:fs', async (importOriginal) => {
 })
 
 vi.mock('@application', () => ({
-  application: { get: vi.fn(), getPath: mockGetPath }
+  application: { get: mockApplicationGet, getPath: mockGetPath }
 }))
 
 vi.mock('@main/i18n', () => ({
@@ -49,8 +58,17 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mockFindBySessionId, listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: { list: vi.fn(() => ({ items: [] })) }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { list: vi.fn(() => []) }
+}))
+
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: mockLoadBuiltinAgentDefinition,
   provisionBuiltinAgent: vi.fn()
 }))
 
@@ -62,6 +80,16 @@ const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
+
+beforeEach(() => {
+  vi.unstubAllGlobals()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true }))
+  )
+  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  mockLoadBuiltinAgentDefinition.mockReset()
+})
 
 function makeSession(): AgentSessionEntity {
   return { id: 'sess-1', agentId: 'agent-1' } as unknown as AgentSessionEntity
@@ -127,5 +155,48 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(RUNTIME_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
+  beforeEach(() => {
+    mockFindBySessionId.mockResolvedValue(null)
+  })
+
+  it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
+    mockLoadBuiltinAgentDefinition
+      .mockReturnValueOnce({ instructions: 'English bundled instructions' })
+      .mockReturnValueOnce({ instructions: '中文内置指令' })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(en as string).toContain('English bundled instructions')
+    expect(zh as string).toContain('中文内置指令')
+    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses user-owned DB instructions when non-empty', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled instructions' })
+    const agent = makeAgent({
+      instructions: 'User instructions',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain('User instructions')
+    expect(result as string).not.toContain('Bundled instructions')
+    expect(mockLoadBuiltinAgentDefinition).not.toHaveBeenCalled()
+  })
+
+  it('uses a minimal role fallback when the bundled template is missing and DB instructions are empty', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue(undefined)
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain('You are Cherry Assistant, the built-in helper for Cherry Studio')
   })
 })
