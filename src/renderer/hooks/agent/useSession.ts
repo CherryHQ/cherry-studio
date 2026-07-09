@@ -28,7 +28,7 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -94,15 +94,42 @@ export interface UseActiveSessionOptions {
   activeSessionId: string | null
   /** Write back when callers select a different session. */
   setActiveSessionId: (id: string | null) => void
-  pendingSession?: AgentSessionEntity | null
+  /** Optimistic session to paint before its by-id query resolves (e.g. first-entry restore). */
+  initialSession?: AgentSessionEntity | null
 }
 
-export const useActiveSession = ({ activeSessionId, setActiveSessionId, pendingSession }: UseActiveSessionOptions) => {
+/**
+ * Resolves the active session (query-backed, with an optimistic fallback) and owns the pending
+ * session itself — mirroring {@link import('@renderer/hooks/useTopic').useActiveTopic}. Callers pass
+ * only `activeSessionId` + `setActiveSessionId` and drive selection through `setActiveSession` /
+ * `selectSession` / `clearActiveSession`; the hook keeps pending in `useState` so a stale optimistic
+ * session is ignored via the id match rather than eagerly nulled at every call site.
+ */
+export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialSession }: UseActiveSessionOptions) => {
   const result = useSession(activeSessionId)
+  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(() => initialSession ?? null)
+
   const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
+  // returned, never counted as the source), so no path has to null it out to stay correct.
   const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
   const session = querySession ?? resolvedPendingSession
   const sessionSource: AgentSessionSource = querySession ? 'query' : resolvedPendingSession ? 'pending' : 'none'
+
+  // Set the active id and its optimistic session together. `entity` may be null to move to an id
+  // whose row is fetched by query (e.g. history/global-search reveal), or the id may be null to clear.
+  const selectSession = useCallback(
+    (sessionId: string | null, entity?: AgentSessionEntity | null) => {
+      setPendingSession(entity ?? null)
+      setActiveSessionId(sessionId)
+    },
+    [setActiveSessionId]
+  )
+  const setActiveSession = useCallback(
+    (entity: AgentSessionEntity) => selectSession(entity.id, entity),
+    [selectSession]
+  )
+  const clearActiveSession = useCallback(() => selectSession(null, null), [selectSession])
 
   return {
     ...result,
@@ -110,7 +137,12 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, pendingS
     sessionSource,
     isLoading: !session && result.isLoading,
     activeSessionId,
-    setActiveSessionId
+    setActiveSessionId,
+    setActiveSession,
+    selectSession,
+    clearActiveSession,
+    pendingSession,
+    setPendingSession
   }
 }
 

@@ -57,6 +57,7 @@ const agentPageMocks = vi.hoisted(() => ({
     activeSessionId: string | null
     setActiveSessionId: (id: string | null) => void
   } | null,
+  pendingSession: null as any,
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
@@ -261,14 +262,20 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
     useActiveSession: (options: {
       activeSessionId: string | null
       setActiveSessionId: (id: string | null) => void
-      pendingSession?: any
     }) => {
       agentPageMocks.activeSessionOptions = {
         activeSessionId: options.activeSessionId,
         setActiveSessionId: options.setActiveSessionId
       }
+      // Mirror the real hook: it owns the pending session and writes the id back via setActiveSessionId.
+      const selectSession = (sessionId: string | null, entity?: any) => {
+        agentPageMocks.pendingSession = entity ?? null
+        options.setActiveSessionId(sessionId)
+      }
       const pendingSession =
-        options.pendingSession && options.pendingSession.id === options.activeSessionId ? options.pendingSession : null
+        agentPageMocks.pendingSession && agentPageMocks.pendingSession.id === options.activeSessionId
+          ? agentPageMocks.pendingSession
+          : null
       return {
         session: pendingSession ?? activeSessionMocks.session ?? undefined,
         isLoading: activeSessionMocks.isLoading,
@@ -278,7 +285,14 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
             ? activeSessionMocks.sessionSource
             : 'none',
         activeSessionId: options.activeSessionId,
-        setActiveSessionId: options.setActiveSessionId
+        setActiveSessionId: options.setActiveSessionId,
+        pendingSession: agentPageMocks.pendingSession,
+        selectSession,
+        setActiveSession: (entity: any) => selectSession(entity.id, entity),
+        clearActiveSession: () => selectSession(null, null),
+        setPendingSession: (entity: any) => {
+          agentPageMocks.pendingSession = entity ?? null
+        }
       }
     }
   }
@@ -665,6 +679,7 @@ describe('AgentPage', () => {
     agentPageMocks.sessionExpansionAgent = []
     agentPageMocks.classicLayoutRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
+    agentPageMocks.pendingSession = null
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
