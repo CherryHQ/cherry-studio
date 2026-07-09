@@ -1524,9 +1524,12 @@ describe('ModelService.reconcileForProvider', () => {
     // S2 regression coverage: stale renderer state passes a toRemove with a
     // non-existent id; reconcile completes but logs the count mismatch.
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db
-      .insert(userModelTable)
-      .values([modelRow('openai', 'gpt-4o', { id: createUniqueModelId('openai', 'gpt-4o') })])
+    await dbh.db.insert(userModelTable).values([
+      modelRow('openai', 'gpt-4o', {
+        id: createUniqueModelId('openai', 'gpt-4o'),
+        presetModelId: 'gpt-4o'
+      })
+    ])
 
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     modelService.reconcileForProvider('openai', {
@@ -1573,6 +1576,34 @@ describe('ModelService.reconcileForProvider', () => {
       deletedIds: [gpt4o]
     })
     infoSpy.mockRestore()
+  })
+
+  it('does not remove custom models during reconcile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const customModelId = createUniqueModelId('openai', 'custom-model')
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'custom-model', {
+        id: customModelId,
+        presetModelId: null,
+        name: 'Custom Model'
+      })
+    )
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const result = modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [customModelId]
+    })
+
+    expect(result.map((model) => model.id)).toEqual([customModelId])
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, customModelId))
+    expect(rows).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith('Skipped custom model removal during reconcile', {
+      providerId: 'openai',
+      skippedCount: 1,
+      skippedIds: [customModelId]
+    })
+    warnSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {

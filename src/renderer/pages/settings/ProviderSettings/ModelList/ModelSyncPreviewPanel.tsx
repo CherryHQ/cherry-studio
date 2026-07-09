@@ -43,6 +43,10 @@ function modelIdLine(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
+function isPresetBackedModel(model: Model) {
+  return model.presetModelId != null && model.presetModelId !== ''
+}
+
 const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
   const Icon = getModelLogo(model)
   if (Icon) {
@@ -174,6 +178,9 @@ export default function ModelSyncPreviewPanel({
   const renderGroupAction = useCallback(
     (models: Model[]) => {
       const isAllInProvider = models.every((model) => localModelIds.has(model.id))
+      const removableModelIds = models
+        .filter((model) => localModelIds.has(model.id) && isPresetBackedModel(model))
+        .map((model) => model.id)
       const title = isAllInProvider
         ? t('settings.models.manage.remove_whole_group')
         : t('settings.models.manage.add_whole_group')
@@ -185,12 +192,12 @@ export default function ModelSyncPreviewPanel({
             variant="ghost"
             size="icon-sm"
             aria-label={title}
-            disabled={isApplying}
+            disabled={isApplying || (isAllInProvider && removableModelIds.length === 0)}
             className={modelSyncClasses.manageRowAction}
             onClick={(event) => {
               event.stopPropagation()
               if (isAllInProvider) {
-                void onRemoveModels(models.map((model) => model.id))
+                void onRemoveModels(removableModelIds)
                 return
               }
               void onAddModels(models.filter((model) => !localModelIds.has(model.id)))

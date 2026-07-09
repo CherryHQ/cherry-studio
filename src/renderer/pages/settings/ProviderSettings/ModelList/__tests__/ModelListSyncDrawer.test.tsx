@@ -99,6 +99,7 @@ const allModels: Model[] = [
     id: 'openai::legacy-model',
     providerId: 'openai',
     apiModelId: 'legacy-model',
+    presetModelId: 'legacy-model',
     name: 'Legacy Model',
     group: 'OpenAI',
     capabilities: [],
@@ -110,6 +111,7 @@ const allModels: Model[] = [
     id: 'openai::custom-model',
     providerId: 'openai',
     apiModelId: 'custom-model',
+    presetModelId: null,
     name: 'Custom Model',
     group: undefined,
     capabilities: [],
@@ -212,6 +214,35 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
 
     expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('does not bulk-remove custom local models', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[2], allModels[3]],
+      localModels: [allModels[2], allModels[3]],
+      onRemoveModels
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
+
+    expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('disables bulk remove when only custom local models are listed', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[3]],
+      localModels: [allModels[3]],
+      onRemoveModels
+    })
+
+    const bulkRemoveButton = screen.getByRole('button', { name: 'settings.models.manage.remove_listed' })
+    expect(bulkRemoveButton).toBeDisabled()
+
+    fireEvent.click(bulkRemoveButton)
+
+    expect(onRemoveModels).not.toHaveBeenCalled()
   })
 
   it('cleans stale models from the title action', () => {

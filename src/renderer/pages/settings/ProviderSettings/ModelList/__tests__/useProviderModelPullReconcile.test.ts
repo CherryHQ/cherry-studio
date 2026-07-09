@@ -64,6 +64,7 @@ const localModel = {
   id: 'openai::local-model',
   providerId: 'openai',
   apiModelId: 'local-model',
+  presetModelId: 'local-model',
   name: 'Local Model',
   group: 'OpenAI'
 }
@@ -126,6 +127,34 @@ describe('useProviderModelPullReconcile', () => {
     expect(result.current.staleModelIds).toEqual(['openai::local-model'])
     expect(fetchProviderCatalogModelsMock).toHaveBeenCalledWith('openai')
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+  })
+
+  it('does not mark custom local models as stale when they are missing remotely', async () => {
+    useModelsMock.mockReturnValue({
+      models: [
+        {
+          ...localModel,
+          id: 'openai::custom-local-model',
+          apiModelId: 'custom-local-model',
+          presetModelId: null
+        }
+      ]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.staleModelCount).toBe(0)
+    })
+
+    await act(async () => {
+      await result.current.cleanStaleModels()
+    })
+
+    expect(reconcileTriggerMock).not.toHaveBeenCalled()
   })
 
   it('adds only models that are not already local and enables the provider when models exist', async () => {
@@ -267,6 +296,7 @@ describe('useProviderModelPullReconcile', () => {
   })
 
   it('keeps load failures in drawer state instead of showing a toast', async () => {
+    fetchProviderCatalogModelsMock.mockRejectedValueOnce(new Error('catalog failed'))
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('boom'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
@@ -277,7 +307,23 @@ describe('useProviderModelPullReconcile', () => {
     await waitFor(() => {
       expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
     })
+    expect(result.current.allModels).toEqual([localModel])
     expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+  })
+
+  it('keeps catalog models visible when upstream model loading fails', async () => {
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('upstream unsupported'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.allModels).toEqual([catalogModel, localModel])
+    })
+    expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
+    expect(result.current.staleModelCount).toBe(0)
   })
 
   it('ignores stale model load results when a newer load finishes first', async () => {

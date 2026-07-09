@@ -22,6 +22,10 @@ const CAPABILITY_FILTER_LABEL_KEYS: Record<Exclude<ModelListCapabilityFilter, 'a
   function_calling: 'models.type.function_calling'
 }
 
+function isPresetBackedModel(model: Model) {
+  return model.presetModelId != null && model.presetModelId !== ''
+}
+
 interface ModelListSyncDrawerProps {
   open: boolean
   provider?: Provider
@@ -86,6 +90,13 @@ export default function ModelListSyncDrawer({
   )
   const isAllFilteredInProvider =
     filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id))
+  const removableFilteredModelIds = useMemo(
+    () =>
+      filteredModels
+        .filter((model) => localModelIds.has(model.id) && isPresetBackedModel(model))
+        .map((model) => model.id),
+    [filteredModels, localModelIds]
+  )
   const busy = isLoading || isApplying
   const hasLoadError = Boolean(loadErrorMessage)
   const drawerTitle = provider?.name
@@ -105,12 +116,12 @@ export default function ModelListSyncDrawer({
 
   const handleBulkAction = useCallback(() => {
     if (isAllFilteredInProvider) {
-      void onRemoveModels(filteredModels.map((model) => model.id))
+      void onRemoveModels(removableFilteredModelIds)
       return
     }
 
     void onAddModels(filteredModels.filter((model) => !localModelIds.has(model.id)))
-  }, [filteredModels, isAllFilteredInProvider, localModelIds, onAddModels, onRemoveModels])
+  }, [filteredModels, isAllFilteredInProvider, localModelIds, onAddModels, onRemoveModels, removableFilteredModelIds])
 
   return (
     <ProviderSettingsDrawer
@@ -163,7 +174,11 @@ export default function ModelListSyncDrawer({
               variant="ghost"
               size="sm"
               aria-label={bulkActionLabel}
-              disabled={busy || filteredModels.length === 0}
+              disabled={
+                busy ||
+                filteredModels.length === 0 ||
+                (isAllFilteredInProvider && removableFilteredModelIds.length === 0)
+              }
               className={modelSyncClasses.manageTitleActionButton}
               onClick={handleBulkAction}>
               {isAllFilteredInProvider ? <ListMinus className="size-4" /> : <ListPlus className="size-4" />}

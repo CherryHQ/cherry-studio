@@ -65,7 +65,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [catalogModels, setCatalogModels] = useState<Model[]>([])
   const [fetchedModels, setFetchedModels] = useState<Model[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
-  const [hasLoadedRemoteModels, setHasLoadedRemoteModels] = useState(false)
+  const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   const loadModelsSequenceRef = useRef(0)
   const { provider, updateProvider } = useProvider(providerId)
@@ -82,23 +82,25 @@ export function useProviderModelPullReconcile(providerId: string) {
     [catalogModels, fetchedModels, models]
   )
   const staleModels = useMemo(() => {
-    if (!hasLoadedRemoteModels) {
+    if (!hasLoadedCompleteRemoteModels) {
       return []
     }
 
     const remoteIds = new Set([...catalogModels, ...fetchedModels].map((model) => model.id))
-    return models.filter((model) => !remoteIds.has(model.id))
-  }, [catalogModels, fetchedModels, hasLoadedRemoteModels, models])
+    return models.filter(
+      (model) => !remoteIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
+    )
+  }, [catalogModels, fetchedModels, hasLoadedCompleteRemoteModels, models])
 
   const loadModels = useCallback(async () => {
     const sequence = ++loadModelsSequenceRef.current
     const isLatestLoad = () => sequence === loadModelsSequenceRef.current
 
     setIsLoadingModels(true)
-    setHasLoadedRemoteModels(false)
+    setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const [catalog, fetched] = await Promise.all([
+      const [catalogResult, fetchedResult] = await Promise.allSettled([
         fetchProviderCatalogModels(providerId),
         fetchResolvedProviderModels(providerId)
       ])
@@ -106,16 +108,22 @@ export function useProviderModelPullReconcile(providerId: string) {
         return
       }
 
+      const catalog = catalogResult.status === 'fulfilled' ? catalogResult.value : []
+      const fetched = fetchedResult.status === 'fulfilled' ? fetchedResult.value : []
+      const hasLoadedAllModels = catalogResult.status === 'fulfilled' && fetchedResult.status === 'fulfilled'
+
       setCatalogModels(catalog.filter((model) => model.name?.trim()))
       setFetchedModels(fetched.filter((model) => model.name?.trim()))
-      setHasLoadedRemoteModels(true)
-    } catch (error) {
-      if (!isLatestLoad()) {
-        return
-      }
+      setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
 
-      logger.error('Failed to load provider models for manage drawer', { providerId, error })
-      setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
+      if (!hasLoadedAllModels) {
+        logger.error('Failed to load provider models for manage drawer', {
+          providerId,
+          catalogError: catalogResult.status === 'rejected' ? catalogResult.reason : undefined,
+          upstreamError: fetchedResult.status === 'rejected' ? fetchedResult.reason : undefined
+        })
+        setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
+      }
     } finally {
       if (isLatestLoad()) {
         setIsLoadingModels(false)

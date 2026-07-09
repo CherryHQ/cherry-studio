@@ -388,11 +388,14 @@ class ModelService {
 
     const managedDefaultIds = new Set<string>()
     const presetBackedRemovalIds = new Set<string>()
+    const customModelIds = new Set<string>()
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
       } else if (row.presetModelId != null && row.presetModelId !== '') {
         presetBackedRemovalIds.add(row.id)
+      } else {
+        customModelIds.add(row.id)
       }
     }
 
@@ -414,6 +417,8 @@ class ModelService {
       })
     }
 
+    const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
+
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -422,8 +427,18 @@ class ModelService {
       })
     }
 
+    if (removableCustomModelIds.size > 0) {
+      logger.warn('Skipped custom model removal during reconcile', {
+        providerId,
+        skippedCount: removableCustomModelIds.size,
+        skippedIds: [...removableCustomModelIds]
+      })
+    }
+
     return {
-      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id)),
+      toRemove: toRemove.filter(
+        (id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id) && !removableCustomModelIds.has(id)
+      ),
       presetBackedRemovalIds
     }
   }
