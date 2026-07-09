@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -321,12 +321,10 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto') {
       setIsDetecting(true)
       try {
-        actualSourceLanguage = await detectLanguage(translateInput)
+        actualSourceLanguage = await detectLanguageOrUnknown(translateInput, detectLanguage, (error) => {
+          logger.error('Failed to detect language', error as Error)
+        })
         setDetectedLanguage(actualSourceLanguage)
-      } catch (error) {
-        logger.error('Failed to detect language', error as Error)
-        actualSourceLanguage = UNKNOWN_LANG_CODE
-        setDetectedLanguage(UNKNOWN_LANG_CODE)
       } finally {
         setIsDetecting(false)
       }

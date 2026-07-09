@@ -8,9 +8,9 @@ import { MessageContentProvider } from '@renderer/components/chat/messages/Messa
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
-import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -61,7 +61,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
   const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
 
-  const [detectError, setDetectError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -179,31 +178,21 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const fetchResult = useCallback(async () => {
     if (!selectedText || !initialized) return
     clear()
-    setDetectError(null)
 
-    let sourceLanguageCode: TranslateLangCode
-
-    try {
-      sourceLanguageCode = await detectLanguage(selectedText)
-    } catch (err) {
-      setDetectError(err instanceof Error ? err.message : 'An error occurred')
-      logger.error('Error detecting language:', err as Error)
-      return
-    }
+    const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
+      logger.error('Error detecting language:', error as Error)
+    })
 
     const detectedLang = getLanguage(sourceLanguageCode) ?? null
     setDetectedLanguage(detectedLang)
 
-    let translateLang: TranslateLanguage
-
     if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
       logger.debug('Unknown source language. Just use target language.')
-      translateLang = targetLanguage
     } else {
       logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-      translateLang = sourceLanguageCode === targetLanguage.langCode ? alterLanguage : targetLanguage
     }
 
+    const translateLang = pickBidirectionalTarget(sourceLanguageCode, targetLanguage, alterLanguage)
     setActualTargetLanguage(translateLang)
 
     setCompletionError(null)
@@ -321,7 +310,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                   <span className="mr-1">
                     {detectedLanguage?.emoji || <Globe2 className="inline size-3.5 align-[-2px]" />}
                   </span>
-                  <span>{detectedLanguage?.value || t('translate.detected_source')}</span>
+                  <span>{detectedLanguage?.value || t('translate.detected.language')}</span>
                 </>
               )}
             </div>
@@ -395,9 +384,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </MessageContentProvider>
           )}
         </div>
-        {(detectError || error) && (
+        {error && (
           <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
-            {detectError || error}
+            {error}
           </div>
         )}
       </div>

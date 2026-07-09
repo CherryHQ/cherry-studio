@@ -152,6 +152,19 @@ export const detectWithMethod = async (
   }
 }
 
+export const detectLanguageOrUnknown = async (
+  text: string,
+  detectLanguage: (text: string) => Promise<TranslateLangCode>,
+  onError: (error: unknown) => void
+): Promise<TranslateLangCode> => {
+  try {
+    return await detectLanguage(text)
+  } catch (error) {
+    onError(error)
+    return UNKNOWN_LANG_CODE
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------

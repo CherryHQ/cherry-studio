@@ -6,7 +6,13 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
-import { detectLanguageByFranc, detectLanguageByLLM, detectWithMethod, useDetectLang } from '../useDetectLang'
+import {
+  detectLanguageByFranc,
+  detectLanguageByLLM,
+  detectLanguageOrUnknown,
+  detectWithMethod,
+  useDetectLang
+} from '../useDetectLang'
 
 const lang = parseTranslateLangCode
 
@@ -163,6 +169,26 @@ describe('detectWithMethod', () => {
     await expect(detectWithMethod('Hi there', 'llm', [lang('en-us')], TEST_MODEL)).resolves.toBe('en-us')
     expect(generateTextMock).toHaveBeenCalledTimes(1)
     expect(francMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('detectLanguageOrUnknown', () => {
+  it('returns the detected language when detection succeeds', async () => {
+    const detectLanguage = vi.fn().mockResolvedValue(lang('en-us'))
+    const onError = vi.fn()
+
+    await expect(detectLanguageOrUnknown('Hello', detectLanguage, onError)).resolves.toBe('en-us')
+    expect(detectLanguage).toHaveBeenCalledWith('Hello')
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('returns unknown and reports the error when detection fails', async () => {
+    const error = new Error('detect failed')
+    const detectLanguage = vi.fn().mockRejectedValue(error)
+    const onError = vi.fn()
+
+    await expect(detectLanguageOrUnknown('Hello', detectLanguage, onError)).resolves.toBe(UNKNOWN_LANG_CODE)
+    expect(onError).toHaveBeenCalledWith(error)
   })
 })
 

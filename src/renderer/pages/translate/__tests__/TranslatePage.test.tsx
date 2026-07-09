@@ -89,6 +89,18 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
+  detectLanguageOrUnknown: async (
+    text: string,
+    detectLanguage: (text: string) => Promise<string>,
+    onError: (error: unknown) => void
+  ) => {
+    try {
+      return await detectLanguage(text)
+    } catch (error) {
+      onError(error)
+      return 'unknown'
+    }
+  },
   useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
 }))
 
