@@ -101,4 +101,34 @@ describe('topic context menu actions', () => {
 
     expect(onMoveToAssistant).toHaveBeenCalledWith(topic, 'assistant-b')
   })
+
+  it('does not run a stale move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+    const staleAction = moveAction!.children[0]
+
+    const currentContext = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-c', name: 'Assistant C' }],
+      onMoveToAssistant
+    })
+
+    await expect(executeTopicMenuAction(staleAction, currentContext)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not run a move-to-assistant submenu action for the current assistant', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-a', name: 'Assistant A' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+
+    await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
 })

@@ -532,6 +532,8 @@ export async function executeTopicMenuAction(
   const targetAssistantId = getMoveToAssistantTargetId(action.id)
   if (targetAssistantId) {
     if (!context.onMoveToAssistant) return false
+    if (context.topic.assistantId === targetAssistantId) return false
+    if (!context.assistantMoveTargets.some((target) => target.id === targetAssistantId)) return false
     await context.onMoveToAssistant(context.topic, targetAssistantId)
     return true
   }
