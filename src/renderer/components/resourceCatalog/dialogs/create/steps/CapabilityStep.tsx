@@ -20,7 +20,7 @@ type CapabilityStepProps = {
 /**
  * Step 3 (agent): pick the skills this agent can use. Global skill library with
  * a search box and an "import from library" action that opens the shared
- * ImportSkillDialog. Selections are stored as the create-only `skillIds`; the
+ * ImportSkillDialog. Selections are stored as `skillIds`; the
  * wizard stays mounted while importing, so form data is preserved and the list
  * refreshes (via `/skills` cache invalidation) once a skill lands.
  *
