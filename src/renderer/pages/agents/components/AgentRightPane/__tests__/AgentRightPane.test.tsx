@@ -1,4 +1,5 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactElement, ReactNode } from 'react'
 import { cloneElement, isValidElement, useEffect } from 'react'
@@ -252,6 +253,44 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeNull()
+  })
+
+  it('renders artifact status filenames with neutral text', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: {
+          artifacts: [{ path: 'docs/report.md', description: 'Summary report' }]
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts,
+        metadata: {},
+        createdAt: '2026-05-21T00:00:00.000Z',
+        updatedAt: '2026-05-21T00:00:00.000Z'
+      }
+    ] as CherryUIMessage[]
+
+    render(
+      <AgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+      </AgentRightPane>
+    )
+
+    const artifactButton = screen.getByRole('button', { name: 'report.md' })
+    expect(artifactButton).not.toHaveClass('text-primary')
+    expect(artifactButton).toHaveClass('text-foreground-secondary')
   })
 
   it('keeps the file-tree model closed while the shell is closed', () => {

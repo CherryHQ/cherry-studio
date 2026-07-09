@@ -796,7 +796,7 @@ function AgentRightPaneHighlights({
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>
