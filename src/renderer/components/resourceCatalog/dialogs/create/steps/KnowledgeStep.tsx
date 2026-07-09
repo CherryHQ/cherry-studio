@@ -19,7 +19,7 @@ export function KnowledgeStep({ form, onClose, portalContainer }: KnowledgeStepP
   const { openTab } = useTabs()
   const openKnowledgePage = useCallback(() => {
     onClose?.()
-    openTab('/app/knowledge')
+    window.setTimeout(() => openTab('/app/knowledge'), 0)
   }, [onClose, openTab])
 
   return (

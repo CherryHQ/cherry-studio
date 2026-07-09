@@ -1,7 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { type ReactNode, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -138,9 +138,10 @@ describe('EditDialogShared', () => {
   })
 
   it('opens the knowledge page from the add knowledge popover footer', () => {
-    const onClose = vi.fn()
+    vi.useFakeTimers()
 
     function Harness() {
+      const [open, setOpen] = useState(true)
       const form = useForm<ResourceCreateWizardFormValues>({
         defaultValues: {
           avatar: '💬',
@@ -152,22 +153,37 @@ describe('EditDialogShared', () => {
           skillIds: []
         }
       })
+      if (!open) return <div data-testid="knowledge-step-closed" />
+
       return (
         <Form {...form}>
-          <KnowledgeStep form={form} onClose={onClose} portalContainer={null} />
+          <KnowledgeStep form={form} onClose={() => setOpen(false)} portalContainer={null} />
         </Form>
       )
     }
 
-    render(<Harness />)
+    mockOpenTab.mockImplementationOnce(() => {
+      expect(screen.getByTestId('knowledge-step-closed')).toBeInTheDocument()
+    })
 
-    expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
+    try {
+      render(<Harness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
+      expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
 
-    expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
-    expect(onClose).toHaveBeenCalledOnce()
-    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(mockOpenTab.mock.invocationCallOrder[0])
+      fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
+
+      expect(screen.getByTestId('knowledge-step-closed')).toBeInTheDocument()
+      expect(mockOpenTab).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
