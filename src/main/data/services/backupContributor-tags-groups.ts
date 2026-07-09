@@ -5,7 +5,7 @@
 // aggregates are single-table and non-renamable: tag/group/pin are referenced by
 // the polymorphic `entity_tag` (composite [entityType, entityId, tagId]) and
 // `pin` tables — a RENAME clone would leave those polymorphic soft-refs pointing
-// at the old id (design §2.5: cross-aggregate polymorphic soft-refs are NOT
+// at the old id (architecture §5.2: cross-aggregate polymorphic soft-refs are NOT
 // remapped), so RENAME degrades to SKIP.
 //
 // `entity_tag` is owned but intentionally NOT an aggregate member (polymorphic
