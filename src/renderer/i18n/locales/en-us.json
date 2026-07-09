@@ -3079,6 +3079,7 @@
           "avatar_aria": "Choose avatar",
           "back": "Back",
           "capability": {
+            "builtin_badge": "Enabled by default",
             "import": "Import skill",
             "no_skills": "No skills installed",
             "search": "Search skills"

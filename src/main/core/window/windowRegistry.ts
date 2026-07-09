@@ -310,7 +310,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       movable: true,
       hasShadow: false,
       thickFrame: false,
-      roundedCorners: true,
+      // The toolbar is a transparent, frameless pill that draws its own rounded
+      // background in CSS (--selection-toolbar-border-radius). Newer macOS enlarged
+      // the system window-corner radius, so with the OS rounding on, the window mask
+      // overrides the pill's own corners — the top (only 2px from the window edge)
+      // takes the larger OS radius while the bottom keeps the CSS radius, producing a
+      // visible top/bottom mismatch. Disable OS rounding and let the pill define its
+      // own shape. NOTE: Electron defaults roundedCorners to true, so this must be an
+      // explicit false — omitting it would fall back to the OS rounding.
+      roundedCorners: false,
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
