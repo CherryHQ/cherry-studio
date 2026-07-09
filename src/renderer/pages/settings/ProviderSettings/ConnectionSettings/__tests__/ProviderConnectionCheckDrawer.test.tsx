@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { showErrorDetailPopupMock } = vi.hoisted(() => ({
@@ -156,9 +157,24 @@ describe('ProviderConnectionCheckDrawer', () => {
 
     render(<ProviderConnectionCheckDrawer {...baseProps} connectionError={connectionError} />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('invalid api key')
+    const detailButton = screen.getByRole('button', { name: /invalid api key/ })
+    expect(detailButton).toHaveTextContent('invalid api key')
 
-    fireEvent.click(screen.getByRole('alert'))
+    fireEvent.click(detailButton)
+
+    expect(showErrorDetailPopupMock).toHaveBeenCalledWith({ error: connectionError })
+  })
+
+  it('opens the connection failure detail from the keyboard', async () => {
+    const connectionError = { name: 'HealthCheckError', message: 'invalid api key', stack: null }
+    const user = userEvent.setup()
+
+    render(<ProviderConnectionCheckDrawer {...baseProps} connectionError={connectionError} />)
+
+    const detailButton = screen.getByRole('button', { name: /invalid api key/ })
+    await user.tab()
+    expect(detailButton).toHaveFocus()
+    await user.keyboard('{Enter}')
 
     expect(showErrorDetailPopupMock).toHaveBeenCalledWith({ error: connectionError })
   })

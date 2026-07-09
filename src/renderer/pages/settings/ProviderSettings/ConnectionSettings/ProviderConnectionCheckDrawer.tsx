@@ -177,9 +177,10 @@ export default function ProviderConnectionCheckDrawer({
           </div>
         </div>
         {connectionErrorText ? (
-          <div
-            role="alert"
-            className="group cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200"
+          <button
+            type="button"
+            aria-label={`${t('message.api.connection.failed')}: ${connectionErrorText}. ${t('common.detail')}`}
+            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border"
             onClick={handleShowConnectionErrorDetail}>
             <div className="mb-1.5 flex items-center gap-2">
               <div className="flex shrink-0 items-center justify-center text-error-base">
@@ -200,7 +201,7 @@ export default function ProviderConnectionCheckDrawer({
                 <ChevronRight size={14} />
               </div>
             </div>
-          </div>
+          </button>
         ) : null}
         <DialogFooter className="mt-1 flex-row items-center justify-between gap-3 sm:justify-between">
           <div>
