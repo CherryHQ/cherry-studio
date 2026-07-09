@@ -104,6 +104,14 @@ export interface ChatVirtualizerRuntime<T> {
   keepMounted: readonly number[]
   scrollerProps: ScrollerEventHandlers
   isScrollToBottomButtonVisible: boolean
+  /**
+   * True while the runtime is the authoritative `scrollTop` writer — streaming
+   * top-pin, bottom-follow, or an in-flight smooth scroll. Collapsible blocks
+   * read this (via `ScrollOwnershipProvider`) to yield their local scroll-anchor
+   * restore, which would otherwise fight the runtime and jitter the scrollbar on
+   * expand/collapse during streaming.
+   */
+  isScrollOwned(): boolean
   scrollToBottom(behavior?: ScrollBehavior): void
   /**
    * Mark that a real user scroll input just happened (wheel is wired via
@@ -190,6 +198,17 @@ export function useChatVirtualizerRuntime<T>({
     isLocked: isBottomFollowSuppressed,
     markStuck: atBottom.notifyProgrammaticStick
   })
+
+  // Single predicate the collapsible blocks consult (via ScrollOwnershipProvider)
+  // before running their own scroll-anchor restore: true whenever the runtime is
+  // already the authoritative scrollTop writer — a streaming turn (top-pin or its
+  // bottom-follow handoff), at-bottom auto-stick, or an in-flight smooth scroll.
+  // Ref-backed so its identity never changes, keeping the context value stable
+  // (no extra re-renders of the block tree).
+  const isScrollOwnedRef = useRef<() => boolean>(() => false)
+  isScrollOwnedRef.current = () =>
+    preserveScrollAnchorRef.current || anchor.isPinned() || atBottom.isAtBottom() || smoothScroll.isAnimating()
+  const isScrollOwned = useCallback(() => isScrollOwnedRef.current(), [])
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
@@ -648,6 +667,7 @@ export function useChatVirtualizerRuntime<T>({
     keepMounted,
     scrollerProps,
     isScrollToBottomButtonVisible,
+    isScrollOwned,
     scrollToBottom,
     markUserInput
   }

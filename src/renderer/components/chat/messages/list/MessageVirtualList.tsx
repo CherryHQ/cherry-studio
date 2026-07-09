@@ -17,6 +17,7 @@ import { type ReactNode, type Ref, useCallback, useEffect, useState } from 'reac
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
 
+import { ScrollOwnershipProvider } from '../blocks/ScrollOwnershipContext'
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
@@ -163,22 +164,24 @@ export function MessageVirtualList<T>({
         className={className}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
-          {topPadding > 0 && (
-            <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
-          )}
-          <Virtualizer
-            ref={runtime.vlistHandleRef}
-            scrollRef={runtime.scrollerRef}
-            data={runtime.wrappedItems}
-            itemSize={estimateSize}
-            bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
-            shift={runtime.shift}
-            keepMounted={runtime.keepMounted}
-            startMargin={topPadding}
-            onScroll={runtime.scrollerProps.onScroll}
-            onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-            {runtime.wrappedRenderItem}
-          </Virtualizer>
+          <ScrollOwnershipProvider isScrollOwned={runtime.isScrollOwned}>
+            {topPadding > 0 && (
+              <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
+            )}
+            <Virtualizer
+              ref={runtime.vlistHandleRef}
+              scrollRef={runtime.scrollerRef}
+              data={runtime.wrappedItems}
+              itemSize={estimateSize}
+              bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+              shift={runtime.shift}
+              keepMounted={runtime.keepMounted}
+              startMargin={topPadding}
+              onScroll={runtime.scrollerProps.onScroll}
+              onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+              {runtime.wrappedRenderItem}
+            </Virtualizer>
+          </ScrollOwnershipProvider>
         </div>
       </Scrollbar>
       {shouldShowScrollToBottomButton && (
