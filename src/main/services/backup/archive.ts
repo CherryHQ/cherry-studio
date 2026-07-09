@@ -1,7 +1,7 @@
 // Backup archive assembly — pack manifest + DB copy + file blobs + knowledge
 // folders into a single .cbu (zip) archive.
 //
-// Layout (backup-architecture.md §2 + export-orchestrator.md "archive 文件结构"):
+// Layout (backup-architecture.md §2 + the archive file layout):
 //   <archive>.cbu
 //   ├── manifest.json     (at root)
 //   ├── backup.sqlite     (online db.backup() copy of live)
@@ -121,7 +121,7 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
     await finished(output).catch(() => {})
     await unlink(tmpPath).catch(() => {})
     // Wrap ENOSPC (disk filled mid-archive — typically external blobs uncounted by
-    // preflight) as DiskFullError for a clear renderer message (spec §磁盘预算 L254).
+    // preflight) as DiskFullError for a clear renderer message (disk budget L254).
     throw (e as NodeJS.ErrnoException).code === 'ENOSPC' ? new DiskFullError() : e
   }
 }

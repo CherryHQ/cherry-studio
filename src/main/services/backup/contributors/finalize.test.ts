@@ -16,7 +16,6 @@ import type {
   RowScope
 } from '@main/data/db/backup/contributorTypes'
 import {
-  BACKUP_REFS_META,
   DB_JSON_COLUMNS,
   DB_PRIMARY_KEYS,
   type DbColumnName,
@@ -32,9 +31,8 @@ import { ContributorManager } from './ContributorManager'
 import { finalize } from './finalize'
 import { READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
 
-// schemaCommit stays in sync with the codegen product so the test never drifts
-// when dbSchemaRefs.ts is regenerated (the finalizedAt is fixed for determinism).
-const META = { finalizedAt: '2026-06-27T00:00:00.000Z', schemaCommit: BACKUP_REFS_META.schemaCommit }
+// finalizedAt is fixed for determinism.
+const META = { finalizedAt: '2026-06-27T00:00:00.000Z' }
 
 // ─── Fixture builders ─────────────────────────────────────────────────────────
 
@@ -507,7 +505,7 @@ describe('finalize invariants', () => {
 
   it('#21 allows SKIP for a PREFERENCES natural-key aggregate (settings exception)', () => {
     // preference PK is composite (natural) → natural-key; PREFERENCES is the settings
-    // exception, so SKIP is permitted (registry.md #21).
+    // exception, so SKIP is permitted (finalize invariant #21).
     const list = patchSchema(buildFixture(), 'PREFERENCES', {
       aggregates: [{ root: 'preference', renamable: false, conflictDefault: 'SKIP' }]
     })
@@ -715,7 +713,6 @@ describe('ReadonlyBackupRegistry queries', () => {
 
   it('surfaces finalize meta', () => {
     expect(registry.finalizedAt).toBe(META.finalizedAt)
-    expect(registry.schemaCommit).toBe(META.schemaCommit)
   })
 })
 

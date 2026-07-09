@@ -54,8 +54,7 @@ export interface BackupStripper {
  * Each table MUST be in DB_TABLES_SET (whitelist, injection-safe). FTS5 virtual tables
  * (message_fts / agent_session_message_fts) are NOT stripped here — external-content
  * FTS index binds to the content table, so `DELETE FROM` does not clear the shadow
- * index while content rows survive; restore runs the 'rebuild' command instead (see
- * export-orchestrator.md "ALWAYS_STRIP_TABLES global strip").
+ * index while content rows survive; restore runs the 'rebuild' command instead.
  */
 export class SqliteBackupStripper implements BackupStripper {
   async strip(backupDbPath: string, tables: readonly DbTableName[]): Promise<readonly StrippedTable[]> {

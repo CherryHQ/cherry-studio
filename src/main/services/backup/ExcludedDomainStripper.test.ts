@@ -95,7 +95,7 @@ async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void>
   await dbh.db.insert(paintingFileRefTable).values([{ id: 'pfr1', fileEntryId: 'f1', sourceId: 'pt1', role: 'output' }])
   // TRANSLATE_HISTORY (excluded) + member (zero external referrers).
   await dbh.db.insert(translateLanguageTable).values([{ langCode: 'en', value: 'English', emoji: '🇺🇸' }])
-  await dbh.db.insert(translateHistoryTable).values([{ id: 'th1', sourceText: 'hi', targetText: '你好', star: false }])
+  await dbh.db.insert(translateHistoryTable).values([{ id: 'th1', sourceText: 'hi', targetText: 'hello', star: false }])
   // app_state (ALWAYS_STRIP) — runtime process state, not user data; stripped on every export.
   await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
 }

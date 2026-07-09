@@ -52,10 +52,9 @@ export interface FinalizedRegistryData {
   readonly contributors: ReadonlyMap<BackupDomain, BackupContributor>
   readonly tableOwner: ReadonlyMap<DbTableName, BackupDomain>
   readonly domainDependencies: ReadonlyMap<BackupDomain, readonly BackupDomain[]>
-  /** Per-domain aggregates with derived defaults filled (registry.md #14). */
+  /** Per-domain aggregates with derived defaults filled (finalize invariant #14). */
   readonly finalizedAggregatesByDomain: ReadonlyMap<BackupDomain, readonly AggregateBoundary[]>
   readonly finalizedAt: string
-  readonly schemaCommit: string
 }
 
 /** Build the key for the (table, column) jsonSoftReference index. */
@@ -75,7 +74,6 @@ export class ReadonlyBackupRegistryImpl implements ReadonlyBackupRegistry {
   /** `${table}.${column}` → json soft-ref policy (built once). */
   private readonly jsonSoftRefIndex: ReadonlyMap<string, JsonSoftReferencePolicy>
   readonly finalizedAt: string
-  readonly schemaCommit: string
   readonly [READONLY_REGISTRY]: true = true
 
   constructor(data: FinalizedRegistryData) {
@@ -87,7 +85,6 @@ export class ReadonlyBackupRegistryImpl implements ReadonlyBackupRegistry {
     this.domainDependencies = frozenMap(data.domainDependencies)
     this.finalizedAggregatesByDomain = frozenMap(data.finalizedAggregatesByDomain)
     this.finalizedAt = data.finalizedAt
-    this.schemaCommit = data.schemaCommit
 
     // Aggregate the two cross-domain indexes in one pass, then freeze them (#17).
     const sourceTypePolicy = new Map<FileRefSourceType, FileRefSourcePolicy>()

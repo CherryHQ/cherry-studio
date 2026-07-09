@@ -26,7 +26,7 @@ export const BACKUP_FORMAT_VERSION = 1 as const
 /**
  * The manifest payload. Field semantics + the 3-field compatibility gate
  * (backupFormatVersion ✅ / schemaMigrationId ✅ / producerAppVersion ❌) are
- * defined in export-orchestrator.md "manifest schema" + backup-architecture §2.
+ * defined in the manifest schema + backup-architecture §2.
  */
 export interface BackupManifest {
   /** Archive format major version (BACKUP_FORMAT_VERSION). */
@@ -54,7 +54,7 @@ export interface BackupManifest {
      * Per-file staged ids (= collected file_entry ids − missing). Lets restore
      * cross-check backup.sqlite file_entry rows against the staged blob set, and
      * lets the orchestrator prune rows whose blob was missing at stage time.
-     * See export-orchestrator.md "Staged blob set 驱动 manifest + DB 裁剪".
+     * See "the staged blob set drives manifest + DB pruning".
      */
     readonly ids: readonly string[]
     readonly total: number

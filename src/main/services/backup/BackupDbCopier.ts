@@ -1,7 +1,7 @@
 // BackupDbCopier — injectable port that isolates the "copy live DB to a backup
 // file" mechanism from the ExportOrchestrator.
 //
-// Per export-orchestrator.md "createBackupCopy": export uses better-sqlite3
+// Export uses better-sqlite3
 // `db.backup()` (sqlite's ONLINE backup API — page-by-page, safe under
 // concurrent writes, no write-quiesce needed), NOT createSnapshot (VACUUM INTO,
 // which is restore-merge-base only). @0xfullex #16714 floated `backupTo(path)` via

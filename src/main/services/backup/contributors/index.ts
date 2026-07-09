@@ -2,7 +2,7 @@
 // registry view + the CONTRIBUTORS barrel that aggregates the domain contributor
 // declarations.
 //
-// Per backup-architecture §7 / contributor-framework "placement", the domain
+// Per backup-architecture §7 placement, the domain
 // contributor declarations live in their OWNING domain modules (not here); this
 // module re-exports the per-domain constants + the aggregated CONTRIBUTORS barrel
 // (defined in ./CONTRIBUTORS) + the framework (ContributorManager / finalize /

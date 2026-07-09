@@ -1,5 +1,5 @@
-// ContributorManager — non-lifecycle named singleton (registry.md §"ContributorManager
-// non-lifecycle singleton + 惰性 finalize").
+// ContributorManager — non-lifecycle named singleton (non-lifecycle singleton
+// with lazy finalize).
 //
 // Deliberately NOT a BaseService: it owns no long-lived resource, holds no DB
 // connection, registers no IPC/timer/event side effects — it only performs a
@@ -47,10 +47,8 @@ export class ContributorManager {
   /** Run the 26-invariant finalize against the wired contributors (pure, in-memory). */
   private finalize(): ReadonlyBackupRegistry {
     return finalize(this.contributors, {
-      // Stamp the real finalize instant and the codegen schema commit the
-      // invariants were checked against — both surface on the registry for diagnostics.
-      finalizedAt: new Date().toISOString(),
-      schemaCommit: BACKUP_REFS_META.schemaCommit
+      // Stamp the real finalize instant — surfaces on the registry for diagnostics.
+      finalizedAt: new Date().toISOString()
     })
   }
 }

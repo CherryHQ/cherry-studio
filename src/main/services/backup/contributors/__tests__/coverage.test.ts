@@ -1,5 +1,5 @@
-// coverage.test.ts — registry coverage gate (contributor-testing.md "registry
-// coverage test"). Validates that every Drizzle user-data table is owned by
+// coverage.test.ts — registry coverage gate (the registry coverage test).
+// Validates that every Drizzle user-data table is owned by
 // exactly one contributor or explicitly excluded, mirroring finalize #2/#3/#4
 // against the LIVE schema universe (DB_TABLES) — finalize does not connect to the
 // DB, so this test is the actual-schema coverage backstop.
@@ -15,8 +15,8 @@
 //    all 14 landed — do NOT re-add a Wave2 allowlist, add the owner instead.)
 //
 // This test does NOT connect to SQLite (pure in-memory assertions over the codegen
-// product + the contributor declarations), per contributor-testing.md
-// "纯声明测试不连 DB".
+// product + the contributor declarations) — pure-declaration tests do not connect
+// to the DB.
 import { DB_FTS_VIRTUAL_TABLES, DB_TABLES } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'

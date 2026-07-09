@@ -1,6 +1,6 @@
 // ExportOrchestrator — produces a .cbu backup archive from the current app state.
 //
-// Pipeline (export-orchestrator.md §"ExportOrchestrator 5 步流程"):
+// Pipeline (the ExportOrchestrator 5-step pipeline):
 //   1. resolvePreset → topo-sorted domain set
 //   2. copier.copyTo(temp) — online `db.backup()` of live DB → backup.sqlite
 //   2.5. (lite only) stripper.strip — delete excluded-domain rows + CASCADE-prune
@@ -119,7 +119,7 @@ const EXPORT_STRATEGY: ConflictStrategy = 'SKIP'
  * agent_session_message_fts) are NOT stripped — external-content FTS index binds to
  * the content table, so `DELETE FROM` does not clear the shadow index while content
  * rows survive; restore runs the 'rebuild' command instead.
- * See export-orchestrator.md "ALWAYS_STRIP_TABLES global strip".
+ * See ALWAYS_STRIP_TABLES global strip.
  */
 const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] = ALWAYS_STRIP_PHYSICAL_TABLES as readonly DbTableName[]
 
@@ -130,8 +130,6 @@ const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] = ALWAYS_STRIP_PHYSICAL_TAB
  * stage are guaranteed to agree with backup.sqlite.
  */
 export class ExportOrchestrator {
-  private readonly logger = loggerService.withContext('backup/export')
-
   constructor(private readonly deps: ExportOrchestratorDeps) {}
 
   /**
@@ -191,8 +189,8 @@ export class ExportOrchestrator {
       // 2.5 strip the copy BEFORE opening the readonly snapshot (every preset).
       // resolveStripTables combines two sources:
       // - ALWAYS_STRIP physical (app_state / job) — global runtime state / job
-      //   queue; stripped on full + lite (spec export-orchestrator.md
-      //   "ALWAYS_STRIP_TABLES global strip"). FTS5 virtuals are NOT stripped
+      //   queue; stripped on full + lite (ALWAYS_STRIP_TABLES global strip).
+      //   FTS5 virtuals are NOT stripped
       //   (external-content index binds to content; restore rebuilds).
       // - lite only: LITE_EXCLUDED-owned tables — schema CASCADE prunes cross-domain
       //   junction referrers (chat_message_file_ref / assistant_knowledge_base) so a
@@ -226,7 +224,6 @@ export class ExportOrchestrator {
         restoreId: options.restoreId,
         domains,
         strategy: EXPORT_STRATEGY,
-        logger: this.logger,
         // notesRoot on the context is optional (undefined in unit tests); deps.notesRoot
         // is a resolver BackupService evaluates per export (feature.notes.path preference,
         // falling back to feature.notes.data). PREFERENCES' collectFileResources scans it.
@@ -237,7 +234,7 @@ export class ExportOrchestrator {
         this.assertNotCancelled(options)
         // PREFERENCES' file resource (Notes markdown bodies) is full-preset only. lite
         // keeps the `note` overlay rows (they travel in backup.sqlite) but must NOT
-        // archive note bodies (spec simple-domains.md "精简模式一致性"). Skip collection
+        // archive note bodies (lite-mode consistency). Skip collection
         // so lite never stages notes — even when the contributor hook would return paths
         // (and so an unreadable Notes root can't fail a lite export that excludes notes).
         if (d === 'PREFERENCES' && options.preset !== 'full') {
@@ -290,10 +287,10 @@ export class ExportOrchestrator {
         notesPaths = r.paths
       }
 
-      // 4.5 DB↔staged alignment (spec export-orchestrator.md "Staged blob set 驱动
-      // manifest + DB 裁剪"). A snapshot row whose blob/dir was missing at stage
+      // 4.5 DB↔staged alignment (the staged blob set drives manifest + DB pruning).
+      // A snapshot row whose blob/dir was missing at stage
       // time must not survive into the archive — otherwise restore re-creates a
-      // row pointing at a file the archive never held (restore残缺). Close the
+      // row pointing at a file the archive never held (incomplete restore). Close the
       // readonly snapshot, then DELETE missing rows from backup.sqlite (file_ref /
       // knowledge_item cascade via FK). This is the export-time dual of step 2.5
       // strip, driven by the staged set rather than the preset.
@@ -364,7 +361,7 @@ export class ExportOrchestrator {
 
   /**
    * Delete file_entry / knowledge_base rows whose blob/dir was missing at stage
-   * time, so backup.sqlite rows ↔ staged files are 1:1 (no restore残缺: a row
+   * time, so backup.sqlite rows ↔ staged files are 1:1 (no incomplete restore: a row
    * pointing at a file the archive never held). Opens a write connection to the
    * snapshot DB; file_ref (chat_message_file_ref / painting_file_ref) and
    * knowledge_item cascade via FK (PRAGMA foreign_keys = ON). No-op when nothing
