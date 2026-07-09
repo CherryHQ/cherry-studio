@@ -132,6 +132,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       if (!isMountedRef.current) return
 
+      panelGenerationRef.current += 1
       // Keep imperative key dispatch in sync with close before React commits.
       isVisibleRef.current = false
       setIsVisible(false)

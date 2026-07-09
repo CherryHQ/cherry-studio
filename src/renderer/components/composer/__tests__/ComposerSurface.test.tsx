@@ -1378,6 +1378,77 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
   })
 
+  it('ignores pending resource search results after the root panel closes without reopening', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+
+    mocks.quickPanelIsVisible = false
+    mocks.quickPanelGeneration = 2
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+  })
+
   it('clears unified panel resources when the resource provider rejects', async () => {
     let rejectResourceItems: (error: Error) => void = () => undefined
     const resourceProvider = vi.fn(

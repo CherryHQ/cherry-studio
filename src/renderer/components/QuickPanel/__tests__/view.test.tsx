@@ -249,6 +249,30 @@ describe('QuickPanelView', () => {
     expect(onClose.mock.calls[0][0].context).toBe(openContext)
   })
 
+  it('advances the panel generation when closing without reopening', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/' })
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(1)
+
+    act(() => {
+      quickPanel?.close('input_prefix_invalid')
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(2)
+  })
+
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
