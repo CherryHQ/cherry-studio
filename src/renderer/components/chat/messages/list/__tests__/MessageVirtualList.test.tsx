@@ -5,6 +5,8 @@ import { MessageVirtualList } from '../MessageVirtualList'
 
 const runtimeMockState = vi.hoisted(() => ({
   isScrollToBottomButtonVisible: false,
+  isScrollOwned: vi.fn(() => false),
+  releaseScrollOwnership: vi.fn(),
   scrollToBottom: vi.fn(),
   markUserInput: vi.fn(),
   shift: false
@@ -70,6 +72,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       scrollerRef: { current: null },
       vlistHandleRef: { current: null },
       isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
+      isScrollOwned: runtimeMockState.isScrollOwned,
+      releaseScrollOwnership: runtimeMockState.releaseScrollOwnership,
       scrollToBottom: runtimeMockState.scrollToBottom,
       markUserInput: runtimeMockState.markUserInput,
       shift: runtimeMockState.shift,
@@ -83,6 +87,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
 describe('MessageVirtualList', () => {
   beforeEach(() => {
     runtimeMockState.isScrollToBottomButtonVisible = false
+    runtimeMockState.isScrollOwned.mockClear()
+    runtimeMockState.releaseScrollOwnership.mockClear()
     runtimeMockState.scrollToBottom.mockClear()
     runtimeMockState.markUserInput.mockClear()
     runtimeMockState.shift = false

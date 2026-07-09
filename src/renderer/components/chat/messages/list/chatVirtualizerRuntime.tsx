@@ -112,6 +112,12 @@ export interface ChatVirtualizerRuntime<T> {
    * expand/collapse during streaming.
    */
   isScrollOwned(): boolean
+  /**
+   * Relinquish bottom-follow / smooth-scroll ownership so a collapsible block the
+   * user just expanded can hold its position instead of being scrolled away by the
+   * live stream. A no-op while a top-pin is active (that case is already stable).
+   */
+  releaseScrollOwnership(): void
   scrollToBottom(behavior?: ScrollBehavior): void
   /**
    * Mark that a real user scroll input just happened (wheel is wired via
@@ -232,6 +238,26 @@ export function useChatVirtualizerRuntime<T>({
     isScrollToBottomButtonVisibleRef.current = false
     setIsScrollToBottomButtonVisible(false)
   }, [])
+
+  // Let a collapsible block the user just expanded reclaim scrollTop from
+  // bottom-follow. Deliberately a NO-OP while a top-pin is active: with the user
+  // message pinned to the top, content already grows coherently below it, so a
+  // block toggle stays stable and we keep the pin. Otherwise relinquish
+  // bottom-follow / smooth-scroll ownership — cancel any animation, latch the
+  // at-bottom tracker into its protected `user-scrolled-up` state (a plain reset
+  // would be re-latched by the very next in-tolerance size change — a short
+  // expanded block near the live edge stays within the 100px tolerance, and
+  // auto-stick would immediately scroll the revealed content away again), and
+  // record the manual-control takeover (mirrors a user scroll-away) so
+  // `isScrollOwned()` reports false and the block anchor holds the expanded
+  // content in place. Scrolling back to the bottom re-engages auto-stick.
+  const releaseScrollOwnership = useCallback(() => {
+    if (anchor.isPinned()) return
+    smoothScroll.cancel()
+    atBottom.notifyUserTookControl()
+    userTookControlRef.current = true
+    updateScrollToBottomButtonVisibility()
+  }, [anchor, atBottom, smoothScroll, updateScrollToBottomButtonVisibility])
   const stickToEffectiveBottom = useCallback(() => {
     const el = scrollerRef.current
     if (!el) return
@@ -548,7 +574,7 @@ export function useChatVirtualizerRuntime<T>({
     if (isBottomFollowSuppressed()) {
       atBottom.reset()
     } else {
-      atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction })
+      atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: isUserInitiated })
     }
     updateScrollToBottomButtonVisibility()
     saveScrollPosition()
@@ -676,6 +702,7 @@ export function useChatVirtualizerRuntime<T>({
     scrollerProps,
     isScrollToBottomButtonVisible,
     isScrollOwned,
+    releaseScrollOwnership,
     scrollToBottom,
     markUserInput
   }

@@ -53,12 +53,14 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         aria-expanded={isExpanded}
         aria-controls={contentId}
         className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        onClick={() => withScrollAnchor(() => setIsExpanded((expanded) => !expanded))}
+        onClick={() =>
+          withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { takeScrollOwnership: !isExpanded })
+        }
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            withScrollAnchor(() => setIsExpanded((expanded) => !expanded))
+            withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { takeScrollOwnership: !isExpanded })
           }
         }}>
         <ThinkingEffect

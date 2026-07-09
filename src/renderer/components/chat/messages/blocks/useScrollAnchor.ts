@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 
-import { useIsScrollOwned } from './ScrollOwnershipContext'
+import { useScrollOwnership } from './ScrollOwnershipContext'
 
 /** Nearest actually-scrollable ancestor (overflow-y auto/scroll + scrollable content). */
 function findScrollParent(el: HTMLElement | null): HTMLElement | null {
@@ -24,21 +24,25 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
  * wrapper, so a hardcoded `#messages` lookup would write `scrollTop` to a non-scroller (no-op).
  *
  * Yields to the message-list runtime while it owns `scrollTop` (streaming,
- * bottom-follow, smooth scroll) via `useIsScrollOwned` — otherwise both would
+ * bottom-follow, smooth scroll) via `useScrollOwnership` — otherwise both would
  * write `scrollTop` in the same frame to different targets and jitter the
  * scrollbar. See {@link ScrollOwnershipContext}.
+ *
+ * Pass `{ takeScrollOwnership: true }` on an EXPAND: the user wants to read the
+ * freshly revealed content, so we ask the runtime to relinquish bottom-follow and
+ * then hold our own position instead of letting the live stream scroll it away.
  *
  * Usage:
  *   const { anchorRef, withScrollAnchor } = useScrollAnchor()
  *   <div ref={anchorRef}>...</div>
- *   onValueChange={(v) => withScrollAnchor(() => setValue(v))}
+ *   onValueChange={(v) => withScrollAnchor(() => setValue(v), { takeScrollOwnership: !!v })}
  */
 export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
   const anchorRef = useRef<T>(null)
-  const isScrollOwned = useIsScrollOwned()
+  const { isScrollOwned, releaseScrollOwnership } = useScrollOwnership()
 
   const withScrollAnchor = useCallback(
-    (update: () => void) => {
+    (update: () => void, options?: { takeScrollOwnership?: boolean }) => {
       // Yield to the message-list runtime while it owns scrollTop (a streaming
       // top-pin or its bottom-follow, at-bottom auto-stick, or an in-flight
       // smooth scroll). Restoring our own anchored scrollTop in the same frame the
@@ -48,8 +52,15 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       // provider, so `isScrollOwned` is always false and the standalone anchor
       // behavior below is preserved.
       if (isScrollOwned()) {
-        update()
-        return
+        // An explicit expand is a user intent to READ this block: ask the runtime
+        // to hand back bottom-follow ownership so the stream stops scrolling the
+        // revealed content away. It keeps an active top-pin (already stable), so
+        // re-check ownership — if still owned, yield as before.
+        if (options?.takeScrollOwnership) releaseScrollOwnership()
+        if (isScrollOwned()) {
+          update()
+          return
+        }
       }
 
       const anchor = anchorRef.current
@@ -79,7 +90,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
         scrollContainer.scrollTop = scrollBefore + drift
       })
     },
-    [isScrollOwned]
+    [isScrollOwned, releaseScrollOwnership]
   )
 
   return { anchorRef, withScrollAnchor }

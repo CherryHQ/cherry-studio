@@ -164,7 +164,9 @@ export function MessageVirtualList<T>({
         className={className}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
-          <ScrollOwnershipProvider isScrollOwned={runtime.isScrollOwned}>
+          <ScrollOwnershipProvider
+            isScrollOwned={runtime.isScrollOwned}
+            releaseScrollOwnership={runtime.releaseScrollOwnership}>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}
