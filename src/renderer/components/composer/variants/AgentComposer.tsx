@@ -34,6 +34,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -46,8 +47,11 @@ import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
+import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -55,6 +59,7 @@ import { useTranslation } from 'react-i18next'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -94,6 +99,44 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+
+const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
+  const filePath = canonicalizeAbsolutePath(attachment.path) as FilePath
+  const metadataById = await ipcApi.request('file.batch_get_metadata', {
+    items: [{ key: filePath, handle: createFilePathHandle(filePath) }]
+  })
+  const metadata = metadataById[filePath]
+  if (!metadata || metadata.kind !== 'file') {
+    throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
+  }
+
+  return {
+    type: 'file',
+    url: toFileUrl(filePath),
+    mediaType: metadata.mime,
+    filename: attachment.origin_name || attachment.name
+  }
+}
+
+const buildAgentFilePartsForAttachments = (
+  attachments: ComposerAttachment[],
+  accessiblePaths: readonly string[]
+): Promise<FileUIPart[]> => {
+  return Promise.all(
+    attachments.map((attachment) =>
+      isPathWithinAccessiblePath(attachment.path, accessiblePaths)
+        ? buildAccessiblePathFilePart(attachment)
+        : buildFilePartsForAttachments([attachment]).then((fileParts) => {
+            const [filePart] = fileParts
+            if (!filePart) {
+              throw new Error(`Failed to build file part for attachment: ${attachment.path}`)
+            }
+            return filePart
+          })
+    )
+  )
+}
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -696,7 +739,7 @@ const AgentComposerInner = ({
   const textRef = useRef(text)
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const accessiblePaths = sessionData?.accessiblePaths ?? []
+  const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableMentionModelTrigger = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
@@ -931,7 +974,7 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
-        const fileParts = await buildFilePartsForAttachments(attachments)
+        const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
@@ -943,7 +986,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {

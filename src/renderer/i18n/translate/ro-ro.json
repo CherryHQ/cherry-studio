@@ -191,7 +191,7 @@
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "icon": {
-      "type": "[to be translated]:Agent Icon"
+      "type": "Pictogramă Agent"
     },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
@@ -202,7 +202,7 @@
       }
     },
     "manage": {
-      "title": "[to be translated]:Manage Agents"
+      "title": "Gestionează agenți"
     },
     "pin": {
       "title": "Agent Pin"
@@ -355,6 +355,7 @@
         "label": "Instrumente pre-aprobate",
         "placeholder": "Selectează instrumente pre-aprobate"
       },
+      "auto_rename": "Generați numele sarcinii",
       "create": {
         "error": {
           "failed": "Nu s-a putut adăuga o sesiune"
@@ -636,7 +637,7 @@
     "sidebar_title": "Agenți",
     "skill": {
       "manage": {
-        "title": "[to be translated]:Manage skills"
+        "title": "Gestionează competențele"
       }
     },
     "tasks": {
@@ -1033,7 +1034,7 @@
     "clear": {
       "content": "Golirea subiectului va șterge toate subiectele și fișierele din asistent. Ești sigur că vrei să continui?",
       "menu_title": "Șterge toate conversațiile cu asistentul",
-      "success_title": "[to be translated]:Cleared {{count}} topics",
+      "success_title": "Șterse {{count}} subiecte",
       "title": "Șterge subiectele"
     },
     "copy": {
@@ -1659,6 +1660,7 @@
               "tip": "Subiectul va fi salvat în baza de cunoștințe cu contextul complet al conversației"
             }
           },
+          "source_fallback": "Conversație",
           "success": "Subiect salvat cu succes în baza de cunoștințe ({{count}} elemente)",
           "title": "Salvează subiectul în Baza de cunoștințe"
         }
@@ -3077,6 +3079,7 @@
           "avatar_aria": "Alege avatar",
           "back": "Înapoi",
           "capability": {
+            "builtin_badge": "Activat implicit",
             "import": "Import skill",
             "no_skills": "Nicio abilitate instalată",
             "search": "Abilități de căutare"
@@ -3695,6 +3698,7 @@
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
+      "collapse": "Colaps",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
       "groupHeader": "{{count}} apeluri de instrumente",
@@ -3739,6 +3743,7 @@
         "usingTools": "Lucrând la sarcină"
       },
       "preview": "Previzualizare",
+      "processed": "Procesat",
       "raw": "Brut",
       "runningCount": "{{count}} instrumente în execuție",
       "runningHeader": "Se lucrează…",
@@ -3990,10 +3995,13 @@
     "drop_markdown_hint": "Trage fișiere sau dosare .md aici pentru a importa",
     "empty": "Încă nu există notițe disponibile",
     "expand": "Extinde",
+    "exportToPDF": "Exportă în PDF",
     "exportToWord": "Exportă în Word",
     "export_failed": "Exportul în baza de cunoștințe a eșuat",
     "export_knowledge": "Exportă notițele în baza de cunoștințe",
     "export_success": "Exportat cu succes în baza de cunoștințe",
+    "export_to_pdf_failed": "Nu s-a reușit exportul în PDF",
+    "export_to_pdf_success": "Exportat în PDF",
     "export_to_word_failed": "Exportul în Word a eșuat",
     "folder": "Dosar",
     "load_failed": "Nu s-a reușit încărcarea notei",
@@ -4010,6 +4018,8 @@
     "no_valid_files": "Nu a fost încărcat niciun fișier valid",
     "open_folder": "Deschide un dosar extern",
     "open_outside": "Deschide extern",
+    "print": "Tipărire",
+    "print_failed": "Nu s-a putut imprima nota",
     "rename": "Redenumește",
     "rename_changed": "Din cauza politicilor de securitate, numele fișierului a fost schimbat din {{original}} în {{final}}",
     "rename_failed": "Nu s-a putut redenumi nota",
@@ -5275,9 +5285,9 @@
     },
     "agent": {
       "position": {
-        "label": "[to be translated]:Session position",
-        "left": "[to be translated]:Left",
-        "right": "[to be translated]:Right"
+        "label": "Poziția sesiunii",
+        "left": "Stânga",
+        "right": "Dreapta"
       }
     },
     "appearance": {
@@ -5916,6 +5926,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Verifică actualizări",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Nu există încă instrumente personalizate. Adaugă unul pentru a începe.",
@@ -5953,7 +5964,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Nu s-a putut verifica dacă există actualizări"
     },
     "developer": {
       "enable_developer_mode": "Activează modul dezvoltator",
@@ -7215,6 +7227,7 @@
       "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
       "pin_tab": "Comutare fixare filă",
       "press_shortcut": "Apasă comanda rapidă",
+      "print": "Tipărire",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
       "reset": "Resetare",
@@ -7545,7 +7558,7 @@
   },
   "title": {
     "apps": "Aplicații",
-    "chat": "[to be translated]:Chat",
+    "chat": "Chat",
     "code": "Cod",
     "files": "Fișiere",
     "home": "Acasă",

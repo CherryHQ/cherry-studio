@@ -191,7 +191,7 @@
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "icon": {
-      "type": "[to be translated]:Agent Icon"
+      "type": "Biểu tượng Đại lý"
     },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
@@ -202,7 +202,7 @@
       }
     },
     "manage": {
-      "title": "[to be translated]:Manage Agents"
+      "title": "Quản lý Đại lý"
     },
     "pin": {
       "title": "Đại lý Ghim"
@@ -355,6 +355,7 @@
         "label": "Công cụ được phê duyệt trước",
         "placeholder": "Chọn công cụ được phê duyệt trước"
       },
+      "auto_rename": "Tạo tên nhiệm vụ",
       "create": {
         "error": {
           "failed": "Không thể thêm phiên"
@@ -636,7 +637,7 @@
     "sidebar_title": "Đại lý",
     "skill": {
       "manage": {
-        "title": "[to be translated]:Manage skills"
+        "title": "Quản lý kỹ năng"
       }
     },
     "tasks": {
@@ -1033,7 +1034,7 @@
     "clear": {
       "content": "Xóa chủ đề sẽ xóa tất cả các chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn tiếp tục?",
       "menu_title": "Xóa tất cả các cuộc trò chuyện với trợ lý",
-      "success_title": "[to be translated]:Cleared {{count}} topics",
+      "success_title": "Đã xóa {{count}} chủ đề",
       "title": "Temas claros"
     },
     "copy": {
@@ -1659,6 +1660,7 @@
               "tip": "Chủ đề sẽ được lưu vào cơ sở kiến thức cùng toàn bộ ngữ cảnh cuộc trò chuyện"
             }
           },
+          "source_fallback": "Cuộc trò chuyện",
           "success": "Chủ đề đã được lưu thành công vào cơ sở kiến thức ({{count}} mục)",
           "title": "Lưu chủ đề vào Cơ sở tri thức"
         }
@@ -3077,6 +3079,7 @@
           "avatar_aria": "Chọn hình đại diện",
           "back": "Quay lại",
           "capability": {
+            "builtin_badge": "Được bật theo mặc định",
             "import": "Nhập kỹ năng",
             "no_skills": "Chưa cài đặt kỹ năng nào",
             "search": "Kỹ năng tìm kiếm"
@@ -3695,6 +3698,7 @@
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
+      "collapse": "Thu gọn",
       "completed": "Hoàn thành",
       "error": "Đã xảy ra lỗi",
       "groupHeader": "{{count}} appels d’outil",
@@ -3739,6 +3743,7 @@
         "usingTools": "Đang làm việc trên nhiệm vụ"
       },
       "preview": "Voorbeeld",
+      "processed": "Đã xử lý",
       "raw": "Raw",
       "runningCount": "{{count}} công cụ đang chạy",
       "runningHeader": "Đang làm việc…",
@@ -3990,10 +3995,13 @@
     "drop_markdown_hint": "Thả tệp .md hoặc thư mục vào đây để nhập",
     "empty": "Chưa có ghi chú nào",
     "expand": "mở ra",
+    "exportToPDF": "Xuất ra PDF",
     "exportToWord": "Xuất ra Word",
     "export_failed": "Không xuất được vào cơ sở tri thức",
     "export_knowledge": "Xuất ghi chú sang cơ sở tri thức",
     "export_success": "Đã xuất khẩu thành công vào cơ sở tri thức",
+    "export_to_pdf_failed": "Không thể xuất sang PDF",
+    "export_to_pdf_success": "Xuất sang PDF",
     "export_to_word_failed": "Không xuất được sang Word",
     "folder": "thư mục",
     "load_failed": "Không thể tải ghi chú",
@@ -4010,6 +4018,8 @@
     "no_valid_files": "Không có tệp hợp lệ nào được tải lên",
     "open_folder": "Mở một thư mục bên ngoài",
     "open_outside": "Mở từ bên ngoài",
+    "print": "In ấn",
+    "print_failed": "Không thể in ghi chú",
     "rename": "Đổi tên",
     "rename_changed": "Do chính sách bảo mật, tên tệp đã được thay đổi từ {{original}} thành {{final}}",
     "rename_failed": "Không đổi được tên ghi chú",
@@ -5275,9 +5285,9 @@
     },
     "agent": {
       "position": {
-        "label": "[to be translated]:Session position",
-        "left": "[to be translated]:Left",
-        "right": "[to be translated]:Right"
+        "label": "Vị trí phiên",
+        "left": "Trái",
+        "right": "Đúng"
       }
     },
     "appearance": {
@@ -5916,6 +5926,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Kiểm tra cập nhật",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
@@ -5953,7 +5964,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Không thể kiểm tra bản cập nhật"
     },
     "developer": {
       "enable_developer_mode": "Kích hoạt Chế độ Nhà phát triển",
@@ -7215,6 +7227,7 @@
       "open_tab_in_new_window": "Mở tab trong cửa sổ mới",
       "pin_tab": "Chuyển đổi Ghim Tab",
       "press_shortcut": "Nhấn Phím tắt",
+      "print": "In",
       "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
       "reset": "Đặt lại",
@@ -7545,7 +7558,7 @@
   },
   "title": {
     "apps": "Ứng dụng",
-    "chat": "[to be translated]:Chat",
+    "chat": "Trò chuyện",
     "code": "Mã",
     "files": "Tập tin",
     "home": "Trang chủ",
