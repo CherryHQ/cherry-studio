@@ -551,6 +551,18 @@ async function materializeUserContent(
   for (const part of message.data?.parts ?? []) {
     if (part.type !== 'file') continue
 
+    const mediaType = part.mediaType?.toLowerCase()
+    const canBeImage =
+      !mediaType ||
+      mediaType === 'application/octet-stream' ||
+      Boolean(toClaudeImageMediaType(mediaType)) ||
+      ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(mediaType)
+    if (!canBeImage) {
+      const target = part.url?.startsWith('file://') ? fallbackParts : unavailableParts
+      target.push(part)
+      continue
+    }
+
     const materialized = await materializeNativeFilePart(part)
     const parsed = materialized && parseDataUrl(materialized.url)
     if (parsed?.isBase64) {

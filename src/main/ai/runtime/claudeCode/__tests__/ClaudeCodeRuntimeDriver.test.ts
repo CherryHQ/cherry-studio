@@ -219,7 +219,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
-    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(2)
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 
@@ -792,6 +792,55 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     void connection.close()
     expect(steerHolder.dispose).toHaveBeenCalled()
+  })
+
+  it('emits redirected attachment steers as undelivered so they can run as the next SDK turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const steerHolder = { pending: [] as any[], dispose: vi.fn() }
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const steer = {
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'look at this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      },
+      systemReminder: true
+    }
+
+    await connection.send({ message: userMessage() })
+    expect(connection.redirect?.(steer)).toBe(true)
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: {} })
+
+    const seen: any[] = []
+    for (;;) {
+      const { value, done } = await events.next()
+      if (done) break
+      seen.push(value)
+      if (value?.type === 'turn-complete') break
+    }
+
+    expect(seen).toEqual(expect.arrayContaining([{ type: 'steer-undelivered', inputs: [steer] }]))
+    expect(steerHolder.pending).toHaveLength(0)
+    void connection.close()
   })
 
   it('emits a steer-boundary at the first top-level message_start after a steer is injected', async () => {
