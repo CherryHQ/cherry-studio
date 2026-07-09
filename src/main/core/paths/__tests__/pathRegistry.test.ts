@@ -47,6 +47,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
     })
 
+    it('returns true for the new feature.provider_registry.override key (writable, not opted out)', () => {
+      // The remote-updated override dir under userData is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+    })
+
     it('returns true for feature.mcp', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })

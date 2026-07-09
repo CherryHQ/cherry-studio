@@ -88,6 +88,10 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Remote-updated override copy of the registry JSON, preferred over the
+    // bundled data when present (see ProviderRegistryUpdaterService). Writable.
+    'feature.provider_registry.override': path.join(appUserData, 'provider-registry-override'),
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
