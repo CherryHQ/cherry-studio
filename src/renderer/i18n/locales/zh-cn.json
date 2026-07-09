@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "开始任务后，任务记录会显示在这里。",
-        "title": "还没有任务"
+        "title": "暂无任务"
       },
       "file_manager": {
         "file_explorer": "资源管理器",
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
-        "title": "还没有对话"
+        "title": "暂无对话"
       },
       "export": {
         "failed": "导出失败",

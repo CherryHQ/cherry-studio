@@ -1919,8 +1919,7 @@ function SessionListBody({
           compact
           preset="no-session"
           className="min-h-60 px-5 py-10"
-          title={t('agent.session.empty.title')}
-          description={t('agent.session.empty.description')}
+          description={t('agent.session.empty.title')}
         />
       }
       renderItem={renderItem}

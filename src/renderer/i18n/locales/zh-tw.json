@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
-        "title": "還沒有任務"
+        "title": "暫無任務"
       },
       "file_manager": {
         "file_explorer": "檔案總管",
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "建立一個對話後，這裡會保存你的聊天記錄，方便之後繼續上下文。",
-        "title": "還沒有對話"
+        "title": "暫無對話"
       },
       "export": {
         "failed": "匯出失敗",

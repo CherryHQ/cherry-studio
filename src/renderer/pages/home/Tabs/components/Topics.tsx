@@ -1489,8 +1489,7 @@ function TopicListBody(props: TopicListBodyProps) {
           compact
           preset="no-topic"
           className="min-h-60 px-5 py-10"
-          title={t('chat.topics.empty.title')}
-          description={t('chat.topics.empty.description')}
+          description={t('chat.topics.empty.title')}
         />
       }
       renderItem={renderItem}

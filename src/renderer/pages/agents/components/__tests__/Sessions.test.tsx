@@ -490,7 +490,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
-        'agent.session.empty.title': 'No tasks yet',
+        'agent.session.empty.title': 'No tasks',
         'agent.manage.title': 'Manage Agents',
         'agent.delete.content': 'Delete this agent and its tasks?',
         'agent.delete.error.failed': 'Failed to delete agent',
@@ -961,8 +961,8 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
-    expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
+    expect(screen.getByText('No tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()
   })

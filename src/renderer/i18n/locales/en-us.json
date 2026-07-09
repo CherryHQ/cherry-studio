@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
