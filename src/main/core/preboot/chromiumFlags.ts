@@ -48,9 +48,6 @@ export function configureChromiumFlags(): void {
     app.commandLine.appendSwitch('name', 'CherryStudio')
   }
 
-  // Increase V8's old-space limit for large local migrations/imports.
-  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192')
-
   // Unconditional Chromium feature flags:
   // - DocumentPolicyIncludeJSCallStacksInCrashReports: capture JS call stacks
   //   when the renderer is unresponsive (paired with the web-contents-created
