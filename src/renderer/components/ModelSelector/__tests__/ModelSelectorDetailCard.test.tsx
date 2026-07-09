@@ -16,6 +16,7 @@ const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, 
       side?: string
       align?: string
       collisionPadding?: number
+      avoidCollisions?: boolean
       portalContainer?: HTMLElement | null
     }>,
     mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
@@ -66,6 +67,7 @@ vi.mock('@cherrystudio/ui', () => ({
     side,
     align,
     collisionPadding,
+    avoidCollisions,
     portalContainer
   }: {
     children: ReactNode
@@ -73,9 +75,10 @@ vi.mock('@cherrystudio/ui', () => ({
     side?: string
     align?: string
     collisionPadding?: number
+    avoidCollisions?: boolean
     portalContainer?: HTMLElement | null
   }) => {
-    mockHoverCardContentProps.push({ className, side, align, collisionPadding, portalContainer })
+    mockHoverCardContentProps.push({ className, side, align, collisionPadding, avoidCollisions, portalContainer })
     return <div className={className}>{children}</div>
   },
   HoverCardTrigger: ({ children, ref }: { children: ReactNode; ref?: Ref<HTMLSpanElement> }) => (
@@ -159,12 +162,13 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
       side: 'right',
       align: 'start',
-      collisionPadding: 12
+      collisionPadding: 12,
+      avoidCollisions: false
     })
     expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
   })
 
-  it('places the hover card below the row when neither horizontal side fits', () => {
+  it('keeps the hover card horizontal when neither side has enough room', () => {
     const model = makeModel()
 
     vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(280)
@@ -190,8 +194,9 @@ describe('ModelSelectorDetailCard', () => {
     act(() => mockHoverCardOpenChange.current?.(true))
 
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'bottom',
-      align: 'center'
+      side: 'left',
+      align: 'start',
+      avoidCollisions: false
     })
   })
 

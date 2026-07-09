@@ -117,9 +117,7 @@ function getDetailCardSide(
     return 'left'
   }
 
-  return getAvailableSpaceForSide(triggerRect, 'bottom', bounds) >= getAvailableSpaceForSide(triggerRect, 'top', bounds)
-    ? 'bottom'
-    : 'top'
+  return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
 function getDetailCardAlign(side: HoverCardSide): HoverCardAlign {
@@ -250,6 +248,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         align={align}
         sideOffset={DETAIL_CARD_SIDE_OFFSET}
         collisionPadding={DETAIL_CARD_COLLISION_PADDING}
+        avoidCollisions={false}
         portalContainer={portalContainer ?? undefined}
         className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
         <ModelSelectorDetailCardBody item={item} providerName={providerName} />
