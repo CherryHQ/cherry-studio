@@ -74,7 +74,7 @@ export function createIndexDocumentsJobHandler(
       // lock; these phases can be slow and do not mutate shared state.
       const readableItem = await ensureSnapshot(ctx, item, knowledgeLockManager)
       const documents = await readItemDocuments(ctx, readableItem)
-      const chunked = await chunkItemDocuments(base, documents)
+      const chunked = await chunkItemDocuments(base, documents, ctx.signal)
       if (chunked.chunks.length === 0) {
         // Deliberate: the item still completes (an empty material is written) so the
         // UI doesn't show a stuck/failed item, but leave a trace — an image-only PDF
@@ -240,13 +240,17 @@ async function ensureSnapshot(
   })
 }
 
-async function chunkItemDocuments(base: KnowledgeBase, documents: LoadedDocuments): Promise<ChunkedKnowledgeContent> {
+async function chunkItemDocuments(
+  base: KnowledgeBase,
+  documents: LoadedDocuments,
+  signal: AbortSignal
+): Promise<ChunkedKnowledgeContent> {
   const chunked = chunkKnowledgeDocuments(base, documents)
   if (base.embeddingModelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || chunked.chunks.length === 0) {
     return chunked
   }
 
-  return await refineLocalEmbeddingChunks(base, chunked)
+  return await refineLocalEmbeddingChunks(base, chunked, signal)
 }
 
 /**

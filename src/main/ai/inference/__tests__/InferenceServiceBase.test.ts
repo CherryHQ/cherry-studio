@@ -455,6 +455,46 @@ describe('InferenceService terminateThen', () => {
   })
 })
 
+describe('EmbeddingInferenceService.countTokens', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceService.terminate()
+  })
+
+  it('sends an embedding.countTokens request and resolves with the worker-reported counts', async () => {
+    const pending = embeddingInferenceService.countTokens(['hi', 'there'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+
+    const request = worker.postMessage.mock.calls.find(([msg]) => (msg as { id?: string }).id !== undefined)![0] as {
+      type: string
+      texts: string[]
+    }
+    expect(request.type).toBe('embedding.countTokens')
+    expect(request.texts).toEqual(['hi', 'there'])
+
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), tokenCounts: [1, 2] })
+
+    await expect(pending).resolves.toEqual([1, 2])
+  })
+
+  it('supports aborting a queued countTokens request', async () => {
+    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    const controller = new AbortController()
+    const second = embeddingInferenceService.countTokens(['b'], SOURCE, 'org/model', 'q8', controller.signal)
+
+    controller.abort()
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await first
+
+    await expect(second).rejects.toThrow()
+  })
+})
+
 describe('InferenceService abort listener cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks()

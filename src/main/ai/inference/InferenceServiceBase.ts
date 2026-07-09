@@ -29,6 +29,7 @@ export interface InferenceProgress {
 interface InferenceResult {
   embeddings?: number[][] | null
   text?: string | null
+  tokenCounts?: number[] | null
 }
 
 interface Pending {
@@ -167,7 +168,11 @@ export abstract class InferenceServiceBase extends BaseService {
         if (!pending) return
         this.pending.delete(msg.id)
         pending.cleanup()
-        pending.resolve({ embeddings: msg.embeddings ?? null, text: msg.text ?? null })
+        pending.resolve({
+          embeddings: msg.embeddings ?? null,
+          text: msg.text ?? null,
+          tokenCounts: msg.tokenCounts ?? null
+        })
         return
       }
       case 'error': {

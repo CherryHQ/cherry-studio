@@ -115,6 +115,12 @@ async function handleLoad(msg) {
   parentPort.postMessage({ type: 'result', id: msg.id, embeddings: null })
 }
 
+async function handleCountTokens(msg) {
+  const extractor = await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, false)
+  const tokenCounts = msg.texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
+  parentPort.postMessage({ type: 'result', id: msg.id, tokenCounts })
+}
+
 function ocrKey(paths) {
   return paths.detection + '|' + paths.recognition + '|' + paths.charactersDictionary
 }
@@ -168,9 +174,11 @@ parentPort.on('message', (msg) => {
       ? handleEmbed
       : msg.type === 'embedding.load'
         ? handleLoad
-        : msg.type === 'ocr.recognize'
-          ? handleOcr
-          : null
+        : msg.type === 'embedding.countTokens'
+          ? handleCountTokens
+          : msg.type === 'ocr.recognize'
+            ? handleOcr
+            : null
   if (!run) {
     parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
     return

@@ -52,6 +52,18 @@ export interface EmbeddingEmbedMessage {
   texts: string[]
 }
 
+/** Count tokens via the pipeline's own tokenizer; loads the pipeline first if
+ * it is not cached yet. Keeps token counting off the main process, which must
+ * never import `@huggingface/transformers` itself (see localEmbeddingTokenLimit.ts). */
+export interface EmbeddingCountTokensMessage {
+  type: 'embedding.countTokens'
+  id: string
+  modelRepo: string
+  dtype: string
+  source: InferenceModelSource
+  texts: string[]
+}
+
 /** Absolute paths to the PaddleOCR model files (downloaded by the main process). */
 export interface OcrModelPaths {
   detection: string
@@ -68,7 +80,11 @@ export interface OcrRecognizeMessage {
   imagePath: string
 }
 
-export type InferenceRequest = EmbeddingLoadMessage | EmbeddingEmbedMessage | OcrRecognizeMessage
+export type InferenceRequest =
+  | EmbeddingLoadMessage
+  | EmbeddingEmbedMessage
+  | EmbeddingCountTokensMessage
+  | OcrRecognizeMessage
 
 // -- worker → main --------------------------------------------------------
 
@@ -100,6 +116,8 @@ export interface InferenceResultMessage {
   embeddings?: number[][] | null
   /** Recognized text (`ocr.recognize`). */
   text?: string | null
+  /** Token counts, one per input text (`embedding.countTokens`). */
+  tokenCounts?: number[] | null
 }
 
 export interface InferenceErrorMessage {

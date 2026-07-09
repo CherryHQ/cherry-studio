@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ChunkedKnowledgeContent } from '../chunk'
 import { refineChunksByTokenLimit } from '../tokenLimit'
 
-const countChars = (text: string) => text.length
+const countChars = async (text: string) => text.length
 
 function expectVerbatimSlices(chunked: ChunkedKnowledgeContent) {
   for (const chunk of chunked.chunks) {
@@ -12,7 +12,7 @@ function expectVerbatimSlices(chunked: ChunkedKnowledgeContent) {
 }
 
 describe('refineChunksByTokenLimit', () => {
-  it('keeps chunks that are already within the token limit', () => {
+  it('keeps chunks that are already within the token limit', async () => {
     const chunked: ChunkedKnowledgeContent = {
       contentText: 'alpha\n\nbeta',
       chunks: [
@@ -21,7 +21,7 @@ describe('refineChunksByTokenLimit', () => {
       ]
     }
 
-    const refined = refineChunksByTokenLimit(chunked, {
+    const refined = await refineChunksByTokenLimit(chunked, {
       maxTokens: 5,
       overlapTokens: 1,
       countTokens: countChars
@@ -35,13 +35,13 @@ describe('refineChunksByTokenLimit', () => {
     expectVerbatimSlices(refined)
   })
 
-  it('splits oversized chunks and keeps every emitted chunk under the token limit', () => {
+  it('splits oversized chunks and keeps every emitted chunk under the token limit', async () => {
     const chunked: ChunkedKnowledgeContent = {
       contentText: 'abcdefghij',
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 10, text: 'abcdefghij' }]
     }
 
-    const refined = refineChunksByTokenLimit(chunked, {
+    const refined = await refineChunksByTokenLimit(chunked, {
       maxTokens: 4,
       overlapTokens: 1,
       countTokens: countChars
@@ -50,7 +50,7 @@ describe('refineChunksByTokenLimit', () => {
     expect(refined.chunks.length).toBeGreaterThan(1)
     expect(refined.chunks.map((chunk) => chunk.unitIndex)).toEqual(refined.chunks.map((_, index) => index))
     for (const chunk of refined.chunks) {
-      expect(countChars(chunk.text)).toBeLessThanOrEqual(4)
+      expect(await countChars(chunk.text)).toBeLessThanOrEqual(4)
     }
     for (let index = 1; index < refined.chunks.length; index += 1) {
       const previous = refined.chunks[index - 1]
@@ -61,13 +61,13 @@ describe('refineChunksByTokenLimit', () => {
     expectVerbatimSlices(refined)
   })
 
-  it('prefers natural boundaries before hard token cuts', () => {
+  it('prefers natural boundaries before hard token cuts', async () => {
     const chunked: ChunkedKnowledgeContent = {
       contentText: 'alpha beta gamma',
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 16, text: 'alpha beta gamma' }]
     }
 
-    const refined = refineChunksByTokenLimit(chunked, {
+    const refined = await refineChunksByTokenLimit(chunked, {
       maxTokens: 10,
       overlapTokens: 0,
       countTokens: countChars
@@ -77,13 +77,13 @@ describe('refineChunksByTokenLimit', () => {
     expectVerbatimSlices(refined)
   })
 
-  it('clamps overlap and still makes progress', () => {
+  it('clamps overlap and still makes progress', async () => {
     const chunked: ChunkedKnowledgeContent = {
       contentText: 'abcdefghijkl',
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 12, text: 'abcdefghijkl' }]
     }
 
-    const refined = refineChunksByTokenLimit(chunked, {
+    const refined = await refineChunksByTokenLimit(chunked, {
       maxTokens: 4,
       overlapTokens: 99,
       countTokens: countChars

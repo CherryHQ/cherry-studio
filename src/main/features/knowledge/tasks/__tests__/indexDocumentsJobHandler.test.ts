@@ -152,7 +152,8 @@ describe('index-documents job handler', () => {
       expect.objectContaining({
         contentText: 'abcdefghij',
         chunks: [expect.objectContaining({ text: 'abcdefghij' })]
-      })
+      }),
+      expect.any(AbortSignal)
     )
     expect(embedKnowledgeTextsMock.mock.calls[0][1]).toEqual(['abcd', 'efgh', 'ij'])
     expect(

@@ -40,4 +40,18 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
   ): Promise<void> {
     await this.send({ type: 'embedding.load', modelRepo, dtype, source }, { onProgress, signal })
   }
+
+  /** Count tokens via the pipeline's own tokenizer, off the main thread — the main
+   * process must never import `@huggingface/transformers` itself (see
+   * localEmbeddingTokenLimit.ts, which transitively requires onnxruntime-node). */
+  async countTokens(
+    texts: string[],
+    source: InferenceModelSource,
+    modelRepo: string,
+    dtype: string,
+    signal?: AbortSignal
+  ): Promise<number[]> {
+    const result = await this.send({ type: 'embedding.countTokens', modelRepo, dtype, source, texts }, { signal })
+    return result.tokenCounts ?? []
+  }
 }

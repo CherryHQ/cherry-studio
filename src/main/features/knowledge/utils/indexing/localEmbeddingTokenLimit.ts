@@ -10,15 +10,14 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { ChunkedKnowledgeContent } from './chunk'
 import { refineChunksByTokenLimit } from './tokenLimit'
 
-type CountTokens = (text: string) => number
-
-let tokenCounterPromise: Promise<CountTokens> | null = null
+type CountTokens = (text: string) => Promise<number>
 
 export async function refineLocalEmbeddingChunks(
   base: KnowledgeBase,
-  chunked: ChunkedKnowledgeContent
+  chunked: ChunkedKnowledgeContent,
+  signal?: AbortSignal
 ): Promise<ChunkedKnowledgeContent> {
-  const countTokens = await getLocalEmbeddingTokenCounter()
+  const countTokens = await getLocalEmbeddingTokenCounter(signal)
   const maxTokens = Math.min(base.chunkSize, LOCAL_EMBEDDING_MAX_INPUT_TOKENS)
   const overlapTokens = Math.min(base.chunkOverlap, LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS, maxTokens - 1)
 
@@ -29,22 +28,16 @@ export async function refineLocalEmbeddingChunks(
   })
 }
 
-export async function getLocalEmbeddingTokenCounter(): Promise<CountTokens> {
-  tokenCounterPromise ??= loadLocalEmbeddingTokenCounter().catch((error: unknown) => {
-    tokenCounterPromise = null
-    throw error
-  })
-  return tokenCounterPromise
-}
-
-async function loadLocalEmbeddingTokenCounter(): Promise<CountTokens> {
-  const { AutoTokenizer, env } = await import('@huggingface/transformers')
+/** Counts tokens on the inference worker's already-loaded pipeline — the main
+ * process must never import `@huggingface/transformers` itself, since that
+ * transitively requires onnxruntime-node's native binding (see
+ * patches/onnxruntime-node@1.24.3.patch and OnnxRuntimeBinaryService). */
+async function getLocalEmbeddingTokenCounter(signal?: AbortSignal): Promise<CountTokens> {
   const source = await currentModelSource()
-  env.allowRemoteModels = true
-  env.cacheDir = application.getPath('feature.embedding.models')
-  env.remoteHost = source.remoteHost
-  env.remotePathTemplate = source.remotePathTemplate
-
-  const tokenizer = await AutoTokenizer.from_pretrained(LOCAL_MODELS.embedding.repo, { revision: source.revision })
-  return (text: string) => tokenizer.encode(text, { add_special_tokens: true }).length
+  return async (text: string) => {
+    const [count] = await application
+      .get('EmbeddingInferenceService')
+      .countTokens([text], source, LOCAL_MODELS.embedding.repo, LOCAL_MODELS.embedding.dtype, signal)
+    return count
+  }
 }

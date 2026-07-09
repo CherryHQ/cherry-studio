@@ -3,7 +3,7 @@ import type { ChunkedKnowledgeContent, KnowledgeContentChunk } from './chunk'
 export interface TokenLimitRefineOptions {
   maxTokens: number
   overlapTokens: number
-  countTokens: (text: string) => number
+  countTokens: (text: string) => Promise<number>
 }
 
 interface TextRange {
@@ -15,10 +15,10 @@ interface TextRange {
 const BOUNDARY_MIN_RATIO = 0.5
 const PREFERRED_BOUNDARIES = ['\n\n', '\n', '。', '！', '？', '. ', '! ', '? ', '；', '; ', '，', ', ', ' ']
 
-export function refineChunksByTokenLimit(
+export async function refineChunksByTokenLimit(
   chunked: ChunkedKnowledgeContent,
   options: TokenLimitRefineOptions
-): ChunkedKnowledgeContent {
+): Promise<ChunkedKnowledgeContent> {
   const maxTokens = Math.max(1, Math.floor(options.maxTokens))
   const overlapTokens = Math.max(0, Math.min(Math.floor(options.overlapTokens), maxTokens - 1))
   const chunks: KnowledgeContentChunk[] = []
@@ -33,12 +33,12 @@ export function refineChunksByTokenLimit(
   }
 
   for (const chunk of chunked.chunks) {
-    if (options.countTokens(chunk.text) <= maxTokens) {
+    if ((await options.countTokens(chunk.text)) <= maxTokens) {
       pushChunk({ start: chunk.charStart, end: chunk.charEnd, text: chunk.text })
       continue
     }
 
-    for (const range of splitChunkByTokenLimit(
+    for (const range of await splitChunkByTokenLimit(
       chunked.contentText,
       chunk,
       maxTokens,
@@ -52,18 +52,18 @@ export function refineChunksByTokenLimit(
   return { contentText: chunked.contentText, chunks }
 }
 
-function splitChunkByTokenLimit(
+async function splitChunkByTokenLimit(
   contentText: string,
   chunk: KnowledgeContentChunk,
   maxTokens: number,
   overlapTokens: number,
-  countTokens: (text: string) => number
-): TextRange[] {
+  countTokens: (text: string) => Promise<number>
+): Promise<TextRange[]> {
   const ranges: TextRange[] = []
   let cursor = chunk.charStart
 
   while (cursor < chunk.charEnd) {
-    const end = findTokenLimitedEnd(contentText, cursor, chunk.charEnd, maxTokens, countTokens)
+    const end = await findTokenLimitedEnd(contentText, cursor, chunk.charEnd, maxTokens, countTokens)
     const range = trimRange(contentText, cursor, end)
     if (range) {
       ranges.push(range)
@@ -75,7 +75,7 @@ function splitChunkByTokenLimit(
 
     const nextCursor =
       range && overlapTokens > 0
-        ? findOverlapStart(contentText, range.start, range.end, overlapTokens, countTokens)
+        ? await findOverlapStart(contentText, range.start, range.end, overlapTokens, countTokens)
         : end
     cursor = nextCursor > cursor ? nextCursor : end
   }
@@ -83,15 +83,15 @@ function splitChunkByTokenLimit(
   return ranges
 }
 
-function findTokenLimitedEnd(
+async function findTokenLimitedEnd(
   contentText: string,
   start: number,
   limit: number,
   maxTokens: number,
-  countTokens: (text: string) => number
-): number {
+  countTokens: (text: string) => Promise<number>
+): Promise<number> {
   const full = trimRange(contentText, start, limit)
-  if (full && countTokens(full.text) <= maxTokens) {
+  if (full && (await countTokens(full.text)) <= maxTokens) {
     return limit
   }
 
@@ -101,7 +101,7 @@ function findTokenLimitedEnd(
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const candidate = trimRange(contentText, start, mid)
-    if (!candidate || countTokens(candidate.text) <= maxTokens) {
+    if (!candidate || (await countTokens(candidate.text)) <= maxTokens) {
       best = mid
       low = mid + 1
     } else {
@@ -123,20 +123,20 @@ function findPreferredBoundary(contentText: string, start: number, hardEnd: numb
   return hardEnd
 }
 
-function findOverlapStart(
+async function findOverlapStart(
   contentText: string,
   start: number,
   end: number,
   overlapTokens: number,
-  countTokens: (text: string) => number
-): number {
+  countTokens: (text: string) => Promise<number>
+): Promise<number> {
   let low = start
   let high = end
   let best = end
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const candidate = trimRange(contentText, mid, end)
-    if (!candidate || countTokens(candidate.text) <= overlapTokens) {
+    if (!candidate || (await countTokens(candidate.text)) <= overlapTokens) {
       best = mid
       high = mid - 1
     } else {
