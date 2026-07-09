@@ -665,7 +665,7 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
                 {...props}
                 side={side}
                 iconOnly={iconOnly}
-                agentTriggerMode="edit"
+                agentTriggerMode={props.agentTriggerMode ?? 'edit'}
                 inputAdapter={inputAdapter}
               />
               <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
@@ -1274,6 +1274,7 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1300,7 +1301,7 @@ const MissingAgentHomeComposerInner = ({
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
   })
-  const controlSlots = renderAgentHomeControls({
+  const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
@@ -1309,9 +1310,23 @@ const MissingAgentHomeComposerInner = ({
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
     showAgentTrigger: !isClassicSessionLayout,
+    agentTriggerMode: 'selector',
     canChangeModel: false,
     onAgentChange: handleAgentChange,
-    onModelSelect: () => undefined
+    onModelSelect: () => undefined,
+    // Show the workspace/folder selector as a disabled placeholder (no session to bind yet);
+    // it becomes live once an agent is picked and the real composer mounts. Mirror the docked
+    // composer's rule of hiding it in workdir mode.
+    renderWorkspaceControl:
+      sessionDisplayMode === 'workdir'
+        ? undefined
+        : ({ side, iconOnly = false }) => (
+            <AgentComposerWorkspaceControl
+              selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+              side={side}
+              iconOnly={iconOnly}
+            />
+          )
   })
 
   return (
@@ -1338,7 +1353,7 @@ const MissingAgentHomeComposerInner = ({
         enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode
+        narrowMode={narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

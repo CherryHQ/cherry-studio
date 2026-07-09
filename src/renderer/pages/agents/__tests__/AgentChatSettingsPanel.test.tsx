@@ -487,7 +487,7 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
   })
@@ -592,7 +592,7 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()

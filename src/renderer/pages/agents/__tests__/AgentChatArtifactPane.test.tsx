@@ -812,9 +812,9 @@ describe('AgentChat artifact pane', () => {
       onMissingAgentSelectionAgentChange
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
-    expect(screen.getByTestId('composer-dock-home-header')).toHaveTextContent('agent.home.welcome_title')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
+    expect(screen.getByTestId('composer-dock-home-header')).toBeEmptyDOMElement()
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
@@ -840,7 +840,7 @@ describe('AgentChat artifact pane', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
@@ -864,7 +864,7 @@ describe('AgentChat artifact pane', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
 
     rerenderAgentChat(rerender, {

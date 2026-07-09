@@ -208,14 +208,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          center={
-            <ConversationStageCenter
-              placement="home"
-              main={null}
-              composer={composer}
-              homeWelcomeText={t('agent.home.welcome_title')}
-            />
-          }
+          center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />

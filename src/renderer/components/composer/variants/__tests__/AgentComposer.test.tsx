@@ -1823,13 +1823,15 @@ describe('AgentComposer', () => {
     render(<MissingAgentHomeComposer onAgentChange={onAgentChange} />)
 
     expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
-    const belowControls = screen.getByTestId('composer-below-controls')
-    expect(belowControls).toHaveTextContent('chat.alerts.select_agent')
-    expect(belowControls).not.toHaveTextContent('Workspace 1')
+    const leftControls = screen.getByTestId('composer-left-controls')
+    expect(leftControls).toHaveTextContent('chat.alerts.select_agent')
+    // The model selector renders inline as a disabled placeholder until an agent is picked.
+    expect(leftControls).toHaveTextContent('button.select_model')
+    expect(leftControls).not.toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('composer-below-controls')).toBeEmptyDOMElement()
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
-    expect(mocks.surfaceProps?.narrowMode).toBe(true)
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
 
     act(() => {
       mocks.surfaceProps?.onTextChange('draft before agent')
@@ -1850,8 +1852,28 @@ describe('AgentComposer', () => {
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
     expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('chat.alerts.select_agent')
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
+  })
+
+  it('shows a disabled workspace placeholder in the missing-agent composer outside workdir mode', () => {
+    mocks.sessionLayout = 'time'
+
+    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const workspaceLabel = within(leftControls).getByText('agent.session.workspace_selector.placeholder')
+    expect(workspaceLabel.closest('button')).toBeDisabled()
+  })
+
+  it('hides the workspace placeholder in the missing-agent composer in workdir mode', () => {
+    mocks.sessionLayout = 'workdir'
+
+    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
+
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent(
+      'agent.session.workspace_selector.placeholder'
+    )
   })
 
   it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
