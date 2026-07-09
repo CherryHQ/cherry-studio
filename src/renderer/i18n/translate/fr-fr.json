@@ -6640,6 +6640,7 @@
         "model_in_use_by_knowledge_base": "Ce modèle est utilisé par une base de connaissances et ne peut pas être supprimé.",
         "operation_failed": "Model operation failed.",
         "provider_enable_failed": "[to be translated]:Models were updated, but the provider could not be enabled and pinned to the top.",
+        "provider_enable_up_to_date_failed": "[to be translated]:The models are already up to date, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
         "remove_listed": "Supprimer tous les modèles",

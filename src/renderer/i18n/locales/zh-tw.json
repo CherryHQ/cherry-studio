@@ -6821,6 +6821,7 @@
         "model_in_use_by_knowledge_base": "該模型正在被知識庫使用，無法刪除。",
         "operation_failed": "模型操作失敗。",
         "provider_enable_failed": "模型已更新，但未能啟用服務商並置頂。",
+        "provider_enable_up_to_date_failed": "模型已是最新，但未能啟用服務商並置頂。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",
         "remove_listed": "移除全部模型",

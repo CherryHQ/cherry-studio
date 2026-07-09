@@ -6821,6 +6821,7 @@
         "model_in_use_by_knowledge_base": "This model is used by a knowledge base and cannot be deleted.",
         "operation_failed": "Model operation failed.",
         "provider_enable_failed": "Models were updated, but the provider could not be enabled and pinned to the top.",
+        "provider_enable_up_to_date_failed": "The models are already up to date, but the provider could not be enabled and pinned to the top.",
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",
         "remove_listed": "Remove all models",
