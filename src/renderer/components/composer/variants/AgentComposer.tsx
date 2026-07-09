@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
@@ -52,7 +52,7 @@ import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -500,6 +500,7 @@ const AgentComposerWorkspaceControl = ({
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
@@ -507,23 +508,63 @@ const AgentComposerWorkspaceControl = ({
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
+  const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
   const trigger = (
     <Button
       variant="ghost"
       size="sm"
+      type="button"
       className={cn(
         baseTriggerClassName,
+        !menuOpen && 'group',
+        'relative',
         iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
-      aria-label={workspaceWarning}>
+      aria-label={workspaceWarning}
+      onClick={(event) => {
+        const target = event.target as Element | null
+        if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        if (!workspaceChanging) void onWorkspaceChange?.(null)
+      }}>
       {hasWarning ? (
         <TriangleAlert size={14} aria-hidden />
       ) : isSystemWorkspace ? (
         <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
       ) : (
-        <Folder size={14} aria-hidden className="text-muted-foreground" />
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          <Folder
+            size={14}
+            aria-hidden
+            className={cn(
+              'shrink-0 text-muted-foreground transition-all duration-200',
+              canQuickClearWorkspace && !menuOpen && 'group-hover:scale-75 group-hover:opacity-0'
+            )}
+          />
+          {canQuickClearWorkspace && (
+            <NormalTooltip content={t('agent.session.workspace_selector.no_project')} side="top">
+              <span
+                data-clear-workspace-button
+                data-testid="clear-workspace-button"
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
+                  workspaceChanging && 'cursor-not-allowed opacity-50'
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}>
+                <X size={10} className="stroke-[2.5]" />
+              </span>
+            </NormalTooltip>
+          )}
+        </span>
       )}
       <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
       {onWorkspaceChange ? (
@@ -540,6 +581,8 @@ const AgentComposerWorkspaceControl = ({
       mountStrategy="lazy-keep"
       disabled={workspaceChanging}
       trigger={trigger}
+      open={menuOpen}
+      onOpenChange={setMenuOpen}
     />
   ) : (
     trigger

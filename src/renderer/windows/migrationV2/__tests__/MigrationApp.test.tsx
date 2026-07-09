@@ -37,6 +37,7 @@ const migrationHookMock = vi.hoisted(() => ({
     stage: 'introduction'
   } as {
     currentMessage: string
+    dataLocation?: string
     i18nMessage?: { key: string; params?: Record<string, string | number> }
     migrators: unknown[]
     overallProgress: number
@@ -320,6 +321,28 @@ describe('MigrationApp', () => {
 
     expect(languageContainer).toHaveClass('left-3')
     expect(languageContainer).not.toHaveClass('right-3')
+  })
+
+  it('shows the data-location notice on the introduction screen when a custom directory was recovered', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Ready',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'introduction',
+      dataLocation: '/Volumes/Data/CherryStudio'
+    }
+
+    render(<MigrationApp />)
+
+    // The mocked `t` returns the key, so the notice is identified by its i18n key.
+    expect(screen.getByText('migration.introduction.data_location')).toBeInTheDocument()
+  })
+
+  it('hides the data-location notice when no custom directory was recovered', () => {
+    // Default introduction progress carries no dataLocation.
+    render(<MigrationApp />)
+
+    expect(screen.queryByText('migration.introduction.data_location')).not.toBeInTheDocument()
   })
 
   it('runs the exporters and hands off to startMigration from the introduction Start button', async () => {
