@@ -282,15 +282,13 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             portalContainer={portalContainer}
             footer={
               onOpenKnowledgePage ? (
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-full justify-start gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground"
+                  className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                   onClick={onOpenKnowledgePage}>
-                  <ArrowUpRight size={12} />
-                  <span>{t('library.config.knowledge.create_first')}</span>
-                </Button>
+                  <ArrowUpRight size={14} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
+                </button>
               ) : null
             }
           />
