@@ -57,6 +57,26 @@ describe('useProviderModelList', () => {
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
   })
 
+  it('uses saved model group names in the provider model list', () => {
+    useModelsMock.mockReturnValue({
+      models: [
+        {
+          id: 'openai::deepseek-v3',
+          name: 'DeepSeek V3',
+          group: 'Custom Group',
+          capabilities: [],
+          isEnabled: true,
+          providerId: 'openai'
+        }
+      ],
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.sections.enabledSections.map((section) => section.groupName)).toEqual(['Custom Group'])
+  })
+
   it('does not surface local search filtering as a loading state for larger model sets', async () => {
     const largeModelSet = Array.from({ length: 12 }, (_, index) => ({
       id: `openai::model-${index}`,

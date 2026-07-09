@@ -59,6 +59,12 @@ interface BuildPatchOverrides {
   maxOutputTokens?: string
 }
 
+interface AutoSaveQueueItem {
+  providerId: string
+  modelId: string
+  patch: Partial<Model>
+}
+
 type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
 type ModelDrawerCurrency = Currency
 const isModelDrawerCurrencySymbol = (value: string): value is ModelDrawerCurrencySymbol =>
@@ -102,6 +108,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const autoSavePendingItemRef = useRef<AutoSaveQueueItem | null>(null)
+  const autoSaveRunningRef = useRef(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
@@ -131,16 +139,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    autoSavePendingItemRef.current = null
   }, [model, open])
 
   const handleUpdateModel = useCallback(
-    async (patch: Partial<Model>) => {
-      if (!model) {
-        return
-      }
-
-      const { modelId } = parseUniqueModelId(model.id)
-      await updateModel(model.providerId ?? providerId, modelId, {
+    async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
+      await updateModel(providerId, modelId, {
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
@@ -152,7 +156,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         pricing: patch.pricing
       })
     },
-    [model, providerId, updateModel]
+    [updateModel]
   )
 
   const buildPatch = useCallback(
@@ -209,13 +213,43 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     ]
   )
 
+  const processAutoSaveQueue = useCallback(async () => {
+    if (autoSaveRunningRef.current) {
+      return
+    }
+
+    autoSaveRunningRef.current = true
+    try {
+      while (autoSavePendingItemRef.current) {
+        const item = autoSavePendingItemRef.current
+        autoSavePendingItemRef.current = null
+
+        try {
+          await handleUpdateModel(item)
+        } catch {
+          toast.error(t('common.error'))
+        }
+      }
+    } finally {
+      autoSaveRunningRef.current = false
+    }
+  }, [handleUpdateModel, t])
+
   const autoSave = useCallback(
     (overrides?: BuildPatchOverrides) => {
-      void handleUpdateModel(buildPatch(overrides)).catch(() => {
-        toast.error(t('common.error'))
-      })
+      if (!model) {
+        return
+      }
+
+      const { modelId } = parseUniqueModelId(model.id)
+      autoSavePendingItemRef.current = {
+        providerId: model.providerId ?? providerId,
+        modelId,
+        patch: buildPatch(overrides)
+      }
+      void processAutoSaveQueue()
     },
-    [buildPatch, handleUpdateModel, t]
+    [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
   const handleToggleCapability = useCallback(

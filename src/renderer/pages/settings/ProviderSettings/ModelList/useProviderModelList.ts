@@ -112,7 +112,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const displayState = useMemo<DisplayedSectionState>(() => {
     const preserveGroupOrder = Boolean(searchText.trim())
-    const groups = groupModels(derivedState.filteredModels, preserveGroupOrder)
+    const groups = groupModels(derivedState.filteredModels, preserveGroupOrder, { preferModelGroup: true })
 
     return {
       groups,

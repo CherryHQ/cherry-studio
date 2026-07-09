@@ -16,6 +16,9 @@ import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
 
 export type ModelGroups = Record<string, Model[]>
+interface GroupModelsOptions {
+  preferModelGroup?: boolean
+}
 
 export const MODEL_LIST_CAPABILITY_FILTERS = [
   'all',
@@ -62,9 +65,15 @@ function getModelIdGroupName(model: Model): string | undefined {
   return familyName !== modelId ? familyName : undefined
 }
 
-export const groupModels = (models: Model[], preserveGroupOrder = false): ModelGroups => {
+export const groupModels = (
+  models: Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const groupName = normalizeModelGroupName(getModelIdGroupName(model), model.group ?? model.providerId)
+    const preferredGroup = options.preferModelGroup ? model.group : getModelIdGroupName(model)
+    const fallbackGroup = options.preferModelGroup ? getModelIdGroupName(model) : model.group
+    const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
     if (!acc[groupName]) {
       acc[groupName] = []
     }

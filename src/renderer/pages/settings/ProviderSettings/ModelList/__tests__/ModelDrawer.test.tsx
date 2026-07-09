@@ -11,6 +11,15 @@ const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+
+  return { promise, resolve }
+}
+
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
@@ -289,6 +298,160 @@ describe('Model drawers', () => {
         name: 'Claude 4 Sonnet Updated'
       })
     )
+  })
+
+  it('serializes edit auto-saves and keeps the latest form snapshot', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+    const firstSave = deferred<void>()
+    updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::claude-4-sonnet',
+            providerId: 'openai',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      const inputPrice = screen.getByLabelText('models.price.input')
+      fireEvent.change(inputPrice, {
+        target: { value: '12.5' }
+      })
+      fireEvent.blur(inputPrice)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      const outputPrice = screen.getByLabelText('models.price.output')
+      fireEvent.change(outputPrice, {
+        target: { value: '7.25' }
+      })
+      fireEvent.blur(outputPrice)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstSave.resolve()
+      await firstSave.promise
+      await Promise.resolve()
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(2)
+    expect(updateModelMock.mock.calls[1][2]).toEqual(
+      expect.objectContaining({
+        pricing: expect.objectContaining({
+          input: expect.objectContaining({ perMillionTokens: 12.5 }),
+          output: expect.objectContaining({ perMillionTokens: 7.25 })
+        })
+      })
+    )
+  })
+
+  it('does not save a new model edit into an older in-flight model', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+    const firstSave = deferred<void>()
+    updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
+
+    const { rerender } = render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::model-a',
+            providerId: 'openai',
+            name: 'Model A',
+            group: 'Group A',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, {
+        target: { value: 'Model A Updated' }
+      })
+      fireEvent.blur(modelName)
+    })
+
+    rerender(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::model-b',
+            providerId: 'openai',
+            name: 'Model B',
+            group: 'Group B',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, {
+        target: { value: 'Model B Updated' }
+      })
+      fireEvent.blur(modelName)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstSave.resolve()
+      await firstSave.promise
+      await Promise.resolve()
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(2)
+    expect(updateModelMock.mock.calls[0]).toEqual([
+      'openai',
+      'model-a',
+      expect.objectContaining({ name: 'Model A Updated' })
+    ])
+    expect(updateModelMock.mock.calls[1]).toEqual([
+      'openai',
+      'model-b',
+      expect.objectContaining({ name: 'Model B Updated' })
+    ])
   })
 
   it('auto-saves cherryin endpoint type changes from the edit drawer', async () => {
