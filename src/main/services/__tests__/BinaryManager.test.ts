@@ -851,15 +851,16 @@ describe('BinaryManager', () => {
       return (service as any).buildIsolatedEnv()
     }
 
-    it('maps githubMirror to MISE_URL_REPLACEMENTS with both github.com and api.github.com rules', async () => {
+    it('maps githubMirror to a MISE_URL_REPLACEMENTS rule for github.com only', async () => {
       setInstallSettings({ githubMirror: 'https://ghfast.top/' })
       const env = await buildEnv()
 
-      // Trailing slash trimmed; the API host is rewritten too so `mise latest`
-      // version resolution goes through the mirror, not only asset downloads.
+      // Trailing slash trimmed; only the asset host is rewritten. api.github.com
+      // must NOT be routed through the mirror — the ghproxy-style mirrors 403 the
+      // GitHub API, which would break version resolution (reachable directly).
       const rules = JSON.parse(env['MISE_URL_REPLACEMENTS'])
       expect(rules['https://github.com']).toBe('https://ghfast.top/https://github.com')
-      expect(rules['https://api.github.com']).toBe('https://ghfast.top/https://api.github.com')
+      expect(rules['https://api.github.com']).toBeUndefined()
     })
 
     it('leaves MISE_URL_REPLACEMENTS unset when no mirror is configured', async () => {

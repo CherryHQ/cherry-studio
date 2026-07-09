@@ -366,16 +366,16 @@ export class BinaryManager extends BaseService {
     // leak into the shared execution env that runs the launched CLIs.
     env['MISE_PIPX_UVX'] = '1'
 
-    // GitHub mirror (proxy-prefix form, e.g. https://ghfast.top): rewrite BOTH the
-    // release-asset host (github.com) and the API host (api.github.com — used by
-    // `mise latest` version resolution; rewriting only github.com leaves it
-    // broken). MISE_URL_REPLACEMENTS takes a JSON object of from→to prefix rules
-    // (format verified empirically against the bundled mise).
+    // GitHub mirror (proxy-prefix form, e.g. https://ghfast.top): rewrite only the
+    // release-asset host (github.com). Do NOT route api.github.com through the
+    // mirror — the ghproxy-style asset mirrors we ship all return 403 for the
+    // GitHub API, which breaks aqua/github version resolution; api.github.com is
+    // reachable directly (GITHUB_TOKEN below lifts its rate limit). MISE_URL_REPLACEMENTS
+    // takes a JSON object of from→to prefix rules (verified against the bundled mise).
     if (installSettings.githubMirror) {
       const prefix = installSettings.githubMirror.replace(/\/+$/, '')
       env['MISE_URL_REPLACEMENTS'] = JSON.stringify({
-        'https://github.com': `${prefix}/https://github.com`,
-        'https://api.github.com': `${prefix}/https://api.github.com`
+        'https://github.com': `${prefix}/https://github.com`
       })
     }
 
