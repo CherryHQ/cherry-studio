@@ -2436,9 +2436,7 @@
       "message": "Localizează mesajul"
     },
     "records": {
-      "agentSubtitle": "{{count}} sarcini",
       "agentTitle": "Istoric agent",
-      "assistantSubtitle": "{{count}} conversații",
       "bulkDelete": "Ștergere în lot",
       "bulkDeleteSessions": {
         "description": "Ștergeți {{count}} sarcină(e) selectată(e)?",
@@ -2460,11 +2458,19 @@
         "target": "Asistent țintă",
         "title": "Mută conversațiile selectate"
       },
+      "clearSearch": "Șterge căutarea",
       "empty": {
         "description": "Nu există conversații pentru filtrele actuale.",
         "sessionsDescription": "Nu există sarcini pentru filtrele curente.",
         "sessionsTitle": "Fără sarcini",
         "title": "Nicio conversație"
+      },
+      "filter": {
+        "selectAgent": "Selectează un agent",
+        "selectAssistant": "Selectează un asistent",
+        "statusLabel": "Stare",
+        "statusPlaceholder": "Selectează starea",
+        "unlinkedAssistant": "Asistent deconectat"
       },
       "loading": {
         "description": "Se încarcă lista conversațiilor.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Se încarcă sarcinile",
         "title": "Încărcare conversații"
       },
-      "resultCount": "{{count}} rezultate",
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
       "shortTitle": "Istorie",
-      "sidebar": {
-        "searchAssistant": "Asistenți de căutare...",
-        "status": "Stare",
-        "unknownAssistant": "Asistent deconectat"
-      },
       "status": {
         "completed": "Finalizat",
         "failed": "Eșuat",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Acțiuni",
+        "conversation": "Conversație",
         "emptyValue": "—",
-        "messages": "Mesaje",
         "session": "Sarcină",
-        "time": "Timp",
-        "title": "Titlu"
+        "time": "Timp"
       },
       "title": "Istoricul conversației"
     },
@@ -4174,7 +4173,6 @@
       "hint": "macOS: brew install git | Windows: Descarcă de pe git-scm.com (asigură-te că adaugi Git la PATH în timpul instalării)",
       "title": "Git Necesar"
     },
-    "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
     "migration": {
       "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
@@ -4235,7 +4233,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
-    "uninstall_progress": "Progresul dezinstalării",
     "uninstalled": {
       "description": "OpenClaw a fost dezinstalat cu succes.",
       "title": "Dezinstalare completă"

@@ -2436,9 +2436,7 @@
       "message": "Найти сообщение"
     },
     "records": {
-      "agentSubtitle": "{{count}} задач",
       "agentTitle": "История агента",
-      "assistantSubtitle": "{{count}} разговоров",
       "bulkDelete": "Пакетное удаление",
       "bulkDeleteSessions": {
         "description": "Удалить выбранное задание ({{count}})?",
@@ -2460,11 +2458,19 @@
         "target": "Целевой помощник",
         "title": "Переместить выбранные беседы"
       },
+      "clearSearch": "Очистить поиск",
       "empty": {
         "description": "Нет разговоров для текущих фильтров.",
         "sessionsDescription": "Нет задач для текущих фильтров.",
         "sessionsTitle": "Нет задач",
         "title": "Нет разговоров"
+      },
+      "filter": {
+        "selectAgent": "Выберите агента",
+        "selectAssistant": "Выберите ассистента",
+        "statusLabel": "Статус",
+        "statusPlaceholder": "Выберите статус",
+        "unlinkedAssistant": "Несвязанный ассистент"
       },
       "loading": {
         "description": "Загрузка списка разговоров.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Загрузка задач",
         "title": "Загрузка бесед"
       },
-      "resultCount": "{{count}} результатов",
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
       "shortTitle": "История",
-      "sidebar": {
-        "searchAssistant": "Поиск ассистентов...",
-        "status": "Статус",
-        "unknownAssistant": "Несвязанный ассистент"
-      },
       "status": {
         "completed": "Завершено",
         "failed": "Не удалось",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Действия",
+        "conversation": "Разговор",
         "emptyValue": "—",
-        "messages": "Сообщения",
         "session": "Задача",
-        "time": "Время",
-        "title": "Название"
+        "time": "Время"
       },
       "title": "История разговора"
     },
@@ -4174,7 +4173,6 @@
       "hint": "macOS: brew install git | Windows: Скачать с git-scm.com (убедитесь, что добавили Git в PATH при установке)",
       "title": "Требуется Git"
     },
-    "install_progress": "Прогресс установки",
     "installed_at": "OpenClaw установлен в",
     "migration": {
       "description": "Обнаружена устаревшая версия OpenClaw, установленная через npm. Пожалуйста, переустановите её, чтобы получить последнюю официальную версию.",
@@ -4235,7 +4233,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Вы уверены, что хотите удалить OpenClaw? Нажмите OK для подтверждения.",
-    "uninstall_progress": "Прогресс удаления",
     "uninstalled": {
       "description": "OpenClaw был успешно удалён.",
       "title": "Удаление завершено"

@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Add provider in Settings → Model Service",
+    "add_provider_hint_anthropic_messages": "Configure an Anthropic Messages endpoint in Settings → Model Service",
+    "add_provider_hint_gemini": "Configure a Gemini endpoint in Settings → Model Service",
+    "add_provider_hint_openai_responses": "Configure an OpenAI Responses endpoint in Settings → Model Service",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Disable 1M Context",
+        "disable_attribution_header": "Disable Attribution Header",
+        "disable_auto_upgrade": "Disable Auto Upgrade",
+        "disable_bundled_skills": "Disable Bundled Skills",
+        "disable_compact": "Disable Compaction",
+        "disable_extra_usage_command": "Disable Extra Usage Command",
+        "disable_nonessential_traffic": "Disable Non-Essential Traffic",
+        "disable_terminal_title": "Disable Terminal Title",
+        "effort_level_hint": "Effort Level",
+        "enable_teammates": "Enable Teammates",
+        "enable_tool_search": "Enable Tool Search",
+        "fable_model": "Fable",
+        "haiku_model": "Haiku",
+        "hide_attribution": "Hide AI Attribution",
+        "max_context_tokens_hint": "Max Context Tokens",
+        "max_output_tokens_hint": "Max Output Tokens",
+        "model_column": "Request Model",
+        "model_roles": "Model Role Mapping",
+        "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
+        "options": "Quick Options",
+        "opus_model": "Opus",
+        "permissions_allow": "Allow (comma-separated)",
+        "permissions_deny": "Deny (comma-separated)",
+        "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
+        "role_column": "Role",
+        "sonnet_model": "Sonnet"
+      },
+      "codex": {
+        "disable_response_storage": "Disable Response Storage",
+        "goal_mode": "Enable Goal Mode",
+        "remote_compaction": "Enable Remote Compaction"
+      },
+      "gemini": {
+        "checkpointing": "Enable Checkpointing",
+        "disable_usage_stats": "Disable Usage Statistics",
+        "hide_banner": "Hide Startup Banner",
+        "vim_mode": "Enable Vim Mode"
+      },
+      "kimi": {
+        "disable_telemetry": "Disable Telemetry",
+        "keep_background_tasks": "Keep Background Tasks On Exit",
+        "micro_compaction": "Enable Micro Compaction",
+        "plan_mode": "Default Plan Mode",
+        "thinking": "Enable Thinking"
+      },
+      "opencode": {
+        "auto_compact": "Auto Compact",
+        "enable_reasoning": "Enable Reasoning"
+      },
+      "permission_mode": "Permission Approval",
+      "permission_modes": {
+        "accept_edits": "Accept Edits",
+        "ask": "Ask",
+        "auto": "Auto",
+        "auto_edit": "Auto Edit",
+        "bypass_high_risk": "Bypass Permissions (High Risk)",
+        "default": "Default",
+        "default_allow_all": "Default (Allow All)",
+        "deny": "Deny",
+        "full_access_high_risk": "Full Access (High Risk)",
+        "manual": "Manual",
+        "plan": "Plan",
+        "read_only": "Read Only",
+        "workspace": "Workspace",
+        "yolo_high_risk": "YOLO (High Risk)"
+      },
+      "qwen": {
+        "classify_all_shell": "Classify All Shell Commands",
+        "disable_auto_update": "Disable Auto Update",
+        "disable_usage_stats": "Disable Usage Statistics",
+        "hide_banner": "Hide Startup Banner",
+        "vim_mode": "Enable Vim Mode"
+      },
+      "reasoning_effort": "Reasoning Effort",
+      "reasoning_efforts": {
+        "default": "Default",
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
+        "xhigh": "Extra High"
+      },
+      "select_placeholder": "Select…"
+    },
+    "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
+    "can_upgrade": "Upgrade available",
+    "clear_config_failed": "Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
+    "cli_config": {
+      "format_failed": "Format failed. Check the file syntax.",
+      "hint": "This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
+      "title": "CLI Config File",
+      "unknown_model": "Unknown model",
+      "unknown_provider": "Unknown Provider"
+    },
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "Collapse",
+    "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
+    "configure": "Configure",
+    "configuring_provider": "Configure {{provider}}",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
+    "current_config": "Current",
+    "current_config_settings": "Current Config",
     "custom_path": "Custom path",
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "disable": "Disable",
+    "edit_config": "Edit Config",
+    "enable": "Enable",
+    "enabled": "Enabled",
+    "endpoint_default": "Using provider default",
+    "endpoint_hint": "Endpoint / Key in Model Service",
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
+    "format_json": "Format",
     "hero_tagline": "Pick a CLI tool to configure",
+    "install": "Install",
     "install_bun": "Install Bun",
+    "install_error": "Installation failed",
+    "install_success": "Installation successful",
+    "install_tool_first": "Install {{toolName}} first to select a provider",
+    "installing": "Installing…",
     "installing_bun": "Installing...",
+    "latest": "Latest",
     "launch": {
       "bun_required": "Please install Bun environment first before launching CLI tools",
       "error": "Launch failed, please try again",
       "label": "Launch",
       "launched": "Launched",
       "success": "Launch successful",
+      "title": "Launch {{tool}}",
       "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Launching...",
     "model": "Model",
     "model_hint": "Choose which AI model the CLI tool should use",
+    "model_hint_config": "Select the model to use",
+    "model_mode": {
+      "common": "General",
+      "detailed": "Detailed"
+    },
     "model_placeholder": "Select the model to use",
+    "model_providers": "Model Providers",
     "model_required": "Please select a model",
+    "model_selection": "Model Selection",
+    "more": "More",
+    "no_matching_providers": "No matching providers",
+    "no_model_for_provider": "No model available for this provider",
+    "no_providers_description": "Enable a supported provider in Settings → Model Service",
+    "no_providers_title": "No enabled providers",
+    "no_tools": "No tools available",
+    "not_installed": "Not installed",
+    "open_provider_settings": "Open provider settings",
+    "own_login": {
+      "title": "{{toolName}} Official"
+    },
+    "providerless_hint": "This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
+    "providers": "Providers",
+    "raw_config": "Raw Config (JSON)",
+    "search_provider_placeholder": "Search providers…",
     "select_folder": "Select Folder",
+    "select_provider_before_launch": "Select a provider before launching {{toolName}}",
+    "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
-    "title": "Code Tools",
-    "tool_description": {
-      "claude_code": "Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "Google's official Gemini command-line assistant",
-      "github_copilot_cli": "GitHub's official Copilot command-line companion",
-      "kimi_cli": "Moonshot's Kimi command-line assistant",
-      "openai_codex": "OpenAI's official code generation CLI",
-      "opencode": "Open-source multi-model coding agent",
-      "qoder_cli": "Alibaba Qoder's agentic command-line coding tool",
-      "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
-    },
+    "title": "Code Switch",
+    "tool_parameters": "Parameter Settings",
+    "up_to_date": "Up to date",
     "update_options": "Update Options",
+    "upgrade": "Upgrade",
+    "upgrade_error": "Upgrade failed",
+    "upgrade_success": "Upgrade successful",
     "working_directory": "Working Directory",
     "working_directory_hint": "The working directory that the CLI tool launches in"
   },
@@ -2436,9 +2587,7 @@
       "message": "Locate the message"
     },
     "records": {
-      "agentSubtitle": "{{count}} tasks",
       "agentTitle": "Agent History",
-      "assistantSubtitle": "{{count}} conversations",
       "bulkDelete": "Batch Delete",
       "bulkDeleteSessions": {
         "description": "Delete {{count}} selected task(s)?",
@@ -2460,11 +2609,19 @@
         "target": "Target assistant",
         "title": "Move selected conversations"
       },
+      "clearSearch": "Clear search",
       "empty": {
         "description": "No conversations for the current filters.",
         "sessionsDescription": "No tasks for the current filters.",
         "sessionsTitle": "No tasks",
         "title": "No conversations"
+      },
+      "filter": {
+        "selectAgent": "Select an agent",
+        "selectAssistant": "Select an assistant",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Select status",
+        "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
         "description": "Loading conversation list.",
@@ -2472,15 +2629,9 @@
         "sessionsTitle": "Loading tasks",
         "title": "Loading conversations"
       },
-      "resultCount": "{{count}} results",
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "shortTitle": "History",
-      "sidebar": {
-        "searchAssistant": "Search assistants...",
-        "status": "Status",
-        "unknownAssistant": "Unlinked assistant"
-      },
       "status": {
         "completed": "Completed",
         "failed": "Failed",
@@ -2488,11 +2639,10 @@
       },
       "table": {
         "actions": "Actions",
+        "conversation": "Conversation",
         "emptyValue": "—",
-        "messages": "Messages",
         "session": "Task",
-        "time": "Time",
-        "title": "Title"
+        "time": "Time"
       },
       "title": "Conversation History"
     },
@@ -4164,6 +4314,7 @@
       "select_provider_model": "Please select a provider and model first"
     },
     "gateway": {
+      "open_dashboard": "Open OpenClaw",
       "port": "Port",
       "restart": "Restart",
       "start": "Start",
@@ -4177,7 +4328,6 @@
       "hint": "macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
       "title": "Git Required"
     },
-    "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "migration": {
       "description": "An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
@@ -4238,7 +4388,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "Uninstall Progress",
     "uninstalled": {
       "description": "OpenClaw has been successfully uninstalled.",
       "title": "Uninstall Complete"
@@ -7604,7 +7753,7 @@
   "title": {
     "apps": "Apps",
     "chat": "Chat",
-    "code": "Code",
+    "code": "Code Switch",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",

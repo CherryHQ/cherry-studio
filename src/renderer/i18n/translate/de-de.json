@@ -2436,9 +2436,7 @@
       "message": "Zu Nachricht navigieren"
     },
     "records": {
-      "agentSubtitle": "{{count}} Aufgaben",
       "agentTitle": "Agentenhistorie",
-      "assistantSubtitle": "{{count}} Gespräche",
       "bulkDelete": "Stapel löschen",
       "bulkDeleteSessions": {
         "description": "{{count}} ausgewählte Aufgabe(n) löschen?",
@@ -2460,11 +2458,19 @@
         "target": "Zielassistent",
         "title": "Ausgewählte Konversationen verschieben"
       },
+      "clearSearch": "Suche löschen",
       "empty": {
         "description": "Keine Gespräche für die aktuellen Filter.",
         "sessionsDescription": "Keine Aufgaben für die aktuellen Filter.",
         "sessionsTitle": "Keine Aufgaben",
         "title": "Keine Gespräche"
+      },
+      "filter": {
+        "selectAgent": "Agent auswählen",
+        "selectAssistant": "Assistent auswählen",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Status auswählen",
+        "unlinkedAssistant": "Unverknüpfter Assistent"
       },
       "loading": {
         "description": "Unterhaltungsliste wird geladen.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Aufgaben laden",
         "title": "Konversationen werden geladen"
       },
-      "resultCount": "{{count}} Ergebnisse",
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
-      "sidebar": {
-        "searchAssistant": "Suchassistenten...",
-        "status": "Status",
-        "unknownAssistant": "Unverknüpfter Assistent"
-      },
       "status": {
         "completed": "Abgeschlossen",
         "failed": "Fehlgeschlagen",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Aktionen",
+        "conversation": "Unterhaltung",
         "emptyValue": "—",
-        "messages": "Nachrichten",
         "session": "Aufgabe",
-        "time": "Zeit",
-        "title": "Titel"
+        "time": "Zeit"
       },
       "title": "Konversationsverlauf"
     },
@@ -4174,7 +4173,6 @@
       "hint": "macOS: brew install git | Windows: Von git-scm.com herunterladen (stelle sicher, dass Git während der Installation zum PATH hinzugefügt wird)",
       "title": "Git erforderlich"
     },
-    "install_progress": "Installationsfortschritt",
     "installed_at": "OpenClaw installiert unter",
     "migration": {
       "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
@@ -4235,7 +4233,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sind Sie sicher, dass Sie OpenClaw deinstallieren möchten? Drücken Sie OK, um zu bestätigen.",
-    "uninstall_progress": "Deinstallationsfortschritt",
     "uninstalled": {
       "description": "OpenClaw wurde erfolgreich deinstalliert.",
       "title": "Deinstallation abgeschlossen"

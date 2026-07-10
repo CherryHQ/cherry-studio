@@ -2436,9 +2436,7 @@
       "message": "Εφαρμογή στο μήνυμα"
     },
     "records": {
-      "agentSubtitle": "{{count}} εργασίες",
       "agentTitle": "Ιστορικό Πράκτορα",
-      "assistantSubtitle": "{{count}} συνομιλίες",
       "bulkDelete": "Διαγραφή Παρτίδας",
       "bulkDeleteSessions": {
         "description": "Διαγραφή {{count}} επιλεγμένης(-ών) εργασίας(-ών);",
@@ -2460,11 +2458,19 @@
         "target": "Στόχος βοηθός",
         "title": "Μετακίνηση επιλεγμένων συνομιλιών"
       },
+      "clearSearch": "Εκκαθάριση αναζήτησης",
       "empty": {
         "description": "Δεν υπάρχουν συνομιλίες για τα τρέχοντα φίλτρα.",
         "sessionsDescription": "Δεν υπάρχουν εργασίες για τα τρέχοντα φίλτρα.",
         "sessionsTitle": "Καμία εργασία",
         "title": "Καμία συνομιλία"
+      },
+      "filter": {
+        "selectAgent": "Επιλέξτε πράκτορα",
+        "selectAssistant": "Επιλέξτε βοηθό",
+        "statusLabel": "Κατάσταση",
+        "statusPlaceholder": "Επιλέξτε κατάσταση",
+        "unlinkedAssistant": "Ασύνδετος βοηθός"
       },
       "loading": {
         "description": "Φόρτωση λίστας συνομιλίας.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Φόρτωση εργασιών",
         "title": "Φόρτωση συνομιλιών"
       },
-      "resultCount": "{{count}} αποτελέσματα",
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
       "shortTitle": "Ιστορία",
-      "sidebar": {
-        "searchAssistant": "Αναζήτηση βοηθών...",
-        "status": "Κατάσταση",
-        "unknownAssistant": "Ασύνδετος βοηθός"
-      },
       "status": {
         "completed": "Ολοκληρώθηκε",
         "failed": "Απέτυχε",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Ενέργειες",
+        "conversation": "Συνομιλία",
         "emptyValue": "—",
-        "messages": "Μηνύματα",
         "session": "Εργασία",
-        "time": "Χρόνος",
-        "title": "Τίτλος"
+        "time": "Χρόνος"
       },
       "title": "Ιστορικό Συνομιλίας"
     },
@@ -4174,7 +4173,6 @@
       "hint": "macOS: brew install git | Windows: Κατεβάστε από το git-scm.com (βεβαιωθείτε ότι προσθέτετε το Git στο PATH κατά την εγκατάσταση)",
       "title": "Απαιτείται Git"
     },
-    "install_progress": "Πρόοδος Εγκατάστασης",
     "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
     "migration": {
       "description": "Έχει εντοπιστεί παλιά έκδοση του OpenClaw που εγκαταστάθηκε μέσω npm. Παρακαλούμε επανεγκαταστήστε για να αποκτήσετε την τελευταία επίσημη έκδοση.",
@@ -4235,7 +4233,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε το OpenClaw; Πατήστε OK για επιβεβαίωση.",
-    "uninstall_progress": "Πρόοδος Απεγκατάστασης",
     "uninstalled": {
       "description": "Το OpenClaw απεγκαταστάθηκε με επιτυχία.",
       "title": "Η απεγκατάσταση ολοκληρώθηκε"

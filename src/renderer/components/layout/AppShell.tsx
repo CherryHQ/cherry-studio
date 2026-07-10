@@ -1,6 +1,6 @@
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useMainSettingsTab, useTabs } from '@renderer/hooks/tab'
+import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -26,7 +26,7 @@ export const AppShell = () => {
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
-  useMainSettingsTab()
+  useMainWindowNavigation()
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
