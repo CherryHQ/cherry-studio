@@ -30,15 +30,6 @@ vi.mock('@renderer/components/icons/SidebarToggleIcons', () => ({
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
-  useResolvedCommand: () => ({
-    enabled: true,
-    execute: vi.fn(),
-    label: '',
-    shortcutLabel: ''
-  })
-}))
-
 vi.mock('i18next', () => ({
   t: (key: string) => key
 }))
@@ -61,13 +52,13 @@ describe('ChatNavbar', () => {
     expect(toggle).toHaveClass('hover:bg-accent/60')
   })
 
-  it('offers a new-topic button next to the toggle when the sidebar is hidden', () => {
+  it('does not render a new-topic button when the sidebar is hidden', () => {
     render(<ChatNavbar />)
 
-    expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
-  it('places detached-window conversation controls before the title', () => {
+  it('places only the detached-window sidebar toggle before the title', () => {
     render(
       <WindowFrameProvider
         value={{ mode: 'window', chrome: { titleLeading: <span data-testid="window-title">Topic title</span> } }}>
@@ -77,10 +68,9 @@ describe('ChatNavbar', () => {
 
     const title = screen.getByTestId('window-title')
     const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
-    const newTopic = screen.getByRole('button', { name: 'chat.conversation.new' })
 
     expect(toggle.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(newTopic.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('hides the new-topic button when the sidebar is visible', () => {
