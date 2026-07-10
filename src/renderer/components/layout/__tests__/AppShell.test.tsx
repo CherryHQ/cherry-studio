@@ -32,7 +32,7 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
 }))
 
 vi.mock('../../../hooks/tab', () => ({
-  useMainSettingsTab: vi.fn(),
+  useMainWindowNavigation: vi.fn(),
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),

@@ -1,5 +1,8 @@
 import { dialog } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
@@ -39,4 +42,25 @@ describe('FileStorage', () => {
       await expect(fileStorage.showInFolder(event, '/no/such/path/x.txt')).rejects.toThrow('/no/such/path/x.txt')
     })
   })
+
+  describe('writeFile', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-test-${uniqueId()}.txt`)
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    it('writes the given content', async () => {
+      await fileStorage.writeFile(event, tmpFile, 'content')
+      expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
+    })
+  })
 })
+
+function uniqueId(): string {
+  return `${process.pid}-${Math.floor(Math.random() * 1e9)}`
+}
