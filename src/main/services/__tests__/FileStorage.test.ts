@@ -17,6 +17,10 @@ describe('FileStorage', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   describe('save', () => {
     it('returns null (does not throw) when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
@@ -78,7 +82,22 @@ describe('FileStorage', () => {
 
       await fileStorage.deleteExternalFile(event, portablePath)
 
-      expect(shell.trashItem).toHaveBeenCalledWith(path.normalize(portablePath))
+      expect(shell.trashItem).toHaveBeenCalledWith(tmpFile)
+    })
+
+    it('normalizes Windows paths without relying on the test host platform', async () => {
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+
+      await fileStorage.deleteExternalFile(event, 'C:/Users/test/Notes/note.md')
+
+      expect(shell.trashItem).toHaveBeenCalledWith('C:\\Users\\test\\Notes\\note.md')
+    })
+
+    it('does not invoke the trash API for an empty path', async () => {
+      await fileStorage.deleteExternalFile(event, '')
+
+      expect(shell.trashItem).not.toHaveBeenCalled()
     })
   })
 
@@ -99,7 +118,13 @@ describe('FileStorage', () => {
 
       await fileStorage.deleteExternalDir(event, portablePath)
 
-      expect(shell.trashItem).toHaveBeenCalledWith(path.normalize(portablePath))
+      expect(shell.trashItem).toHaveBeenCalledWith(tmpDir)
+    })
+
+    it('does not invoke the trash API for an empty path', async () => {
+      await fileStorage.deleteExternalDir(event, '')
+
+      expect(shell.trashItem).not.toHaveBeenCalled()
     })
   })
 })

@@ -35,6 +35,10 @@ function resolveHomeRelativeFilePath(filePath: string): string {
   return path.join(application.getPath('sys.home'), filePath.slice(2))
 }
 
+function normalizeTrashPath(filePath: string): string {
+  return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
@@ -269,7 +273,9 @@ class FileStorage {
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
-      const nativePath = path.normalize(filePath)
+      if (!filePath) return
+
+      const nativePath = normalizeTrashPath(filePath)
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -284,7 +290,9 @@ class FileStorage {
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
-      const nativePath = path.normalize(dirPath)
+      if (!dirPath) return
+
+      const nativePath = normalizeTrashPath(dirPath)
       if (!fs.existsSync(nativePath)) {
         return
       }
