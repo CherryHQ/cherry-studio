@@ -10,7 +10,7 @@ const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
 const RUNTIME_THEME_INPUT_LINES = [
   '--cs-theme-primary: var(--cs-primary);',
-  '--cs-theme-ring: color-mix(in srgb, var(--color-border-active) 45%, transparent);'
+  '--cs-theme-ring: var(--color-border-active);'
 ]
 
 const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
