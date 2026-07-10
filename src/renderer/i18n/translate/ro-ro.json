@@ -2457,11 +2457,22 @@
         "target": "Asistent țintă",
         "title": "Mută conversațiile selectate"
       },
+      "clearSearch": "Șterge căutarea",
       "empty": {
         "description": "Nu există conversații pentru filtrele actuale.",
         "sessionsDescription": "Nu există sarcini pentru filtrele curente.",
         "sessionsTitle": "Fără sarcini",
         "title": "Nicio conversație"
+      },
+      "filter": {
+        "selectAgent": "Selectează un agent",
+        "selectAssistant": "Selectează un asistent",
+        "sourceEmpty": "Niciun rezultat",
+        "sourcePlaceholder": "Selectează sursa",
+        "sourceSearchPlaceholder": "Caută...",
+        "statusLabel": "Stare",
+        "statusPlaceholder": "Selectează starea",
+        "unlinkedAssistant": "Asistent deconectat"
       },
       "loading": {
         "description": "Se încarcă lista conversațiilor.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
+      "selectedCount": "{{count}} selectate",
       "shortTitle": "Istorie",
-      "sidebar": {
-        "searchAssistant": "Asistenți de căutare...",
-        "status": "Stare",
-        "unknownAssistant": "Asistent deconectat"
-      },
       "status": {
         "completed": "Finalizat",
         "failed": "Eșuat",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Acțiuni",
         "emptyValue": "—",
-        "messages": "Mesaje",
         "session": "Sarcină",
         "time": "Timp",
         "title": "Titlu"

@@ -2457,11 +2457,22 @@
         "target": "Trợ lý mục tiêu",
         "title": "Di chuyển các cuộc trò chuyện đã chọn"
       },
+      "clearSearch": "Xóa tìm kiếm",
       "empty": {
         "description": "Không có cuộc trò chuyện nào cho các bộ lọc hiện tại.",
         "sessionsDescription": "Không có nhiệm vụ nào cho các bộ lọc hiện tại.",
         "sessionsTitle": "Không có nhiệm vụ",
         "title": "Không có cuộc trò chuyện nào"
+      },
+      "filter": {
+        "selectAgent": "Chọn tác nhân",
+        "selectAssistant": "Chọn trợ lý",
+        "sourceEmpty": "Không có kết quả phù hợp",
+        "sourcePlaceholder": "Chọn nguồn",
+        "sourceSearchPlaceholder": "Tìm kiếm...",
+        "statusLabel": "Trạng thái",
+        "statusPlaceholder": "Chọn trạng thái",
+        "unlinkedAssistant": "Trợ lý không liên kết"
       },
       "loading": {
         "description": "Đang tải danh sách cuộc trò chuyện.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
+      "selectedCount": "Đã chọn {{count}}",
       "shortTitle": "Lịch sử",
-      "sidebar": {
-        "searchAssistant": "Trợ lý tìm kiếm...",
-        "status": "Trạng thái",
-        "unknownAssistant": "Trợ lý không liên kết"
-      },
       "status": {
         "completed": "Hoàn thành",
         "failed": "Thất bại",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Hành động",
         "emptyValue": "—",
-        "messages": "Tin nhắn",
         "session": "Nhiệm vụ",
         "time": "Thời gian",
         "title": "Tiêu đề"

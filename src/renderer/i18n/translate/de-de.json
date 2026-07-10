@@ -2457,11 +2457,22 @@
         "target": "Zielassistent",
         "title": "Ausgewählte Konversationen verschieben"
       },
+      "clearSearch": "Suche löschen",
       "empty": {
         "description": "Keine Gespräche für die aktuellen Filter.",
         "sessionsDescription": "Keine Aufgaben für die aktuellen Filter.",
         "sessionsTitle": "Keine Aufgaben",
         "title": "Keine Gespräche"
+      },
+      "filter": {
+        "selectAgent": "Agent auswählen",
+        "selectAssistant": "Assistent auswählen",
+        "sourceEmpty": "Keine Treffer",
+        "sourcePlaceholder": "Quelle auswählen",
+        "sourceSearchPlaceholder": "Suchen...",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Status auswählen",
+        "unlinkedAssistant": "Unverknüpfter Assistent"
       },
       "loading": {
         "description": "Unterhaltungsliste wird geladen.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
+      "selectedCount": "{{count}} ausgewählt",
       "shortTitle": "Geschichte",
-      "sidebar": {
-        "searchAssistant": "Suchassistenten...",
-        "status": "Status",
-        "unknownAssistant": "Unverknüpfter Assistent"
-      },
       "status": {
         "completed": "Abgeschlossen",
         "failed": "Fehlgeschlagen",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Aktionen",
         "emptyValue": "—",
-        "messages": "Nachrichten",
         "session": "Aufgabe",
         "time": "Zeit",
         "title": "Titel"

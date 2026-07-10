@@ -2457,11 +2457,22 @@
         "target": "ターゲットアシスタント",
         "title": "選択した会話を移動"
       },
+      "clearSearch": "検索をクリア",
       "empty": {
         "description": "現在のフィルターに該当する会話はありません。",
         "sessionsDescription": "現在のフィルターに該当するタスクはありません。",
         "sessionsTitle": "タスクなし",
         "title": "会話はありません"
+      },
+      "filter": {
+        "selectAgent": "エージェントを選択",
+        "selectAssistant": "アシスタントを選択",
+        "sourceEmpty": "一致する項目はありません",
+        "sourcePlaceholder": "ソースを選択",
+        "sourceSearchPlaceholder": "検索...",
+        "statusLabel": "ステータス",
+        "statusPlaceholder": "ステータスを選択",
+        "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
         "description": "会話リストを読み込んでいます。",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
+      "selectedCount": "{{count}}件選択中",
       "shortTitle": "歴史",
-      "sidebar": {
-        "searchAssistant": "検索アシスタント...",
-        "status": "ステータス",
-        "unknownAssistant": "リンクされていないアシスタント"
-      },
       "status": {
         "completed": "完了",
         "failed": "失敗",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "アクション",
         "emptyValue": "—",
-        "messages": "メッセージ",
         "session": "タスク",
         "time": "時間",
         "title": "タイトル"

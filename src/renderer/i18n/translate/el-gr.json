@@ -2457,11 +2457,22 @@
         "target": "Στόχος βοηθός",
         "title": "Μετακίνηση επιλεγμένων συνομιλιών"
       },
+      "clearSearch": "Εκκαθάριση αναζήτησης",
       "empty": {
         "description": "Δεν υπάρχουν συνομιλίες για τα τρέχοντα φίλτρα.",
         "sessionsDescription": "Δεν υπάρχουν εργασίες για τα τρέχοντα φίλτρα.",
         "sessionsTitle": "Καμία εργασία",
         "title": "Καμία συνομιλία"
+      },
+      "filter": {
+        "selectAgent": "Επιλέξτε πράκτορα",
+        "selectAssistant": "Επιλέξτε βοηθό",
+        "sourceEmpty": "Δεν υπάρχουν αποτελέσματα",
+        "sourcePlaceholder": "Επιλέξτε πηγή",
+        "sourceSearchPlaceholder": "Αναζήτηση...",
+        "statusLabel": "Κατάσταση",
+        "statusPlaceholder": "Επιλέξτε κατάσταση",
+        "unlinkedAssistant": "Ασύνδετος βοηθός"
       },
       "loading": {
         "description": "Φόρτωση λίστας συνομιλίας.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
+      "selectedCount": "{{count}} επιλεγμένα",
       "shortTitle": "Ιστορία",
-      "sidebar": {
-        "searchAssistant": "Αναζήτηση βοηθών...",
-        "status": "Κατάσταση",
-        "unknownAssistant": "Ασύνδετος βοηθός"
-      },
       "status": {
         "completed": "Ολοκληρώθηκε",
         "failed": "Απέτυχε",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Ενέργειες",
         "emptyValue": "—",
-        "messages": "Μηνύματα",
         "session": "Εργασία",
         "time": "Χρόνος",
         "title": "Τίτλος"

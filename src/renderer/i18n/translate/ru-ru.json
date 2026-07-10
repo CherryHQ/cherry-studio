@@ -2457,11 +2457,22 @@
         "target": "Целевой помощник",
         "title": "Переместить выбранные беседы"
       },
+      "clearSearch": "Очистить поиск",
       "empty": {
         "description": "Нет разговоров для текущих фильтров.",
         "sessionsDescription": "Нет задач для текущих фильтров.",
         "sessionsTitle": "Нет задач",
         "title": "Нет разговоров"
+      },
+      "filter": {
+        "selectAgent": "Выберите агента",
+        "selectAssistant": "Выберите ассистента",
+        "sourceEmpty": "Совпадений нет",
+        "sourcePlaceholder": "Выберите источник",
+        "sourceSearchPlaceholder": "Поиск...",
+        "statusLabel": "Статус",
+        "statusPlaceholder": "Выберите статус",
+        "unlinkedAssistant": "Несвязанный ассистент"
       },
       "loading": {
         "description": "Загрузка списка разговоров.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
+      "selectedCount": "Выбрано: {{count}}",
       "shortTitle": "История",
-      "sidebar": {
-        "searchAssistant": "Поиск ассистентов...",
-        "status": "Статус",
-        "unknownAssistant": "Несвязанный ассистент"
-      },
       "status": {
         "completed": "Завершено",
         "failed": "Не удалось",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Действия",
         "emptyValue": "—",
-        "messages": "Сообщения",
         "session": "Задача",
         "time": "Время",
         "title": "Название"

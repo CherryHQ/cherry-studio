@@ -2457,11 +2457,22 @@
         "target": "Asistente objetivo",
         "title": "Mover conversaciones seleccionadas"
       },
+      "clearSearch": "Borrar búsqueda",
       "empty": {
         "description": "No hay conversaciones para los filtros actuales.",
         "sessionsDescription": "No hay tareas para los filtros actuales.",
         "sessionsTitle": "Sin tareas",
         "title": "Sin conversaciones"
+      },
+      "filter": {
+        "selectAgent": "Seleccionar un agente",
+        "selectAssistant": "Seleccionar un asistente",
+        "sourceEmpty": "Sin coincidencias",
+        "sourcePlaceholder": "Seleccionar fuente",
+        "sourceSearchPlaceholder": "Buscar...",
+        "statusLabel": "Estado",
+        "statusPlaceholder": "Seleccionar estado",
+        "unlinkedAssistant": "Asistente no vinculado"
       },
       "loading": {
         "description": "Cargando lista de conversaciones.",
@@ -2471,12 +2482,8 @@
       },
       "searchSession": "Buscar tareas...",
       "searchTopic": "Buscar conversaciones...",
+      "selectedCount": "{{count}} seleccionados",
       "shortTitle": "Historia",
-      "sidebar": {
-        "searchAssistant": "Buscar asistentes...",
-        "status": "Estado",
-        "unknownAssistant": "Asistente no vinculado"
-      },
       "status": {
         "completed": "Completado",
         "failed": "Falló",
@@ -2485,7 +2492,6 @@
       "table": {
         "actions": "Acciones",
         "emptyValue": "—",
-        "messages": "Mensajes",
         "session": "Tarea",
         "time": "Tiempo",
         "title": "Título"

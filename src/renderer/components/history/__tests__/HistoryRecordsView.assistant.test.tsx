@@ -1328,6 +1328,18 @@ describe('HistoryRecordsView locale resources', () => {
       'common.required_field',
       'common.save'
     ]
+    const requiredRuntimeRecordKeys = [
+      'clearSearch',
+      'filter.selectAgent',
+      'filter.selectAssistant',
+      'filter.sourceEmpty',
+      'filter.sourcePlaceholder',
+      'filter.sourceSearchPlaceholder',
+      'filter.statusLabel',
+      'filter.statusPlaceholder',
+      'filter.unlinkedAssistant',
+      'selectedCount'
+    ]
     const requiredRecordKeys = [
       'agentTitle',
       'bulkMove',
@@ -1374,6 +1386,13 @@ describe('HistoryRecordsView locale resources', () => {
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {
         expect(getNestedValue(resource, key)).toEqual(expect.any(String))
+      }
+
+      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
+      for (const key of requiredRuntimeRecordKeys) {
+        const value = getNestedValue(records, key)
+        expect(value).toEqual(expect.any(String))
+        expect(value).not.toMatch(/^\[to be translated]/)
       }
     }
 
