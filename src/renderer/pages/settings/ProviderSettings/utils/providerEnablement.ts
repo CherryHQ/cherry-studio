@@ -27,7 +27,7 @@ function getSkippedResult(
 /** Enables a disabled provider once a flow has confirmed it has usable models, then moves it to the top. */
 export async function enableProviderWhenModelsAvailable(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
-  enableProviderAndMoveToFirst: () => Promise<unknown>,
+  enableProvider: () => Promise<unknown>,
   modelCount: number,
   source: string
 ): Promise<ProviderEnablementResult> {
@@ -40,7 +40,7 @@ export async function enableProviderWhenModelsAvailable(
   }
 
   try {
-    await enableProviderAndMoveToFirst()
+    await enableProvider()
     return { status: 'enabled' }
   } catch (error) {
     logger.error('Failed to enable provider with pin-to-top when models are available', {

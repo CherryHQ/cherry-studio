@@ -230,7 +230,9 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider
+   * Update an existing provider. A false-to-true enabled transition moves the
+   * provider to the first position in the same transaction; redundant enabled
+   * writes preserve the user's current order.
    */
   update(providerId: string, dto: UpdateProviderDto): Provider {
     assertManagedCherryAiProviderPatchAllowed(providerId, dto)
@@ -246,7 +248,10 @@ class ProviderService {
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
-        .select({ providerSettings: userProviderTable.providerSettings })
+        .select({
+          providerSettings: userProviderTable.providerSettings,
+          isEnabled: userProviderTable.isEnabled
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -269,6 +274,16 @@ class ProviderService {
           ...dto.providerSettings
         }
       }
+
+      if (dto.isEnabled === true && !current.isEnabled) {
+        try {
+          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
+            pkColumn: userProviderTable.providerId
+          })
+        } catch (error) {
+          this.rethrowOrderError(error)
+        }
+      }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
       const [updated] = tx
@@ -285,48 +300,6 @@ class ProviderService {
     })
 
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
-
-    return rowToRuntimeProvider(row)
-  }
-
-  enableAndMoveToFirst(providerId: string): Provider {
-    assertManagedCherryAiProviderMutationAllowed(providerId, `enable and move provider ${providerId} to first`)
-
-    const row = application.get('DbService').withWriteTx((tx) => {
-      const [current] = tx
-        .select()
-        .from(userProviderTable)
-        .where(eq(userProviderTable.providerId, providerId))
-        .limit(1)
-        .all()
-
-      if (!current) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
-
-      try {
-        applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
-          pkColumn: userProviderTable.providerId
-        })
-      } catch (error) {
-        this.rethrowOrderError(error)
-      }
-
-      const [updated] = tx
-        .update(userProviderTable)
-        .set({ isEnabled: true })
-        .where(eq(userProviderTable.providerId, providerId))
-        .returning()
-        .all()
-
-      if (!updated) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
-
-      return updated
-    })
-
-    logger.info('Enabled provider and moved it to first', { providerId })
 
     return rowToRuntimeProvider(row)
   }

@@ -90,7 +90,11 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
-  /** Whether this provider is enabled */
+  /**
+   * Whether this provider is enabled. A persisted false-to-true transition also
+   * moves the provider to the first position atomically; redundant true updates
+   * preserve the existing order.
+   */
   isEnabled: z.boolean().optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
@@ -179,20 +183,6 @@ export type ProviderSchemas = {
     DELETE: {
       params: { providerId: string }
       response: void
-    }
-  }
-
-  /**
-   * Ensure a provider is enabled and pinned to the top in one persisted operation.
-   * This is a narrow state-plus-order exception to the canonical `/providers/:id/order`
-   * route because callers must not expose an enabled-but-not-pinned intermediate state.
-   * The renderer must refresh `/providers` and the provider entity after this mutation.
-   * @example PATCH /providers/openai-main/enable:pin-to-top
-   */
-  '/providers/:providerId/enable:pin-to-top': {
-    PATCH: {
-      params: { providerId: string }
-      response: Provider
     }
   }
 

@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 /** Persists provider enable changes and moves newly enabled providers to the top. */
 export function useProviderEnable(providerId: string) {
   const { provider } = useProvider(providerId)
-  const { updateProvider, enableProviderAndMoveToFirst } = useProviderMutations(providerId)
+  const { updateProvider, enableProvider } = useProviderMutations(providerId)
 
   const toggleProviderEnabled = useCallback(
     async (enabled: boolean) => {
@@ -13,13 +13,13 @@ export function useProviderEnable(providerId: string) {
       }
 
       if (enabled) {
-        await enableProviderAndMoveToFirst()
+        await enableProvider()
         return
       }
 
       await updateProvider({ isEnabled: false })
     },
-    [enableProviderAndMoveToFirst, provider, updateProvider]
+    [enableProvider, provider, updateProvider]
   )
 
   return {

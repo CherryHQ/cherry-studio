@@ -15,46 +15,46 @@ describe('enableProviderWhenModelsAvailable', () => {
   })
 
   it('enables a disabled provider with pin-to-top when at least one model is available', async () => {
-    const enableProviderAndMoveToFirst = vi.fn().mockResolvedValue(undefined)
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProviderAndMoveToFirst, 2, 'test')
+    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')
 
     expect(result).toEqual({ status: 'enabled' })
-    expect(enableProviderAndMoveToFirst).toHaveBeenCalledTimes(1)
+    expect(enableProvider).toHaveBeenCalledTimes(1)
   })
 
   it('skips when the provider is already enabled', async () => {
-    const enableProviderAndMoveToFirst = vi.fn().mockResolvedValue(undefined)
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const result = await enableProviderWhenModelsAvailable(enabledProvider, enableProviderAndMoveToFirst, 2, 'test')
+    const result = await enableProviderWhenModelsAvailable(enabledProvider, enableProvider, 2, 'test')
 
     expect(result).toEqual({ status: 'skipped', reason: 'already_enabled' })
-    expect(enableProviderAndMoveToFirst).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
   it('skips when no models are available', async () => {
-    const enableProviderAndMoveToFirst = vi.fn().mockResolvedValue(undefined)
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProviderAndMoveToFirst, 0, 'test')
+    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 0, 'test')
 
     expect(result).toEqual({ status: 'skipped', reason: 'no_models' })
-    expect(enableProviderAndMoveToFirst).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
   it('skips when the provider has not resolved yet', async () => {
-    const enableProviderAndMoveToFirst = vi.fn().mockResolvedValue(undefined)
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const result = await enableProviderWhenModelsAvailable(undefined, enableProviderAndMoveToFirst, 2, 'test')
+    const result = await enableProviderWhenModelsAvailable(undefined, enableProvider, 2, 'test')
 
     expect(result).toEqual({ status: 'skipped', reason: 'missing_provider' })
-    expect(enableProviderAndMoveToFirst).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
   it('returns failed and logs when the atomic enable-and-pin action rejects', async () => {
     const enableError = new Error('enable and pin failed')
-    const enableProviderAndMoveToFirst = vi.fn().mockRejectedValue(enableError)
+    const enableProvider = vi.fn().mockRejectedValue(enableError)
 
-    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProviderAndMoveToFirst, 2, 'test')
+    const result = await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')
 
     expect(result).toEqual({ status: 'failed', error: enableError })
     expect(loggerErrorSpy).toHaveBeenCalledWith(

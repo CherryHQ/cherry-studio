@@ -5,7 +5,6 @@ const {
   listMock,
   getByProviderIdMock,
   updateMock,
-  enableAndMoveToFirstMock,
   deleteMock,
   getApiKeysMock,
   addApiKeyMock,
@@ -20,7 +19,6 @@ const {
   listMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
-  enableAndMoveToFirstMock: vi.fn(),
   deleteMock: vi.fn(),
   getApiKeysMock: vi.fn(),
   addApiKeyMock: vi.fn(),
@@ -38,7 +36,6 @@ vi.mock('@data/services/ProviderService', () => ({
     list: listMock,
     getByProviderId: getByProviderIdMock,
     update: updateMock,
-    enableAndMoveToFirst: enableAndMoveToFirstMock,
     delete: deleteMock,
     getApiKeys: getApiKeysMock,
     addApiKey: addApiKeyMock,
@@ -103,15 +100,15 @@ describe('providerHandlers', () => {
 
   describe('/providers/:providerId', () => {
     it('delegates PATCH to providerService.update with parsed body', async () => {
-      const updated = { id: 'openai', isEnabled: false }
+      const updated = { id: 'openai', isEnabled: true }
       updateMock.mockReturnValueOnce(updated)
 
       const result = await providerHandlers['/providers/:providerId'].PATCH({
         params: { providerId: 'openai' },
-        body: { isEnabled: false }
+        body: { isEnabled: true }
       } as never)
 
-      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: false })
+      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: true })
       expect(result).toBe(updated)
     })
 
@@ -135,20 +132,6 @@ describe('providerHandlers', () => {
 
       expect(deleteMock).toHaveBeenCalledWith('openai')
       expect(result).toBeUndefined()
-    })
-  })
-
-  describe('/providers/:providerId/enable:pin-to-top', () => {
-    it('delegates atomic enable-and-pin to providerService.enableAndMoveToFirst', async () => {
-      const updated = { id: 'openai', isEnabled: true }
-      enableAndMoveToFirstMock.mockReturnValueOnce(updated)
-
-      const result = await providerHandlers['/providers/:providerId/enable:pin-to-top'].PATCH({
-        params: { providerId: 'openai' }
-      } as never)
-
-      expect(enableAndMoveToFirstMock).toHaveBeenCalledWith('openai')
-      expect(result).toBe(updated)
     })
   })
 

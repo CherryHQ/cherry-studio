@@ -67,12 +67,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
-  '/providers/:providerId/enable:pin-to-top': {
-    PATCH: async ({ params }) => {
-      return providerService.enableAndMoveToFirst(params.providerId)
-    }
-  },
-
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
       const authConfig = providerService.getAuthConfig(params.providerId)

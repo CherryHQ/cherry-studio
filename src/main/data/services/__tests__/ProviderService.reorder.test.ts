@@ -61,26 +61,38 @@ describe('ProviderService reorder', () => {
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
   })
 
-  it('enables and moves a provider to the first position atomically', async () => {
+  it('moves a provider to the first position when update enables it', async () => {
     await seedProviders()
 
-    const updated = providerService.enableAndMoveToFirst('gemini')
+    const updated = providerService.update('gemini', { isEnabled: true, name: 'Gemini OAuth' })
 
     expect(updated.isEnabled).toBe(true)
+    expect(updated.name).toBe('Gemini OAuth')
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'gemini'))
     expect(row.isEnabled).toBe(true)
+    expect(row.name).toBe('Gemini OAuth')
   })
 
-  it('pins an already enabled provider to the first position for atomic enable-and-pin', async () => {
+  it('preserves user order when update receives a redundant enabled state', async () => {
     await seedProviders()
     await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
 
-    const updated = providerService.enableAndMoveToFirst('gemini')
+    const updated = providerService.update('gemini', { isEnabled: true })
 
     expect(updated.isEnabled).toBe(true)
-    expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+  })
+
+  it('preserves user order when update disables a provider', async () => {
+    await seedProviders()
+    await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
+
+    const updated = providerService.update('gemini', { isEnabled: false })
+
+    expect(updated.isEnabled).toBe(false)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
   })
 
   it('moves a provider after an anchor', async () => {

@@ -6,7 +6,7 @@ import { useProviderEnable } from '../useProviderEnable'
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
 const updateProviderMock = vi.fn().mockResolvedValue(undefined)
-const enableProviderAndMoveToFirstMock = vi.fn().mockResolvedValue(undefined)
+const enableProviderMock = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
@@ -21,7 +21,7 @@ describe('useProviderEnable', () => {
     })
     useProviderMutationsMock.mockReturnValue({
       updateProvider: updateProviderMock,
-      enableProviderAndMoveToFirst: enableProviderAndMoveToFirstMock
+      enableProvider: enableProviderMock
     })
   })
 
@@ -33,7 +33,7 @@ describe('useProviderEnable', () => {
     })
 
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: false })
-    expect(enableProviderAndMoveToFirstMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
   it('enables and moves the provider to the top through the atomic mutation', async () => {
@@ -43,7 +43,7 @@ describe('useProviderEnable', () => {
       await result.current.toggleProviderEnabled(true)
     })
 
-    expect(enableProviderAndMoveToFirstMock).toHaveBeenCalledTimes(1)
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
     expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
@@ -59,7 +59,7 @@ describe('useProviderEnable', () => {
     })
 
     expect(updateProviderMock).not.toHaveBeenCalled()
-    expect(enableProviderAndMoveToFirstMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
   it('surfaces atomic enable-and-pin failures without stale rollback', async () => {
@@ -67,7 +67,7 @@ describe('useProviderEnable', () => {
       provider: { id: 'openai', isEnabled: false }
     })
     const enableError = new Error('enable and pin failed')
-    enableProviderAndMoveToFirstMock.mockRejectedValueOnce(enableError)
+    enableProviderMock.mockRejectedValueOnce(enableError)
 
     const { result } = renderHook(() => useProviderEnable('openai'))
 
@@ -81,7 +81,7 @@ describe('useProviderEnable', () => {
     })
 
     expect(thrown).toBe(enableError)
-    expect(enableProviderAndMoveToFirstMock).toHaveBeenCalledTimes(1)
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
     expect(updateProviderMock).not.toHaveBeenCalled()
   })
 })
