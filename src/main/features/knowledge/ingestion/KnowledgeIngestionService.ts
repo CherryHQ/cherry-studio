@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
   type CreateKnowledgeItemDto,
@@ -20,8 +21,6 @@ import {
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
-
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import { classifyKnowledgeItemSource } from '../items'

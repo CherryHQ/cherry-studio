@@ -3,7 +3,6 @@ import path from 'node:path'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { type MaterialFieldSource, toMaterialRelativePath } from '@main/features/knowledge/items'
 import {
   assertSafeKnowledgeRelativePath,
   buildNoteSnapshotFile,
@@ -1115,7 +1114,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         } finally {
           // Close so the file handle is released (a leaked handle would block a re-run's
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
-          await store.close()
+          store.close()
         }
         // Build + close succeeded: the complete store sits at its runtime path. A later failure
         // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
@@ -1306,7 +1305,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
         } finally {
-          await store.close()
+          store.close()
         }
       }
 

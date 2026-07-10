@@ -1,5 +1,5 @@
 import type { JobContext } from '@main/core/job/types'
-import type * as FsUtils from '@main/utils/file/fs'
+import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
@@ -175,8 +175,8 @@ vi.mock('../../pathStorage', async () => {
 
 // prepare-root reclaims the container's own `raw/<prefix>` shell via removeDir on retry;
 // spy on it while keeping every other fs helper real. Default no-op resolve in beforeEach.
-vi.mock('@main/utils/file/fs', async () => {
-  const actual = await vi.importActual<typeof FsUtils>('@main/utils/file/fs')
+vi.mock('@main/utils/file', async () => {
+  const actual = await vi.importActual<typeof FsUtils>('@main/utils/file')
   return {
     ...actual,
     removeDir: removeDirMock
