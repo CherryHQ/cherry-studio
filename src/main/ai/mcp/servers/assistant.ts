@@ -6,6 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { redactProxyUrlToOrigin } from '@main/services/proxy/redactProxyUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -596,10 +597,11 @@ class AssistantServer {
     try {
       const preferenceService = application.get('PreferenceService')
 
+      const proxy = preferenceService.get('app.proxy.url')
       const settings = {
         language: preferenceService.get('app.language'),
         theme: preferenceService.get('ui.theme_mode'),
-        proxy: preferenceService.get('app.proxy.url'),
+        proxy: proxy ? redactProxyUrlToOrigin(proxy) : proxy,
         zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
         topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),

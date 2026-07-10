@@ -51,6 +51,7 @@ import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/a
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { redactProxyUrlToOrigin } from '@main/services/proxy/redactProxyUrl'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
@@ -186,20 +187,6 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
   )
 }
 
-export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
-  const stripUserinfo = (value: string) => value.replace(/^(([a-z][a-z\d+.-]*:\/\/)?)[^/@\s]+@/i, '$1')
-  try {
-    const url = new URL(proxyUrl)
-    if (!url.username && !url.password) return stripUserinfo(proxyUrl)
-    // Drop proxy userinfo before this value enters the assistant system prompt.
-    url.username = ''
-    url.password = ''
-    return url.toString()
-  } catch {
-    return stripUserinfo(proxyUrl)
-  }
-}
-
 /**
  * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
  * Injected into system prompt so the agent knows the user's setup immediately.
@@ -230,7 +217,7 @@ async function buildAssistantContext(): Promise<string> {
     `- App: Cherry Studio v${appVersion}`,
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
-    proxy ? `- Proxy: ${redactProxyUrlForAssistantContext(proxy)}` : '- Proxy: none',
+    proxy ? `- Proxy: ${redactProxyUrlToOrigin(proxy)}` : '- Proxy: none',
     `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
     `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
     '',
