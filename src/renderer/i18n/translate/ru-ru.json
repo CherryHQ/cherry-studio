@@ -6711,7 +6711,7 @@
         "custom_add": "Пользовательский",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Добавить"
+        "pull_short": "Получить список моделей"
       },
       "topic_naming": {
         "auto": "Автоматическое переименование топика",

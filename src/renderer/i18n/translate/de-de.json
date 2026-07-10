@@ -6711,7 +6711,7 @@
         "custom_add": "Benutzerdefiniert",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Hinzufügen"
+        "pull_short": "Modellliste abrufen"
       },
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",

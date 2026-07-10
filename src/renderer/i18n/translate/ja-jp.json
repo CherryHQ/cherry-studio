@@ -6711,7 +6711,7 @@
         "custom_add": "カスタム",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "追加"
+        "pull_short": "モデル一覧を取得"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",
