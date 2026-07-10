@@ -3,9 +3,12 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { userModelTable } from '@data/db/schemas/userModel'
+import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
@@ -26,6 +29,15 @@ describe('CherryAssistantSeeder', () => {
 
   it('uses a constant version so preset changes cannot bypass deletion memory', () => {
     expect(new CherryAssistantSeeder().version).toBe('1')
+  })
+
+  it('registers the CherryAI default model before Cherry Assistant in the production registry', () => {
+    const modelSeederIndex = seeders.findIndex((seeder) => seeder instanceof CherryAiDefaultModelSeeder)
+    const assistantSeederIndex = seeders.findIndex((seeder) => seeder instanceof CherryAssistantSeeder)
+
+    expect(modelSeederIndex).toBeGreaterThanOrEqual(0)
+    expect(assistantSeederIndex).toBeGreaterThanOrEqual(0)
+    expect(modelSeederIndex).toBeLessThan(assistantSeederIndex)
   })
 
   function insertOrdinaryAgent(): string {
@@ -95,6 +107,39 @@ describe('CherryAssistantSeeder', () => {
 
     expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(0)
     expect(builtinAgents(dbh.db)).toHaveLength(0)
+  })
+
+  it('skips when an orphan session records prior library history before the first seed journal', () => {
+    const agentId = 'historical-agent'
+    const sessionId = 'historical-session'
+
+    dbh.db.transaction((tx) => {
+      agentService.createAgentTx(tx, agentId, {
+        id: agentId,
+        type: 'claude-code',
+        name: 'Historical Agent',
+        description: '',
+        instructions: 'Historical instructions',
+        model: null,
+        configuration: {}
+      })
+      agentSessionService.createTx(tx, sessionId, {
+        agentId,
+        name: '',
+        workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+      })
+      agentService.deleteAgentTx(tx, agentId)
+    })
+
+    const [orphan] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).all()
+    expect(orphan?.agentId).toBeNull()
+
+    new SeedRunner(dbh.db).runAll([new CherryAssistantSeeder()])
+
+    expect(builtinAgents(dbh.db)).toHaveLength(0)
+    expect(dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()).toHaveLength(
+      1
+    )
   })
 
   it('does not create later after the journal is written even if all agents are deleted', () => {
