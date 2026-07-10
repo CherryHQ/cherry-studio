@@ -6,7 +6,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  preferenceGet: vi.fn()
+  preferenceGet: vi.fn(),
+  mcpList: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -19,10 +20,16 @@ vi.mock('@application', () => ({
   }
 }))
 
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: { list: mocks.mcpList }
+}))
+
 import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
 
 beforeEach(() => {
   mocks.preferenceGet.mockReset()
+  mocks.mcpList.mockReset()
+  mocks.mcpList.mockReturnValue({ items: [] })
 })
 
 describe('isBlockedSourceFile', () => {
@@ -54,17 +61,52 @@ describe('isBlockedSourceFile', () => {
 
 describe('isAllowedAssistantNavigationPath', () => {
   it('allows exact routes and nested routes only', () => {
-    expect(isAllowedAssistantNavigationPath('/')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/agents')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/agents/assistant-1')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/agents')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/agents/assistant-1')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/mini-app/example')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/chat')).toBe(true)
     expect(isAllowedAssistantNavigationPath('/settings/provider')).toBe(true)
   })
 
   it('blocks removed routes and prefix lookalikes', () => {
-    expect(isAllowedAssistantNavigationPath('/openclaw')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/store')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/app/library')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/openclaw')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/openclaw')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/agents')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/agents-legacy')).toBe(false)
+  })
+})
+
+describe('diagnose mcp_status', () => {
+  it('redacts authenticated MCP URLs to origin only', () => {
+    mocks.mcpList.mockReturnValue({
+      items: [
+        {
+          id: 'private-mcp',
+          name: 'Private MCP',
+          type: 'streamableHttp',
+          isActive: true,
+          command: undefined,
+          baseUrl: 'https://user:password@mcp.example:8443/api?token=secret#fragment'
+        }
+      ]
+    })
+
+    const server = new AssistantServer()
+    const result = (
+      server as unknown as { diagnoseMcpStatus: () => { content: Array<{ text: string }> } }
+    ).diagnoseMcpStatus()
+    const text = result.content[0].text
+    const status = JSON.parse(text) as { servers: Array<{ baseUrl?: string }> }
+
+    expect(status.servers[0]?.baseUrl).toBe('https://mcp.example:8443')
+    expect(text).not.toContain('user')
+    expect(text).not.toContain('password')
+    expect(text).not.toContain('/api')
+    expect(text).not.toContain('token=secret')
   })
 })
 

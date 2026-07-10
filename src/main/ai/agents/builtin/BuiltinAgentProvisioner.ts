@@ -10,6 +10,7 @@
  */
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
 import fs from 'fs'
 import path from 'path'
 
@@ -21,7 +22,7 @@ function resolveLocalizedField(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
 
   const map = value as Record<string, string>
-  const lang = application.get('PreferenceService').get('app.language') ?? 'en-US'
+  const lang = getAppLanguage()
   const prefix = lang.split('-')[0]
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 

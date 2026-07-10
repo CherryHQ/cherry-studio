@@ -9,16 +9,16 @@ interface NavigateToolInput {
 
 const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Top-level pages
-  '/': { icon: '🏠', label: 'Home' },
-  '/paintings': { icon: '🎨', label: 'Paintings' },
-  '/translate': { icon: '🌐', label: 'Translate' },
-  '/files': { icon: '📁', label: 'Files' },
-  '/notes': { icon: '📝', label: 'Notes' },
-  '/knowledge': { icon: '📚', label: 'Knowledge' },
-  '/apps': { icon: '📦', label: 'Mini Apps' },
-  '/code': { icon: '💻', label: 'Code Switch' },
-  '/launchpad': { icon: '🚀', label: 'Launchpad' },
-  '/agents': { icon: '🤖', label: 'Agents' },
+  '/app/chat': { icon: '💬', label: 'Chat' },
+  '/app/paintings': { icon: '🎨', label: 'Paintings' },
+  '/app/translate': { icon: '🌐', label: 'Translate' },
+  '/app/files': { icon: '📁', label: 'Files' },
+  '/app/notes': { icon: '📝', label: 'Notes' },
+  '/app/knowledge': { icon: '📚', label: 'Knowledge' },
+  '/app/mini-app': { icon: '📦', label: 'Mini Apps' },
+  '/app/code': { icon: '💻', label: 'Code Switch' },
+  '/app/launchpad': { icon: '🚀', label: 'Launchpad' },
+  '/app/agents': { icon: '🤖', label: 'Agents' }
 
   // Settings pages
   '/settings/provider': { icon: '🔑', label: 'Provider' },
