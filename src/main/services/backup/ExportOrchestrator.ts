@@ -207,6 +207,13 @@ export class ExportOrchestrator {
         await stripper.strip(backupDbPath, stripTables)
       }
 
+      // 2.6 apply contributor rowScopes — delete rows OUTSIDE each contributor's owned
+      // partition (e.g. AGENTS owns job_schedule where type='agent.task'; other types
+      // are runtime state). Runs after the stripper + before the readonly snapshot
+      // opens, same write-connection + foreign_keys=ON pattern as pruneMissingRows.
+      this.assertNotCancelled(options)
+      await this.applyRowScopes(backupDbPath, registry)
+
       // Open a READ-ONLY handle on the SNAPSHOT so collect + stage agree exactly
       // with backup.sqlite (the archive's DB). Rows deleted on live between copyTo()
       // and collect cannot desync the archived DB from its blobs.
@@ -408,6 +415,45 @@ export class ExportOrchestrator {
       }
       if (filesMissing.length > 0) deleteFileEntries(filesMissing)
       if (knowledgeMissing.length > 0) deleteKnowledgeBases(knowledgeMissing)
+    } finally {
+      db.close()
+    }
+  }
+
+  /**
+   * Apply contributor `rowScopes` to the snapshot: delete rows OUTSIDE each scope's
+   * owned partition. A rowScope declares the partition a contributor owns (e.g. AGENTS
+   * owns job_schedule where type='agent.task'); rows outside are runtime state that
+   * must not ship in the archive — without this the archive carries runtime rows the
+   * manifest does not claim to back up. Same write-connection + foreign_keys=ON
+   * pattern as pruneMissingRows, run right after the stripper (step 2.6) so the
+   * readonly snapshot opens on the already-pruned copy.
+   */
+  private async applyRowScopes(backupDbPath: string, registry: ReadonlyBackupRegistry): Promise<void> {
+    // Gather scopes across all domains (full topo — a scope's table is owned by one
+    // domain, so the registry is the single source of truth).
+    const scopes: { table: DbTableName; column: string; value: string }[] = []
+    for (const d of registry.topoSort(resolvePreset('full'))) {
+      const rowScopes = registry.getSchema(d).rowScopes
+      if (rowScopes) {
+        for (const rs of rowScopes) {
+          if (rs.filter.op === 'eq') {
+            scopes.push({ table: rs.table, column: rs.filter.column, value: rs.filter.value })
+          }
+        }
+      }
+    }
+    if (scopes.length === 0) return
+    const db = new Database(backupDbPath)
+    try {
+      db.pragma('foreign_keys = ON')
+      db.exec('BEGIN')
+      for (const s of scopes) {
+        // table/column are codegen-validated literals (DbTableName/DbColumnName from
+        // dbSchemaRefs) — not user input, no injection surface. value is parameterized.
+        db.prepare(`DELETE FROM "${s.table}" WHERE "${s.column}" != ?`).run(s.value)
+      }
+      db.exec('COMMIT')
     } finally {
       db.close()
     }

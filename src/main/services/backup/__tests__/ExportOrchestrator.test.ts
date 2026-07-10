@@ -31,11 +31,13 @@ import { ExportOrchestrator } from '../ExportOrchestrator'
  * finalize/registry tests; this stub isolates the export pipeline.
  */
 const STUB_REGISTRY = {
-  // topoSort + getOperations(→ undefined) only; isolates the export pipeline from
-  // the real registry. getOperations returns undefined so collectFileResources is
-  // skipped (no blobs) — the e2e describe below uses the real registry.
+  // topoSort + getOperations(→ undefined) + getSchema(→ no rowScopes) only; isolates
+  // the export pipeline from the real registry. getOperations returns undefined so
+  // collectFileResources is skipped (no blobs); getSchema returns no rowScopes so
+  // applyRowScopes (step 2.6) is a no-op. The e2e describe below uses the real registry.
   topoSort: (domains: readonly string[]) => [...domains],
-  getOperations: () => undefined
+  getOperations: () => undefined,
+  getSchema: () => ({ tables: [], rowScopes: undefined })
 } as unknown as ReadonlyBackupRegistry
 
 /** Create a fixture sqlite file with rows so the archive's backup.sqlite is verifiable. */
@@ -573,6 +575,86 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
           expect(count('topic')).toBe(1)
           expect(count('message')).toBe(1)
           expect(count('assistant')).toBe(1)
+        } finally {
+          d.close()
+        }
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+// rowScopes filter stub — same shape as STUB_REGISTRY but getSchema returns a rowScope
+// on AGENTS so applyRowScopes prunes non-agent.task job_schedule rows (step 2.6).
+const STUB_REGISTRY_WITH_ROWSCOPES = {
+  topoSort: (domains: readonly string[]) => [...domains],
+  getOperations: () => undefined,
+  getSchema: (d: string) =>
+    d === 'AGENTS'
+      ? ({
+          tables: [],
+          rowScopes: [
+            {
+              table: 'job_schedule',
+              ownerDomain: 'AGENTS',
+              filter: { column: 'type', op: 'eq', value: 'agent.task' }
+            }
+          ]
+        })
+      : { tables: [], rowScopes: undefined }
+} as unknown as ReadonlyBackupRegistry
+
+/** Fixture with a job_schedule table carrying multiple JobTypes — only agent.task is AGENTS-owned. */
+const makeJobScheduleDb = async (fixturePath: string): Promise<void> => {
+  const db = new Database(fixturePath)
+  db.exec('CREATE TABLE job_schedule(id TEXT, type TEXT)')
+  db.exec(
+    `INSERT INTO job_schedule VALUES ('js1','agent.task'),('js2','file-processing.background'),('js3','knowledge.index-documents')`
+  )
+  db.close()
+}
+
+describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', () => {
+  it('keeps only job_schedule type=agent.task + drops other runtime types', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-rowscopes-'))
+    try {
+      const fixture = join(dir, 'fixture.db')
+      await makeJobScheduleDb(fixture)
+      const orch = new ExportOrchestrator({
+        copier: new StubBackupCopier(fixture),
+        registry: STUB_REGISTRY_WITH_ROWSCOPES,
+        tempDir: dir,
+        filesRoot: join(dir, 'files-root'),
+        knowledgeRoot: join(dir, 'kb-root'),
+        notesRoot: () => join(dir, 'notes-root'),
+        // StubStripper — full preset, no LITE_EXCLUDED strip; isolates the rowScopes filter.
+        stripper: new StubStripper()
+      })
+      const out = join(dir, 'rowscopes.cbu')
+      await orch.exportBackup({
+        preset: 'full',
+        outputPath: out,
+        restoreId: 'rrs',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // backup.sqlite: only the AGENTS-owned partition (type=agent.task) survives;
+      // other job_schedule types are runtime state, pruned by the rowScopes filter.
+      const { zip } = await openZip(out)
+      try {
+        const extracted = join(dir, 'extracted.db')
+        await zip.extract('backup.sqlite', extracted)
+        const d = new Database(extracted, { readonly: true })
+        try {
+          const rows = d.prepare('SELECT id, type FROM job_schedule ORDER BY id').all() as {
+            id: string
+            type: string
+          }[]
+          expect(rows).toEqual([{ id: 'js1', type: 'agent.task' }])
         } finally {
           d.close()
         }
