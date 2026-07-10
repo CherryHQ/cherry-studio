@@ -391,7 +391,7 @@ import {
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
 import {
   clearPendingTopicImageActionsForTest,
@@ -1133,6 +1133,22 @@ describe('Topics', () => {
     await vi.waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position' as never)).toBe('right')
     })
+  })
+
+  it('hides topic position actions when pane position is controlled without a setter', () => {
+    const { getByText } = renderTopicList({ panePosition: 'left' })
+    const panePositionHookIndex = MockUsePreference.usePreference.mock.calls.findIndex(
+      ([key]) => key === 'topic.tab.position'
+    )
+    const setStoredPanePosition = MockUsePreference.usePreference.mock.results[panePositionHookIndex]?.value[1] as Mock
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Conversation position')
+    expect(setStoredPanePosition).not.toHaveBeenCalled()
   })
 
   it('hides topic position actions from the time-mode topic context menu', () => {

@@ -1794,6 +1794,19 @@ describe('Sessions', () => {
     })
   })
 
+  it('hides session position actions when pane position is controlled without a setter', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    render(<SessionsForTest panePosition="left" />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Session position')
+    expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('agent.session.position', expect.anything())
+  })
+
   it('hides topic position actions from the workdir-mode session context menu', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     render(<SessionsForTest />)
