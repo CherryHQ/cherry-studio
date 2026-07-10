@@ -19106,6 +19106,87 @@
       "providerId": "tokenhub"
     },
     {
+      "endpointTypes": ["anthropic-messages"],
+      "modelId": "claude-fable-5",
+      "providerId": "tokenlab"
+    },
+    {
+      "endpointTypes": ["anthropic-messages"],
+      "modelId": "claude-opus-4-8",
+      "providerId": "tokenlab"
+    },
+    {
+      "endpointTypes": ["anthropic-messages"],
+      "modelId": "claude-sonnet-5",
+      "providerId": "tokenlab"
+    },
+    {
+      "modelId": "deepseek-v4-flash",
+      "providerId": "tokenlab"
+    },
+    {
+      "modelId": "deepseek-v4-pro",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "gemini-3.1-flash-lite",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-3-1-flash-lite",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "gemini-3.5-flash",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-3-5-flash",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "modelId": "glm-5-2",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "gpt-5.4",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-4",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "gpt-5.4-mini",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-4-mini",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "gpt-5.5",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-5",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "grok-4.3",
+      "modelId": "grok-4-3",
+      "providerId": "tokenlab"
+    },
+    {
+      "modelId": "grok-4-fast",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "modelId": "kimi-k2-7-code",
+      "providerId": "tokenlab"
+    },
+    {
+      "modelId": "minimax-m3",
+      "providerId": "tokenlab"
+    },
+    {
+      "apiModelId": "qwen3.7-max",
+      "modelId": "qwen3-7-max",
+      "providerId": "tokenlab"
+    },
+    {
       "apiModelId": "claude-3-5-haiku@20241022",
       "modelId": "claude-3-5-haiku",
       "pricing": {
@@ -19876,5 +19957,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "18d91a1d8c8707c9"
+  "version": "c1b86f59ad306042"
 }
