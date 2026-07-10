@@ -302,7 +302,7 @@ function AgentEditDialogContent({
     }
   })
 
-  const closeBeforeAction = useCloseBeforeAction(open, onOpenChange)
+  const closeBeforeAction = useCloseBeforeAction(onOpenChange)
 
   return (
     <EditDialogShell

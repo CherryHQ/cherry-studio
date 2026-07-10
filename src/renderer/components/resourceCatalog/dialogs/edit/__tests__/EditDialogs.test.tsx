@@ -958,8 +958,14 @@ describe('edit dialogs', () => {
   it('closes the assistant edit dialog before running model settings navigation on the next frame', async () => {
     function Host() {
       const [open, setOpen] = useState(true)
+      const [target, setTarget] = useState<Assistant | null>(ASSISTANT)
 
-      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} onSaved={vi.fn()} />
+      const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setTarget(null)
+      }
+
+      return <AssistantEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
     }
 
     render(<Host />)
@@ -983,8 +989,14 @@ describe('edit dialogs', () => {
   it('closes the agent edit dialog before running model settings navigation on the next frame', async () => {
     function Host() {
       const [open, setOpen] = useState(true)
+      const [target, setTarget] = useState<AgentDetail | null>(AGENT)
 
-      return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} onSaved={vi.fn()} />
+      const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setTarget(null)
+      }
+
+      return <AgentEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
     }
 
     render(<Host />)

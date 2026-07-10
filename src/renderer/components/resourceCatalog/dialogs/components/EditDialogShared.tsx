@@ -282,43 +282,14 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   )
 }
 
-export function useCloseBeforeAction(
-  open: boolean,
-  onOpenChange: (open: boolean) => void
-): (action: () => void) => void {
-  const pendingCloseActionRef = useRef<(() => void) | null>(null)
-
-  const runPendingCloseAction = useCallback(() => {
-    const action = pendingCloseActionRef.current
-    if (!action) return
-
-    pendingCloseActionRef.current = null
-    action()
-  }, [])
-
-  const closeBeforeAction = useCallback(
+export function useCloseBeforeAction(onOpenChange: (open: boolean) => void): (action: () => void) => void {
+  return useCallback(
     (action: () => void) => {
-      pendingCloseActionRef.current = action
-      if (!open) {
-        runPendingCloseAction()
-        return
-      }
-
       onOpenChange(false)
+      window.requestAnimationFrame(action)
     },
-    [onOpenChange, open, runPendingCloseAction]
+    [onOpenChange]
   )
-
-  useEffect(() => {
-    if (open) {
-      return undefined
-    }
-
-    const frameId = window.requestAnimationFrame(runPendingCloseAction)
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open, runPendingCloseAction])
-
-  return closeBeforeAction
 }
 
 export function EditDialogShell<TValues extends FieldValues>({
