@@ -2587,9 +2587,7 @@
       "message": "定位到消息"
     },
     "records": {
-      "agentSubtitle": "{{count}} 个任务",
       "agentTitle": "智能体历史记录",
-      "assistantSubtitle": "{{count}} 个对话",
       "bulkDelete": "批量删除",
       "bulkDeleteSessions": {
         "description": "将删除选中的 {{count}} 个任务。",
@@ -2611,11 +2609,19 @@
         "target": "目标助手",
         "title": "移动选中的对话"
       },
+      "clearSearch": "清除搜索",
       "empty": {
         "description": "当前筛选下没有可展示的对话。",
         "sessionsDescription": "当前筛选下没有可展示的任务。",
         "sessionsTitle": "暂无任务",
         "title": "暂无对话"
+      },
+      "filter": {
+        "selectAgent": "请选择智能体",
+        "selectAssistant": "请选择助手",
+        "statusLabel": "状态",
+        "statusPlaceholder": "请选择状态",
+        "unlinkedAssistant": "未关联助手"
       },
       "loading": {
         "description": "正在读取对话列表。",
@@ -2623,15 +2629,9 @@
         "sessionsTitle": "正在加载任务",
         "title": "正在加载对话"
       },
-      "resultCount": "{{count}} 条结果",
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
       "shortTitle": "历史记录",
-      "sidebar": {
-        "searchAssistant": "搜索助手...",
-        "status": "状态",
-        "unknownAssistant": "未关联助手"
-      },
       "status": {
         "completed": "已完成",
         "failed": "失败",
@@ -2639,11 +2639,10 @@
       },
       "table": {
         "actions": "操作",
+        "conversation": "对话",
         "emptyValue": "—",
-        "messages": "消息",
         "session": "任务",
-        "time": "时间",
-        "title": "标题"
+        "time": "时间"
       },
       "title": "对话历史记录"
     },

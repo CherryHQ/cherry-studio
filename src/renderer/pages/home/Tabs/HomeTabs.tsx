@@ -13,6 +13,7 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic?: Topic
+  historyRecordsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
@@ -29,6 +30,7 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({
   activeTopic,
+  historyRecordsActive,
   assistantTopicsSource,
   onActiveAssistantDeleted,
   onAddAssistant,
@@ -47,6 +49,7 @@ const HomeTabs: FC<Props> = ({
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
+          historyRecordsActive={historyRecordsActive}
           assistantTopicsSource={assistantTopicsSource}
           onActiveAssistantDeleted={onActiveAssistantDeleted}
           onAddAssistant={onAddAssistant}

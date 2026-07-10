@@ -2436,9 +2436,7 @@
       "message": "Найти сообщение"
     },
     "records": {
-      "agentSubtitle": "{{count}} задач",
       "agentTitle": "История агента",
-      "assistantSubtitle": "{{count}} разговоров",
       "bulkDelete": "Пакетное удаление",
       "bulkDeleteSessions": {
         "description": "Удалить выбранное задание ({{count}})?",
@@ -2460,11 +2458,19 @@
         "target": "Целевой помощник",
         "title": "Переместить выбранные беседы"
       },
+      "clearSearch": "Очистить поиск",
       "empty": {
         "description": "Нет разговоров для текущих фильтров.",
         "sessionsDescription": "Нет задач для текущих фильтров.",
         "sessionsTitle": "Нет задач",
         "title": "Нет разговоров"
+      },
+      "filter": {
+        "selectAgent": "Выберите агента",
+        "selectAssistant": "Выберите ассистента",
+        "statusLabel": "Статус",
+        "statusPlaceholder": "Выберите статус",
+        "unlinkedAssistant": "Несвязанный ассистент"
       },
       "loading": {
         "description": "Загрузка списка разговоров.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Загрузка задач",
         "title": "Загрузка бесед"
       },
-      "resultCount": "{{count}} результатов",
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
       "shortTitle": "История",
-      "sidebar": {
-        "searchAssistant": "Поиск ассистентов...",
-        "status": "Статус",
-        "unknownAssistant": "Несвязанный ассистент"
-      },
       "status": {
         "completed": "Завершено",
         "failed": "Не удалось",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Действия",
+        "conversation": "Разговор",
         "emptyValue": "—",
-        "messages": "Сообщения",
         "session": "Задача",
-        "time": "Время",
-        "title": "Название"
+        "time": "Время"
       },
       "title": "История разговора"
     },

@@ -32,6 +32,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 vi.mock('@renderer/types/file', () => ({
+  COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
 }))
 

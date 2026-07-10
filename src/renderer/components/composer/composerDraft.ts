@@ -18,6 +18,7 @@ type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
   'file',
+  'folder',
   'command',
   'knowledge',
   'reference',

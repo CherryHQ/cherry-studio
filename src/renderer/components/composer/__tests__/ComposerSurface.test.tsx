@@ -7,7 +7,7 @@ import {
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  fileDragDropOptions: undefined as any,
   setTimeoutTimer: vi.fn(),
   timeoutCleanups: [] as Array<() => void>,
   preferences: {
@@ -76,9 +77,15 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div {...props} className={className} data-testid="composer-surface-scrollbar">
+      {children}
+    </div>
+  ),
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  NormalTooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -249,13 +256,17 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
-  useFileDragDrop: () => ({
-    handleDragEnter: vi.fn(),
-    handleDragLeave: vi.fn(),
-    handleDragOver: vi.fn(),
-    handleDrop: vi.fn(),
-    isDragging: false
-  })
+  useFileDragDrop: (options: any) => {
+    mocks.fileDragDropOptions = options
+
+    return {
+      handleDragEnter: vi.fn(),
+      handleDragLeave: vi.fn(),
+      handleDragOver: vi.fn(),
+      handleDrop: vi.fn(),
+      isDragging: false
+    }
+  }
 }))
 
 vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
@@ -405,6 +416,7 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.fileDragDropOptions = undefined
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
       const timer = setTimeout(callback, delay)
@@ -932,6 +944,28 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).not.toHaveBeenCalledWith(
       expect.arrayContaining([{ type: 'hardBreak' }, { type: 'composerToken', attrs: token }])
     )
+    expect(mocks.chainRun).toHaveBeenCalled()
+  })
+
+  it('inserts a folder token when a local directory path is dropped', async () => {
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.fileDragDropOptions).toBeDefined())
+
+    act(() => {
+      mocks.fileDragDropOptions.onFolderPathDropped('/Users/jd/Notes/Project Notes')
+    })
+
+    expect(mocks.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.any(String),
+        kind: 'folder',
+        label: 'Project Notes',
+        description: '/Users/jd/Notes/Project Notes',
+        promptText: '/Users/jd/Notes/Project Notes'
+      })
+    )
+    expect(mocks.insertContent).toHaveBeenCalledWith(' ')
     expect(mocks.chainRun).toHaveBeenCalled()
   })
 
@@ -2162,9 +2196,8 @@ describe('ComposerSurface', () => {
     )
 
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-6', 'rounded-md')
-    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('size-7')
-    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveAttribute('data-composer-token-remove')
     expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
@@ -2213,10 +2246,12 @@ describe('ComposerSurface', () => {
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
     const actionContainer = document.querySelector('[data-file-token-actions]')!
-    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    expect(actionContainer).toHaveClass('flex', 'justify-end')
     const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
-    expect(actionButtons[0]).toBe(deleteButton)
-    expect(actionButtons[1]).toBe(showInInputButton)
+    expect(actionButtons).toEqual([showInInputButton])
+    expect(deleteButton).toHaveAttribute('data-composer-token-remove')
+    const textScrollbar = document.querySelector('[data-file-token-text-scrollbar]')
+    expect(textScrollbar).toHaveClass('max-h-44', 'min-h-24', 'overflow-x-hidden')
 
     fireEvent.click(showInInputButton)
 

@@ -81,6 +81,7 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
+  historyRecordsActive?: boolean
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
   /** When provided, a history-records button sits next to the add button. */
@@ -125,6 +126,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   emptyFallback,
   getContextMenuActions,
   headerActions,
+  historyRecordsActive = false,
   listRef,
   onAdd,
   onOpenHistoryRecords,
@@ -144,7 +146,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const effectiveSelectedId = hasActiveResourceMenuItem ? null : selectedId
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
   const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
   const handleItemClick = useCallback(
     (item: T) => {
@@ -333,6 +336,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
                       <ResourceList.HeaderActionButton
                         type="button"
                         aria-label={t('history.records.shortTitle')}
+                        aria-current={historyRecordsActive ? 'page' : undefined}
+                        className={cn(historyRecordsActive && 'bg-muted text-foreground!')}
                         onClick={() => onOpenHistoryRecords()}>
                         <History className="block" />
                       </ResourceList.HeaderActionButton>
