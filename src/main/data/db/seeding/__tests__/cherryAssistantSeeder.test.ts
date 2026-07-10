@@ -83,6 +83,20 @@ describe('CherryAssistantSeeder', () => {
     expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
+  it('skips when only soft-deleted agents exist', () => {
+    const ordinaryAgentId = insertOrdinaryAgent()
+    dbh.db
+      .update(agentTable)
+      .set({ deletedAt: Date.UTC(2026, 0, 1) })
+      .where(eq(agentTable.id, ordinaryAgentId))
+      .run()
+
+    new CherryAssistantSeeder().run(dbh.db)
+
+    expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(0)
+    expect(builtinAgents(dbh.db)).toHaveLength(0)
+  })
+
   it('does not create later after the journal is written even if all agents are deleted', () => {
     const ordinaryAgentId = insertOrdinaryAgent()
     const runner = new SeedRunner(dbh.db)

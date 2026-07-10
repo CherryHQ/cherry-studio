@@ -5,7 +5,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { CHERRY_ASSISTANT_SEED } from '@shared/data/presets/cherryAssistant'
-import { count, eq, isNull } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
@@ -22,10 +22,10 @@ export class CherryAssistantSeeder implements ISeeder {
   run(db: DbType): void {
     db.transaction((tx) => {
       // This seed is a one-time eligibility check. SeedRunner still writes the journal
-      // when active agents already exist, so users who later delete all agents do not get
-      // an automatic recreation. v1 migration runs before the first seed pass and
-      // therefore naturally trips this guard.
-      if (this.hasActiveAgents(tx)) return
+      // when any agent history exists, so users who later delete all agents do not get
+      // an automatic recreation. The row check includes soft-deleted agents so v1 migration
+      // deletion history is not mistaken for a fresh empty library.
+      if (this.hasAnyAgents(tx)) return
 
       const agentId = uuidv4()
       const row = agentService.createAgentTx(tx, agentId, {
@@ -53,12 +53,8 @@ export class CherryAssistantSeeder implements ISeeder {
     })
   }
 
-  private hasActiveAgents(tx: DbOrTx): boolean {
-    const [{ agentCount }] = tx
-      .select({ agentCount: count() })
-      .from(agentTable)
-      .where(isNull(agentTable.deletedAt))
-      .all()
+  private hasAnyAgents(tx: DbOrTx): boolean {
+    const [{ agentCount }] = tx.select({ agentCount: count() }).from(agentTable).all()
     return agentCount > 0
   }
 
