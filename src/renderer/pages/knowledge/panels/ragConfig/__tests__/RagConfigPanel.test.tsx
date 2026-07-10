@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -8,10 +9,15 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
+const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
+
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useEnableKnowledgeBaseEmbedding: () => ({ enableEmbedding: mockEnableEmbedding, isEnabling: false })
 }))
 
 const renderRagConfigPanel = (
@@ -201,6 +207,20 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
+// Stub the download button as a plain button that fires onSelected with the local
+// model id, so tests can drive the "download finished → auto-select + save" path.
+// Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
+vi.mock('../LocalEmbeddingDownloadButton', async () => {
+  const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
+  return {
+    default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (
+      <button type="button" onClick={() => onSelected(localModelId)}>
+        download-local-embedding
+      </button>
+    )
+  }
+})
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -283,6 +303,7 @@ describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
+    mockEnableEmbedding.mockResolvedValue(createKnowledgeBase())
 
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -597,5 +618,128 @@ describe('RagConfigPanel', () => {
     expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
+  })
+
+  it('auto-saves the downloaded local embedding model directly on an empty base', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID }),
+        { embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID, dimensions: 2048 }
+      )
+    })
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('enables the downloaded local embedding model in place when a BM25-only base already has items', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 5)
+
+    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+
+    await waitFor(() => {
+      expect(mockEnableEmbedding).toHaveBeenCalledWith(
+        'base-1',
+        expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID, dimensions: 2048 })
+      )
+    })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('enables the embedding model in place instead of rebuilding when a BM25-only base already has items', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 5)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    expect(screen.queryByRole('button', { name: '重建' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockEnableEmbedding).toHaveBeenCalledWith(
+        'base-1',
+        expect.objectContaining({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: 2048 })
+      )
+    })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('still routes to the rebuild flow when switching an already-configured model on a non-empty base', () => {
+    const onRestoreBase = vi.fn()
+
+    // Default initialValues already has a non-null embeddingModelId; itemCount > 0.
+    renderRagConfigPanel(onRestoreBase, {}, 5)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'voyage::voyage-3-large'
+    })
   })
 })
