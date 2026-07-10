@@ -473,10 +473,13 @@ class ModelService {
       .all()
 
     let models = rows.map(rowToRuntimeModel)
+    const capabilityOverrideModelIds = new Set(
+      rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
+    )
 
     // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
     // imageGeneration is preset-only metadata (not stored on user_model).
-    // capabilities are unioned in: if registry says a model is `image-generation`
+    // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
     // but the provider's /models endpoint didn't tag it (cherryin returning
     // `qwen/qwen-image-edit-2509(free)` with no capability field), the painting
     // filter still picks it up. `override.capabilities.force` replaces; `add`
@@ -499,17 +502,19 @@ class ModelService {
           reasoningConfigCache
         )
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-        const capabilities = resolveCapabilities(
-          presetModel?.capabilities,
-          registryOverride?.capabilities,
-          model.capabilities
-        )
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
-        const changed =
-          capabilities.length !== model.capabilities.length ||
-          capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
-        if (changed) updates.capabilities = capabilities
+        if (!capabilityOverrideModelIds.has(model.id)) {
+          const capabilities = resolveCapabilities(
+            presetModel?.capabilities,
+            registryOverride?.capabilities,
+            model.capabilities
+          )
+          const changed =
+            capabilities.length !== model.capabilities.length ||
+            capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
+          if (changed) updates.capabilities = capabilities
+        }
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
         // A registry-lookup failure must not silently strip a model's

@@ -756,6 +756,42 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.imageGeneration).toEqual(imageGenerationMeta)
   })
 
+  it('does not re-add image-generation when the user overrode capabilities', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIn'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'qwen-image-edit-2509', {
+        presetModelId: 'qwen-image-edit-2509',
+        name: 'Qwen Image Edit',
+        capabilities: [],
+        userOverrides: ['capabilities']
+      })
+    )
+
+    lookupModelMock.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+        return {
+          presetModel: {
+            id: 'qwen-image-edit-2509',
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            imageGeneration: imageGenerationMeta
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = modelService.list({ providerId: 'cherryin' })
+    const imageModels = modelService.list({
+      providerId: 'cherryin',
+      capability: MODEL_CAPABILITY.IMAGE_GENERATION
+    })
+
+    expect(model.capabilities).toEqual([])
+    expect(model.imageGeneration).toEqual(imageGenerationMeta)
+    expect(imageModels).toEqual([])
+  })
+
   it('does NOT re-add a non-image-generation preset capability the user removed', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
     await dbh.db.insert(userModelTable).values(
