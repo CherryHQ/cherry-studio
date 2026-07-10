@@ -6,7 +6,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: lookupMock
 }))
 
-import { sanitizeRemoteFetchUrl, sanitizeRemoteUrl } from '../remoteUrlSafety'
+import { resolveRemoteFetchUrl, sanitizeRemoteFetchUrl, sanitizeRemoteUrl } from '../remoteUrlSafety'
 
 function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
   expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError(
@@ -123,6 +123,18 @@ describe('sanitizeRemoteFetchUrl', () => {
     await expect(sanitizeRemoteFetchUrl('https://example.com/a b')).resolves.toBe('https://example.com/a%20b')
 
     expect(lookupMock).toHaveBeenCalledWith('example.com', { all: true })
+  })
+
+  it('returns a prevalidated public address for direct fetch connection binding', async () => {
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+
+    await expect(resolveRemoteFetchUrl('https://example.com/a b')).resolves.toEqual({
+      url: 'https://example.com/a%20b',
+      address: {
+        address: '93.184.216.34',
+        family: 4
+      }
+    })
   })
 
   it('rejects hostnames that resolve to private addresses', async () => {

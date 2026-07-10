@@ -1,6 +1,17 @@
+import type { LookupAddress } from 'node:dns'
 import { lookup } from 'node:dns/promises'
 
 import * as ipaddr from 'ipaddr.js'
+
+export type RemoteFetchAddress = {
+  readonly address: string
+  readonly family: 4 | 6
+}
+
+export type ResolvedRemoteFetchUrl = {
+  readonly url: string
+  readonly address: RemoteFetchAddress
+}
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
 const BLOCKED_IPV4_RANGES = new Set([
@@ -136,21 +147,28 @@ export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): s
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
  */
 export async function sanitizeRemoteFetchUrl(rawUrl: string): Promise<string> {
-  const safeUrl = sanitizeRemoteUrl(rawUrl)
-  await assertRemoteUrlResolvesPublic(safeUrl)
+  const { url } = await resolveRemoteFetchUrl(rawUrl)
 
-  return safeUrl
+  return url
 }
 
-async function assertRemoteUrlResolvesPublic(rawUrl: string): Promise<void> {
+export async function resolveRemoteFetchUrl(rawUrl: string): Promise<ResolvedRemoteFetchUrl> {
+  const safeUrl = sanitizeRemoteUrl(rawUrl)
+  const address = await resolveRemoteFetchAddress(safeUrl)
+
+  return { url: safeUrl, address }
+}
+
+async function resolveRemoteFetchAddress(rawUrl: string): Promise<RemoteFetchAddress> {
   const parsedUrl = parseRemoteUrl(rawUrl)
 
   if (isBlockedHostname(parsedUrl.hostname)) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
   }
 
-  if (parseIpHostname(parsedUrl.hostname)) {
-    return
+  const literalAddress = parseIpHostname(parsedUrl.hostname)
+  if (literalAddress) {
+    return toRemoteFetchAddress(literalAddress)
   }
 
   const addresses = await lookup(normalizeHostname(parsedUrl.hostname), { all: true })
@@ -160,6 +178,31 @@ async function assertRemoteUrlResolvesPublic(rawUrl: string): Promise<void> {
     throw new Error(
       `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
     )
+  }
+
+  const firstAddress = addresses[0]
+  if (!firstAddress) {
+    throw new Error(`Unsafe remote url: DNS returned no addresses (${parsedUrl.hostname})`)
+  }
+
+  return toRemoteFetchAddress(firstAddress)
+}
+
+function toRemoteFetchAddress(address: ipaddr.IPv4 | ipaddr.IPv6 | LookupAddress): RemoteFetchAddress {
+  if ('kind' in address) {
+    return {
+      address: address.toString(),
+      family: address.kind() === 'ipv4' ? 4 : 6
+    }
+  }
+
+  if (address.family !== 4 && address.family !== 6) {
+    throw new Error(`Unsafe remote url: unsupported DNS address family (${address.family})`)
+  }
+
+  return {
+    address: address.address,
+    family: address.family
   }
 }
 
