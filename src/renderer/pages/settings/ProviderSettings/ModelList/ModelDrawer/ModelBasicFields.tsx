@@ -5,12 +5,14 @@ import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
 import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
+  endpointTypeControl?: 'select' | 'chips'
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
@@ -29,6 +31,7 @@ interface ModelBasicFieldsProps {
 export function ModelBasicFields({
   values,
   showEndpointType,
+  endpointTypeControl = 'select',
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
@@ -123,7 +126,11 @@ export function ModelBasicFields({
           className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
+            {endpointTypeControl === 'chips' ? (
+              <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
+            ) : (
+              <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
+            )}
           </div>
         </ProviderField>
       )}

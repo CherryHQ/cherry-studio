@@ -301,6 +301,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 endpointTypes
               }}
               showEndpointType={mode === 'new-api'}
+              endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
                 <button

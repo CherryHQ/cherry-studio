@@ -164,6 +164,7 @@ export const drawerClasses = {
   valueSuffix: 'shrink-0 text-xs leading-tight text-foreground-muted',
   divider: 'h-px bg-border-muted',
   switchCard: 'rounded-lg border border-border bg-background px-3 py-3',
+  endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
   footerTextButton:

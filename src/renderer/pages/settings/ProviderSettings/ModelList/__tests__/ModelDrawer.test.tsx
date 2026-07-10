@@ -505,11 +505,12 @@ describe('Model drawers', () => {
       />
     )
 
-    fireEvent.click(within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox'))
-    const openAiEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai' })
-
     await act(async () => {
-      fireEvent.click(openAiEndpointOption)
+      fireEvent.click(
+        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('button', {
+          name: 'endpoint_type.openai'
+        })
+      )
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
@@ -552,11 +553,8 @@ describe('Model drawers', () => {
     const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
     expect(within(endpointField).getByText('endpoint_type.image-edit')).toBeInTheDocument()
 
-    fireEvent.click(within(endpointField).getByRole('combobox'))
-    const openAiEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai' })
-
     await act(async () => {
-      fireEvent.click(openAiEndpointOption)
+      fireEvent.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
@@ -596,12 +594,14 @@ describe('Model drawers', () => {
       />
     )
 
-    fireEvent.click(within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox'))
-    const responseEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai-response' })
-    expect(responseEndpointOption).toHaveAttribute('aria-disabled', 'true')
+    const responseEndpointButton = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'button',
+      { name: 'endpoint_type.openai-response' }
+    )
+    expect(responseEndpointButton).toHaveAttribute('aria-disabled', 'true')
 
     await act(async () => {
-      fireEvent.click(responseEndpointOption)
+      fireEvent.click(responseEndpointButton)
     })
 
     expect(updateModelMock).not.toHaveBeenCalled()

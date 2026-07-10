@@ -41,6 +41,7 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
 }
@@ -109,6 +110,7 @@ export async function providerToAiSdkConfig(
     actualProvider: provider,
     model,
     baseConfig: { baseURL, apiKey },
+    endpointType,
     endpoint,
     aiSdkProviderId
   }
@@ -484,8 +486,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
     // CherryIn provider may not exist
   }
 
-  const endpointType = ctx.model.endpointTypes?.[0]
-  const cherryinEndpointType = mapCherryinEndpointType(endpointType)
+  const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 
   return {
     providerId: ctx.aiSdkProviderId,
@@ -509,7 +510,7 @@ function buildAzureConfig(
   ctx: BuilderContext
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
 
   // Azure + Claude model → azure-anthropic
   if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
@@ -619,7 +620,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
 }
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
   let rawBaseURL: string
 
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
