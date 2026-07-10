@@ -8,6 +8,30 @@ import { EmojiPicker } from '..'
 const loadStableEmojiOptionsMock = vi.hoisted(() => vi.fn())
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
 
+type VirtualizerOptionsMock = {
+  count: number
+  estimateSize: (index: number) => number
+}
+
+const virtualizerMocks = vi.hoisted(() => ({
+  visibleIndexes: undefined as number[] | undefined,
+  useVirtualizer: vi.fn((options: VirtualizerOptionsMock) => {
+    const indexes = virtualizerMocks.visibleIndexes ?? Array.from({ length: options.count }, (_, index) => index)
+    return {
+      getTotalSize: () => options.count * 44,
+      getVirtualItems: () => indexes.map((index) => ({ index, key: index, size: 44, start: index * 44 })),
+      measureElement: vi.fn()
+    }
+  })
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  defaultRangeExtractor: vi.fn((range: { startIndex: number; endIndex: number }) =>
+    Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, index) => range.startIndex + index)
+  ),
+  useVirtualizer: virtualizerMocks.useVirtualizer
+}))
+
 vi.mock('../data', () => ({
   loadStableEmojiOptions: loadStableEmojiOptionsMock
 }))
@@ -40,6 +64,8 @@ afterEach(async () => {
 describe('EmojiPicker', () => {
   beforeEach(() => {
     i18nLanguageMock.value = defaultLanguage
+    virtualizerMocks.visibleIndexes = undefined
+    virtualizerMocks.useVirtualizer.mockClear()
     loadStableEmojiOptionsMock.mockReset()
     loadStableEmojiOptionsMock.mockResolvedValue([])
   })
@@ -119,5 +145,23 @@ describe('EmojiPicker', () => {
     expect(loadStableEmojiOptionsMock).toHaveBeenNthCalledWith(1, 'zh-CN')
     expect(loadStableEmojiOptionsMock).toHaveBeenNthCalledWith(2, defaultLanguage)
     expect(screen.getByRole('button', { name: 'smile' })).toBeInTheDocument()
+  })
+
+  it('windows category headers and seven-column emoji rows', async () => {
+    const records = Array.from({ length: 20 }, (_, index) => ({
+      emoji: String.fromCodePoint(0x1f600 + index),
+      annotation: `emoji ${index + 1}`,
+      group: 0,
+      order: index
+    }))
+    loadStableEmojiOptionsMock.mockResolvedValueOnce(records)
+    virtualizerMocks.visibleIndexes = [0, 1]
+
+    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+    await act(async () => {})
+
+    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 4, overscan: 3 }))
+    expect(screen.getByRole('button', { name: 'emoji 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'emoji 8' })).not.toBeInTheDocument()
   })
 })
