@@ -910,6 +910,46 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.resourceProvider).not.toBe(firstResourceProvider)
   })
 
+  it('calls onWorkspaceChange with null when clicking the quick clear button on hover', async () => {
+    const onWorkspaceChange = vi.fn()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={onWorkspaceChange}
+        showWorkspaceSelector
+      />
+    )
+
+    const clearButton = screen.getByTestId('clear-workspace-button')
+    expect(clearButton).toBeInTheDocument()
+
+    fireEvent.click(clearButton)
+    expect(onWorkspaceChange).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the workspace selector trigger as a native button without nested interactive roles', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={vi.fn()}
+        showWorkspaceSelector
+      />
+    )
+
+    const workspaceButton = screen.getByText('Workspace 1').closest('button')
+    expect(workspaceButton).toBeInTheDocument()
+    expect(workspaceButton).toHaveAttribute('type', 'button')
+    expect(within(workspaceButton!).queryByRole('button')).not.toBeInTheDocument()
+  })
+
   it('marks already selected workspace resources as disabled', async () => {
     mocks.files = [
       {
@@ -1865,7 +1905,8 @@ describe('AgentComposer', () => {
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Workspace 1').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    const workspaceButton = screen.getByText('Workspace 1').closest('button')
+    expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
 
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
