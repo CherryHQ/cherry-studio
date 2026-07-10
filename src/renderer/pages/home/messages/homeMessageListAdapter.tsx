@@ -61,7 +61,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { isNonChatModel, isRerankModel } from '@shared/utils/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
 import { last } from 'es-toolkit/compat'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -611,7 +611,7 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter = (model: SharedModel) => {
-        if (isNonChatModel(model) || isRerankModel(model)) return false
+        if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
         return true

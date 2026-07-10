@@ -469,7 +469,7 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
   })
 })
 
-describe('listModels — newApiFetcher endpoint type mapping', () => {
+describe('listModels — newApiFetcher rerank capability mapping', () => {
   function makeNewApiProvider() {
     return makeProvider({
       id: 'new-api',
@@ -480,14 +480,14 @@ describe('listModels — newApiFetcher endpoint type mapping', () => {
     })
   }
 
-  it('maps supported_endpoint_types to canonical endpointTypes and drops unknown entries', async () => {
+  it('marks jina-rerank models without persisting unrelated endpoint routing metadata', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         data: [
           {
-            id: 'gpt-4o',
+            id: 'opaque-model-id',
             owned_by: 'new-api',
-            supported_endpoint_types: ['openai', 'openai-response', 'unknown-endpoint']
+            supported_endpoint_types: ['openai', 'jina-rerank', 'unknown-endpoint']
           }
         ]
       }
@@ -496,7 +496,8 @@ describe('listModels — newApiFetcher endpoint type mapping', () => {
     const models = await listModels(makeNewApiProvider())
 
     expect(models).toHaveLength(1)
-    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].endpointTypes).toBeUndefined()
   })
 })
 

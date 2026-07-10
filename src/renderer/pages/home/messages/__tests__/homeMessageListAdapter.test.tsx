@@ -201,8 +201,7 @@ vi.mock('@renderer/utils/message/composerTokens', () => ({
 }))
 
 vi.mock('@shared/utils/model', () => ({
-  isNonChatModel: vi.fn(() => false),
-  isRerankModel: vi.fn(
+  isNonChatModel: vi.fn(
     (model: { capabilities?: readonly unknown[] }) => model.capabilities?.includes('rerank') ?? false
   ),
   isVisionModel: vi.fn(() => false)

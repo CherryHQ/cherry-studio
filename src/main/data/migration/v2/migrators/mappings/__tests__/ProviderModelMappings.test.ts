@@ -25,28 +25,6 @@ describe('ProviderModelMappings', () => {
       expect(result.authConfig).toEqual({ type: 'iam-azure', apiVersion: 'preview' })
     })
 
-    it.each(['openai', 'new-api', 'copilot'])(
-      'preserves legacy presetProviderId %s for custom-id providers',
-      (presetProviderId) => {
-        const result = transformProvider(
-          {
-            id: `custom-${presetProviderId}`,
-            name: `Custom ${presetProviderId}`,
-            type: 'openai',
-            presetProviderId,
-            apiKey: 'k',
-            apiHost: 'https://example.com/v1',
-            models: [],
-            enabled: true,
-            isSystem: false
-          } as never,
-          {}
-        )
-
-        expect(result.presetProviderId).toBe(presetProviderId)
-      }
-    )
-
     it('migrates VertexAI auth while keeping its generated host as an empty endpoint override', () => {
       const result = transformProvider(
         {

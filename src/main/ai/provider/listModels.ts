@@ -15,7 +15,7 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
@@ -437,12 +437,15 @@ const newApiFetcher: ModelFetcher = {
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) =>
-      toModel(m.id, provider, {
+    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
+      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+
+      return toModel(m.id, provider, {
         ownedBy: m.owned_by,
-        endpointTypes: normalizeEndpointTypes(m.supported_endpoint_types)
+        endpointTypes,
+        ...(endpointTypes?.[0] === ENDPOINT_TYPE.JINA_RERANK ? { capabilities: [MODEL_CAPABILITY.RERANK] } : {})
       })
-    )
+    })
   }
 }
 
