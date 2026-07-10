@@ -53,7 +53,8 @@ export interface MessageVirtualListHandle {
   scrollToBottom(behavior?: ScrollBehavior): void
   scrollToTop(behavior?: ScrollBehavior): void
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
-  scrollToElement(element: HTMLElement, align?: 'start' | 'nearest'): void
+  /** Smooth-scroll `element`'s top to the viewport top, then freeze the viewport on it. */
+  scrollToElement(element: HTMLElement): void
   isAtBottom(): boolean
   getScrollElement(): HTMLElement | null
 }
@@ -1055,22 +1056,11 @@ export function useChatVirtualizerRuntime<T>({
           }
         )
       },
-      scrollToElement: (element, align = 'start') => {
+      scrollToElement: (element) => {
         navigateForReading(
           (scroller) => {
             if (!element.isConnected) return scroller.scrollTop
-            const scrollerRect = scroller.getBoundingClientRect()
-            const elementRect = element.getBoundingClientRect()
-            if (align === 'nearest') {
-              if (elementRect.top < scrollerRect.top) {
-                return scroller.scrollTop + elementRect.top - scrollerRect.top
-              }
-              if (elementRect.bottom > scrollerRect.bottom) {
-                return scroller.scrollTop + elementRect.bottom - scrollerRect.bottom
-              }
-              return scroller.scrollTop
-            }
-            return scroller.scrollTop + elementRect.top - scrollerRect.top
+            return scroller.scrollTop + element.getBoundingClientRect().top - scroller.getBoundingClientRect().top
           },
           'smooth',
           () => (element.isConnected ? element : null)

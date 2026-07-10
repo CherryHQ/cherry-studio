@@ -671,7 +671,7 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.contentRef.current!.prepend(message)
 
       act(() => runtime!.scrollToBottom('instant'))
-      act(() => handle!.scrollToElement(heading, 'start'))
+      act(() => handle!.scrollToElement(heading))
       raf.tick(60)
       expect(scrollTop).toBe(300)
 

@@ -191,8 +191,8 @@ const MessageList = () => {
     messageListRef.current?.scrollToKey(groupKey, 'start')
   }, [])
 
-  const scrollToOutlineElement = useCallback((element: HTMLElement, align: 'start' | 'nearest') => {
-    messageListRef.current?.scrollToElement(element, align)
+  const scrollToOutlineElement = useCallback((element: HTMLElement) => {
+    messageListRef.current?.scrollToElement(element)
   }, [])
 
   const updateActiveMessageOutline = useCallback(() => {
