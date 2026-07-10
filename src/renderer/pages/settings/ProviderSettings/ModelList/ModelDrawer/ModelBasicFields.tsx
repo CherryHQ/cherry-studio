@@ -3,6 +3,7 @@ import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
@@ -13,6 +14,7 @@ interface ModelBasicFieldsProps {
   showEndpointType: boolean
   modelIdDisabled?: boolean
   modelIdAction?: ReactNode
+  modelIdError?: string
   endpointTypeError?: string
   onModelIdChange: (value: string) => void
   onNameChange: (value: string) => void
@@ -25,6 +27,7 @@ export function ModelBasicFields({
   showEndpointType,
   modelIdDisabled = false,
   modelIdAction,
+  modelIdError,
   endpointTypeError,
   onModelIdChange,
   onNameChange,
@@ -32,19 +35,36 @@ export function ModelBasicFields({
   onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
+  const modelIdErrorId = `${useId()}-model-id-error`
 
   return (
     <>
       <ProviderField
-        title={t('settings.models.add.model_id.label')}
+        title={
+          <>
+            <span className="text-destructive" aria-hidden="true">
+              *
+            </span>{' '}
+            {t('settings.models.add.model_id.label')}
+          </>
+        }
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        className={drawerClasses.field}
+        help={
+          modelIdError ? (
+            <div id={modelIdErrorId} className={drawerClasses.errorText}>
+              {modelIdError}
+            </div>
+          ) : null
+        }>
         <div className={drawerClasses.valueRow}>
           <Input
             required
             spellCheck={false}
             maxLength={200}
             aria-label={t('settings.models.add.model_id.label')}
+            aria-invalid={Boolean(modelIdError)}
+            aria-describedby={modelIdError ? modelIdErrorId : undefined}
             value={values.modelId}
             disabled={modelIdDisabled}
             placeholder={t('settings.models.add.model_id.placeholder')}

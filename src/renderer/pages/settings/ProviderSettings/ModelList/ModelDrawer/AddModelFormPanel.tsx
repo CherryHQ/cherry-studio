@@ -51,14 +51,17 @@ export default function AddModelFormPanel({
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const [modelIdSubmitAttempted, setModelIdSubmitAttempted] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const modelIdMissing = splitModelIds(formState.modelId.replaceAll('，', ',')).length === 0
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
     setEndpointTypeTouched(false)
+    setModelIdSubmitAttempted(false)
     setShowMoreSettings(false)
   }, [prefill])
 
@@ -112,16 +115,22 @@ export default function AddModelFormPanel({
       return
     }
 
-    if (mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)) {
+    const normalizedId = formState.modelId.trim().replaceAll('，', ',')
+    const endpointTypeMissing = mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)
+
+    setModelIdSubmitAttempted(true)
+
+    if (endpointTypeMissing) {
       setEndpointTypeTouched(true)
+    }
+
+    if (modelIdMissing || endpointTypeMissing) {
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      const normalizedId = formState.modelId.trim().replaceAll('，', ',')
-
       if (normalizedId.includes(',')) {
         let addedCount = 0
         for (const singleId of splitModelIds(normalizedId)) {
@@ -159,7 +168,7 @@ export default function AddModelFormPanel({
     } finally {
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, isSubmitting, mode, onSuccess, t])
+  }, [addSingleModel, formState, isSubmitting, mode, modelIdMissing, onSuccess, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -218,6 +227,9 @@ export default function AddModelFormPanel({
           <ModelBasicFields
             values={formState}
             showEndpointType={mode === 'new-api'}
+            modelIdError={
+              modelIdSubmitAttempted && modelIdMissing ? t('settings.models.add.model_id.required') : undefined
+            }
             endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
             onModelIdChange={handleModelIdChange}
             onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}

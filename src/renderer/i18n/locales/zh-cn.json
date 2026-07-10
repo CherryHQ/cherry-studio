@@ -6563,6 +6563,7 @@
         "model_id": {
           "label": "模型 ID",
           "placeholder": "必填 例如 gpt-3.5-turbo",
+          "required": "请输入模型 ID",
           "select": {
             "placeholder": "选择模型"
           },

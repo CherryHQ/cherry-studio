@@ -177,6 +177,49 @@ describe('Model drawers', () => {
     )
   })
 
+  it('marks model ID as required and shows an inline error instead of creating an empty model', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    const modelIdInput = screen.getByLabelText('settings.models.add.model_id.label')
+    expect(modelIdInput).toBeRequired()
+    expect(screen.getByText('*')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    })
+
+    expect(modelIdInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('settings.models.add.model_id.required')).toBeInTheDocument()
+    expect(createModelMock).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it.each([',', '，，', ' , , '])(
+    'rejects delimiter-only model ID input %j as missing',
+    async (delimiterOnlyModelId) => {
+      useProviderMock.mockReturnValue({
+        provider: { id: 'openai', name: 'OpenAI' }
+      })
+
+      render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+      const modelIdInput = screen.getByLabelText('settings.models.add.model_id.label')
+      fireEvent.change(modelIdInput, { target: { value: delimiterOnlyModelId } })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+      })
+
+      expect(modelIdInput).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByText('settings.models.add.model_id.required')).toBeInTheDocument()
+      expect(createModelMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }

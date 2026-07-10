@@ -6563,6 +6563,7 @@
         "model_id": {
           "label": "Model ID",
           "placeholder": "Required e.g. gpt-3.5-turbo",
+          "required": "Please enter a model ID",
           "select": {
             "placeholder": "Select Model"
           },
