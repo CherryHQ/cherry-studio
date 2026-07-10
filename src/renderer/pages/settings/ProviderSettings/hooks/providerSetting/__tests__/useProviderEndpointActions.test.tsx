@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
-const syncProviderModelsMock = vi.fn().mockResolvedValue([])
 const setApiHostMock = vi.fn()
 const setAnthropicApiHostMock = vi.fn()
 
@@ -59,8 +58,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -81,10 +79,9 @@ describe('useProviderEndpointActions', () => {
         }
       }
     })
-    expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('flushes host persistence on blur and silently syncs models with the latest endpoint config', async () => {
+  it('flushes host persistence on blur without syncing models', async () => {
     const { result } = renderHook(() =>
       useProviderEndpointActions({
         provider,
@@ -95,8 +92,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -106,38 +102,6 @@ describe('useProviderEndpointActions', () => {
     })
 
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledWith()
-  })
-
-  it('returns success when the background model sync fails after saving the host', async () => {
-    syncProviderModelsMock.mockRejectedValueOnce(new Error('Invalid JSON response'))
-
-    const { result } = renderHook(() =>
-      useProviderEndpointActions({
-        provider,
-        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        apiHost: 'https://proxy.example.com',
-        setApiHost: setApiHostMock,
-        providerApiHost: 'https://api.openai.com',
-        anthropicApiHost: '',
-        setAnthropicApiHost: setAnthropicApiHostMock,
-        apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
-      })
-    )
-
-    let saved = false
-    await act(async () => {
-      saved = await result.current.commitApiHost()
-      await flushEndpointAction()
-    })
-
-    expect(saved).toBe(true)
-    expect(patchProviderMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('does not patch the same host twice when blur happens after the debounced save', async () => {
@@ -151,8 +115,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -182,8 +145,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -221,8 +183,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: 'https://anthropic.example.com',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -261,8 +222,7 @@ describe('useProviderEndpointActions', () => {
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
         apiVersion: 'bad-version',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 

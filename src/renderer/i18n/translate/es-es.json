@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Edición de Imágenes (OpenAI)",
     "image-generation": "Generación de Imágenes (OpenAI)",
     "jina-rerank": "Reordenamiento Jina",
     "openai": "OpenAI",
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "ID del modelo",
-          "placeholder": "Obligatorio, por ejemplo, gpt-3.5-turbo",
+          "placeholder": "Por ejemplo, gpt-5.5",
+          "required": "Introduzca el ID del modelo",
           "select": {
             "placeholder": "Seleccionar modelo"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "Nombre del modelo",
-          "placeholder": "Por ejemplo, GPT-3.5",
+          "placeholder": "Por ejemplo, GPT-5.5",
           "tooltip": "Por ejemplo, GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6612,17 @@
       },
       "group_disable": "Deshabilitar este grupo",
       "group_enable": "Habilitar este grupo",
-      "list_title": "Model list",
+      "list_title": "Modelos",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista"
+          "label": "Añadir todos los modelos"
         },
         "add_whole_group": "Agregar todo el grupo",
+        "clean_stale_models": "Limpiar modelos obsoletos",
+        "clean_stale_success": "Se limpiaron {{count}} modelos obsoletos",
+        "default_model_cannot_remove": "El modelo predeterminado no se puede eliminar.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6644,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Volver a obtener la lista de modelos",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Eliminar modelo de la lista",
+        "remove_listed": "Eliminar todos los modelos",
         "remove_model": "Eliminar modelo",
+        "remove_skipped_default_in_use": "Se omitieron {{count}} modelos predeterminados",
         "remove_whole_group": "Eliminar todo el grupo",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsoleto",
+        "stale_filter": "Obsoleto",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6711,7 @@
         "custom_add": "Personalizado",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Añadir"
+        "pull_short": "Obtener lista de modelos"
       },
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
@@ -6795,6 +6803,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Añadir proveedor",
         "name": {
           "label": "Nombre del proveedor",
           "placeholder": "Por ejemplo, OpenAI",

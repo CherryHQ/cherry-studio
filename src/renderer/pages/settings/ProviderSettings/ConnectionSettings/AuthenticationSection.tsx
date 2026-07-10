@@ -6,15 +6,24 @@ import { AuthenticationSectionContent } from './AuthenticationSectionContent'
 interface AuthenticationSectionProps {
   providerId: string
   onOpenModelHealthCheck?: () => void
+  onRequestModelPullGuide?: () => void
 }
 
-export default function AuthenticationSection({ providerId, onOpenModelHealthCheck }: AuthenticationSectionProps) {
+export default function AuthenticationSection({
+  providerId,
+  onOpenModelHealthCheck,
+  onRequestModelPullGuide
+}: AuthenticationSectionProps) {
   const apiKey = useProviderApiKey(providerId)
 
   return (
     <ApiKeyProvider value={apiKey}>
       <AuthConnectionSlotsLayout providerId={providerId}>
-        <AuthenticationSectionContent providerId={providerId} onOpenModelHealthCheck={onOpenModelHealthCheck} />
+        <AuthenticationSectionContent
+          providerId={providerId}
+          onOpenModelHealthCheck={onOpenModelHealthCheck}
+          onRequestModelPullGuide={onRequestModelPullGuide}
+        />
       </AuthConnectionSlotsLayout>
     </ApiKeyProvider>
   )

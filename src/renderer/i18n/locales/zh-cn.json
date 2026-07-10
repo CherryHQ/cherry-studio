@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "图像编辑 (OpenAI)",
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
@@ -6562,7 +6563,8 @@
         },
         "model_id": {
           "label": "模型 ID",
-          "placeholder": "必填 例如 gpt-3.5-turbo",
+          "placeholder": "例如 gpt-5.5",
+          "required": "请输入模型 ID",
           "select": {
             "placeholder": "选择模型"
           },
@@ -6570,7 +6572,7 @@
         },
         "model_name": {
           "label": "模型名称",
-          "placeholder": "例如 GPT-4",
+          "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
@@ -6639,14 +6641,17 @@
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",
-      "list_title": "模型列表",
+      "list_title": "模型",
       "manage": {
         "add_custom_model": "添加自定义模型",
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
-          "label": "添加列表中的模型"
+          "label": "添加全部模型"
         },
         "add_whole_group": "添加整个分组",
+        "clean_stale_models": "清理失效模型",
+        "clean_stale_success": "已清理 {{count}} 个失效模型",
+        "default_model_cannot_remove": "默认模型无法删除",
         "drawer_title": "模型管理",
         "fetch_deselect_all_add": "取消全选",
         "fetch_deselect_all_remove": "取消全选",
@@ -6668,11 +6673,14 @@
         "operation_failed": "模型操作失败。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
-        "remove_listed": "移除列表中的模型",
+        "remove_listed": "移除全部模型",
         "remove_model": "删除模型",
+        "remove_skipped_default_in_use": "已跳过 {{count}} 个默认模型",
         "remove_whole_group": "删除分组",
         "search_models_placeholder": "搜索模型…",
         "select_none": "取消全选",
+        "stale_badge": "失效",
+        "stale_filter": "失效",
         "status_all": "全部",
         "status_disabled": "未启用",
         "status_enabled": "已启用",
@@ -6824,6 +6832,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "添加服务商",
         "name": {
           "label": "提供商名称",
           "placeholder": "例如 OpenAI",
