@@ -34,6 +34,8 @@ export type ResourceSelectorShellItem = {
   description?: string
   tag?: string
   disabled?: boolean
+  editDisabled?: boolean
+  pinDisabled?: boolean
 }
 
 export type ResourceSelectorShellTag = string | { name: string; color?: string }
@@ -508,6 +510,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const renderPinAction = useCallback(
     (item: T) => {
+      if (item.pinDisabled) return null
+
       const isPinned = pinnedSet.has(item.id)
       return (
         <ModelSelectorRowActionButton
@@ -528,7 +532,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const renderEditAction = useCallback(
     (item: T) => {
-      if (!onEditItem) return null
+      if (!onEditItem || item.editDisabled) return null
 
       return (
         <ModelSelectorRowActionButton

@@ -6,6 +6,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import type { TopicExportMenuOptions } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
@@ -29,6 +30,7 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -49,6 +51,22 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import {
+  applyOptimisticTopicDisplayMove,
+  buildAssistantGroupDropAnchor,
+  buildTopicDropAnchor,
+  createTopicDisplayGroupResolver,
+  getAssistantIdFromTopicGroupId,
+  getTopicAssistantDisplayGroupId,
+  moveAssistantGroupAfterDrop,
+  normalizeTopicDropPayload,
+  sortTopicsForDisplayGroups,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  type TopicDisplayMode
+} from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
@@ -73,24 +91,6 @@ import {
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
-import type { TopicExportMenuOptions } from './topicContextMenuActions'
-import {
-  applyOptimisticTopicDisplayMove,
-  buildAssistantGroupDropAnchor,
-  buildTopicDropAnchor,
-  createTopicDisplayGroupResolver,
-  getAssistantIdFromTopicGroupId,
-  getTopicAssistantDisplayGroupId,
-  moveAssistantGroupAfterDrop,
-  normalizeTopicDropPayload,
-  sortTopicsForDisplayGroups,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-  type TopicDisplayMode
-} from './topicsHelpers'
-import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 // Let the context menu close before mounting the heavier offscreen message list.
@@ -106,6 +106,7 @@ interface Props {
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
+  historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
@@ -236,6 +237,7 @@ export function Topics({
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
+  historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
@@ -686,11 +688,11 @@ export function Topics({
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && topic.id !== activeTopic?.id) {
+      if (topic && (historyRecordsActive || topic.id !== activeTopic?.id)) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic?.id, filteredTopics, setActiveTopic]
+    [activeTopic?.id, filteredTopics, historyRecordsActive, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -709,6 +711,7 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
@@ -1179,7 +1182,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
+        selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
@@ -1227,6 +1230,7 @@ export function Topics({
                 actions={
                   <>
                     <TopicListOptionsMenu
+                      historyRecordsActive={historyRecordsActive}
                       manageAssistantsActive={manageAssistantsMenuItem?.active}
                       mode={displayMode}
                       onChange={handleTopicDisplayModeChange}
@@ -1240,6 +1244,7 @@ export function Topics({
             </>
           ) : (
             <TopicListOptionsMenu
+              historyRecordsActive={historyRecordsActive}
               manageAssistantsActive={manageAssistantsMenuItem?.active}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}

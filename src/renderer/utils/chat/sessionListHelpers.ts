@@ -15,7 +15,7 @@ import {
   type ResourceListTimeBucket,
   sortRankedResourceItems,
   withResourceListGroupIdPrefix
-} from '@renderer/components/chat/resourceList/base'
+} from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'

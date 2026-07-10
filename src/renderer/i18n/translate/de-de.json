@@ -2436,9 +2436,7 @@
       "message": "Zu Nachricht navigieren"
     },
     "records": {
-      "agentSubtitle": "{{count}} Aufgaben",
       "agentTitle": "Agentenhistorie",
-      "assistantSubtitle": "{{count}} Gespräche",
       "bulkDelete": "Stapel löschen",
       "bulkDeleteSessions": {
         "description": "{{count}} ausgewählte Aufgabe(n) löschen?",
@@ -2460,11 +2458,19 @@
         "target": "Zielassistent",
         "title": "Ausgewählte Konversationen verschieben"
       },
+      "clearSearch": "Suche löschen",
       "empty": {
         "description": "Keine Gespräche für die aktuellen Filter.",
         "sessionsDescription": "Keine Aufgaben für die aktuellen Filter.",
         "sessionsTitle": "Keine Aufgaben",
         "title": "Keine Gespräche"
+      },
+      "filter": {
+        "selectAgent": "Agent auswählen",
+        "selectAssistant": "Assistent auswählen",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Status auswählen",
+        "unlinkedAssistant": "Unverknüpfter Assistent"
       },
       "loading": {
         "description": "Unterhaltungsliste wird geladen.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Aufgaben laden",
         "title": "Konversationen werden geladen"
       },
-      "resultCount": "{{count}} Ergebnisse",
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
-      "sidebar": {
-        "searchAssistant": "Suchassistenten...",
-        "status": "Status",
-        "unknownAssistant": "Unverknüpfter Assistent"
-      },
       "status": {
         "completed": "Abgeschlossen",
         "failed": "Fehlgeschlagen",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Aktionen",
+        "conversation": "Unterhaltung",
         "emptyValue": "—",
-        "messages": "Nachrichten",
         "session": "Aufgabe",
-        "time": "Zeit",
-        "title": "Titel"
+        "time": "Zeit"
       },
       "title": "Konversationsverlauf"
     },

@@ -492,6 +492,7 @@ vi.mock('../components/ChatNavbar', () => ({
 
 vi.mock('../Tabs/HomeTabs', () => ({
   default: ({
+    historyRecordsActive,
     assistantTopicsSource,
     onOpenHistoryRecords,
     onSetPanePosition,
@@ -502,7 +503,10 @@ vi.mock('../Tabs/HomeTabs', () => ({
     homeMocks.homeTabsTopicsSource = assistantTopicsSource
 
     return (
-      <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <div
+        data-history-active={String(Boolean(historyRecordsActive))}
+        data-reveal-request={JSON.stringify(revealRequest ?? null)}
+        data-testid="home-tabs">
         <button
           type="button"
           onClick={() => {
@@ -600,27 +604,37 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
-    assistantTopicsSource,
+    historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onOpenHistoryRecords,
+    assistantTopicsSource,
     onCreateTopic,
     onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
+    historyRecordsActive?: boolean
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => void | Promise<void>
+    onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
 
     return (
-      <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
+      <div
+        data-active-assistant-id={activeAssistantId ?? ''}
+        data-history-active={String(Boolean(historyRecordsActive))}
+        data-testid="assistant-resource-list">
         <button type="button" onClick={() => void onAddAssistant?.()}>
           Open assistant picker
+        </button>
+        <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
+          Open history records
         </button>
         <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
           Delete active assistant
@@ -670,12 +684,14 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
     ) : null
 }))
 
-vi.mock('../../history/HistoryRecordsPage', () => ({
+vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
     open ? (
-      <button type="button" onClick={() => onRecordSelect?.(null)}>
-        Clear history selection
-      </button>
+      <div data-testid="history-records-view">
+        <button type="button" onClick={() => onRecordSelect?.(null)}>
+          Clear history selection
+        </button>
+      </div>
     ) : null
 }))
 
@@ -877,6 +893,49 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('renders history records in the chat center and toggles them from the sidebar', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'true')
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-topic')).toBeInTheDocument()
+    expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('closes classic-layout history records when the active assistant is clicked', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('replaces the history center surface when opening assistant management', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 

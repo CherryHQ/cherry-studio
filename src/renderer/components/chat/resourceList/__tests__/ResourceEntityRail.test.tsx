@@ -164,6 +164,23 @@ describe('ResourceEntityRail', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
+  it('marks the history button as current while history records are active', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onOpenHistoryRecords={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('omits the history button when onOpenHistoryRecords is not provided', () => {
     render(
       <ResourceEntityRail
@@ -361,6 +378,33 @@ describe('ResourceEntityRail', () => {
     )
 
     fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps repeat-click toggles available while history records clear the visual selection', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const row = screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement
+    expect(row).not.toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(row)
 
     expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
     expect(onSelect).not.toHaveBeenCalled()

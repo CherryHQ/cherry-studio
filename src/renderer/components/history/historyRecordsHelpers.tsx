@@ -10,7 +10,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceItem, HistorySourceStatus, HistoryStatusItem } from './components/HistorySourceSidebar'
+import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
@@ -75,43 +75,25 @@ export function findAdjacentHistoryRecordAfterBulkDelete<T>(
   return undefined
 }
 
-export function buildAgentStatusItems(
-  sessions: readonly AgentSessionEntity[],
-  streamStatusBySessionId: ReadonlyMap<string, AgentSessionStreamState>,
-  t: TFunction
-): HistoryStatusItem[] {
-  const counts: Record<AgentHistorySessionStatus, number> = {
-    running: 0,
-    completed: 0,
-    failed: 0
-  }
-
-  for (const session of sessions) {
-    counts[getAgentHistoryStatus(streamStatusBySessionId.get(session.id))] += 1
-  }
-
+export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
+      label: t('common.all')
     },
     {
       id: 'running',
       label: t('history.records.status.running'),
-      count: counts.running,
       dotClassName: 'text-warning'
     },
     {
       id: 'completed',
       label: t('history.records.status.completed'),
-      count: counts.completed,
       dotClassName: 'text-success'
     },
     {
       id: 'failed',
       label: t('history.records.status.failed'),
-      count: counts.failed,
       dotClassName: 'text-destructive'
     }
   ]
@@ -123,20 +105,15 @@ export function buildAssistantSources(
   assistantRankById: ReadonlyMap<string, number>,
   unlinkedAssistantLabel: string,
   t: TFunction
-): HistorySourceItem[] {
-  const counts = new Map<string, number>()
-
-  for (const topic of topics) {
-    const sourceId = getTopicSourceId(topic, assistantById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unlinkedCount = counts.get(UNLINKED_ASSISTANT_SOURCE_ID) ?? 0
+): HistorySourceOption[] {
+  const hasUnlinkedAssistant = topics.some(
+    (topic) => getTopicSourceId(topic, assistantById) === UNLINKED_ASSISTANT_SOURCE_ID
+  )
 
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: topics.length
+      label: t('common.all')
     },
     ...Array.from(assistantById.values())
       .sort(
@@ -146,15 +123,13 @@ export function buildAssistantSources(
       .map((assistant) => ({
         id: assistant.id,
         label: assistant.name,
-        count: counts.get(assistant.id) ?? 0,
         icon: renderAssistantEmojiIcon(assistant.emoji)
       })),
-    ...(unlinkedCount > 0
+    ...(hasUnlinkedAssistant
       ? [
           {
             id: UNLINKED_ASSISTANT_SOURCE_ID,
             label: unlinkedAssistantLabel,
-            count: unlinkedCount,
             icon: <Bot size={15} />
           }
         ]
@@ -168,20 +143,15 @@ export function buildAgentSources(
   agentRankById: ReadonlyMap<string, number>,
   unknownAgentLabel: string,
   t: TFunction
-): HistorySourceItem[] {
-  const counts = new Map<string, number>()
-
-  for (const session of sessions) {
-    const sourceId = getSessionAgentSourceId(session, agentById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unknownCount = counts.get(UNKNOWN_AGENT_SOURCE_ID) ?? 0
+): HistorySourceOption[] {
+  const hasUnknownAgent = sessions.some(
+    (session) => getSessionAgentSourceId(session, agentById) === UNKNOWN_AGENT_SOURCE_ID
+  )
 
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
+      label: t('common.all')
     },
     ...Array.from(agentById.values())
       .sort((left, right) => getAgentSourceRank(left.id, agentRankById) - getAgentSourceRank(right.id, agentRankById))
@@ -189,7 +159,6 @@ export function buildAgentSources(
         return {
           id: agent.id,
           label: agent.name,
-          count: counts.get(agent.id) ?? 0,
           icon: (
             <EmojiIcon
               emoji={getAgentAvatarFromConfiguration(agent.configuration)}
@@ -200,12 +169,11 @@ export function buildAgentSources(
           )
         }
       }),
-    ...(unknownCount > 0
+    ...(hasUnknownAgent
       ? [
           {
             id: UNKNOWN_AGENT_SOURCE_ID,
             label: unknownAgentLabel,
-            count: unknownCount,
             icon: <Bot size={15} />
           }
         ]
