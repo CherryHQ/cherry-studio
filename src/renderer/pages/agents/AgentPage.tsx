@@ -574,14 +574,6 @@ const AgentPage = () => {
     [agents, closeResourceView, createAndActivateEmptySession, lastUsedAgentId, setActiveSessionId, setPendingSession]
   )
 
-  // Stable wrapper for the classic-layout rail's per-agent "new session" action. Adapting the
-  // `(agentId) => ...` signature inline at the JSX call site would hand `AgentResourceList` a fresh
-  // function every render, defeating its `entities` memo (mirrors the assistant rail's stable ref).
-  const handleCreateSessionForAgent = useCallback(
-    (agentId: string) => createAndActivateEmptySession({ agentId }),
-    [createAndActivateEmptySession]
-  )
-
   const handleMissingAgentSelectionAgentChange = useCallback(
     async (agentId: string | null) => {
       if (!agentId) return
@@ -897,7 +889,7 @@ const AgentPage = () => {
           closeResourceView()
           setSessionPaneOpen(!sessionPaneOpen)
         }}
-        onCreateSession={handleCreateSessionForAgent}
+        onCreateSession={(agentId) => createAndActivateEmptySession({ agentId })}
         onShowMissingAgentSelection={showMissingAgentSelection}
         resourceMenuItems={resourceMenuItems}
         onActiveAgentDeleted={handleActiveAgentDeleted}

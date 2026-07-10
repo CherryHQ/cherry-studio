@@ -28,7 +28,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [queryAnchor, setQueryAnchor] = useState<number | undefined>()
   const [trackInputQuery, setTrackInputQuery] = useState<boolean>(false)
-  const [initialSearchText, setInitialSearchText] = useState<string | undefined>()
   const [parentPanel, setParentPanel] = useState<QuickPanelOpenOptions | undefined>()
   const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
   const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
@@ -114,7 +113,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setTriggerInfo(options.triggerInfo)
       setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
       setTrackInputQuery(options.trackInputQuery ?? false)
-      setInitialSearchText(options.initialSearchText)
       setParentPanel(options.parentPanel)
 
       setOnClose(() => options.onClose)
@@ -155,7 +153,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTriggerInfo(undefined)
         setQueryAnchor(undefined)
         setTrackInputQuery(false)
-        setInitialSearchText(undefined)
         setParentPanel(undefined)
         setManageListExternally(false)
         setReadOnly(false)
@@ -213,7 +210,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       queryAnchor,
       trackInputQuery,
-      initialSearchText,
       parentPanel,
       lastCloseAction,
       filterFn,
@@ -247,7 +243,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       queryAnchor,
       trackInputQuery,
-      initialSearchText,
       parentPanel,
       lastCloseAction,
       filterFn,

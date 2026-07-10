@@ -41,7 +41,7 @@ export type ComposerUnifiedPanelResourceProvider = (
 
 export interface ComposerUnifiedPanelControl {
   available: boolean
-  open: (options?: { launcherId?: string; searchText?: string }) => void
+  open: () => void
 }
 
 export type ComposerUnifiedPanelSelectHandler = (
@@ -256,7 +256,6 @@ function createUnifiedPanelListItem(
   const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
 
   return {
-    id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
     icon: launcher.icon,
@@ -412,7 +411,6 @@ export function createUnifiedQuickPanelOpenOptions(
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
-    initialSearchText?: string
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
@@ -464,7 +462,6 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: true,
-    initialSearchText: options.initialSearchText,
     filterFn: filterUnifiedQuickPanelItems,
     sortFn: sortUnifiedQuickPanelItems
   }

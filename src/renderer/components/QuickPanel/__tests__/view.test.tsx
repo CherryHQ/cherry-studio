@@ -90,7 +90,6 @@ function PanelHarness({
   title = 'Actions',
   triggerInfo,
   trackInputQuery,
-  initialSearchText,
   queryAnchor,
   onClose,
   fill = false
@@ -104,7 +103,6 @@ function PanelHarness({
   title?: string
   triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
-  initialSearchText?: string
   queryAnchor?: number
   onClose?: QuickPanelOpenOptions['onClose']
   /** Drives the ambient fill flag the composer would push for home placement. */
@@ -135,12 +133,10 @@ function PanelHarness({
       queryAnchor,
       manageListExternally,
       trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
-      initialSearchText,
       onClose
     })
   }, [
     inputAdapter,
-    initialSearchText,
     items,
     manageListExternally,
     onClose,
@@ -344,91 +340,6 @@ describe('QuickPanelView', () => {
 
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('filters a button-triggered tracked panel with initial search text', async () => {
-    const captureDispatch = vi.fn()
-    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
-    const inputAdapter: QuickPanelInputAdapter = {
-      getText: () => '',
-      getCursorOffset: () => 0,
-      insertText: vi.fn(),
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn(),
-      subscribeInput: (listener) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      }
-    }
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness
-          captureDispatch={captureDispatch}
-          inputAdapter={inputAdapter}
-          items={[
-            { id: 'agent-skill', label: 'Agent skill', icon: 'sparkles' },
-            { id: 'attachment', label: 'Attachment', icon: 'paperclip' }
-          ]}
-          queryAnchor={0}
-          triggerInfo={{ type: 'button', position: 0 }}
-          trackInputQuery
-          initialSearchText="skill"
-        />
-      </QuickPanelProvider>
-    )
-
-    expect(await screen.findByText('Agent skill')).toBeInTheDocument()
-    expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
-
-    act(() => {
-      listeners.forEach((listener) => listener())
-    })
-
-    expect(screen.getByText('Agent skill')).toBeInTheDocument()
-    expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
-  })
-
-  it('closes with Escape even when the key event does not come from the input adapter', async () => {
-    const captureDispatch = vi.fn()
-    const onClose = vi.fn()
-    const inputAdapter: QuickPanelInputAdapter = {
-      getText: () => '',
-      getCursorOffset: () => 0,
-      insertText: vi.fn(),
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn()
-    }
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness
-          captureDispatch={captureDispatch}
-          inputAdapter={inputAdapter}
-          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
-          queryAnchor={0}
-          triggerInfo={{ type: 'button', position: 0 }}
-          trackInputQuery
-          onClose={onClose}
-        />
-      </QuickPanelProvider>
-    )
-
-    await screen.findByText('Action')
-
-    const event = createKeyDownEvent('Escape')
-    act(() => {
-      window.dispatchEvent(event.event)
-    })
-
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(event.stopPropagation).toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'esc',
-        searchText: ''
-      })
-    )
   })
 
   it('does not delete existing composer text after a button-triggered cursor move', async () => {

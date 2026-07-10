@@ -1,4 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -25,7 +24,6 @@ import {
   buildResolvedResourceEntityMenuAction,
   type ConversationResourceMenuItem,
   renderAgentEntityIcon,
-  ResourceList,
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
@@ -123,22 +121,10 @@ export function AgentResourceList({
           name: agent.name,
           orderKey: agent.orderKey,
           pinned: agentPinnedIdSet.has(agent.id),
-          icon,
-          trailingAction: (
-            <Tooltip title={t('agent.session.new')} delay={500}>
-              <ResourceList.GroupHeaderActionButton
-                type="button"
-                aria-label={t('agent.session.new')}
-                onClick={() => {
-                  void onCreateSession(agent.id)
-                }}>
-                <SquarePen className="block" />
-              </ResourceList.GroupHeaderActionButton>
-            </Tooltip>
-          )
+          icon
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId]
   )
 
   const sortSessionsForEntity = useCallback(

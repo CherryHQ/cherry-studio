@@ -33,7 +33,6 @@ export type ResourceEntityRailItem = {
   pinned?: boolean
   /** Single user tag name. Only consulted when the rail runs with `groupByTag`; undefined → "未分组". */
   tag?: string
-  trailingAction?: ReactNode
 }
 
 // Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
@@ -193,8 +192,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     (item: T) => {
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
-      const hasTrailingAction = Boolean(item.trailingAction)
-      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
+      const trailingActionCount = hasVisibleMenuActions ? 1 : 0
       const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
@@ -214,24 +212,21 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             title={item.name}>
             {item.name}
           </ResourceList.ItemTitle>
-          {(hasTrailingAction || hasVisibleMenuActions) && (
+          {hasVisibleMenuActions && (
             // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
             // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
             // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
             <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
-              {hasVisibleMenuActions && (
-                <Tooltip title={t('common.more')} delay={500}>
-                  <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
-                    <ResourceList.GroupHeaderActionButton
-                      type="button"
-                      aria-label={t('common.more')}
-                      onClick={(event) => event.stopPropagation()}>
-                      <MoreHorizontal className="block" />
-                    </ResourceList.GroupHeaderActionButton>
-                  </CommandPopupMenu>
-                </Tooltip>
-              )}
-              {item.trailingAction}
+              <Tooltip title={t('common.more')} delay={500}>
+                <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+                  <ResourceList.GroupHeaderActionButton
+                    type="button"
+                    aria-label={t('common.more')}
+                    onClick={(event) => event.stopPropagation()}>
+                    <MoreHorizontal className="block" />
+                  </ResourceList.GroupHeaderActionButton>
+                </CommandPopupMenu>
+              </Tooltip>
             </ResourceList.ItemActions>
           )}
         </ResourceList.Item>

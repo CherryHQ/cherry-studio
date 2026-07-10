@@ -82,8 +82,6 @@ export type QuickPanelOpenOptions = {
   queryAnchor?: number
   /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
   trackInputQuery?: boolean
-  /** Initial tracked search text for panels opened from buttons without inserting query text into the input. */
-  initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
@@ -144,7 +142,6 @@ export interface QuickPanelContextType {
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
   readonly trackInputQuery?: boolean
-  readonly initialSearchText?: string
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction
