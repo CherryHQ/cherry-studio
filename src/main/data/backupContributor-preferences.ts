@@ -55,9 +55,8 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // set; the full list is curated by the
     // PREFERENCES owner. Matching semantics are finalized with the D restore track.
     platformSpecificKeys: [
-      'shortcut.', // keybindings — key codes differ per OS (Cmd vs Ctrl)
-      '.path', // filesystem paths — machine-specific absolute paths
-      'app.hardware_acceleration' // GPU/driver-specific, not portable
+      'shortcut.*', // keybindings — key codes differ per OS (Cmd vs Ctrl)
+      '*.path' // filesystem paths — machine-specific absolute paths
     ]
   },
   // TODO(D track): note-overlay selected-resource filtering (codex review P2) —
