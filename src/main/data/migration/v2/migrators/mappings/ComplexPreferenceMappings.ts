@@ -19,7 +19,6 @@
  */
 
 import { loggerService } from '@logger'
-import { SIDEBAR_FAVORITES, type SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -39,12 +38,6 @@ import {
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
 const DEFAULT_SIDEBAR_FAVORITE_IDS = ['assistants', 'agents', 'translate', 'paintings', 'knowledge'] as const
-const REQUIRED_SIDEBAR_FAVORITE_IDS = ['assistants'] as const
-const LEGACY_SIDEBAR_FAVORITE_ALIASES: Record<string, SidebarFavorite> = {
-  minapp: 'mini_app'
-}
-const REMOVED_LEGACY_SIDEBAR_FAVORITE_IDS = new Set(['store'])
-const SIDEBAR_FAVORITE_ID_SET = new Set<string>(SIDEBAR_FAVORITES)
 
 // ============================================================================
 // Type Definitions
@@ -90,44 +83,9 @@ export interface ComplexMapping {
   transform: TransformFunction
 }
 
-function appFavorite(id: SidebarFavorite) {
-  return { type: 'app' as const, id }
-}
-
-function normalizeLegacySidebarFavoriteId(id: unknown): SidebarFavorite | null {
-  if (typeof id !== 'string') return null
-
-  const normalized = LEGACY_SIDEBAR_FAVORITE_ALIASES[id] ?? id
-  if (REMOVED_LEGACY_SIDEBAR_FAVORITE_IDS.has(normalized)) return null
-  if (!SIDEBAR_FAVORITE_ID_SET.has(normalized)) return null
-
-  return normalized
-}
-
-function transformSidebarFavorites(sources: Record<string, unknown>): TransformResult {
-  const visible = sources.visible
-
-  if (!Array.isArray(visible)) {
-    return {
-      'ui.sidebar.favorites': DEFAULT_SIDEBAR_FAVORITE_IDS.map(appFavorite)
-    }
-  }
-
-  const seen = new Set<SidebarFavorite>()
-  const favorites: SidebarFavorite[] = []
-
-  for (const rawId of visible) {
-    const id = normalizeLegacySidebarFavoriteId(rawId)
-    if (!id || seen.has(id)) continue
-
-    seen.add(id)
-    favorites.push(id)
-  }
-
-  const missingRequired = REQUIRED_SIDEBAR_FAVORITE_IDS.filter((id) => !seen.has(id))
-
+function transformSidebarFavorites(): TransformResult {
   return {
-    'ui.sidebar.favorites': [...missingRequired, ...favorites].map(appFavorite)
+    'ui.sidebar.favorites': DEFAULT_SIDEBAR_FAVORITE_IDS.map((id) => ({ type: 'app' as const, id }))
   }
 }
 
@@ -193,10 +151,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar favorites: migrate legacy visible entries into v2's typed favorite items.
+  // Sidebar favorites: reset every migrated user to the canonical v2 tabs.
   {
     id: 'sidebar_favorites_migrate',
-    description: 'Migrate legacy v1 visible sidebar favorites to the v2 typed favorite list',
+    description: 'Reset legacy sidebar favorites to the canonical v2 tabs',
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }

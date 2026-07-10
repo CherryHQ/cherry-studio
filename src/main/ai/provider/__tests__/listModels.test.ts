@@ -263,7 +263,7 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
 })
 
 describe('listModels — ppioFetcher capability mapping', () => {
-  it('keeps RERANK when the same model id appears in chat and reranker endpoints', async () => {
+  it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
     const provider = makeProvider({
       id: 'ppio',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -276,7 +276,19 @@ describe('listModels — ppioFetcher capability mapping', () => {
         return Promise.resolve({ value: { data: [{ id: 'ppio-embedding' }] } })
       }
       if (url.endsWith('/models?model_type=reranker')) {
-        return Promise.resolve({ value: { data: [{ id: 'ppio-reranker' }] } })
+        return Promise.resolve({
+          value: {
+            data: [
+              {
+                id: 'ppio-reranker',
+                owned_by: 'ppio-rerank',
+                name: 'PPIO Rerank Pro',
+                description: 'Reranker endpoint metadata',
+                group: 'rerankers'
+              }
+            ]
+          }
+        })
       }
       return Promise.resolve({ value: { data: [{ id: 'ppio-chat' }, { id: 'ppio-reranker' }] } })
     })
@@ -287,6 +299,10 @@ describe('listModels — ppioFetcher capability mapping', () => {
 
     expect(chatModel?.capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
     expect(rerankerModel?.capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.ownedBy).toBeUndefined()
+    expect(rerankerModel?.name).toBe('ppio-reranker')
+    expect(rerankerModel?.description).toBeUndefined()
+    expect(rerankerModel?.group).toBe('ppio')
   })
 })
 

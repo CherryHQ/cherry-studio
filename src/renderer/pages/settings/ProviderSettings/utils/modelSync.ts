@@ -7,7 +7,6 @@ import {
   type EndpointType as RuntimeEndpointType,
   type Model,
   MODEL_CAPABILITY,
-  type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -52,13 +51,17 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
   return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
 }
 
-function inferModelCapabilities(model: Pick<Partial<Model>, 'apiModelId' | 'id' | 'capabilities'>): ModelCapability[] {
-  const capabilities = new Set<ModelCapability>(model.capabilities ?? [])
+function getRerankCapability(model: Pick<Partial<Model>, 'apiModelId' | 'id' | 'capabilities'>): Model['capabilities'] {
+  if (model.capabilities?.includes(MODEL_CAPABILITY.RERANK)) {
+    return [MODEL_CAPABILITY.RERANK]
+  }
+
   const rawModelId = getRawModelId(model)
   if (rawModelId && inferRerankFromModelId(rawModelId)) {
-    capabilities.add(MODEL_CAPABILITY.RERANK)
+    return [MODEL_CAPABILITY.RERANK]
   }
-  return [...capabilities]
+
+  return []
 }
 
 export function toCreateModelDto(
@@ -68,7 +71,7 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const capabilities = inferModelCapabilities(model)
+  const capabilities = getRerankCapability(model)
 
   return {
     providerId,
@@ -134,7 +137,8 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
 
     if (!registry) {
-      return { ...base, capabilities: inferModelCapabilities(base) }
+      const capabilities = getRerankCapability(base)
+      return capabilities.length > 0 ? { ...base, capabilities } : base
     }
 
     const merged = { ...base }
@@ -149,7 +153,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
-    return { ...merged, capabilities: inferModelCapabilities(merged) }
+    const rerankCapability = getRerankCapability(merged)
+    if (rerankCapability.length === 0) {
+      return merged
+    }
+
+    return { ...merged, capabilities: Array.from(new Set([...(merged.capabilities ?? []), ...rerankCapability])) }
   })
 }
 

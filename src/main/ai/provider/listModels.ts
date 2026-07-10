@@ -512,43 +512,27 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
-    type PpioModelMetadata = {
-      id: string
-      ownedBy?: string
-      name?: string
-      description?: string
-      group?: string
-      capabilities: Model['capabilities']
-    }
-    const modelsById = new Map<string, PpioModelMetadata>()
-    const mergeModel = (model: OpenAIModelResponseItem, capabilities: Model['capabilities'] = []) => {
-      const id = model.id.trim()
+    const modelsById = new Map<string, Partial<Model>>()
+    const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
+      const id = model.id?.trim()
       if (!id) return
 
       const existing = modelsById.get(id)
-      modelsById.set(id, {
-        id,
-        ownedBy: existing?.ownedBy ?? pickPreferredString([model.owned_by]),
-        name: existing?.name ?? pickPreferredString([model.name]),
-        description: existing?.description ?? pickPreferredString([model.description]),
-        group: existing?.group ?? pickPreferredString([model.group]),
-        capabilities: Array.from(new Set([...(existing?.capabilities ?? []), ...capabilities]))
-      })
+      if (!existing) {
+        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        return
+      }
+
+      if (capability) {
+        existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
+      }
     }
 
     for (const model of chat.data) mergeModel(model)
     for (const model of embed.data) mergeModel(model)
     for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
 
-    return Array.from(modelsById.values()).map((model) =>
-      toModel(model.id, provider, {
-        ownedBy: model.ownedBy,
-        name: model.name,
-        description: model.description,
-        group: model.group,
-        capabilities: model.capabilities
-      })
-    )
+    return Array.from(modelsById.values())
   }
 }
 

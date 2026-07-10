@@ -154,14 +154,18 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('preserves fetched rerank capability in the create payload', () => {
+  it('persists only the rerank capability in the create DTO', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
       apiModelId: 'bge-reranker-v2-m3',
       name: 'BGE Reranker',
-      capabilities: [MODEL_CAPABILITY.RERANK],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      group: 'rerankers',
+      capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
     } as Model)
 
     expect(dto).toMatchObject({
