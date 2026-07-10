@@ -57,7 +57,7 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
+import { AgentCreateDialog } from './components/AgentCreateDialog'
 import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
@@ -192,7 +192,23 @@ const AgentPage = () => {
   // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
   // survives app/page re-entry without bleeding into the assistant surface.
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
-  const isCreatingEmptySessionRef = useRef(false)
+  const activeEmptySessionCreationRef = useRef<Promise<void> | null>(null)
+  const createdAgentSessionTasksRef = useRef(new Map<string, Promise<void>>())
+
+  const beginEmptySessionCreation = useCallback(() => {
+    let resolveCreation!: () => void
+    const creation = new Promise<void>((resolve) => {
+      resolveCreation = resolve
+    })
+    activeEmptySessionCreationRef.current = creation
+
+    return () => {
+      if (activeEmptySessionCreationRef.current === creation) {
+        activeEmptySessionCreationRef.current = null
+      }
+      resolveCreation()
+    }
+  }, [])
 
   useEffect(() => {
     const previousRouteActiveSessionId = syncedRouteActiveSessionIdRef.current
@@ -224,8 +240,8 @@ const AgentPage = () => {
   const initialEmptySessionEvaluatedRef = useRef(false)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
-  const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -474,8 +490,8 @@ const AgentPage = () => {
 
   const createAndActivateEmptySession = useCallback(
     async (defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
-      if (isCreatingEmptySessionRef.current) return null
-      isCreatingEmptySessionRef.current = true
+      if (activeEmptySessionCreationRef.current) return null
+      const endEmptySessionCreation = beginEmptySessionCreation()
 
       const agentId = defaults.agentId ?? visibleSession?.agentId ?? null
       try {
@@ -529,11 +545,12 @@ const AgentPage = () => {
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
-        isCreatingEmptySessionRef.current = false
+        endEmptySessionCreation()
       }
     },
     [
       activateSession,
+      beginEmptySessionCreation,
       clearActiveSession,
       closeSurface,
       deleteDuplicateEmptySystemSessions,
@@ -598,60 +615,77 @@ const AgentPage = () => {
     [createAndActivateEmptySession]
   )
 
-  const handleAgentConversationSelect = useCallback(
+  const handleAgentCreated = useCallback(
     async (agentId: string) => {
-      if (isCreatingEmptySessionRef.current) return
-      isCreatingEmptySessionRef.current = true
-      // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
-      // still visible (which reads as a black/white flash + the dialog reopening).
-      setAgentPickerOpen(false)
-      try {
-        // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
-        // fresh workspace below only when it has to create one.
-        const reuseCandidates = getSessionReuseCandidates()
-        const reusableSessions = await findReusableEmptySessions(
-          reuseCandidates,
-          (candidate) => candidate.agentId === agentId
-        )
-        const reusableSession = reusableSessions[0]
-        const duplicateEmptySystemSessionIds =
-          reusableSession && isSystemWorkspaceSession(reusableSession)
-            ? reusableSessions
-                .slice(1)
-                .filter((session) => isSystemWorkspaceSession(session))
-                .map((session) => session.id)
-            : []
+      setAgentCreateOpen(false)
+      const existingTask = createdAgentSessionTasksRef.current.get(agentId)
+      if (existingTask) {
+        await existingTask
+        return
+      }
 
-        let session = reusableSession
-        if (!session) {
-          const workspaceSource = await resolveCreateWorkspaceSource({ agentId })
-          session = await dataApiService.post('/agent-sessions', {
-            body: {
-              agentId,
-              name: '',
-              workspace: workspaceSource
-            }
-          })
+      const task = (async () => {
+        while (activeEmptySessionCreationRef.current) {
+          await activeEmptySessionCreationRef.current
         }
 
-        activateSession(session, agentId)
-        await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
-        if (!reusableSession) {
-          void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
-            (err) => {
-              logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
-            }
+        const endEmptySessionCreation = beginEmptySessionCreation()
+        try {
+          const reuseCandidates = getSessionReuseCandidates()
+          const reusableSessions = await findReusableEmptySessions(
+            reuseCandidates,
+            (candidate) => candidate.agentId === agentId
           )
+          const reusableSession = reusableSessions[0]
+          const duplicateEmptySystemSessionIds =
+            reusableSession && isSystemWorkspaceSession(reusableSession)
+              ? reusableSessions
+                  .slice(1)
+                  .filter((session) => isSystemWorkspaceSession(session))
+                  .map((session) => session.id)
+              : []
+
+          let session = reusableSession
+          if (!session) {
+            const workspaceSource = await resolveCreateWorkspaceSource({ agentId })
+            session = await dataApiService.post('/agent-sessions', {
+              body: {
+                agentId,
+                name: '',
+                workspace: workspaceSource
+              }
+            })
+          }
+
+          activateSession(session, agentId)
+          await deleteDuplicateEmptySystemSessions(duplicateEmptySystemSessionIds)
+          if (!reusableSession) {
+            void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
+              (err) => {
+                logger.warn('Failed to refresh session metadata after agent session create', err as Error)
+              }
+            )
+          }
+        } catch (err) {
+          logger.error('Failed to create session for newly created agent', err as Error, { agentId })
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        } finally {
+          endEmptySessionCreation()
         }
-      } catch (err) {
-        logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      })()
+
+      createdAgentSessionTasksRef.current.set(agentId, task)
+      try {
+        await task
       } finally {
-        isCreatingEmptySessionRef.current = false
+        if (createdAgentSessionTasksRef.current.get(agentId) === task) {
+          createdAgentSessionTasksRef.current.delete(agentId)
+        }
       }
     },
     [
       activateSession,
+      beginEmptySessionCreation,
       deleteDuplicateEmptySystemSessions,
       getSessionReuseCandidates,
       invalidateCache,
@@ -892,7 +926,7 @@ const AgentPage = () => {
         activeAgentId={activeResourceAgentId}
         agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
-          setAgentPickerOpen(true)
+          setAgentCreateOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={openHistoryRecords}
@@ -912,7 +946,7 @@ const AgentPage = () => {
         agentSessionsSource={agentSessionsSource}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
-          setAgentPickerOpen(true)
+          setAgentCreateOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
         revealRequest={sessionRevealRequest}
@@ -1042,15 +1076,7 @@ const AgentPage = () => {
           />
         )}
       </div>
-      {isClassicSessionLayout && (
-        <AgentConversationPickerDialog
-          open={agentPickerOpen}
-          onOpenChange={setAgentPickerOpen}
-          agents={agents}
-          agentsLoading={isAgentsLoading}
-          onSelect={handleAgentConversationSelect}
-        />
-      )}
+      <AgentCreateDialog open={agentCreateOpen} onOpenChange={setAgentCreateOpen} onCreated={handleAgentCreated} />
     </Container>
   )
 }

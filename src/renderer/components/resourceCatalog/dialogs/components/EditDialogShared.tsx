@@ -27,7 +27,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -279,6 +279,16 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
         </FormItem>
       )}
     />
+  )
+}
+
+export function useCloseBeforeAction(onOpenChange: (open: boolean) => void): (action: () => void) => void {
+  return useCallback(
+    (action: () => void) => {
+      onOpenChange(false)
+      window.requestAnimationFrame(action)
+    },
+    [onOpenChange]
   )
 }
 
@@ -559,7 +569,8 @@ export function CompactModelField({
   portalContainer,
   modelLabels,
   setModelLabels,
-  onModelChange
+  onModelChange,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<any>
   name: ModelLabelKey
@@ -571,6 +582,7 @@ export function CompactModelField({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)
@@ -605,6 +617,7 @@ export function CompactModelField({
                 value={selectorValue}
                 filter={filter}
                 portalContainer={portalContainer}
+                onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
                   const selectedModelId = getSelectedModelId(selection)
                   if (onModelChange) {

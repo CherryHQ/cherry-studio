@@ -385,7 +385,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -1348,8 +1348,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "name": "Default Assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1759,7 +1759,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
@@ -4039,6 +4039,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },

@@ -3,8 +3,8 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfigEditPanel } from '../ConfigEditPanel'
@@ -117,14 +117,29 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ onSelect, trigger }: { onSelect: (modelId: UniqueModelId) => void; trigger: ReactNode }) => (
-    <div data-testid="model-selector">
-      <button type="button" onClick={() => onSelect('anthropic::claude-new' as UniqueModelId)}>
-        select new model
-      </button>
-      {trigger}
-    </div>
-  )
+  ModelSelector: ({
+    onSelect,
+    onSettingsNavigate,
+    trigger
+  }: {
+    onSelect: (modelId: UniqueModelId) => void
+    onSettingsNavigate?: (navigate: () => void) => void
+    trigger: ReactNode
+  }) => {
+    const navigate = () => openSettingsTabMock('/settings/provider?id=anthropic')
+
+    return (
+      <div data-testid="model-selector">
+        <button type="button" onClick={() => onSelect('anthropic::claude-new' as UniqueModelId)}>
+          select new model
+        </button>
+        <button type="button" onClick={() => (onSettingsNavigate ? onSettingsNavigate(navigate) : navigate())}>
+          open model settings
+        </button>
+        {trigger}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
@@ -276,6 +291,26 @@ function renderPanel(
 
 function expectBefore(first: HTMLElement, second: HTMLElement) {
   expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+}
+
+function mockDeferredAnimationFrames() {
+  const callbacks: FrameRequestCallback[] = []
+  const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+
+  return {
+    flushAllFrames: () => {
+      while (callbacks.length > 0) {
+        const pendingCallbacks = callbacks.splice(0)
+        act(() => {
+          for (const callback of pendingCallbacks) callback(0)
+        })
+      }
+    },
+    restore: () => requestAnimationFrameSpy.mockRestore()
+  }
 }
 
 describe('ConfigEditPanel', () => {
@@ -508,6 +543,46 @@ describe('ConfigEditPanel', () => {
 
     expect(onClose).toHaveBeenCalled()
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider?id=anthropic')
+  })
+
+  it('unmounts the config dialog before running model settings navigation', async () => {
+    readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
+    readCliConfigDraftMock.mockResolvedValue(cliConfigFiles)
+    extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
+    extractConfigFromCliConfigDraftMock.mockReturnValue({})
+
+    function Host() {
+      const [open, setOpen] = useState(true)
+
+      return open ? (
+        <ConfigEditPanel
+          onClose={() => setOpen(false)}
+          cliTool={CodeCli.CLAUDE_CODE}
+          provider={provider}
+          providerConfig={{ modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }}
+          isCurrentProvider
+          modelFilter={() => true}
+          onSubmit={vi.fn()}
+        />
+      ) : (
+        <div data-testid="config-dialog-closed" />
+      )
+    }
+
+    render(<Host />)
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open model settings' }))
+
+    expect(screen.queryByRole('heading', { name: 'Anthropic' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('config-dialog-closed')).toBeInTheDocument()
+    expect(openSettingsTabMock).not.toHaveBeenCalled()
+
+    frames.flushAllFrames()
+
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider?id=anthropic')
+    frames.restore()
   })
 
   it('renders parameter settings above advanced settings', async () => {

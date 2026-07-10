@@ -16,7 +16,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
-import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import {
@@ -437,12 +437,15 @@ const newApiFetcher: ModelFetcher = {
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) =>
-      toModel(m.id, provider, {
+    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
+      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+
+      return toModel(m.id, provider, {
         ownedBy: m.owned_by,
-        endpointTypes: normalizeEndpointTypes(m.supported_endpoint_types)
+        endpointTypes,
+        ...(endpointTypes?.includes(ENDPOINT_TYPE.JINA_RERANK) ? { capabilities: [MODEL_CAPABILITY.RERANK] } : {})
       })
-    )
+    })
   }
 }
 
@@ -509,8 +512,27 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
-    const all = [...chat.data, ...embed.data, ...reranker.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const modelsById = new Map<string, Partial<Model>>()
+    const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
+      const id = model.id?.trim()
+      if (!id) return
+
+      const existing = modelsById.get(id)
+      if (!existing) {
+        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        return
+      }
+
+      if (capability) {
+        existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
+      }
+    }
+
+    for (const model of chat.data) mergeModel(model)
+    for (const model of embed.data) mergeModel(model)
+    for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
+
+    return Array.from(modelsById.values())
   }
 }
 

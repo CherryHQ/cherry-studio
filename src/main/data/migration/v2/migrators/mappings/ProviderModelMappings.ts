@@ -22,6 +22,7 @@ import type {
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
+import { inferRerankFromModelId } from '@shared/utils/model'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -457,6 +458,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -470,10 +472,10 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.capabilities),
+    capabilities: mapCapabilities(legacy.id, legacy.capabilities, endpointTypes),
     inputModalities: null,
     outputModalities: null,
-    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
+    endpointTypes,
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,
@@ -486,19 +488,27 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
   }
 }
 
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
-  if (!capabilities || capabilities.length === 0) {
-    return []
-  }
-
+function mapCapabilities(
+  modelId: string,
+  capabilities?: LegacyModel['capabilities'],
+  endpointTypes?: EndpointType[] | null
+): ModelCapability[] {
   const mapped: ModelCapability[] = []
-  for (const capability of capabilities) {
-    const result = CAPABILITY_MAP[capability.type]
-    if (result !== undefined) {
-      mapped.push(result)
-    } else if (capability.type !== 'text') {
-      logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+  if (capabilities) {
+    for (const capability of capabilities) {
+      const result = CAPABILITY_MAP[capability.type]
+      if (result !== undefined) {
+        mapped.push(result)
+      } else if (capability.type !== 'text') {
+        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      }
     }
+  }
+  if (inferRerankFromModelId(modelId)) {
+    mapped.push(MODEL_CAPABILITY.RERANK)
+  }
+  if (endpointTypes?.includes(ENDPOINT_TYPE.JINA_RERANK)) {
+    mapped.push(MODEL_CAPABILITY.RERANK)
   }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : []
@@ -516,7 +526,7 @@ function mapEndpointTypes(
   const mapped: EndpointType[] = []
   for (const type of sourceTypes) {
     if (!type) continue
-    const result = ENDPOINT_MAP[type]
+    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
     if (result !== undefined) {
       mapped.push(result)
     } else {

@@ -58,6 +58,7 @@ const agentPageMocks = vi.hoisted(() => ({
     setActiveSessionId: (id: string | null) => void
   } | null,
   pendingSession: null as any,
+  createdAgentIds: ['agent-b'],
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
@@ -616,12 +617,25 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   }
 }))
 
-vi.mock('../components/AgentConversationPickerDialog', () => ({
-  AgentConversationPickerDialog: ({ open, onSelect }: { open?: boolean; onSelect?: (agentId: string) => void }) =>
+vi.mock('../components/AgentCreateDialog', () => ({
+  AgentCreateDialog: ({
+    open,
+    onCreated,
+    onOpenChange
+  }: {
+    open?: boolean
+    onCreated?: (agentId: string) => void | Promise<void>
+    onOpenChange?: (open: boolean) => void
+  }) =>
     open ? (
-      <div data-testid="agent-conversation-picker">
-        <button type="button" onClick={() => onSelect?.('agent-b')}>
-          Select resource agent
+      <div data-testid="agent-create-dialog">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenChange?.(false)
+            void onCreated?.(agentPageMocks.createdAgentIds.shift() ?? 'agent-b')
+          }}>
+          Create resource agent
         </button>
       </div>
     ) : null
@@ -694,6 +708,7 @@ describe('AgentPage', () => {
     agentPageMocks.classicLayoutRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.pendingSession = null
+    agentPageMocks.createdAgentIds = ['agent-b']
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
@@ -849,6 +864,35 @@ describe('AgentPage', () => {
     expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: false }])
   })
 
+  it('creates and activates an empty session after creating an agent from the modern add entry', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = { sessionId: 'session-existing' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    expect(screen.queryByTestId('agent-conversation-picker')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+  })
+
   it('switches to agent grouping when changing session position from the left sidebar', async () => {
     agentPageMocks.sessionDisplayMode = 'workdir'
     agentPageMocks.sessionPanePosition = 'left'
@@ -929,7 +973,7 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 
-  it('keeps the agent resource view open while opening the classic-layout agent picker', () => {
+  it('keeps the agent resource view open while opening the classic-layout agent create dialog', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -940,12 +984,13 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
 
-    expect(screen.getByTestId('agent-conversation-picker')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-conversation-picker')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 
-  it('keeps the agent resource view open until the selected agent session is ready', async () => {
+  it('keeps the agent resource view open until the created agent session is ready', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.routeSearch = { sessionId: 'session-created' }
@@ -966,7 +1011,7 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
@@ -1000,7 +1045,7 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
   })
 
-  it('prevents duplicate empty session creation from rapid classic-layout picker selection', async () => {
+  it('prevents duplicate empty session creation from rapid classic-layout agent creation callbacks', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.routeSearch = { sessionId: 'session-created' }
@@ -1021,7 +1066,7 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    const selectAgentButton = screen.getByRole('button', { name: 'Select resource agent' })
+    const selectAgentButton = screen.getByRole('button', { name: 'Create resource agent' })
     fireEvent.click(selectAgentButton)
     fireEvent.click(selectAgentButton)
 
@@ -1040,6 +1085,54 @@ describe('AgentPage', () => {
         }
       })
       await Promise.resolve()
+    })
+  })
+
+  it('queues distinct agent creation callbacks while another empty session is being created', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'left'
+    agentPageMocks.routeSearch = { sessionId: 'session-created' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' },
+      { id: 'agent-c', model: 'model-c', name: 'Agent C' }
+    ]
+    agentPageMocks.createdAgentIds = ['agent-b', 'agent-c']
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    let resolveFirstSession!: (session: unknown) => void
+    agentPageMocks.dataApiPost
+      .mockReturnValueOnce(
+        new Promise<unknown>((resolve) => {
+          resolveFirstSession = resolve
+        })
+      )
+      .mockResolvedValueOnce({ ...agentPageMocks.persistedSession, id: 'session-c', agentId: 'agent-c' })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
+
+    expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveFirstSession({ ...agentPageMocks.persistedSession, id: 'session-b', agentId: 'agent-b' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(2))
+    expect(agentPageMocks.dataApiPost).toHaveBeenLastCalledWith('/agent-sessions', {
+      body: {
+        agentId: 'agent-c',
+        name: '',
+        workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+      }
     })
   })
 
@@ -1267,7 +1360,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
   })
 
-  it('creates and activates an empty session after selecting an agent from the classic-layout picker', async () => {
+  it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.agents = [
@@ -1289,7 +1382,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
@@ -1305,7 +1398,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
   })
 
-  it('uses the remembered workspace when creating an empty session from the classic-layout picker', async () => {
+  it('uses the remembered workspace when creating an empty session from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
@@ -1324,7 +1417,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
       expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
@@ -1339,7 +1432,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
   })
 
-  it('reuses the agent latest empty session instead of creating another one from the classic-layout picker', async () => {
+  it('reuses the agent latest empty session instead of creating another one from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
@@ -1369,13 +1462,13 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('reuses the latest empty system session and deletes duplicate empty system sessions from the classic-layout picker', async () => {
+  it('reuses the latest empty system session and deletes duplicate empty system sessions from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
@@ -1416,7 +1509,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
       expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-system-latest')
@@ -1459,7 +1552,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
@@ -1859,7 +1952,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('creates a new session when the agent latest session is not empty from the classic-layout picker', async () => {
+  it('creates a new session when the agent latest session is not empty from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
@@ -1886,7 +1979,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(

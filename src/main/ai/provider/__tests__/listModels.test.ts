@@ -1,5 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -262,6 +262,55 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
   })
 })
 
+describe('listModels — ppioFetcher capability mapping', () => {
+  function makePpioProvider() {
+    return makeProvider({
+      id: 'ppio',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.ppio.com/v1' }
+      }
+    })
+  }
+
+  it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/models?model_type=embedding')) {
+        return Promise.resolve({ value: { data: [{ id: 'ppio-embedding' }] } })
+      }
+
+      if (url.endsWith('/models?model_type=reranker')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              {
+                id: 'ppio-reranker',
+                owned_by: 'ppio-rerank',
+                name: 'PPIO Rerank Pro',
+                description: 'Reranker endpoint metadata',
+                group: 'rerankers'
+              }
+            ]
+          }
+        })
+      }
+
+      return Promise.resolve({ value: { data: [{ id: 'ppio-chat' }, { id: 'ppio-reranker' }] } })
+    })
+
+    const models = await listModels(makePpioProvider())
+    const chatModel = models.find((model) => model.apiModelId === 'ppio-chat')
+    const rerankerModel = models.find((model) => model.apiModelId === 'ppio-reranker')
+
+    expect(chatModel?.capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.ownedBy).toBeUndefined()
+    expect(rerankerModel?.name).toBe('ppio-reranker')
+    expect(rerankerModel?.description).toBeUndefined()
+    expect(rerankerModel?.group).toBe('ppio')
+  })
+})
+
 describe('listModels — copied preset provider routing', () => {
   it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
     const provider = makeProvider({
@@ -334,6 +383,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
     const models = await listModels(provider)
 
     expect(models).toHaveLength(1)
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
     expect(models[0]).toMatchObject({
       apiModelId: 'agent/deepseek-v3.2',
       ownedBy: 'custom',
@@ -438,6 +488,38 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://custom.example.com/api/v1/models')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
+  })
+})
+
+describe('listModels — newApiFetcher rerank capability mapping', () => {
+  function makeNewApiProvider() {
+    return makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+  }
+
+  it('marks normalized jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-model-id',
+            owned_by: 'new-api',
+            supported_endpoint_types: ['openai', ' JINA-RERANK ', 'unknown-endpoint']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
   })
 })
 

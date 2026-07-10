@@ -1,11 +1,12 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,11 +14,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
 import { ProviderModelMigrator } from '../ProviderModelMigrator'
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
 
 const registryFixtures = {
   models: new Map<string, unknown>(),
@@ -65,7 +61,7 @@ function createContext(
   } as unknown as MigrationContext
 }
 
-function makeProvider(id: string, models: Array<{ id: string }> = []) {
+function makeProvider(id: string, models: Array<{ id: string; supported_endpoint_types?: string[] }> = []) {
   return {
     id,
     name: `Provider ${id}`,
@@ -561,6 +557,45 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.contextWindow).toBeNull()
       expect(modelRow.inputModalities).toBeNull()
       expect(modelRow.outputModalities).toBeNull()
+    })
+
+    it('infers rerank capability for legacy rerank model ids without capability metadata', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('voyageai', [{ id: 'rerank-2' }])]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+    })
+
+    it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('new-api', [{ id: 'opaque-model-id', supported_endpoint_types: [' JINA-RERANK '] }])
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
     it('tolerates a provider whose models field is null or undefined', async () => {

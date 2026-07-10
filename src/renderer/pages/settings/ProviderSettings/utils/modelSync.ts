@@ -3,8 +3,14 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  type EndpointType as RuntimeEndpointType,
+  type Model,
+  MODEL_CAPABILITY,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { inferRerankFromModelId } from '@shared/utils/model'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -41,12 +47,30 @@ export function resolveCreateModelEndpointTypes(
   return provider.defaultChatEndpoint ? [provider.defaultChatEndpoint] : undefined
 }
 
+function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string {
+  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
+}
+
+function getRerankCapability(model: Pick<Partial<Model>, 'apiModelId' | 'id' | 'capabilities'>): Model['capabilities'] {
+  if (model.capabilities?.includes(MODEL_CAPABILITY.RERANK)) {
+    return [MODEL_CAPABILITY.RERANK]
+  }
+
+  const rawModelId = getRawModelId(model)
+  if (rawModelId && inferRerankFromModelId(rawModelId)) {
+    return [MODEL_CAPABILITY.RERANK]
+  }
+
+  return []
+}
+
 export function toCreateModelDto(
   providerId: string,
   model: Model,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
-  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const modelId = getRawModelId(model)
+  const capabilities = getRerankCapability(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
 
   return {
@@ -54,6 +78,7 @@ export function toCreateModelDto(
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities.length > 0 ? { capabilities } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -105,6 +130,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
   return filteredModels.map((fetched) => {
     const base = fetched as Model
+    const fetchedRerankCapability = getRerankCapability(base)
     const apiId = fetched.apiModelId ?? ''
     const registry =
       resolvedMap.get(apiId) ??
@@ -112,7 +138,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
 
     if (!registry) {
-      return base
+      return fetchedRerankCapability.length > 0 ? { ...base, capabilities: fetchedRerankCapability } : base
     }
 
     const merged = { ...base }
@@ -127,7 +153,12 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
-    return merged
+    const rerankCapability = fetchedRerankCapability.length > 0 ? fetchedRerankCapability : getRerankCapability(merged)
+    if (rerankCapability.length === 0) {
+      return merged
+    }
+
+    return { ...merged, capabilities: Array.from(new Set([...(merged.capabilities ?? []), ...rerankCapability])) }
   })
 }
 

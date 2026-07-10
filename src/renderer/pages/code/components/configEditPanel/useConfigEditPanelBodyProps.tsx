@@ -4,7 +4,7 @@ import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useP
 import { useTheme } from '@renderer/hooks/useTheme'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConfigEditDialogBodyProps } from './ConfigEditDialogBody'
@@ -28,6 +28,13 @@ export function useConfigEditPanelBodyProps({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const providerName = getProviderDisplayName(provider)
   const providerIcon = resolveProviderIcon(provider.id)
+  const closeBeforeSettingsNavigation = useCallback(
+    (navigate: () => void) => {
+      onClose()
+      window.requestAnimationFrame(navigate)
+    },
+    [onClose]
+  )
 
   const {
     draft,
@@ -71,6 +78,7 @@ export function useConfigEditPanelBodyProps({
         onSelect={onModelSelect}
         filter={modelFilter}
         showTagFilter
+        onSettingsNavigate={closeBeforeSettingsNavigation}
         trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
       />
     </>

@@ -24,6 +24,9 @@ const chatWriteMock = vi.hoisted(() => ({
 }))
 
 const commandHandlerMock = vi.hoisted(() => vi.fn())
+const modelSelectorMock = vi.hoisted(() => ({
+  props: [] as any[]
+}))
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -62,7 +65,10 @@ vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
+  ModelSelector: (props: { trigger: ReactNode }) => {
+    modelSelectorMock.props.push(props)
+    return <>{props.trigger}</>
+  }
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -195,7 +201,9 @@ vi.mock('@renderer/utils/message/composerTokens', () => ({
 }))
 
 vi.mock('@shared/utils/model', () => ({
-  isNonChatModel: vi.fn(() => false),
+  isNonChatModel: vi.fn(
+    (model: { capabilities?: readonly unknown[] }) => model.capabilities?.includes('rerank') ?? false
+  ),
   isVisionModel: vi.fn(() => false)
 }))
 
@@ -265,6 +273,7 @@ function MessageListAdapterHarness({
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    modelSelectorMock.props = []
     clearPendingTopicImageActionsForTest()
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -315,6 +324,24 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('filters reranker models from the regenerate model picker', () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    render(
+      <>
+        {value?.actions.renderRegenerateModelPicker?.({
+          message: { id: 'message-a' } as any,
+          messageParts: [],
+          trigger: <button type="button">pick model</button>,
+          onOpenChange: vi.fn()
+        })}
+      </>
+    )
+
+    expect(modelSelectorMock.props.at(-1)?.filter?.({ capabilities: ['rerank'] })).toBe(false)
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {

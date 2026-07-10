@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
@@ -34,6 +34,50 @@ describe('fetchResolvedProviderModels', () => {
       providerId: 'openai',
       throwOnError: true
     })
+  })
+
+  it('infers rerank capability for upstream rerank model ids when registry metadata is absent', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'voyageai::rerank-2' as UniqueModelId,
+        providerId: 'voyageai',
+        apiModelId: 'rerank-2',
+        name: 'rerank-2',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('voyageai')
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+  })
+
+  it('keeps upstream rerank capability when registry metadata supplies other capabilities', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-model-id' as UniqueModelId,
+        providerId: 'new-api',
+        apiModelId: 'opaque-model-id',
+        name: 'opaque-model-id',
+        capabilities: [MODEL_CAPABILITY.RERANK]
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-model-id' as UniqueModelId,
+        providerId: 'new-api',
+        apiModelId: 'opaque-model-id',
+        name: 'Opaque Model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('new-api')
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.RERANK])
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
@@ -119,6 +163,51 @@ describe('resolveCreateModelEndpointTypes', () => {
 })
 
 describe('toCreateModelDto', () => {
+  it('persists only the rerank capability in the create DTO', () => {
+    const dto = toCreateModelDto('ppio', {
+      id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
+      providerId: 'ppio',
+      apiModelId: 'bge-reranker-v2-m3',
+      name: 'BGE Reranker',
+      group: 'rerankers',
+      capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).toMatchObject({
+      providerId: 'ppio',
+      modelId: 'bge-reranker-v2-m3',
+      name: 'BGE Reranker',
+      group: 'rerankers',
+      capabilities: [MODEL_CAPABILITY.RERANK],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+  })
+
+  it('infers rerank capability in the create DTO when the upstream list omits capabilities', () => {
+    const dto = toCreateModelDto('voyageai', {
+      id: 'voyageai::rerank-2' as UniqueModelId,
+      providerId: 'voyageai',
+      apiModelId: 'rerank-2',
+      name: 'rerank-2',
+      group: 'Voyage AI',
+      capabilities: [],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).toMatchObject({
+      providerId: 'voyageai',
+      modelId: 'rerank-2',
+      capabilities: [MODEL_CAPABILITY.RERANK]
+    })
+  })
+
   it('writes resolved endpoint types into the create payload', () => {
     expect(
       toCreateModelDto(

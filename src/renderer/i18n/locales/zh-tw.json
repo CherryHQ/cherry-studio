@@ -385,7 +385,7 @@
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
-        "title": "還沒有任務"
+        "title": "暫無任務"
       },
       "file_manager": {
         "file_explorer": "檔案總管",
@@ -1348,8 +1348,8 @@
     },
     "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是預設助手。你可以立即開始與我聊天",
-      "name": "預設助手",
+      "description": "你好，我是 Cherry助手。你可以立即開始與我聊天",
+      "name": "Cherry助手",
       "topic": {
         "name": "預設對話"
       }
@@ -1759,7 +1759,7 @@
       },
       "empty": {
         "description": "建立一個對話後，這裡會保存你的聊天記錄，方便之後繼續上下文。",
-        "title": "還沒有對話"
+        "title": "暫無對話"
       },
       "export": {
         "failed": "匯出失敗",
@@ -4039,6 +4039,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "設定自訂模型",
       "pin": "置頂此模型",
       "unpin": "取消置頂"
     },

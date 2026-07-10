@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Έχει βαθιά σκεφτεί (χρήση {{seconds}} δευτερόλεπτα)",
     "default": {
-      "description": "Γεια σου, είμαι ο προεπαγγελματικός βοηθός. Μπορείς να ξεκινήσεις να μου μιλάς αμέσως.",
-      "name": "Προεπαγγελματικός βοηθός",
+      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
+      "name": "Cherry assistant",
       "topic": {
         "name": "Προεπαγγελματικός θέμα"
       }
@@ -3880,6 +3880,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Καρφίτσωσε αυτό το μοντέλο",
       "unpin": "Ξεκαρφίτσωμα μοντέλου"
     },
