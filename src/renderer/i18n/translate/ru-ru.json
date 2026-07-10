@@ -31,262 +31,113 @@
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "Добавить",
-        "bindAgent": "Связать агента",
-        "chatIdsAutoTrackHint": "Если оставить пустым, система автоматически отследит: сначала нужно отправить сообщение боту на платформе, затем система запишет Chat ID для будущих уведомлений.",
-        "comingSoon": "Скоро",
+    "channels": {
+      "add": "Добавить",
+      "bindAgent": "Связать агента",
+      "chatIdsAutoTrackHint": "Если оставить пустым, система автоматически отследит: сначала нужно отправить сообщение боту на платформе, затем система запишет Chat ID для будущих уведомлений.",
+      "comingSoon": "Скоро",
+      "connected": "Подключено",
+      "connecting": "Подключение",
+      "createError": "Не удалось создать канал",
+      "deleteConfirm": "Удалить канал \"{{name}}\"?",
+      "deleteError": "Не удалось удалить канал",
+      "description": "Подключите вашего агента к платформам обмена сообщениями.",
+      "disconnected": "Отключено",
+      "discord": {
+        "botToken": "Токен бота",
+        "botTokenPlaceholder": "Введите токен вашего бота Discord",
+        "channelIds": "Разрешённые идентификаторы каналов",
+        "channelIdsHint": "Формат: channel:id или dm:id. Оставьте пустым, чтобы разрешить все.",
+        "channelIdsPlaceholder": "канал:123456789, лс:987654321",
+        "description": "Получайте и отвечайте на сообщения через Discord-бота с использованием WebSocket-шлюза.",
+        "title": "Дискорд",
+        "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ваш ID канала в правильном формате."
+      },
+      "error": "Ошибка",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Введите App Secret вашего приложения Feishu",
+        "chatIds": "Разрешённые ID чатов",
+        "chatIdsHint": "ID чатов через запятую. Оставьте пустым, чтобы разрешить все чаты.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "Подключено",
-        "connecting": "Подключение",
-        "createError": "Не удалось создать канал",
-        "deleteConfirm": "Удалить канал \"{{name}}\"?",
-        "deleteError": "Не удалось удалить канал",
-        "description": "Подключите вашего агента к платформам обмена сообщениями.",
+        "description": "Получение и ответ на сообщения через бота Feishu/Lark с использованием WebSocket.",
+        "domain": "Домен",
+        "domainFeishu": "Feishu (Китай)",
+        "domainLark": "Lark (Международный)",
+        "encryptKey": "Ключ шифрования",
+        "encryptKeyPlaceholder": "Введите ключ шифрования вашего приложения Feishu",
+        "loginHint": "Учетные данные не настроены. Включите канал, чтобы начать регистрацию по QR-коду, или введите App ID и App Secret вручную.",
+        "qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
+        "qrHint": "Ожидание сканирования QR-кода...",
+        "qrScanHint": "Откройте Feishu на телефоне и отсканируйте QR-код, чтобы создать бота-приложение.",
+        "qrTitle": "Регистрация через QR-код Feishu",
+        "title": "Feishu",
+        "verificationToken": "Токен верификации",
+        "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
+      },
+      "logs": "Журналы",
+      "noInstances": "Каналы {{type}} не настроены. Нажмите «+ Добавить», чтобы создать канал.",
+      "noLogs": "Журналы пока отсутствуют",
+      "notifyReceiver": "Получать уведомления о задачах",
+      "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Введите App ID вашего QQ бота",
+        "chatIds": "Разрешённые ID чатов",
+        "chatIdsHint": "Формат: c2c:openid, group:groupid, channel:channelid. Оставьте пустым для разрешения всех.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
+        "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
+      },
+      "security": {
+        "inheritFromAgent": "Унаследовать от агента",
+        "permissionMode": "Режим прав доступа канала",
+        "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
+      },
+      "selectAgent": "Выберите агента для привязки",
+      "slack": {
+        "appToken": "Токен уровня приложения",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Токен бота",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "Разрешённые идентификаторы каналов",
+        "channelIdsHint": "ID каналов Slack. Оставьте пустым, чтобы разрешить все.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Получайте и отвечайте на сообщения через бота в Slack с использованием Socket Mode.",
+        "title": "Слак",
+        "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ID канала."
+      },
+      "tab": "Каналы",
+      "telegram": {
+        "botToken": "Токен бота",
+        "botTokenPlaceholder": "Введите токен вашего Telegram бота",
+        "chatIds": "Разрешённые ID чатов",
+        "chatIdsHint": "Через запятую. Оставьте пустым для разрешения всех чатов.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Получать и отвечать на сообщения через Telegram бота с использованием long polling.",
+        "title": "Telegram"
+      },
+      "title": "Каналы",
+      "updateError": "Не удалось обновить канал",
+      "wechat": {
+        "addAccount": "Добавить аккаунт WeChat",
+        "chatIds": "Разрешённые идентификаторы пользователей",
+        "chatIdsHint": "Разделённые запятыми. Оставьте пустым, чтобы разрешить всех пользователей.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Подключено",
+        "description": "Получайте и отвечайте на сообщения через WeChat с помощью iLink Bot API.",
         "disconnected": "Отключено",
-        "discord": {
-          "botToken": "Токен бота",
-          "botTokenPlaceholder": "Введите токен вашего бота Discord",
-          "channelIds": "Разрешённые идентификаторы каналов",
-          "channelIdsHint": "Формат: channel:id или dm:id. Оставьте пустым, чтобы разрешить все.",
-          "channelIdsPlaceholder": "канал:123456789, лс:987654321",
-          "description": "Получайте и отвечайте на сообщения через Discord-бота с использованием WebSocket-шлюза.",
-          "title": "Дискорд",
-          "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ваш ID канала в правильном формате."
-        },
-        "error": "Ошибка",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "Введите App Secret вашего приложения Feishu",
-          "chatIds": "Разрешённые ID чатов",
-          "chatIdsHint": "ID чатов через запятую. Оставьте пустым, чтобы разрешить все чаты.",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "Подключено",
-          "description": "Получение и ответ на сообщения через бота Feishu/Lark с использованием WebSocket.",
-          "domain": "Домен",
-          "domainFeishu": "Feishu (Китай)",
-          "domainLark": "Lark (Международный)",
-          "encryptKey": "Ключ шифрования",
-          "encryptKeyPlaceholder": "Введите ключ шифрования вашего приложения Feishu",
-          "loginHint": "Учетные данные не настроены. Включите канал, чтобы начать регистрацию по QR-коду, или введите App ID и App Secret вручную.",
-          "qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
-          "qrHint": "Ожидание сканирования QR-кода...",
-          "qrScanHint": "Откройте Feishu на телефоне и отсканируйте QR-код, чтобы создать бота-приложение.",
-          "qrTitle": "Регистрация через QR-код Feishu",
-          "title": "Feishu",
-          "verificationToken": "Токен верификации",
-          "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
-        },
-        "logs": "Журналы",
-        "noInstances": "Каналы {{type}} не настроены. Нажмите «+ Добавить», чтобы создать канал.",
-        "noLogs": "Журналы пока отсутствуют",
-        "notifyReceiver": "Получать уведомления о задачах",
-        "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Введите App ID вашего QQ бота",
-          "chatIds": "Разрешённые ID чатов",
-          "chatIdsHint": "Формат: c2c:openid, group:groupid, channel:channelid. Оставьте пустым для разрешения всех.",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
-          "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
-          "title": "QQ",
-          "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
-        },
-        "security": {
-          "inheritFromAgent": "Унаследовать от агента",
-          "permissionMode": "Режим прав доступа канала",
-          "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
-        },
-        "selectAgent": "Выберите агента для привязки",
-        "slack": {
-          "appToken": "Токен уровня приложения",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Токен бота",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "Разрешённые идентификаторы каналов",
-          "channelIdsHint": "ID каналов Slack. Оставьте пустым, чтобы разрешить все.",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "Получайте и отвечайте на сообщения через бота в Slack с использованием Socket Mode.",
-          "title": "Слак",
-          "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ID канала."
-        },
-        "soulModeRequired": "У этого агента не включён автономный режим. Функции канала не будут работать. Пожалуйста, включите его в настройках агента.",
-        "tab": "Каналы",
-        "telegram": {
-          "botToken": "Токен бота",
-          "botTokenPlaceholder": "Введите токен вашего Telegram бота",
-          "chatIds": "Разрешённые ID чатов",
-          "chatIdsHint": "Через запятую. Оставьте пустым для разрешения всех чатов.",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Получать и отвечать на сообщения через Telegram бота с использованием long polling.",
-          "title": "Telegram"
-        },
-        "title": "Каналы",
-        "updateError": "Не удалось обновить канал",
-        "wechat": {
-          "addAccount": "Добавить аккаунт WeChat",
-          "chatIds": "Разрешённые идентификаторы пользователей",
-          "chatIdsHint": "Разделённые запятыми. Оставьте пустым, чтобы разрешить всех пользователей.",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "Подключено",
-          "description": "Получайте и отвечайте на сообщения через WeChat с помощью iLink Bot API.",
-          "disconnected": "Отключено",
-          "loginHint": "Первый вход требует сканирования QR-кода. Проверьте журналы приложения для получения URL-адреса входа.",
-          "qrHint": "Откройте WeChat на телефоне, отсканируйте QR-код для входа.",
-          "qrTitle": "Вход по QR-коду WeChat",
-          "title": "WeChat",
-          "whoamiTip": "Совет: Отправьте /whoami в WeChat, чтобы получить ID пользователя."
-        }
-      },
-      "heartbeat": {
-        "enabled": "Включить Heartbeat",
-        "enabledHelper": "При включении, если heartbeat.md существует в рабочей области, планировщик читает его содержимое и отправляет в основную сессию с настроенным интервалом.",
-        "interval": "Интервал (минуты)",
-        "intervalHelper": "Как часто выполняется heartbeat, в минутах."
-      },
-      "sandbox": {
-        "description": "Ограничивает доступ агента к файловой системе и сети только директорией рабочей области с использованием песочницы на уровне ОС.",
-        "helper": "Ограничить доступ к файловой системе и командам путём рабочей области.",
-        "label": "Режим песочницы"
-      },
-      "scheduler": {
-        "cron": {
-          "helper": "Стандартное cron-выражение (например, '*/30 * * * *' для каждых 30 минут).",
-          "label": "Cron-выражение",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "Планировщик автоматически запускает агента по расписанию.",
-        "enabled": "Включить планировщик",
-        "enabledHelper": "При включении агент будет автоматически запускаться согласно настроенному расписанию.",
-        "errors": {
-          "invalidCron": "Неверное cron-выражение",
-          "invalidDelay": "Задержка должна быть положительным числом",
-          "invalidInterval": "Интервал должен быть положительным числом"
-        },
-        "interval": {
-          "helper": "Как часто агент должен запускаться, в секундах.",
-          "label": "Интервал (секунды)"
-        },
-        "lastRun": "Последний запуск",
-        "never": "Никогда",
-        "nextRun": "Следующий запуск",
-        "oneTime": {
-          "helper": "Однократная задержка в секундах перед запуском агента.",
-          "label": "Задержка (секунды)"
-        },
-        "status": {
-          "running": "Выполняется",
-          "stopped": "Остановлен",
-          "tickInProgress": "Tick выполняется"
-        },
-        "tab": "Планировщик",
-        "title": "Настройка планировщика",
-        "type": {
-          "cron": "Cron-выражение",
-          "interval": "Фиксированный интервал",
-          "label": "Тип расписания",
-          "one-time": "Однократная задержка"
-        }
-      },
-      "soul": {
-        "description": "Душа определяет личность и базовое поведение агента. Она читается из soul.md в корне рабочей области.",
-        "empty": "Файл soul.md не найден в корне рабочей области. Создайте его, чтобы определить личность агента.",
-        "enabled": "Включить душу",
-        "enabledHelper": "При включении агент читает soul.md из корня рабочей области и добавляет его в начало системного промпта.",
-        "fileLabel": "soul.md",
-        "preview": "Предпросмотр души",
-        "tab": "Душа",
-        "title": "Настройка души"
-      },
-      "tasks": {
-        "add": "Добавить задачу",
-        "cancel": "Отмена",
-        "channels": {
-          "label": "Отправить в каналы",
-          "noActiveChatIds": "Выбранные каналы не имеют доступных получателей (Chat ID). Результаты задачи могут быть не доставлены. Пожалуйста, сначала отправьте сообщение боту на платформе.",
-          "placeholder": "Выберите каналы для получения результатов"
-        },
-        "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
-        "delete": {
-          "confirm": "Вы уверены, что хотите удалить эту задачу?",
-          "label": "Удалить"
-        },
-        "edit": "Редактировать",
-        "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
-        "error": {
-          "createFailed": "Не удалось создать задачу",
-          "deleteFailed": "Не удалось удалить задачу",
-          "loadFailed": "Не удалось загрузить задачи",
-          "runFailed": "Не удалось выполнить задачу",
-          "updateFailed": "Не удалось обновить задачу"
-        },
-        "frequency": {
-          "everyPrefix": "Каждые",
-          "everySuffix": "минут",
-          "label": "Частота выполнения"
-        },
-        "intervalPlaceholder": "Минимум 1",
-        "intervalUnit": "минуты",
-        "lastRun": "Последний запуск",
-        "logs": {
-          "cancelled": "Отменено",
-          "completed": "Завершено",
-          "duration": "Длительность",
-          "empty": "История запусков пуста.",
-          "failed": "Не удалось",
-          "justNow": "только что",
-          "label": "История запусков",
-          "loadError": "Не удалось загрузить историю запусков",
-          "result": "Результат",
-          "runAt": "Запущено в",
-          "running": "Бежит...",
-          "search": "Искать журналы...",
-          "status": "Статус",
-          "viewSession": "Просмотр сеанса"
-        },
-        "name": {
-          "label": "Название",
-          "placeholder": "напр. Ежедневный обзор кода"
-        },
-        "nextRun": "Следующий запуск",
-        "oncePlaceholder": "Выберите дату и время",
-        "pause": "Пауза",
-        "prompt": {
-          "expand": "Развернуть редактор",
-          "label": "Промпт",
-          "placeholder": "Что должен делать агент при выполнении этой задачи?"
-        },
-        "resume": "Возобновить",
-        "run": "Запустить",
-        "runTriggered": "Задача запущена",
-        "save": "Сохранить",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "Интервал",
-          "once": "Однократно"
-        },
-        "status": {
-          "active": "Активна",
-          "completed": "Завершена",
-          "paused": "Приостановлена"
-        },
-        "tab": "Задачи",
-        "time": {
-          "hoursAgo": "{{count}} ч назад",
-          "minutesAgo": "{{count}} мин. назад"
-        },
-        "timeout": {
-          "label": "Максимальное время выполнения",
-          "placeholder": "Без ограничений"
-        },
-        "title": "Запланированные задачи"
-      },
-      "warning": {
-        "bypassPermissions": "Агенты CherryClaw по умолчанию работают в полностью автоматическом режиме. Все инструменты выполняются без запроса одобрения."
+        "loginHint": "Первый вход требует сканирования QR-кода. Проверьте журналы приложения для получения URL-адреса входа.",
+        "qrHint": "Откройте WeChat на телефоне, отсканируйте QR-код для входа.",
+        "qrTitle": "Вход по QR-коду WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Совет: Отправьте /whoami в WeChat, чтобы получить ID пользователя."
       }
     },
     "delete": {
@@ -339,14 +190,19 @@
     "home": {
       "welcome_title": "О чём мы поговорим сегодня?"
     },
+    "icon": {
+      "type": "Иконка агента"
+    },
     "input": {
-      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
-      "soul_placeholder": "Помогите мне подключиться к Telegram"
+      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
     },
     "list": {
       "error": {
         "failed": "Не удалось получить список агентов."
       }
+    },
+    "manage": {
+      "title": "Управление агентами"
     },
     "pin": {
       "title": "Пин-агент"
@@ -499,6 +355,7 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "auto_rename": "Сгенерировать название задачи",
       "create": {
         "error": {
           "failed": "Не удалось добавить сеанс"
@@ -712,12 +569,6 @@
         "tab": "Навыки",
         "title": "Установленные навыки"
       },
-      "soulMode": {
-        "description": "При включении агент использует пользовательский системный промпт из файлов soul рабочей области, внедряет инструменты автономного управления задачами и отключает интерактивные инструменты, не подходящие для автономной работы.",
-        "disabledBadge": "Отключено автономным режимом",
-        "disabledTooltip": "Этот инструмент автоматически отключается при активном автономном режиме",
-        "title": "Автономный режим"
-      },
       "tooling": {
         "mcp": {
           "description": "Подключите серверы MCP, чтобы разблокировать дополнительные инструменты, которые вы можете одобрить выше.",
@@ -784,6 +635,94 @@
       }
     },
     "sidebar_title": "Агенты",
+    "skill": {
+      "manage": {
+        "title": "Управление навыками"
+      }
+    },
+    "tasks": {
+      "add": "Добавить задачу",
+      "cancel": "Отмена",
+      "channels": {
+        "label": "Отправить в каналы",
+        "noActiveChatIds": "Выбранные каналы не имеют доступных получателей (Chat ID). Результаты задачи могут быть не доставлены. Пожалуйста, сначала отправьте сообщение боту на платформе.",
+        "placeholder": "Выберите каналы для получения результатов"
+      },
+      "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
+      "delete": {
+        "confirm": "Вы уверены, что хотите удалить эту задачу?",
+        "label": "Удалить"
+      },
+      "edit": "Редактировать",
+      "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
+      "error": {
+        "createFailed": "Не удалось создать задачу",
+        "deleteFailed": "Не удалось удалить задачу",
+        "loadFailed": "Не удалось загрузить задачи",
+        "runFailed": "Не удалось выполнить задачу",
+        "updateFailed": "Не удалось обновить задачу"
+      },
+      "frequency": {
+        "everyPrefix": "Каждые",
+        "everySuffix": "минут",
+        "label": "Частота выполнения"
+      },
+      "intervalPlaceholder": "Минимум 1",
+      "intervalUnit": "минуты",
+      "lastRun": "Последний запуск",
+      "logs": {
+        "cancelled": "Отменено",
+        "completed": "Завершено",
+        "duration": "Длительность",
+        "empty": "История запусков пуста.",
+        "failed": "Не удалось",
+        "justNow": "только что",
+        "label": "История запусков",
+        "loadError": "Не удалось загрузить историю запусков",
+        "result": "Результат",
+        "runAt": "Запущено в",
+        "running": "Бежит...",
+        "search": "Искать журналы...",
+        "status": "Статус",
+        "viewSession": "Просмотр сеанса"
+      },
+      "name": {
+        "label": "Название",
+        "placeholder": "напр. Ежедневный обзор кода"
+      },
+      "nextRun": "Следующий запуск",
+      "oncePlaceholder": "Выберите дату и время",
+      "pause": "Пауза",
+      "prompt": {
+        "expand": "Развернуть редактор",
+        "label": "Промпт",
+        "placeholder": "Что должен делать агент при выполнении этой задачи?"
+      },
+      "resume": "Возобновить",
+      "run": "Запустить",
+      "runTriggered": "Задача запущена",
+      "save": "Сохранить",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "Интервал",
+        "once": "Однократно"
+      },
+      "status": {
+        "active": "Активна",
+        "completed": "Завершена",
+        "paused": "Приостановлена"
+      },
+      "tab": "Задачи",
+      "time": {
+        "hoursAgo": "{{count}} ч назад",
+        "minutesAgo": "{{count}} мин. назад"
+      },
+      "timeout": {
+        "label": "Максимальное время выполнения",
+        "placeholder": "Без ограничений"
+      },
+      "title": "Запланированные задачи"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +874,14 @@
           "description": "Выполняет shell-команды в вашей среде",
           "label": "Баш"
         },
+        "CherryConfig": {
+          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
+          "label": "[to be translated]:Agent Config"
+        },
+        "CherryCron": {
+          "description": "Управляет встроенным планировщиком",
+          "label": "Планировщик"
+        },
         "CherryKbManage": {
           "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
           "label": "Управление знаниями"
@@ -943,6 +890,10 @@
           "description": "Ищет в ваших базах знаний",
           "label": "Поиск знаний"
         },
+        "CherryNotify": {
+          "description": "[to be translated]:Sends a notification through a connected channel",
+          "label": "[to be translated]:Notify"
+        },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
           "label": "Веб-запрос"
@@ -950,10 +901,6 @@
         "CherryWebSearch": {
           "description": "Выполняет поиск в Интернете через настроенного вами поставщика",
           "label": "Веб-поиск"
-        },
-        "ClawCron": {
-          "description": "Управляет встроенным планировщиком",
-          "label": "Планировщик"
         },
         "Edit": {
           "description": "Вносит целенаправленные правки в конкретные файлы",
@@ -1087,6 +1034,7 @@
     "clear": {
       "content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
       "menu_title": "Удалить все разговоры с ассистентом",
+      "success_title": "Очищено {{count}} тем",
       "title": "Очистить топики"
     },
     "copy": {
@@ -1712,6 +1660,7 @@
               "tip": "Тема будет сохранена в базе знаний с полным контекстом диалога"
             }
           },
+          "source_fallback": "Переписка",
           "success": "Тема успешно сохранена в базе знаний ({{count}} элементов)",
           "title": "Сохранить тему в базу знаний"
         }
@@ -2986,11 +2935,10 @@
             "placeholder": "Дайте агенту имя"
           },
           "permission_mode": {
-            "help": "Переключение на bypassPermissions эквивалентно включению режима Soul.",
             "label": "Режим разрешений",
             "option": {
               "acceptEdits": "Принять правки",
-              "bypassPermissions": "Обход разрешений (Душа)",
+              "bypassPermissions": "Обход разрешений",
               "default": "По умолчанию",
               "plan": "Режим плана"
             }
@@ -3002,10 +2950,6 @@
           "small_model": {
             "hint": "Лёгкие проверки и форматирование",
             "label": "Маленькая модель (необязательно)"
-          },
-          "soul_enabled": {
-            "help": "При включении автоматически предоставляет bypassPermissions",
-            "label": "Режим души"
           }
         },
         "model_config": "Конфигурация модели",
@@ -3135,6 +3079,7 @@
           "avatar_aria": "Выберите аватар",
           "back": "Назад",
           "capability": {
+            "builtin_badge": "Включено по умолчанию",
             "import": "Импортировать навык",
             "no_skills": "Навыки не установлены",
             "search": "Навыки поиска"
@@ -3753,6 +3698,7 @@
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
+      "collapse": "Свернуть",
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
@@ -3797,6 +3743,7 @@
         "usingTools": "Работа над задачей"
       },
       "preview": "Предпросмотр",
+      "processed": "Обработано",
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
       "runningHeader": "Работаю…",
@@ -4048,10 +3995,13 @@
     "drop_markdown_hint": "Перетащите сюда файлы или папки .md для импорта",
     "empty": "заметок пока нет",
     "expand": "развернуть",
+    "exportToPDF": "Экспорт в PDF",
     "exportToWord": "Экспорт в Word",
     "export_failed": "Экспорт в базу знаний не выполнен",
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
+    "export_to_pdf_failed": "Не удалось экспортировать в PDF",
+    "export_to_pdf_success": "Экспортировано в PDF",
     "export_to_word_failed": "Не удалось экспортировать в Word",
     "folder": "папка",
     "load_failed": "Не удалось загрузить заметку",
@@ -4068,6 +4018,8 @@
     "no_valid_files": "Не загружен действительный файл",
     "open_folder": "Откройте внешнюю папку",
     "open_outside": "открыть снаружи",
+    "print": "Печать",
+    "print_failed": "Не удалось напечатать заметку",
     "rename": "переименовать",
     "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "rename_failed": "Не удалось переименовать заметку",
@@ -5331,6 +5283,13 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "agent": {
+      "position": {
+        "label": "Позиция сессии",
+        "left": "Левый",
+        "right": "Правильно"
+      }
+    },
     "appearance": {
       "title": "Внешний вид"
     },
@@ -5967,6 +5926,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Проверить обновления",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
@@ -6004,7 +5964,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Не удалось проверить наличие обновлений"
     },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
@@ -7272,6 +7233,7 @@
       "open_tab_in_new_window": "Открыть вкладку в новом окне",
       "pin_tab": "Закрепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "print": "Печать",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
       "reset": "Сброс",
@@ -7602,6 +7564,7 @@
   },
   "title": {
     "apps": "Приложения",
+    "chat": "Чат",
     "code": "Code",
     "files": "Файлы",
     "home": "Главная",

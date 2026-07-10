@@ -51,14 +51,12 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.trim()
+  return result.startsWith('\n') ? result.slice(1) : result
 }
 
 /**
- * Right-click menu for any text region: copy the current selection or quote it
- * back to the main window. Items are disabled when there is no live selection
- * so a non-text right-click still surfaces the menu (discoverability) but the
- * actions remain inert until the user selects something.
+ * Right-click menu for selected text regions: copy the current selection or quote it
+ * back to the main window. No selection means no selection-specific actions.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
@@ -99,20 +97,19 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
 
   const getMenuItems = useCallback(
     (text: string): CommandContextMenuExtraItem[] => {
-      const hasSelection = text.length > 0
+      if (text.length === 0) return []
+
       return [
         {
           type: 'item',
           id: 'selection.copy',
           label: t('common.copy'),
-          enabled: hasSelection,
           onSelect: () => handleCopy(text)
         },
         {
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          enabled: hasSelection,
           onSelect: () => handleQuote(text)
         }
       ]

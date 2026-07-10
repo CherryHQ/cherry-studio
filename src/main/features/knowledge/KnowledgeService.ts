@@ -515,14 +515,17 @@ export class KnowledgeService extends BaseService {
 
     const scoreKind = getInitialSearchScoreKind(mode)
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
-    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
-      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
+      const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
+    } else {
+      // If we don't need to rerank, we can just trim the results right here.
+      const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
     }
-
-    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
