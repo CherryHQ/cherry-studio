@@ -20,6 +20,7 @@ export interface BaseNavigatorContentProps {
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBaseInGroup: (groupId: string) => void
+  onCreateGroup: (baseId: string) => void
   onDeleteGroup: (groupId: string) => Promise<void> | void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
@@ -35,6 +36,7 @@ export interface BaseNavigatorGroupSectionProps {
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBaseInGroup: (groupId: string) => void
+  onCreateGroup: (baseId: string) => void
   onDeleteGroup: (groupId: string) => Promise<void> | void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
@@ -43,11 +45,6 @@ export interface BaseNavigatorSectionTriggerProps {
   label: string
   leadingSlot?: ReactNode
   actionSlot?: ReactNode
-}
-
-export interface BaseNavigatorCreateMenuProps {
-  onCreateBase: () => void
-  onCreateGroup: () => void
 }
 
 export interface BaseNavigatorResizeHandleProps {
@@ -61,6 +58,7 @@ export interface KnowledgeBaseRowProps {
   onSelectBase: (baseId: string) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
+  onCreateGroup: (baseId: string) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
 

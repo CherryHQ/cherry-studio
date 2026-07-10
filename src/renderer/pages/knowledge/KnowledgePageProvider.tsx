@@ -83,7 +83,7 @@ interface KnowledgePageContextValue {
   handleRagConfigDrawerOpenChange: (open: boolean) => void
   handleRecallTestDrawerOpenChange: (open: boolean) => void
   openCreateBaseDialog: (groupId?: string) => void
-  openCreateGroupDialog: () => void
+  openCreateGroupDialog: (baseIdToMove?: string) => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
   openRestoreBaseDialog: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
@@ -137,6 +137,9 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
+  // Set when the create-group dialog is opened from a base's context menu: the
+  // freshly created group immediately adopts that base (create-and-move in one go).
+  const [pendingGroupMoveBaseId, setPendingGroupMoveBaseId] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const contentLeftRef = useRef(0)
 
@@ -242,7 +245,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsRecallTestDrawerOpen(open)
   }, [])
 
-  const openCreateGroupDialog = useCallback(() => {
+  const openCreateGroupDialog = useCallback((baseIdToMove?: string) => {
+    setPendingGroupMoveBaseId(baseIdToMove ?? null)
     setIsCreateGroupDialogOpen(true)
   }, [])
 
@@ -280,6 +284,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateGroupDialogOpen(open)
+
+    if (!open) {
+      setPendingGroupMoveBaseId(null)
+    }
   }, [])
 
   const handleRenameBaseDialogOpenChange = useCallback((open: boolean) => {
@@ -323,12 +331,32 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [bases]
   )
 
+  const moveBase = useCallback(
+    async (baseId: string, groupId: string | null) => {
+      try {
+        await updateBase(baseId, { groupId })
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
+      }
+    },
+    [t, updateBase]
+  )
+
   const submitCreateGroup = useCallback(
     async (name: string) => {
-      await createGroup(name)
+      const group = await createGroup(name)
+      const baseIdToMove = pendingGroupMoveBaseId
       setIsCreateGroupDialogOpen(false)
+      setPendingGroupMoveBaseId(null)
+
+      // Opened from a base's context menu: the new group adopts that base right
+      // away. moveBase surfaces its own failure toast and never rejects, so a
+      // failed move can't resurrect the already-closed dialog.
+      if (baseIdToMove) {
+        await moveBase(baseIdToMove, group.id)
+      }
     },
-    [createGroup]
+    [createGroup, moveBase, pendingGroupMoveBaseId]
   )
 
   const submitRenameBase = useCallback(
@@ -363,17 +391,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setEditingGroup(null)
     },
     [editingGroup, updateGroup]
-  )
-
-  const moveBase = useCallback(
-    async (baseId: string, groupId: string | null) => {
-      try {
-        await updateBase(baseId, { groupId })
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
-      }
-    },
-    [t, updateBase]
   )
 
   const handleDeleteBase = useCallback(
