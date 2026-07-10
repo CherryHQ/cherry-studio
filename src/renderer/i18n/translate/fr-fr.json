@@ -6622,6 +6622,7 @@
         "add_whole_group": "Ajouter tout le groupe",
         "clean_stale_models": "Nettoyer les modèles obsolètes",
         "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
+        "default_model_cannot_remove": "Le modèle par défaut ne peut pas être supprimé.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

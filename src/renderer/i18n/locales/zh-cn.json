@@ -6623,6 +6623,7 @@
         "add_whole_group": "添加整个分组",
         "clean_stale_models": "清理失效模型",
         "clean_stale_success": "已清理 {{count}} 个失效模型",
+        "default_model_cannot_remove": "默认模型无法删除",
         "drawer_title": "模型管理",
         "fetch_deselect_all_add": "取消全选",
         "fetch_deselect_all_remove": "取消全选",

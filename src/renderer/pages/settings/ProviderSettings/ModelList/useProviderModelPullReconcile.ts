@@ -1,4 +1,5 @@
 import { useMutation } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -68,6 +69,9 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   const loadModelsSequenceRef = useRef(0)
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
+  const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, updateProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
@@ -85,12 +89,25 @@ export function useProviderModelPullReconcile(providerId: string) {
     () => new Set([...catalogModels, ...fetchedModels].map((model) => model.id)),
     [catalogModels, fetchedModels]
   )
+  const defaultModelIds = useMemo(
+    () =>
+      new Set(
+        [defaultModelId, quickAssistantModelId, translateModelId].filter(
+          (modelId): modelId is UniqueModelId => modelId != null
+        )
+      ),
+    [defaultModelId, quickAssistantModelId, translateModelId]
+  )
   const removableModelIds = useMemo(
     () =>
       models
-        .filter((model) => remoteModelIds.has(model.id) || (model.presetModelId != null && model.presetModelId !== ''))
+        .filter(
+          (model) =>
+            !defaultModelIds.has(model.id) &&
+            (remoteModelIds.has(model.id) || (model.presetModelId != null && model.presetModelId !== ''))
+        )
         .map((model) => model.id),
-    [models, remoteModelIds]
+    [defaultModelIds, models, remoteModelIds]
   )
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
@@ -237,6 +254,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     provider,
     localModels: models,
     removableModelIds,
+    defaultModelIds: [...defaultModelIds],
     staleModelCount: staleModels.length,
     staleModelIds: staleModels.map((model) => model.id),
     openPullReconcile,

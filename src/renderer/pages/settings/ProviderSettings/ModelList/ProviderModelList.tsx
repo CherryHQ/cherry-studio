@@ -70,6 +70,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           enabledSections={modelList.sections.enabledSections}
           disabled={modelList.sections.disabled}
           pendingModelIds={modelList.sections.pendingModelIds}
+          defaultModelIds={modelList.sections.defaultModelIds}
           onEditModel={modelList.sections.onEditModel}
           onDeleteModel={modelList.sections.onDeleteModel}
           onDeleteModels={modelList.sections.onDeleteModels}

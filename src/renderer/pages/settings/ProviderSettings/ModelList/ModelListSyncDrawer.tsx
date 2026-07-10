@@ -28,6 +28,7 @@ interface ModelListSyncDrawerProps {
   allModels: Model[]
   localModels: Model[]
   removableModelIds: UniqueModelId[]
+  defaultModelIds?: UniqueModelId[]
   isLoading: boolean
   isApplying: boolean
   loadErrorMessage?: string | null
@@ -46,6 +47,7 @@ export default function ModelListSyncDrawer({
   allModels = [],
   localModels = [],
   removableModelIds = [],
+  defaultModelIds = [],
   isLoading,
   isApplying,
   loadErrorMessage,
@@ -71,6 +73,7 @@ export default function ModelListSyncDrawer({
 
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
   const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
+  const defaultModelIdSet = useMemo(() => new Set(defaultModelIds), [defaultModelIds])
   const staleModelIdSet = useMemo(() => new Set(staleModelIds), [staleModelIds])
   const filterOptions = useMemo<ModelManageFilter[]>(
     () => (staleModelCount > 0 ? [...MODEL_LIST_CAPABILITY_FILTERS, 'stale'] : [...MODEL_LIST_CAPABILITY_FILTERS]),
@@ -238,6 +241,7 @@ export default function ModelListSyncDrawer({
         modelGroups={filteredGroups}
         localModelIds={localModelIds}
         removableModelIds={removableModelIdSet}
+        defaultModelIds={defaultModelIdSet}
         staleModelIds={staleModelIdSet}
         isLoading={isLoading}
         isApplying={isApplying}

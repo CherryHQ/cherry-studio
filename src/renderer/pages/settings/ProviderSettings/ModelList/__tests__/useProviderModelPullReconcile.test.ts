@@ -1,6 +1,7 @@
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,6 +98,7 @@ describe('useProviderModelPullReconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/models:reconcile', reconcileTriggerMock)
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
@@ -174,6 +176,38 @@ describe('useProviderModelPullReconcile', () => {
 
     await waitFor(() => {
       expect(result.current.removableModelIds).toEqual(['openai::fetched-model'])
+    })
+  })
+
+  it('excludes chat, quick-assistant, and translate default models from removable models', async () => {
+    const regularModel = {
+      ...localModel,
+      id: 'openai::regular-model',
+      apiModelId: 'regular-model',
+      presetModelId: 'regular-model'
+    }
+    useModelsMock.mockReturnValue({
+      models: [
+        localModel,
+        { ...fetchedModel, presetModelId: 'fetched-model' },
+        { ...catalogModel, presetModelId: 'catalog-model' },
+        regularModel
+      ]
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.default_model_id': localModel.id,
+      'feature.quick_assistant.model_id': fetchedModel.id,
+      'feature.translate.model_id': catalogModel.id
+    })
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.removableModelIds).toEqual([regularModel.id])
     })
   })
 

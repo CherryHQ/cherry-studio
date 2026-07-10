@@ -1,7 +1,7 @@
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ interface ModelListSectionsProps {
   enabledSections: ModelListGroupSection[]
   disabled: boolean
   pendingModelIds: Set<string>
+  defaultModelIds: Set<UniqueModelId>
   onEditModel: (model: Model) => void
   onDeleteModel: (model: Model) => Promise<void>
   onDeleteModels: (models: Model[]) => Promise<void>
@@ -48,6 +49,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   enabledSections,
   disabled,
   pendingModelIds,
+  defaultModelIds,
   onEditModel,
   onDeleteModel,
   onDeleteModels,
@@ -143,6 +145,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                 disabled={disabled}
                 bulkActionDisabled={bulkActionDisabled}
                 pendingModelIds={pendingModelIds}
+                defaultModelIds={defaultModelIds}
                 onDeleteModels={onDeleteModels}
                 onToggleOpen={() => toggleGroupOpen(row.groupName, row.defaultOpen)}
               />
@@ -158,6 +161,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
               onEdit={onEditModel}
               onDelete={onDeleteModel}
               disabled={disabled || pendingModelIds.has(row.model.id)}
+              isDefaultModel={defaultModelIds.has(row.model.id)}
             />
           </div>
         )

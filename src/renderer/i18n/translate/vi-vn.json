@@ -6622,6 +6622,7 @@
         "add_whole_group": "Thêm toàn bộ nhóm",
         "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
         "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
+        "default_model_cannot_remove": "Không thể xóa mô hình mặc định.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

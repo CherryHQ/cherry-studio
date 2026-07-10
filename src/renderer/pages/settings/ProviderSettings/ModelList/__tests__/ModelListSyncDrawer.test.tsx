@@ -30,7 +30,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         </button>
       )
     },
-    Tooltip: ({ children }: any) => children,
+    Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>,
     Spinner: () => <div data-testid="spinner" />,
     EmptyState: ({ title }: any) => <div>{title}</div>
   }
@@ -131,6 +131,7 @@ function renderDrawer(props: Partial<React.ComponentProps<typeof ModelListSyncDr
       allModels={[...allModels]}
       localModels={[...localModels]}
       removableModelIds={['openai::legacy-model']}
+      defaultModelIds={[]}
       isLoading={false}
       isApplying={false}
       loadErrorMessage={null}
@@ -258,6 +259,39 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(bulkRemoveButton)
 
     expect(onRemoveModels).not.toHaveBeenCalled()
+  })
+
+  it('disables individual removal for a local model that is not removable', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[2]],
+      localModels: [allModels[2]],
+      removableModelIds: [],
+      onRemoveModels
+    })
+
+    const removeButton = screen.getByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButton).toBeDisabled()
+
+    fireEvent.click(removeButton)
+
+    expect(onRemoveModels).not.toHaveBeenCalled()
+  })
+
+  it('explains why a default model cannot be removed', () => {
+    renderDrawer({
+      allModels: [allModels[2]],
+      localModels: [allModels[2]],
+      removableModelIds: [],
+      defaultModelIds: [allModels[2].id]
+    })
+
+    const removeButton = screen.getByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButton).toBeDisabled()
+    expect(removeButton.parentElement).toHaveAttribute(
+      'data-tooltip-content',
+      'settings.models.manage.default_model_cannot_remove'
+    )
   })
 
   it('cleans stale models from the title action', () => {

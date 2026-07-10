@@ -17,6 +17,7 @@ interface ModelSyncPreviewPanelProps {
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
   removableModelIds: Set<UniqueModelId>
+  defaultModelIds: Set<UniqueModelId>
   staleModelIds: Set<UniqueModelId>
   isLoading: boolean
   isApplying: boolean
@@ -64,6 +65,8 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
 const ManageModelRow = memo(function ManageModelRow({
   model,
   isAdded,
+  isRemovable,
+  isDefaultModel,
   isStale,
   isApplying,
   onAddModels,
@@ -71,12 +74,19 @@ const ManageModelRow = memo(function ManageModelRow({
 }: {
   model: Model
   isAdded: boolean
+  isRemovable: boolean
+  isDefaultModel: boolean
   isStale: boolean
   isApplying: boolean
   onAddModels: (models: Model[]) => void | Promise<void>
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const actionTooltip = isAdded
+    ? isDefaultModel
+      ? t('settings.models.manage.default_model_cannot_remove')
+      : t('settings.models.manage.remove_model')
+    : t('button.add')
 
   return (
     <div className={modelSyncClasses.manageRow} data-added={isAdded}>
@@ -101,15 +111,23 @@ const ManageModelRow = memo(function ManageModelRow({
       <div className={modelSyncClasses.fetchCapabilityStrip}>
         <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={12} style={{ flexWrap: 'nowrap' }} />
       </div>
-      <Tooltip content={isAdded ? t('settings.models.manage.remove_model') : t('button.add')} placement="top">
+      <Tooltip content={actionTooltip} placement="top">
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label={isAdded ? t('settings.models.manage.remove_model') : t('button.add')}
-          disabled={isApplying}
+          disabled={isApplying || (isAdded && !isRemovable)}
           className={modelSyncClasses.manageRowAction}
-          onClick={() => void (isAdded ? onRemoveModels([model.id]) : onAddModels([model]))}>
+          onClick={() => {
+            if (isAdded) {
+              if (isRemovable) {
+                void onRemoveModels([model.id])
+              }
+              return
+            }
+            void onAddModels([model])
+          }}>
           {isAdded ? <Minus className="size-4" /> : <Plus className="size-4" />}
         </Button>
       </Tooltip>
@@ -121,6 +139,7 @@ export default function ModelSyncPreviewPanel({
   modelGroups,
   localModelIds,
   removableModelIds,
+  defaultModelIds,
   staleModelIds,
   isLoading,
   isApplying,
@@ -271,6 +290,8 @@ export default function ModelSyncPreviewPanel({
             <ManageModelRow
               model={row.model}
               isAdded={localModelIds.has(row.model.id)}
+              isRemovable={removableModelIds.has(row.model.id)}
+              isDefaultModel={defaultModelIds.has(row.model.id)}
               isStale={staleModelIds.has(row.model.id)}
               isApplying={isApplying}
               onAddModels={onAddModels}

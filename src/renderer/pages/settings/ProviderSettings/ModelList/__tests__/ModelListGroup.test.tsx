@@ -106,6 +106,42 @@ describe('ModelListGroup', () => {
     expect(onDeleteModels).toHaveBeenCalledWith(models)
   })
 
+  it('deletes only non-default models from a mixed group', () => {
+    const onDeleteModels = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        defaultModelIds={new Set([models[0].id])}
+        onDeleteModels={onDeleteModels}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_whole_group' }))
+
+    expect(onDeleteModels).toHaveBeenCalledWith([models[1]])
+  })
+
+  it('disables group deletion when every model is a default model', () => {
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        defaultModelIds={new Set(models.map((model: any) => model.id))}
+        onDeleteModels={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'settings.models.manage.remove_whole_group' })).toBeDisabled()
+  })
+
   it('does not toggle the group when the delete action receives keyboard activation keys', () => {
     const onDeleteModels = vi.fn().mockResolvedValue(undefined)
     const onToggleOpen = vi.fn()

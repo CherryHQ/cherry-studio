@@ -2,7 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ChevronRight, Minus } from 'lucide-react'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +22,7 @@ interface ModelListGroupProps {
   disabled?: boolean
   bulkActionDisabled?: boolean
   pendingModelIds: Set<string>
+  defaultModelIds?: Set<UniqueModelId>
   onDeleteModels: (models: Model[]) => Promise<void>
   onToggleOpen?: () => void
 }
@@ -34,12 +35,17 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   disabled,
   bulkActionDisabled,
   pendingModelIds,
+  defaultModelIds = new Set(),
   onDeleteModels,
   onToggleOpen
 }) => {
   const { t } = useTranslation()
   const groupLabel = getModelGroupLabel(groupName, t)
   const groupModels = useMemo(() => items.map(({ model }) => model), [items])
+  const deletableGroupModels = useMemo(
+    () => groupModels.filter((model) => !defaultModelIds.has(model.id)),
+    [defaultModelIds, groupModels]
+  )
   const hasPendingModel = groupModels.some((model) => pendingModelIds.has(model.id))
 
   const toggleOpen = useCallback(() => {
@@ -61,7 +67,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const handleDeleteGroupModels = useCallback(
     (event?: React.MouseEvent<HTMLButtonElement>) => {
       event?.stopPropagation()
-      void onDeleteModels(groupModels).catch((error) => {
+      void onDeleteModels(deletableGroupModels).catch((error) => {
         logger.error('Failed to delete provider model group', { groupName, error })
         toast.error(
           getModelOperationErrorMessage(error, {
@@ -72,7 +78,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         )
       })
     },
-    [groupModels, groupName, onDeleteModels, t]
+    [deletableGroupModels, groupName, onDeleteModels, t]
   )
 
   const handleDeleteGroupKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -101,7 +107,11 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         </div>
         <div className={modelListClasses.groupHeaderActions}>
           <Tooltip
-            content={t('settings.models.manage.remove_whole_group')}
+            content={
+              deletableGroupModels.length === 0
+                ? t('settings.models.manage.default_model_cannot_remove')
+                : t('settings.models.manage.remove_whole_group')
+            }
             placement="top"
             classNames={{ placeholder: modelListClasses.groupHeaderIconTooltipTrigger }}>
             <Button
@@ -109,7 +119,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.models.manage.remove_whole_group')}
-              disabled={disabled || bulkActionDisabled || hasPendingModel || groupModels.length === 0}
+              disabled={disabled || bulkActionDisabled || hasPendingModel || deletableGroupModels.length === 0}
               className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton} opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/modelGroup:opacity-100 group-hover/modelGroup:opacity-100`}
               onKeyDown={handleDeleteGroupKeyDown}
               onClick={handleDeleteGroupModels}>

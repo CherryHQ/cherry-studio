@@ -6622,6 +6622,7 @@
         "add_whole_group": "Adaugă întregul grup",
         "clean_stale_models": "Curăță modelele expirate",
         "clean_stale_success": "Au fost curățate {{count}} modele expirate",
+        "default_model_cannot_remove": "Modelul implicit nu poate fi șters.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

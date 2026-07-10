@@ -32,7 +32,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Avatar: ({ children }: any) => <span>{children}</span>,
     AvatarFallback: ({ children }: any) => <span>{children}</span>,
     RowFlex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Tooltip: ({ children }: any) => <>{children}</>
+    Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
   }
 })
 
@@ -138,6 +138,59 @@ describe('ModelListItem', () => {
 
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it('disables the row delete button when deletion is disabled', () => {
+    const onDelete = vi.fn()
+
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        disabled
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />
+    )
+
+    const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(deleteButton).toBeDisabled()
+
+    fireEvent.click(deleteButton)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('explains why a default model cannot be removed', () => {
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        isDefaultModel
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.parentElement).toHaveAttribute(
+      'data-tooltip-content',
+      'settings.models.manage.default_model_cannot_remove'
+    )
   })
 
   it('shows an error toast when deleting a model fails', async () => {

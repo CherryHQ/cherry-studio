@@ -64,6 +64,7 @@ vi.mock('../useProviderModelList', () => ({
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
       disabled: false,
       pendingModelIds: new Set<string>(),
+      defaultModelIds: new Set<string>(),
       onEditModel: vi.fn(),
       onDeleteModel: vi.fn(),
       onDeleteModels: vi.fn()

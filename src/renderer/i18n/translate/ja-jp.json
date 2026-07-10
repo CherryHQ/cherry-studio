@@ -6622,6 +6622,7 @@
         "add_whole_group": "グループ全体を追加",
         "clean_stale_models": "無効なモデルをクリーンアップ",
         "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
+        "default_model_cannot_remove": "デフォルトモデルは削除できません。",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

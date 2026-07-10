@@ -80,6 +80,7 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         allModels={[...pullReconcile.allModels]}
         localModels={[...pullReconcile.localModels]}
         removableModelIds={pullReconcile.removableModelIds}
+        defaultModelIds={pullReconcile.defaultModelIds}
         isLoading={pullReconcile.isLoadingModels}
         isApplying={pullReconcile.isApplyingPullReconcile}
         loadErrorMessage={pullReconcile.loadErrorMessage}

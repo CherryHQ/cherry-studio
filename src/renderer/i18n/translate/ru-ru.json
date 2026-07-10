@@ -6622,6 +6622,7 @@
         "add_whole_group": "Добавить всю группу",
         "clean_stale_models": "Очистить устаревшие модели",
         "clean_stale_success": "Очищено устаревших моделей: {{count}}",
+        "default_model_cannot_remove": "Модель по умолчанию нельзя удалить.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

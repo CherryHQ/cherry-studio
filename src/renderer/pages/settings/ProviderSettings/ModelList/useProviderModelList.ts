@@ -1,5 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
@@ -36,6 +37,7 @@ export interface ProviderModelListSectionsSurface {
   enabledSections: ModelListGroupSection[]
   disabled: boolean
   pendingModelIds: Set<string>
+  defaultModelIds: Set<UniqueModelId>
   onEditModel: (model: Model) => void
   onDeleteModel: (model: Model) => Promise<void>
   onDeleteModels: (models: Model[]) => Promise<void>
@@ -81,11 +83,23 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
   )
   const { deleteModel, deleteModels } = useModelMutations()
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
+  const [translateModelId] = usePreference('feature.translate.model_id')
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
+  const defaultModelIds = useMemo(
+    () =>
+      new Set(
+        [defaultModelId, quickAssistantModelId, translateModelId].filter(
+          (modelId): modelId is UniqueModelId => modelId != null
+        )
+      ),
+    [defaultModelId, quickAssistantModelId, translateModelId]
+  )
 
   const optimisticModels = useMemo(
     () => models.filter((model) => !optimisticDeletedByModelId[model.id]),
@@ -130,6 +144,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const onDeleteModel = useCallback(
     async (model: Model) => {
+      if (defaultModelIds.has(model.id)) {
+        return
+      }
+
       const { modelId } = parseUniqueModelId(model.id)
 
       setOptimisticDeletedByModelId((current) => ({ ...current, [model.id]: true }))
@@ -153,19 +171,20 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [deleteModel]
+    [defaultModelIds, deleteModel]
   )
 
   const onDeleteModels = useCallback(
     async (modelsToDelete: Model[]) => {
-      if (modelsToDelete.length === 0) {
+      const deletableModels = modelsToDelete.filter((model) => !defaultModelIds.has(model.id))
+      if (deletableModels.length === 0) {
         return
       }
 
       setOptimisticDeletedByModelId((current) => {
         const next = { ...current }
 
-        for (const model of modelsToDelete) {
+        for (const model of deletableModels) {
           next[model.id] = true
         }
 
@@ -174,7 +193,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setPendingModelIdMap((current) => {
         const next = { ...current }
 
-        for (const model of modelsToDelete) {
+        for (const model of deletableModels) {
           next[model.id] = true
         }
 
@@ -182,12 +201,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       })
 
       try {
-        await deleteModels(modelsToDelete.map((model) => model.id))
+        await deleteModels(deletableModels.map((model) => model.id))
       } catch (error) {
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
 
-          for (const model of modelsToDelete) {
+          for (const model of deletableModels) {
             delete next[model.id]
           }
 
@@ -199,7 +218,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setPendingModelIdMap((current) => {
           const next = { ...current }
 
-          for (const model of modelsToDelete) {
+          for (const model of deletableModels) {
             delete next[model.id]
           }
 
@@ -207,7 +226,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [deleteModels]
+    [defaultModelIds, deleteModels]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])
@@ -229,6 +248,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     enabledSections,
     disabled,
     pendingModelIds,
+    defaultModelIds,
     onEditModel: openEditModelDrawer,
     onDeleteModel,
     onDeleteModels

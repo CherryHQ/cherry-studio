@@ -6622,6 +6622,7 @@
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
         "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
         "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
+        "default_model_cannot_remove": "Το προεπιλεγμένο μοντέλο δεν μπορεί να διαγραφεί.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

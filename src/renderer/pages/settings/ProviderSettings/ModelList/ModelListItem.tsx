@@ -15,12 +15,16 @@ interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
   disabled?: boolean
+  isDefaultModel?: boolean
   onEdit: (model: Model) => void
   onDelete: (model: Model) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onDelete }) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isDefaultModel, onEdit, onDelete }) => {
   const { t } = useTranslation()
+  const deleteTooltip = isDefaultModel
+    ? t('settings.models.manage.default_model_cannot_remove')
+    : t('settings.models.manage.remove_model')
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -81,14 +85,14 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
                 <Bolt className="size-4" />
               </Button>
             </Tooltip>
-            <Tooltip content={t('settings.models.manage.remove_model')} placement="top">
+            <Tooltip content={deleteTooltip} placement="top">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
                 className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton}`}
                 aria-label={t('settings.models.manage.remove_model')}
-                disabled={disabled}
+                disabled={disabled || isDefaultModel}
                 onClick={handleDelete}>
                 <Minus className="size-4" />
               </Button>

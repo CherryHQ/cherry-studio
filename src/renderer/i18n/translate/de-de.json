@@ -6622,6 +6622,7 @@
         "add_whole_group": "Gesamte Gruppe hinzufügen",
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
+        "default_model_cannot_remove": "Das Standardmodell kann nicht gelöscht werden.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",

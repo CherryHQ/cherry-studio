@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,6 +36,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 describe('useProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
 
     useModelsMock.mockReturnValue({ models, isLoading: false })
     deleteModelMock.mockResolvedValue(undefined)
@@ -55,6 +57,33 @@ describe('useProviderModelList', () => {
 
     expect(result.current.editDrawer.open).toBe(true)
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
+  })
+
+  it('does not delete a model used as a default', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.default_model_id': models[0].id,
+      'feature.quick_assistant.model_id': models[1].id
+    })
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.sections.defaultModelIds).toEqual(new Set([models[0].id, models[1].id]))
+
+    await act(async () => {
+      await result.current.sections.onDeleteModel(models[0])
+    })
+
+    expect(deleteModelMock).not.toHaveBeenCalled()
+  })
+
+  it('skips default models when deleting multiple models', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', models[0].id)
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    await act(async () => {
+      await result.current.sections.onDeleteModels(models)
+    })
+
+    expect(deleteModelsMock).toHaveBeenCalledWith([models[1].id])
   })
 
   it('uses saved model group names in the provider model list', () => {
