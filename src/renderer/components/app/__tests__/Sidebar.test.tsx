@@ -125,7 +125,7 @@ vi.mock('@renderer/services/settingsNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
 }))
 
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('../../UserPopup', () => ({
   default: {
     show: mocks.showUserPopup
   }

@@ -28,7 +28,7 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -62,20 +62,74 @@ export const useSession = (sessionId: string | null) => {
   return { session, error, isLoading, mutate }
 }
 
+/**
+ * The globally most-recently-updated session, for first-entry restore.
+ *
+ * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * last-touched session without waiting for the full session history to paginate
+ * in and without depending on the pinned-first `/agent-sessions` list order.
+ *
+ * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
+ * cache coherent would mean every updatedAt-bumping write invalidating it (an
+ * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
+ * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
+ * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * `latestSession` is `undefined` while loading and when there are no sessions.
+ */
+export function useLatestSession(opts?: { enabled?: boolean }) {
+  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
+    enabled: opts?.enabled
+  })
+
+  return {
+    latestSession: data?.session ?? undefined,
+    isLoading: isLoading || isRefreshing,
+    refetch,
+    mutate
+  }
+}
+
 export interface UseActiveSessionOptions {
   /** External source of truth for the active session id (e.g. URL search). */
   activeSessionId: string | null
   /** Write back when callers select a different session. */
   setActiveSessionId: (id: string | null) => void
-  pendingSession?: AgentSessionEntity | null
+  /** Optimistic session to paint before its by-id query resolves (e.g. first-entry restore). */
+  initialSession?: AgentSessionEntity | null
 }
 
-export const useActiveSession = ({ activeSessionId, setActiveSessionId, pendingSession }: UseActiveSessionOptions) => {
+/**
+ * Resolves the active session (query-backed, with an optimistic fallback) and owns the pending
+ * session itself — mirroring {@link import('@renderer/hooks/useTopic').useActiveTopic}. Callers pass
+ * only `activeSessionId` + `setActiveSessionId` and drive selection through `setActiveSession` /
+ * `selectSession` / `clearActiveSession`; the hook keeps pending in `useState` so a stale optimistic
+ * session is ignored via the id match rather than eagerly nulled at every call site.
+ */
+export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialSession }: UseActiveSessionOptions) => {
   const result = useSession(activeSessionId)
+  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(() => initialSession ?? null)
+
   const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
+  // returned, never counted as the source), so no path has to null it out to stay correct.
   const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
   const session = querySession ?? resolvedPendingSession
   const sessionSource: AgentSessionSource = querySession ? 'query' : resolvedPendingSession ? 'pending' : 'none'
+
+  // Set the active id and its optimistic session together. `entity` may be null to move to an id
+  // whose row is fetched by query (e.g. history/global-search reveal), or the id may be null to clear.
+  const selectSession = useCallback(
+    (sessionId: string | null, entity?: AgentSessionEntity | null) => {
+      setPendingSession(entity ?? null)
+      setActiveSessionId(sessionId)
+    },
+    [setActiveSessionId]
+  )
+  const setActiveSession = useCallback(
+    (entity: AgentSessionEntity) => selectSession(entity.id, entity),
+    [selectSession]
+  )
+  const clearActiveSession = useCallback(() => selectSession(null, null), [selectSession])
 
   return {
     ...result,
@@ -83,7 +137,12 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, pendingS
     sessionSource,
     isLoading: !session && result.isLoading,
     activeSessionId,
-    setActiveSessionId
+    setActiveSessionId,
+    setActiveSession,
+    selectSession,
+    clearActiveSession,
+    pendingSession,
+    setPendingSession
   }
 }
 
@@ -113,9 +172,10 @@ export const useSessions = (
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 
-  // AgentSessionService returns the persisted session order (`orderKey`, `id`).
-  // The `/pins` map is composed in the renderer for row indicators, toggle
-  // handling, and display grouping/sorting that promotes pinned sessions.
+  // AgentSessionService returns sessions pinned-first (by `pin.orderKey`) then by
+  // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
+  // for row indicators, toggle handling, and display grouping/sorting that
+  // promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
   const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(

@@ -25,6 +25,7 @@ const {
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseListMock,
+  knowledgeBaseUpdateMock,
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
@@ -62,6 +63,7 @@ const {
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
+  knowledgeBaseUpdateMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
@@ -150,7 +152,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     create: knowledgeBaseCreateMock,
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
-    list: knowledgeBaseListMock
+    list: knowledgeBaseListMock,
+    update: knowledgeBaseUpdateMock
   }
 }))
 
@@ -312,6 +315,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+    knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
       size: 1024,
@@ -956,6 +960,110 @@ describe('KnowledgeService', () => {
       'knowledge.reindex-subtree'
     ])
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
+  })
+
+  describe('enableEmbeddingModel', () => {
+    it('sets the model with the backfill bypass and reindexes every existing root item', async () => {
+      const service = new KnowledgeService()
+      const rootItems = [createNoteItem('note-1', 'kb-1', null, 'completed'), createFileItem('file-1')]
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue(rootItems)
+      knowledgeItemGetByIdMock.mockImplementation((id: string) => rootItems.find((item) => item.id === id))
+
+      const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
+      const result = await service.enableEmbeddingModel('kb-1', patch)
+
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
+      expect(result.embeddingModelId).toBe('provider::embed')
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.reindex-subtree',
+        expect.objectContaining({ baseId: 'kb-1', rootItemIds: expect.arrayContaining(['note-1', 'file-1']) }),
+        expect.anything()
+      )
+    })
+
+    it('skips reindexing when the base has no items yet', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
+
+      const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
+      const result = await service.enableEmbeddingModel('kb-1', patch)
+
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
+      expect(result.embeddingModelId).toBe('provider::embed')
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('excludes items already being deleted from the backfill reindex', async () => {
+      const service = new KnowledgeService()
+      const deletingItem = createNoteItem('note-2', 'kb-1', null, 'completed')
+      deletingItem.status = 'deleting'
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([deletingItem])
+
+      await service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('rejects a doomed backfill before committing the model, instead of leaving it set with no vectors', async () => {
+      const service = new KnowledgeService()
+      const activeRoot = createNoteItem('note-3', 'kb-1', null, 'embedding')
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([activeRoot])
+      knowledgeItemGetByIdMock.mockReturnValue(activeRoot)
+      knowledgeItemGetSubtreeItemsMock.mockImplementation(
+        (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+          options.includeRoots ? [activeRoot] : []
+      )
+
+      await expect(
+        service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      // Admission failed before the model was ever committed — the base stays BM25-only.
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('rejects a backfill when a root item source no longer exists, without committing the model', async () => {
+      const service = new KnowledgeService()
+      const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
+      probeKnowledgeFileMock.mockResolvedValue('missing')
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
+      knowledgeItemGetByIdMock.mockReturnValue(root)
+      knowledgeItemGetSubtreeItemsMock.mockImplementation(
+        (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+          options.includeRoots ? [root] : []
+      )
+
+      await expect(
+        service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+      })
+
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+
+    it('rejects enabling embedding on a failed base before committing the model', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(
+        createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+      )
+      const root = createNoteItem('note-1', 'kb-1', null, 'completed')
+      knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
+
+      try {
+        await service.enableEmbeddingModel('kb-1', { embeddingModelId: 'provider::embed', dimensions: 3 })
+        throw new Error('Expected enableEmbeddingModel to fail')
+      } catch (error) {
+        expectFailedBaseGuard(error, 'enableEmbeddingModel')
+      }
+
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
   })
 
   it('starts file processing and schedules a check job for supported document files when the base has a processor', async () => {

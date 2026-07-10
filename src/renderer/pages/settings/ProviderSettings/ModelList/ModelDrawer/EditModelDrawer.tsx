@@ -9,7 +9,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'

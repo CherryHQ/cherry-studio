@@ -39,36 +39,17 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 /**
  * Hook to manage installed skills.
  *
- * Pass `agentId` to get per-agent enablement state and to scope toggle calls
- * to that agent. Without `agentId`, the hook returns the global skill library
- * with `isEnabled` forced to false — callers without an agent context (e.g.
- * the global Settings → Skills page) should rely on uninstall only.
+ * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
+ * hook returns the global skill library with `isEnabled` forced to false.
+ * Per-agent enablement is edited through the agent form and saved via
+ * PATCH /agents (see `AgentEditDialog`), not through this hook.
  */
-export function useInstalledSkills(agentId?: string) {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery(
-    '/skills',
-    agentId ? { query: { agentId } } : undefined
-  )
+export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+    enabled: options.enabled !== false,
+    ...(agentId ? { query: { agentId } } : {})
+  })
   const invalidate = useInvalidateCache()
-
-  const toggle = useCallback(
-    async (skillId: string, isEnabled: boolean) => {
-      if (!agentId) {
-        logger.warn('skill.toggle called without agentId; ignoring', { skillId, isEnabled })
-        return false
-      }
-      try {
-        const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
-        const skill = unwrapSkillResult(result)
-        if (!skill) throw new Error('Skill toggle returned no result')
-        await refreshSkillsBestEffort(invalidate)
-        return skill.isEnabled === isEnabled
-      } catch (error) {
-        reportAndRethrowSkillMutationError('toggle skill', error)
-      }
-    },
-    [agentId, invalidate]
-  )
 
   const uninstall = useCallback(
     async (skillId: string) => {
@@ -89,7 +70,6 @@ export function useInstalledSkills(agentId?: string) {
     loading: isLoading || isRefreshing,
     error: error?.message ?? null,
     refresh: refetch,
-    toggle,
     uninstall
   }
 }

@@ -15,7 +15,6 @@ const {
   fetchGenerateMock,
   mcpStatusState,
   openSettingsTabMock,
-  toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -52,7 +51,6 @@ const {
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -183,7 +181,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
       }
     ],
     loading: false,
-    toggle: toggleSkillMock
+    refresh: vi.fn()
   })
 }))
 
@@ -206,8 +204,6 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string, fallback?: string) =>
         ({
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           'common.avatar': 'Avatar',
@@ -241,8 +237,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use workspace soul files and autonomous tools.',
-          'library.config.agent.field.soul_enabled.label': 'Autonomous mode',
           'library.config.agent.field.instructions.label': 'Instructions',
           'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
@@ -421,7 +415,6 @@ const AGENT: AgentDetail = {
   mcps: [],
   configuration: {
     avatar: '🤖',
-    soul_enabled: false,
     heartbeat_enabled: true,
     heartbeat_interval: 30
   },
@@ -510,7 +503,6 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
-  toggleSkillMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -853,29 +845,6 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('hides permission mode while autonomous mode is enabled', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
-    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Autonomous mode' }))
-
-    expect(screen.queryByRole('combobox', { name: 'Permission mode' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          configuration: expect.objectContaining({
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
-          })
-        })
-      })
-    )
-  })
-
   it('shows agent tool categories directly in the left tab list', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
@@ -893,6 +862,25 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('queues agent skill toggles until the edit dialog is saved', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
+        })
+      })
+    )
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {

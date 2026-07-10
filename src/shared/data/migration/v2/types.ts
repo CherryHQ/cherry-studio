@@ -44,6 +44,13 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
+  /**
+   * Resolved v1 data directory to surface on the introduction screen, seeded
+   * only when the migration gate auto-recovered a non-default custom userData
+   * location (fuzzy fallback). Absent otherwise. Its presence is what tells
+   * the renderer to render the "data migration directory" notice.
+   */
+  dataLocation?: string
 }
 
 // Prepare phase result

@@ -31,262 +31,113 @@
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "Agregar",
-        "bindAgent": "Agente vinculante",
-        "chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
-        "comingSoon": "Próximamente",
+    "channels": {
+      "add": "Agregar",
+      "bindAgent": "Agente vinculante",
+      "chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
+      "comingSoon": "Próximamente",
+      "connected": "Conectado",
+      "connecting": "Conectando",
+      "createError": "Error al crear el canal",
+      "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
+      "deleteError": "Error al eliminar el canal",
+      "description": "Conecte su agente a plataformas de mensajería.",
+      "disconnected": "Desconectado",
+      "discord": {
+        "botToken": "Token del Bot",
+        "botTokenPlaceholder": "Introduce tu token de bot de Discord",
+        "channelIds": "IDs de canales permitidos",
+        "channelIdsHint": "Formato: canal:id o mp:id. Dejar vacío para permitir todos.",
+        "channelIdsPlaceholder": "canal:123456789, md:987654321",
+        "description": "Recibir y responder mensajes a través de un bot de Discord usando la pasarela WebSocket.",
+        "title": "Discord",
+        "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
+      },
+      "error": "Error",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "Conectado",
-        "connecting": "Conectando",
-        "createError": "Error al crear el canal",
-        "deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
-        "deleteError": "Error al eliminar el canal",
-        "description": "Conecte su agente a plataformas de mensajería.",
+        "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
+        "domain": "Dominio",
+        "domainFeishu": "Feishu (China)",
+        "domainLark": "Lark (Internacional)",
+        "encryptKey": "Clave de cifrado",
+        "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
+        "loginHint": "No se han configurado credenciales. Activa el canal para iniciar el registro con código QR o introduce manualmente el ID de la aplicación y el secreto de la aplicación.",
+        "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
+        "qrHint": "Esperando el escaneo del código QR...",
+        "qrScanHint": "Abre Feishu en tu teléfono y escanea el código QR para crear una aplicación de bot.",
+        "qrTitle": "Registro con código QR de Feishu",
+        "title": "Feishu",
+        "verificationToken": "Token de verificación",
+        "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
+      },
+      "logs": "Registros",
+      "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
+      "noLogs": "Aún no hay registros",
+      "notifyReceiver": "Recibir notificaciones de tareas",
+      "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
+        "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
+      },
+      "security": {
+        "inheritFromAgent": "Heredar del agente",
+        "permissionMode": "Modo de Permisos del Canal",
+        "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
+      },
+      "selectAgent": "Selecciona un agente para vincular",
+      "slack": {
+        "appToken": "Token a nivel de aplicación",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Token del Bot",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "IDs de Canales Permitidos",
+        "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
+        "title": "Slack",
+        "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
+      },
+      "tab": "Canales",
+      "telegram": {
+        "botToken": "Token del bot",
+        "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
+        "chatIds": "IDs de chat permitidos",
+        "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
+        "title": "Telegram"
+      },
+      "title": "Canales",
+      "updateError": "Error al actualizar el canal",
+      "wechat": {
+        "addAccount": "Agregar cuenta de WeChat",
+        "chatIds": "IDs de Usuario Permitidos",
+        "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los usuarios.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Conectado",
+        "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
         "disconnected": "Desconectado",
-        "discord": {
-          "botToken": "Token del Bot",
-          "botTokenPlaceholder": "Introduce tu token de bot de Discord",
-          "channelIds": "IDs de canales permitidos",
-          "channelIdsHint": "Formato: canal:id o mp:id. Dejar vacío para permitir todos.",
-          "channelIdsPlaceholder": "canal:123456789, md:987654321",
-          "description": "Recibir y responder mensajes a través de un bot de Discord usando la pasarela WebSocket.",
-          "title": "Discord",
-          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener tu ID de canal en el formato correcto."
-        },
-        "error": "Error",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "Conectado",
-          "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
-          "domain": "Dominio",
-          "domainFeishu": "Feishu (China)",
-          "domainLark": "Lark (Internacional)",
-          "encryptKey": "Clave de cifrado",
-          "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
-          "loginHint": "No se han configurado credenciales. Activa el canal para iniciar el registro con código QR o introduce manualmente el ID de la aplicación y el secreto de la aplicación.",
-          "qrExpired": "Código QR expirado. Por favor, inténtalo de nuevo cambiando el canal.",
-          "qrHint": "Esperando el escaneo del código QR...",
-          "qrScanHint": "Abre Feishu en tu teléfono y escanea el código QR para crear una aplicación de bot.",
-          "qrTitle": "Registro con código QR de Feishu",
-          "title": "Feishu",
-          "verificationToken": "Token de verificación",
-          "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
-        },
-        "logs": "Registros",
-        "noInstances": "No hay canales de {{type}} configurados. Haz clic en \"+ Añadir\" para crear uno.",
-        "noLogs": "Aún no hay registros",
-        "notifyReceiver": "Recibir notificaciones de tareas",
-        "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
-          "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
-          "title": "QQ",
-          "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
-        },
-        "security": {
-          "inheritFromAgent": "Heredar del agente",
-          "permissionMode": "Modo de Permisos del Canal",
-          "permissionModeHint": "Anular el modo de permisos del agente para los mensajes de este canal. \"Heredar\" utiliza la configuración predeterminada del agente."
-        },
-        "selectAgent": "Selecciona un agente para vincular",
-        "slack": {
-          "appToken": "Token a nivel de aplicación",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Token del Bot",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "IDs de Canales Permitidos",
-          "channelIdsHint": "IDs de canales de Slack. Dejar vacío para permitir todos.",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "Recibe y responde a mensajes mediante un bot de Slack usando el modo Socket.",
-          "title": "Slack",
-          "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
-        },
-        "soulModeRequired": "Este agente no tiene el Modo Autónomo habilitado. Las funciones del canal no funcionarán. Por favor, habilítalo en la configuración del agente.",
-        "tab": "Canales",
-        "telegram": {
-          "botToken": "Token del bot",
-          "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
-          "chatIds": "IDs de chat permitidos",
-          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
-          "title": "Telegram"
-        },
-        "title": "Canales",
-        "updateError": "Error al actualizar el canal",
-        "wechat": {
-          "addAccount": "Agregar cuenta de WeChat",
-          "chatIds": "IDs de Usuario Permitidos",
-          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los usuarios.",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "Conectado",
-          "description": "Recibe y responde a mensajes a través de WeChat utilizando la API de iLink Bot.",
-          "disconnected": "Desconectado",
-          "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
-          "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
-          "qrTitle": "Inicio de sesión con código QR de WeChat",
-          "title": "WeChat",
-          "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
-        }
-      },
-      "heartbeat": {
-        "enabled": "Habilitar Heartbeat",
-        "enabledHelper": "Cuando está habilitado y heartbeat.md existe en el espacio de trabajo, el programador lee su contenido y lo envía a la sesión principal en el intervalo configurado.",
-        "interval": "Intervalo (minutos)",
-        "intervalHelper": "Con qué frecuencia se ejecuta el heartbeat, en minutos."
-      },
-      "sandbox": {
-        "description": "Restringe el acceso al sistema de archivos y red del agente al directorio del espacio de trabajo usando sandboxing a nivel de sistema operativo.",
-        "helper": "Restringir el acceso al sistema de archivos y comandos a la ruta del espacio de trabajo.",
-        "label": "Modo Sandbox"
-      },
-      "scheduler": {
-        "cron": {
-          "helper": "Expresión cron estándar (ej: '*/30 * * * *' para cada 30 minutos).",
-          "label": "Expresión Cron",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "El programador activa el agente automáticamente según un horario.",
-        "enabled": "Habilitar programador",
-        "enabledHelper": "Cuando está habilitado, el agente se ejecutará automáticamente según el horario configurado.",
-        "errors": {
-          "invalidCron": "Expresión cron inválida",
-          "invalidDelay": "El retraso debe ser un número positivo",
-          "invalidInterval": "El intervalo debe ser un número positivo"
-        },
-        "interval": {
-          "helper": "Con qué frecuencia debe ejecutarse el agente, en segundos.",
-          "label": "Intervalo (segundos)"
-        },
-        "lastRun": "Última ejecución",
-        "never": "Nunca",
-        "nextRun": "Próxima ejecución",
-        "oneTime": {
-          "helper": "Retraso único en segundos antes de que el agente se ejecute.",
-          "label": "Retraso (segundos)"
-        },
-        "status": {
-          "running": "Ejecutando",
-          "stopped": "Detenido",
-          "tickInProgress": "Tick en progreso"
-        },
-        "tab": "Programador",
-        "title": "Configuración del programador",
-        "type": {
-          "cron": "Expresión Cron",
-          "interval": "Intervalo fijo",
-          "label": "Tipo de programación",
-          "one-time": "Retraso único"
-        }
-      },
-      "soul": {
-        "description": "El alma define la personalidad y el comportamiento base del agente. Se lee desde soul.md en la raíz del espacio de trabajo.",
-        "empty": "No se encontró soul.md en la raíz del espacio de trabajo. Cree uno para definir la personalidad del agente.",
-        "enabled": "Habilitar alma",
-        "enabledHelper": "Cuando está habilitado, el agente lee soul.md desde la raíz del espacio de trabajo y lo antepone al prompt del sistema.",
-        "fileLabel": "soul.md",
-        "preview": "Vista previa del alma",
-        "tab": "Alma",
-        "title": "Configuración del alma"
-      },
-      "tasks": {
-        "add": "Agregar tarea",
-        "cancel": "Cancelar",
-        "channels": {
-          "label": "Enviar a Canales",
-          "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
-          "placeholder": "Seleccionar canales para recibir resultados"
-        },
-        "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
-        "delete": {
-          "confirm": "¿Está seguro de que desea eliminar esta tarea?",
-          "label": "Eliminar"
-        },
-        "edit": "Editar",
-        "empty": "No hay tareas programadas. Agregue una para comenzar.",
-        "error": {
-          "createFailed": "Error al crear la tarea",
-          "deleteFailed": "Error al eliminar la tarea",
-          "loadFailed": "Error al cargar las tareas",
-          "runFailed": "Error al ejecutar la tarea",
-          "updateFailed": "Error al actualizar la tarea"
-        },
-        "frequency": {
-          "everyPrefix": "Cada",
-          "everySuffix": "minutos",
-          "label": "Frecuencia de ejecución"
-        },
-        "intervalPlaceholder": "Al menos 1",
-        "intervalUnit": "minutos",
-        "lastRun": "Última ejecución",
-        "logs": {
-          "cancelled": "Cancelado",
-          "completed": "Completado",
-          "duration": "Duración",
-          "empty": "Aún no hay historial de ejecución.",
-          "failed": "Fallido",
-          "justNow": "ahora mismo",
-          "label": "Historial de ejecución",
-          "loadError": "Error al cargar el historial de ejecución",
-          "result": "Resultado",
-          "runAt": "Ejecutado en",
-          "running": "Corriendo...",
-          "search": "Buscar registros...",
-          "status": "Estado",
-          "viewSession": "Ver sesión"
-        },
-        "name": {
-          "label": "Nombre",
-          "placeholder": "ej: Revisión de código diaria"
-        },
-        "nextRun": "Próxima ejecución",
-        "oncePlaceholder": "Seleccionar fecha y hora",
-        "pause": "Pausar",
-        "prompt": {
-          "expand": "Expandir editor",
-          "label": "Prompt",
-          "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
-        },
-        "resume": "Reanudar",
-        "run": "Ejecutar",
-        "runTriggered": "Tarea activada",
-        "save": "Guardar",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "Intervalo",
-          "once": "Una vez"
-        },
-        "status": {
-          "active": "Activo",
-          "completed": "Completado",
-          "paused": "Pausado"
-        },
-        "tab": "Tareas",
-        "time": {
-          "hoursAgo": "hace {{count}}h",
-          "minutesAgo": "{{count}}m hace"
-        },
-        "timeout": {
-          "label": "Tiempo máximo de ejecución",
-          "placeholder": "Sin límite"
-        },
-        "title": "Tareas programadas"
-      },
-      "warning": {
-        "bypassPermissions": "Los agentes CherryClaw se ejecutan en modo automático completo por defecto. Todas las herramientas se ejecutan sin pedir aprobación."
+        "loginHint": "El primer inicio de sesión requiere escanear un código QR. Verifica los registros de la aplicación para obtener la URL de inicio de sesión.",
+        "qrHint": "Abre WeChat en tu teléfono, escanea el código QR para iniciar sesión.",
+        "qrTitle": "Inicio de sesión con código QR de WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Consejo: Envía /whoami en WeChat para obtener el ID de un usuario."
       }
     },
     "delete": {
@@ -339,14 +190,19 @@
     "home": {
       "welcome_title": "¿De qué hablaremos hoy?"
     },
+    "icon": {
+      "type": "Icono de Agente"
+    },
     "input": {
-      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
-      "soul_placeholder": "Ayúdame a conectarme a Telegram"
+      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
     "list": {
       "error": {
         "failed": "Error al listar agentes."
       }
+    },
+    "manage": {
+      "title": "Gestionar Agentes"
     },
     "pin": {
       "title": "Agente Pin"
@@ -499,6 +355,7 @@
         "label": "Herramientas preaprobadas",
         "placeholder": "Seleccionar herramientas preaprobadas"
       },
+      "auto_rename": "Generar nombre de tarea",
       "create": {
         "error": {
           "failed": "Error al añadir una sesión"
@@ -712,12 +569,6 @@
         "tab": "Habilidades",
         "title": "Habilidades Instaladas"
       },
-      "soulMode": {
-        "description": "Cuando está habilitado, el agente utiliza un mensaje del sistema personalizado desde archivos soul del espacio de trabajo, inyecta herramientas de gestión de tareas autónomas y desactiva las herramientas interactivas no adecuadas para el funcionamiento autónomo.",
-        "disabledBadge": "Desactivado por el Modo Autónomo",
-        "disabledTooltip": "Esta herramienta se desactiva automáticamente cuando el Modo Autónomo está activo.",
-        "title": "Modo Autónomo"
-      },
       "tooling": {
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",
@@ -784,6 +635,94 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "Gestionar habilidades"
+      }
+    },
+    "tasks": {
+      "add": "Agregar tarea",
+      "cancel": "Cancelar",
+      "channels": {
+        "label": "Enviar a Canales",
+        "noActiveChatIds": "Los canales seleccionados no tienen destinatarios disponibles (ID de chat). Es posible que los resultados de la tarea no se entreguen. Primero, envíe un mensaje al Bot en la plataforma.",
+        "placeholder": "Seleccionar canales para recibir resultados"
+      },
+      "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
+      "delete": {
+        "confirm": "¿Está seguro de que desea eliminar esta tarea?",
+        "label": "Eliminar"
+      },
+      "edit": "Editar",
+      "empty": "No hay tareas programadas. Agregue una para comenzar.",
+      "error": {
+        "createFailed": "Error al crear la tarea",
+        "deleteFailed": "Error al eliminar la tarea",
+        "loadFailed": "Error al cargar las tareas",
+        "runFailed": "Error al ejecutar la tarea",
+        "updateFailed": "Error al actualizar la tarea"
+      },
+      "frequency": {
+        "everyPrefix": "Cada",
+        "everySuffix": "minutos",
+        "label": "Frecuencia de ejecución"
+      },
+      "intervalPlaceholder": "Al menos 1",
+      "intervalUnit": "minutos",
+      "lastRun": "Última ejecución",
+      "logs": {
+        "cancelled": "Cancelado",
+        "completed": "Completado",
+        "duration": "Duración",
+        "empty": "Aún no hay historial de ejecución.",
+        "failed": "Fallido",
+        "justNow": "ahora mismo",
+        "label": "Historial de ejecución",
+        "loadError": "Error al cargar el historial de ejecución",
+        "result": "Resultado",
+        "runAt": "Ejecutado en",
+        "running": "Corriendo...",
+        "search": "Buscar registros...",
+        "status": "Estado",
+        "viewSession": "Ver sesión"
+      },
+      "name": {
+        "label": "Nombre",
+        "placeholder": "ej: Revisión de código diaria"
+      },
+      "nextRun": "Próxima ejecución",
+      "oncePlaceholder": "Seleccionar fecha y hora",
+      "pause": "Pausar",
+      "prompt": {
+        "expand": "Expandir editor",
+        "label": "Prompt",
+        "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
+      },
+      "resume": "Reanudar",
+      "run": "Ejecutar",
+      "runTriggered": "Tarea activada",
+      "save": "Guardar",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "Intervalo",
+        "once": "Una vez"
+      },
+      "status": {
+        "active": "Activo",
+        "completed": "Completado",
+        "paused": "Pausado"
+      },
+      "tab": "Tareas",
+      "time": {
+        "hoursAgo": "hace {{count}}h",
+        "minutesAgo": "{{count}}m hace"
+      },
+      "timeout": {
+        "label": "Tiempo máximo de ejecución",
+        "placeholder": "Sin límite"
+      },
+      "title": "Tareas programadas"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +874,14 @@
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
+          "label": "[to be translated]:Agent Config"
+        },
+        "CherryCron": {
+          "description": "Gestiona el programador dentro de la aplicación",
+          "label": "Planificador"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -943,6 +890,10 @@
           "description": "Busca en tus bases de conocimiento",
           "label": "Búsqueda de conocimiento"
         },
+        "CherryNotify": {
+          "description": "[to be translated]:Sends a notification through a connected channel",
+          "label": "[to be translated]:Notify"
+        },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
           "label": "Obtención web"
@@ -950,10 +901,6 @@
         "CherryWebSearch": {
           "description": "Busca en la web a través de tu proveedor configurado",
           "label": "Búsqueda en la web"
-        },
-        "ClawCron": {
-          "description": "Gestiona el programador dentro de la aplicación",
-          "label": "Planificador"
         },
         "Edit": {
           "description": "Realiza ediciones dirigidas a archivos específicos",
@@ -1087,6 +1034,7 @@
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
       "menu_title": "Eliminar todas las conversaciones con el asistente",
+      "success_title": "Se eliminaron {{count}} temas",
       "title": "Vaciar Tema"
     },
     "copy": {
@@ -1712,6 +1660,7 @@
               "tip": "El tema se guardará en la base de conocimientos en forma de contexto de conversación completo."
             }
           },
+          "source_fallback": "Conversación",
           "success": "El tema se ha guardado correctamente en la base de conocimiento ({{count}} elementos)",
           "title": "Guardar tema en la base de conocimientos"
         }
@@ -2986,11 +2935,10 @@
             "placeholder": "Dale un nombre al agente"
           },
           "permission_mode": {
-            "help": "Cambiar a bypassPermissions es equivalente a activar el modo Soul",
             "label": "Modo de permiso",
             "option": {
               "acceptEdits": "Aceptar ediciones",
-              "bypassPermissions": "Omitir permisos (Alma)",
+              "bypassPermissions": "Omitir permisos",
               "default": "Predeterminado",
               "plan": "Modo de planificación"
             }
@@ -3002,10 +2950,6 @@
           "small_model": {
             "hint": "Verificaciones ligeras y formato",
             "label": "Modelo pequeño (opcional)"
-          },
-          "soul_enabled": {
-            "help": "Cuando está habilitado, otorga automáticamente bypassPermissions",
-            "label": "Modo alma"
           }
         },
         "model_config": "Configuración del modelo",
@@ -3135,6 +3079,7 @@
           "avatar_aria": "Elegir avatar",
           "back": "Atrás",
           "capability": {
+            "builtin_badge": "Habilitado por defecto",
             "import": "Importar habilidad",
             "no_skills": "No hay habilidades instaladas",
             "search": "Habilidades de búsqueda"
@@ -3753,6 +3698,7 @@
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
+      "collapse": "Colapsar",
       "completed": "Completado",
       "error": "Se ha producido un error",
       "groupHeader": "{{count}} llamadas a herramientas",
@@ -3797,6 +3743,7 @@
         "usingTools": "Trabajando en la tarea"
       },
       "preview": "Vista previa",
+      "processed": "Procesado",
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "runningHeader": "Trabajando…",
@@ -4048,10 +3995,13 @@
     "drop_markdown_hint": "Arrastre y suelte archivos o carpetas de .md aquí para importar",
     "empty": "Sin notas por el momento",
     "expand": "expandir",
+    "exportToPDF": "Exportar a PDF",
     "exportToWord": "Exportar a Word",
     "export_failed": "Exportación a la base de conocimientos fallida",
     "export_knowledge": "exportar notas a la base de conocimientos",
     "export_success": "Exportado con éxito a la base de conocimientos",
+    "export_to_pdf_failed": "No se pudo exportar a PDF",
+    "export_to_pdf_success": "Exportado a PDF",
     "export_to_word_failed": "Error al exportar a Word",
     "folder": "carpeta",
     "load_failed": "Error al cargar la nota",
@@ -4068,6 +4018,8 @@
     "no_valid_files": "No se ha cargado un archivo válido",
     "open_folder": "abrir carpeta externa",
     "open_outside": "Abrir desde el exterior",
+    "print": "Imprimir",
+    "print_failed": "Error al imprimir la nota",
     "rename": "renombrar",
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "rename_failed": "Error al renombrar la nota",
@@ -5331,6 +5283,13 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "agent": {
+      "position": {
+        "label": "Posición de sesión",
+        "left": "Izquierda",
+        "right": "Derecha"
+      }
+    },
     "appearance": {
       "title": "Apariencia"
     },
@@ -5967,6 +5926,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Buscar actualizaciones",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
@@ -6004,7 +5964,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Error al buscar actualizaciones"
     },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
@@ -7266,6 +7227,7 @@
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
+      "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset": "Restablecer",
@@ -7596,6 +7558,7 @@
   },
   "title": {
     "apps": "Aplicaciones",
+    "chat": "Chat",
     "code": "Código",
     "files": "Archivos",
     "home": "Inicio",

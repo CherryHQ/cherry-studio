@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelDispatchKeyDown: vi.fn(),
   quickPanelGeneration: 0,
   quickPanelIsVisible: false,
+  quickPanelInitialSearchText: undefined as string | undefined,
   quickPanelOpen: vi.fn(),
   quickPanelQueryAnchor: undefined as number | undefined,
   quickPanelSymbol: '',
@@ -127,6 +128,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
     getPanelGeneration: () => mocks.quickPanelGeneration,
     isVisible: mocks.quickPanelIsVisible,
+    initialSearchText: mocks.quickPanelInitialSearchText,
     open: mocks.quickPanelOpen,
     queryAnchor: mocks.quickPanelQueryAnchor,
     symbol: mocks.quickPanelSymbol,
@@ -430,6 +432,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelDispatchKeyDown.mockReset()
     mocks.quickPanelGeneration = 0
     mocks.quickPanelIsVisible = false
+    mocks.quickPanelInitialSearchText = undefined
     mocks.quickPanelOpen.mockReset()
     mocks.quickPanelQueryAnchor = undefined
     mocks.quickPanelSymbol = ''
@@ -1208,6 +1211,155 @@ describe('ComposerSurface', () => {
         ]
       })
     )
+  })
+
+  it('opens the unified QuickPanel with an initial search or a launcher submenu', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'thinking',
+            kind: 'group',
+            label: 'Thinking',
+            icon: 'thinking',
+            sources: ['popover'],
+            submenu: [
+              {
+                id: 'thinking-low',
+                kind: 'command',
+                label: 'Low',
+                icon: 'low',
+                sources: ['popover']
+              }
+            ]
+          },
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <>
+            <button
+              type="button"
+              aria-label="open filtered panel"
+              onClick={() => unifiedPanelControl?.open({ searchText: 'Skills' })}>
+              skills
+            </button>
+            <button
+              type="button"
+              aria-label="open thinking panel"
+              onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: 'Reasoning' })}>
+              thinking
+            </button>
+          </>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open filtered panel' }))
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: '/',
+        initialSearchText: 'Skills',
+        trackInputQuery: true
+      })
+    )
+
+    mocks.quickPanelOpen.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Thinking',
+        symbol: 'thinking',
+        parentPanel: expect.objectContaining({
+          symbol: '/',
+          initialSearchText: 'Reasoning'
+        }),
+        list: [expect.objectContaining({ label: 'Low' })]
+      })
+    )
+  })
+
+  it('closes a button-opened unified panel when the same control is clicked again', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = 'thinking'
+    mocks.quickPanelTriggerInfo = { type: 'button', position: 0 }
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'thinking',
+            kind: 'group',
+            label: 'Thinking',
+            icon: 'thinking',
+            sources: ['popover'],
+            submenu: [
+              {
+                id: 'thinking-low',
+                kind: 'command',
+                label: 'Low',
+                icon: 'low',
+                sources: ['popover']
+              }
+            ]
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button
+            type="button"
+            aria-label="open thinking panel"
+            onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: 'Reasoning' })}>
+            thinking
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('toggle')
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+
+    mocks.quickPanelClose.mockClear()
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelInitialSearchText = 'Skills'
+    mocks.quickPanelTriggerInfo = { type: 'button', position: 0 }
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        rootPanelAdditionalItems={[{ id: 'skill:pdf', label: 'pdf', icon: 'skill', searchAliases: ['Skills'] }]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button
+            type="button"
+            aria-label="open filtered panel"
+            onClick={() => unifiedPanelControl?.open({ searchText: 'Skills' })}>
+            skills
+          </button>
+        )}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open filtered panel' }))
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('toggle')
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
   it('marks the unified panel unavailable when the root list would be empty', async () => {
