@@ -28,7 +28,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -122,7 +122,6 @@ interface ChatComposerContextControlsProps {
   assistantName: string
   assistantEmoji?: string
   model?: Model
-  modelProviderName?: string
   modelPending?: boolean
   providers: Provider[]
   mentionedModels: Model[]
@@ -148,7 +147,6 @@ const ChatComposerContextControls = ({
   assistantName,
   assistantEmoji,
   model,
-  modelProviderName,
   modelPending,
   providers,
   mentionedModels,
@@ -184,9 +182,7 @@ const ChatComposerContextControls = ({
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
-  const assistantModelLabel = model
-    ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
-    : selectModelLabel
+  const assistantModelLabel = model ? model.name : selectModelLabel
   const modelLabel = assistantModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
@@ -662,8 +658,6 @@ const ChatComposerInner = ({
   const canSteer = isPending && !awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
-  const providerName = useProviderDisplayName(runtimeModel?.providerId)
-
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
     fallbackModel: runtimeModel
@@ -1145,7 +1139,6 @@ const ChatComposerInner = ({
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
     model: runtimeModel,
-    modelProviderName: providerName,
     modelPending: runtimeModelPending,
     providers,
     mentionedModels,

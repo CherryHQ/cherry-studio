@@ -224,6 +224,8 @@ describe('SelectedModelsTrigger', () => {
     )
 
     expect(screen.queryByLabelText('Remove Model A')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A')
+    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveTextContent('Provider A')
     expect(onModelsChange).not.toHaveBeenCalled()
     expect(onRestore).not.toHaveBeenCalled()
   })

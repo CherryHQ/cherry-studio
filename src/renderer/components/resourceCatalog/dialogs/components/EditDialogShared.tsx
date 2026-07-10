@@ -24,7 +24,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -578,7 +577,6 @@ export function CompactModelField({
   const parsedModelId = selectorValue ? parseUniqueModelId(selectorValue) : undefined
   const { model: resolvedModel } = useModelById(selectorValue)
   const selectedModel = resolvedModel?.id === selectorValue ? resolvedModel : undefined
-  const providerLabel = useProviderDisplayName(selectedModel?.providerId ?? parsedModelId?.providerId)
   const labelFromState = modelLabels[name]
   const displayLabel =
     selectedModel?.name ??
@@ -620,7 +618,6 @@ export function CompactModelField({
                     ariaLabel={label}
                     model={triggerModel}
                     displayLabel={displayLabel}
-                    providerLabel={selectorValue ? providerLabel || parsedModelId?.providerId : undefined}
                     className={cn(
                       'w-full hover:bg-background',
                       triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground'

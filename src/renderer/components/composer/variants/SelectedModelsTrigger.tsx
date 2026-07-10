@@ -78,10 +78,7 @@ export const SelectedModelsTrigger = ({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
-  const singleProviderName = singleModel ? getProviderName(singleModel, providers) : undefined
-  const singleModelLabel = singleModel
-    ? `${singleModel.name}${singleProviderName ? ` | ${singleProviderName}` : ''}`
-    : fallbackLabel
+  const singleModelLabel = singleModel ? singleModel.name : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length > 1
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
