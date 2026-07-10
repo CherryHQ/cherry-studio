@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Επεξεργασία Εικόνας (OpenAI)",
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "ID μοντέλου",
-          "placeholder": "Απαραίτητο για παράδειγμα gpt-3.5-turbo",
+          "placeholder": "Για παράδειγμα gpt-5.5",
+          "required": "Εισαγάγετε το ID μοντέλου",
           "select": {
             "placeholder": "Επιλέξτε μοντέλο"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "Όνομα μοντέλου",
-          "placeholder": "Για παράδειγμα GPT-3.5",
+          "placeholder": "Για παράδειγμα GPT-5.5",
           "tooltip": "Για παράδειγμα GPT-4"
         },
         "supported_text_delta": {

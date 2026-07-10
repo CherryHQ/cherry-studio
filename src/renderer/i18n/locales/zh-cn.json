@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "图像编辑 (OpenAI)",
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
@@ -6534,7 +6535,8 @@
         },
         "model_id": {
           "label": "模型 ID",
-          "placeholder": "必填 例如 gpt-3.5-turbo",
+          "placeholder": "例如 gpt-5.5",
+          "required": "请输入模型 ID",
           "select": {
             "placeholder": "选择模型"
           },
@@ -6542,7 +6544,7 @@
         },
         "model_name": {
           "label": "模型名称",
-          "placeholder": "例如 GPT-4",
+          "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {

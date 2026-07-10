@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Редактирование изображений (OpenAI)",
     "image-generation": "Генерация изображений (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6520,7 +6521,7 @@
         },
         "group_name": {
           "label": "Имя группы",
-          "placeholder": "Необязательно, например, ChatGPT",
+          "placeholder": "Например, ChatGPT",
           "tooltip": "Необязательно, например, ChatGPT"
         },
         "max_input_tokens": {
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "ID модели",
-          "placeholder": "Обязательно, например, gpt-3.5-turbo",
+          "placeholder": "Например, gpt-5.5",
+          "required": "Введите ID модели",
           "select": {
             "placeholder": "Выберите модель"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "Имя модели",
-          "placeholder": "Необязательно, например, GPT-4",
+          "placeholder": "Например, GPT-5.5",
           "tooltip": "Необязательно, например, GPT-4"
         },
         "supported_text_delta": {

@@ -1,7 +1,6 @@
-import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
 import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
@@ -10,6 +9,10 @@ const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
+
+beforeAll(() => {
+  Element.prototype.scrollIntoView = vi.fn()
+})
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -132,7 +135,7 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.getByTestId('provider-settings-drawer')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-settings-model-add-drawer-content')).toBeInTheDocument()
     expect(screen.queryByText('settings.models.add.endpoint_type.tooltip')).not.toBeInTheDocument()
 
@@ -160,6 +163,26 @@ describe('Model drawers', () => {
     )
   })
 
+  it('marks only the model ID as required and blocks empty submission', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    const modelIdInput = screen.getByLabelText('settings.models.add.model_id.label')
+
+    expect(screen.getByText('*')).toBeInTheDocument()
+    expect(modelIdInput).toBeRequired()
+    expect(screen.getByLabelText('settings.models.add.model_name.label')).not.toBeRequired()
+    expect(screen.getByLabelText('settings.models.add.group_name.label')).not.toBeRequired()
+    fireEvent.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(screen.getByText('settings.models.add.model_id.required')).toBeInTheDocument()
+    expect(modelIdInput).toHaveFocus()
+    expect(createModelMock).not.toHaveBeenCalled()
+  })
+
   it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
@@ -167,7 +190,7 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.getByTestId('provider-settings-drawer')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
@@ -186,7 +209,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('keeps the add-model submit disabled while creating and shows an error toast on failure', async () => {
+  it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -214,7 +237,7 @@ describe('Model drawers', () => {
       rejectCreate(new Error('create failed'))
     })
 
-    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
     expect(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i })).not.toBeDisabled()
   })
 
@@ -482,8 +505,11 @@ describe('Model drawers', () => {
       />
     )
 
+    fireEvent.click(within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox'))
+    const openAiEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai' })
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'endpoint_type.openai' }))
+      fireEvent.click(openAiEndpointOption)
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
@@ -491,6 +517,53 @@ describe('Model drawers', () => {
       'claude-4-sonnet',
       expect.objectContaining({
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+  })
+
+  it('shows and preserves the image-edit endpoint when adding another endpoint type', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="cherryin"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'cherryin::qwen-image-edit',
+            providerId: 'cherryin',
+            name: 'qwen-image-edit',
+            group: 'Image',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    expect(within(endpointField).getByText('endpoint_type.image-edit')).toBeInTheDocument()
+
+    fireEvent.click(within(endpointField).getByRole('combobox'))
+    const openAiEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai' })
+
+    await act(async () => {
+      fireEvent.click(openAiEndpointOption)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'cherryin',
+      'qwen-image-edit',
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
       })
     )
   })
@@ -523,12 +596,12 @@ describe('Model drawers', () => {
       />
     )
 
-    const responseEndpointButton = screen.getByRole('button', { name: 'endpoint_type.openai-response' })
-    expect(responseEndpointButton).toHaveAttribute('aria-disabled', 'true')
-    expect(responseEndpointButton).not.toBeDisabled()
+    fireEvent.click(within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox'))
+    const responseEndpointOption = await screen.findByRole('option', { name: 'endpoint_type.openai-response' })
+    expect(responseEndpointOption).toHaveAttribute('aria-disabled', 'true')
 
     await act(async () => {
-      fireEvent.click(responseEndpointButton)
+      fireEvent.click(responseEndpointOption)
     })
 
     expect(updateModelMock).not.toHaveBeenCalled()

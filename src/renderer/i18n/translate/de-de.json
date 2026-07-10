@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Bildbearbeitung (OpenAI)",
     "image-generation": "Bilderzeugung (OpenAI)",
     "jina-rerank": "Jina Reranking",
     "openai": "OpenAI",
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "Modell-ID",
-          "placeholder": "Pflichtfeld: Beispiel gpt-3.5-turbo",
+          "placeholder": "Beispiel gpt-5.5",
+          "required": "Bitte Modell-ID eingeben",
           "select": {
             "placeholder": "Modell auswählen"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "Modellname",
-          "placeholder": "Beispiel: GPT-4",
+          "placeholder": "Beispiel: GPT-5.5",
           "tooltip": "Beispiel: GPT-4"
         },
         "supported_text_delta": {

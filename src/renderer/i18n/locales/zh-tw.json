@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "影像編輯（OpenAI）",
     "image-generation": "影像產生（OpenAI）",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6521,7 +6522,7 @@
         },
         "group_name": {
           "label": "群組名稱",
-          "placeholder": "選填，例如 ChatGPT",
+          "placeholder": "例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
         },
         "max_input_tokens": {
@@ -6534,7 +6535,8 @@
         },
         "model_id": {
           "label": "模型 ID",
-          "placeholder": "必填，例如 gpt-3.5-turbo",
+          "placeholder": "例如 gpt-5.5",
+          "required": "請輸入模型 ID",
           "select": {
             "placeholder": "選擇模型"
           },
@@ -6542,7 +6544,7 @@
         },
         "model_name": {
           "label": "模型名稱",
-          "placeholder": "選填，例如 GPT-4",
+          "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {

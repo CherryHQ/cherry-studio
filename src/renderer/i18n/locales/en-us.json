@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Image Edit (OpenAI)",
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6521,7 +6522,7 @@
         },
         "group_name": {
           "label": "Group Name",
-          "placeholder": "Optional e.g. ChatGPT",
+          "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
         },
         "max_input_tokens": {
@@ -6534,7 +6535,8 @@
         },
         "model_id": {
           "label": "Model ID",
-          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "placeholder": "e.g. gpt-5.5",
+          "required": "Please enter the model ID",
           "select": {
             "placeholder": "Select Model"
           },
@@ -6542,7 +6544,7 @@
         },
         "model_name": {
           "label": "Model Name",
-          "placeholder": "Optional e.g. GPT-4",
+          "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
         },
         "supported_text_delta": {

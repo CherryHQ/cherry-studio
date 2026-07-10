@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "画像編集 (OpenAI)",
     "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "モデルID",
-          "placeholder": "必須 例：gpt-3.5-turbo",
+          "placeholder": "例：gpt-5.5",
+          "required": "モデル ID を入力してください",
           "select": {
             "placeholder": "モデルを選択"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "モデル名",
-          "placeholder": "例：GPT-4",
+          "placeholder": "例：GPT-5.5",
           "tooltip": "例：GPT-4"
         },
         "supported_text_delta": {

@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Chỉnh sửa hình ảnh (OpenAI)",
     "image-generation": "Tạo ảnh (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6520,7 +6521,7 @@
         },
         "group_name": {
           "label": "Tên Nhóm",
-          "placeholder": "Tùy chọn ví dụ: ChatGPT",
+          "placeholder": "Ví dụ: ChatGPT",
           "tooltip": "Tùy chọn ví dụ: ChatGPT"
         },
         "max_input_tokens": {
@@ -6533,7 +6534,8 @@
         },
         "model_id": {
           "label": "ID mô hình",
-          "placeholder": "Bắt buộc, ví dụ: gpt-3.5-turbo",
+          "placeholder": "Ví dụ: gpt-5.5",
+          "required": "Vui lòng nhập ID mô hình",
           "select": {
             "placeholder": "Chọn Mô hình"
           },
@@ -6541,7 +6543,7 @@
         },
         "model_name": {
           "label": "Tên mô hình",
-          "placeholder": "Opcional p. ej. GPT-4",
+          "placeholder": "Ví dụ: GPT-5.5",
           "tooltip": "Opcjonalnie np. GPT-4"
         },
         "supported_text_delta": {
