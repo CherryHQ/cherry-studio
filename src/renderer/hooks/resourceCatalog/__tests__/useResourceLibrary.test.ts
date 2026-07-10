@@ -131,7 +131,7 @@ describe('useResourceLibrary', () => {
     expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
   })
 
-  it('filters agent resources by the rendered builtin fallback description', () => {
+  it('forwards trimmed agent search to the server and retains the builtin display fallback', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
@@ -149,11 +149,11 @@ describe('useResourceLibrary', () => {
 
     const { result } = renderResourceLibrary({ resourceType: 'agent', search: '诊断' })
 
-    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: '诊断' })
     expect(result.current.resources.map((resource) => resource.id)).toEqual(['agent-1'])
   })
 
-  it('excludes agent resources when search misses both name and rendered description', () => {
+  it('does not apply a second client-only agent search filter', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
@@ -171,7 +171,8 @@ describe('useResourceLibrary', () => {
 
     const { result } = renderResourceLibrary({ resourceType: 'agent', search: 'nonexistent' })
 
-    expect(result.current.resources).toEqual([])
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: 'nonexistent' })
+    expect(result.current.resources.map((resource) => resource.id)).toEqual(['agent-1'])
   })
 
   it('omits the agent card model when the backend cannot resolve a modelName', () => {

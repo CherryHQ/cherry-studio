@@ -1,3 +1,4 @@
+import type * as AgentUtils from '@renderer/utils/agent'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +49,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))
 
-vi.mock('@renderer/utils/agent', () => ({ getAgentAvatarFromConfiguration: () => '🤖' }))
+vi.mock('@renderer/utils/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof AgentUtils>()
+  return { ...actual, getAgentAvatarFromConfiguration: () => '🤖' }
+})
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
@@ -100,6 +104,34 @@ describe('AgentConversationPickerDialog', () => {
       })
     )
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith('agent-new'))
+  })
+
+  it('uses the builtin fallback description unless a user description is present', () => {
+    render(
+      <AgentConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        agents={
+          [
+            { id: 'builtin', name: 'Cherry Assistant', description: '', configuration: { builtin_role: 'assistant' } },
+            {
+              id: 'customized',
+              name: 'Cherry Assistant',
+              description: 'User-owned description',
+              configuration: { builtin_role: 'assistant' }
+            }
+          ] as any
+        }
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mocks.pickerProps.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: 'builtin', searchText: 'agent.builtin.cherry_assistant.description' }),
+        expect.objectContaining({ agentId: 'customized', searchText: 'User-owned description' })
+      ])
+    )
   })
 
   it('maps a selected picker row to its agent id', () => {
