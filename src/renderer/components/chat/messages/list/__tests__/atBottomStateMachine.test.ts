@@ -90,7 +90,7 @@ describe('reduceAtBottom', () => {
       expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
     })
 
-    it('downward scroll that does not reach bottom does NOT latch user-scrolled-up', () => {
+    it('programmatic downward scroll preserves the active bottom-follow latch', () => {
       // End-of-animation scroll events (programmatic) fire with direction='down'
       // when the smooth-scroll lands at what was the bottom moments ago but is
       // no longer close due to newer content. Latching user-scrolled-up there
@@ -102,7 +102,7 @@ describe('reduceAtBottom', () => {
         userInitiated: false,
         ...atBottom(300, 1000, 500)
       })
-      expect(next).toEqual({ atBottom: false, reason: 'scrolled-not-bottom' })
+      expect(next).toBe(prev)
     })
 
     it('programmatic scroll (direction none) preserves prior user latch', () => {
@@ -165,7 +165,19 @@ describe('reduceAtBottom', () => {
         userInitiated: false,
         ...atBottom(470, 1000, 500)
       })
-      expect(next.atBottom).toBe(true)
+      expect(next).toBe(prev)
+    })
+
+    it('programmatic upward jump outside tolerance also keeps following', () => {
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
+      const next = reduceAtBottom(prev, {
+        type: 'user-scroll',
+        direction: 'up',
+        userInitiated: false,
+        ...atBottom(200, 1000, 500)
+      })
+
+      expect(next).toBe(prev)
     })
   })
 

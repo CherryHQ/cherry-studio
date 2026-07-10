@@ -8,6 +8,7 @@ const runtimeMockState = vi.hoisted(() => ({
   takeUserControl: vi.fn(),
   scrollToBottom: vi.fn(),
   markUserInput: vi.fn(),
+  onWheel: vi.fn(),
   shift: false
 }))
 
@@ -62,11 +63,12 @@ vi.mock('../chatVirtualizerRuntime', async () => {
   return {
     useChatVirtualizerRuntime: vi.fn(({ items, renderItem }) => ({
       contentRef: { current: null },
+      freezeSpacerRef: { current: null },
       keepMounted: [],
       scrollerProps: {
         onScroll: vi.fn(),
         onScrollEnd: vi.fn(),
-        onWheel: vi.fn()
+        onWheel: runtimeMockState.onWheel
       },
       scrollerRef: { current: null },
       vlistHandleRef: { current: null },
@@ -88,6 +90,7 @@ describe('MessageVirtualList', () => {
     runtimeMockState.takeUserControl.mockClear()
     runtimeMockState.scrollToBottom.mockClear()
     runtimeMockState.markUserInput.mockClear()
+    runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
   })
 
@@ -141,7 +144,34 @@ describe('MessageVirtualList', () => {
     }
   })
 
-  it('reports pointer/touch/keydown on the scroller as user input + takeover and removes the listeners on unmount', () => {
+  it('leaves wheel input inside a scrollable message region there until it reaches the boundary', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => (
+          <div data-testid="nested-scroll-region" style={{ overflowY: 'auto' }}>
+            <span data-testid="nested-scroll-content">content</span>
+          </div>
+        )}
+      />
+    )
+
+    const region = screen.getByTestId('nested-scroll-region')
+    const content = screen.getByTestId('nested-scroll-content')
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+
+    region.scrollTop = 50
+    fireEvent.wheel(content, { deltaY: 40 })
+    expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
+
+    region.scrollTop = 200
+    fireEvent.wheel(content, { deltaY: 40 })
+    expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
+  })
+
+  it('separates direct takeover from actual scroll-intent signals and removes the listeners on unmount', () => {
     const { unmount } = render(
       <MessageVirtualList
         items={['message-1']}
@@ -154,17 +184,18 @@ describe('MessageVirtualList', () => {
     expect(scroller).toBeTruthy()
     const removeSpy = vi.spyOn(scroller, 'removeEventListener')
 
-    fireEvent.pointerDown(scroller)
-    fireEvent.touchStart(scroller)
+    const item = screen.getByTestId('item-0')
+    fireEvent.pointerDown(item)
     fireEvent.keyDown(scroller, { key: 'PageDown' })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(3)
+    fireEvent.pointerMove(scroller, { buttons: 1 })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(2)
     // Every direct input inside the scroller hands the user the wheel —
     // deliberately unclassified (blocks, buttons and blank space all count).
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledTimes(3)
+    expect(runtimeMockState.takeUserControl).toHaveBeenCalledTimes(2)
 
     unmount()
     expect(removeSpy).toHaveBeenCalledWith('pointerdown', expect.any(Function))
-    expect(removeSpy).toHaveBeenCalledWith('touchstart', expect.any(Function))
+    expect(removeSpy).toHaveBeenCalledWith('pointermove', expect.any(Function))
     expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
   })
 

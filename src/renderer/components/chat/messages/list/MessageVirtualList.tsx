@@ -23,6 +23,34 @@ import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chat
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
+const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
+const KEYBOARD_ACTIVATION_SELECTOR = 'button,a,input,textarea,select,[role="button"]'
+
+function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): boolean {
+  if (KEYBOARD_SCROLL_KEYS.has(event.key)) return true
+  if (event.key !== ' ' && event.key !== 'Spacebar') return false
+  const target = event.target instanceof HTMLElement ? event.target : null
+  return target === scroller || !target?.closest(KEYBOARD_ACTIVATION_SELECTOR)
+}
+
+function canConsumeVerticalWheel(element: HTMLElement, deltaY: number): boolean {
+  const overflowY = getComputedStyle(element).overflowY
+  if (overflowY !== 'auto' && overflowY !== 'scroll') return false
+  const maxScrollTop = element.scrollHeight - element.clientHeight
+  if (maxScrollTop <= 0) return false
+  return deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < maxScrollTop
+}
+
+function isWheelOwnedByNestedScroller(event: WheelEvent, scroller: HTMLElement): boolean {
+  if (event.deltaY === 0) return true
+  const target = event.target instanceof Element ? event.target : null
+  let element = target instanceof HTMLElement ? target : target?.parentElement
+  while (element && element !== scroller) {
+    if (canConsumeVerticalWheel(element, event.deltaY)) return true
+    element = element.parentElement
+  }
+  return false
+}
 
 export type { MessageVirtualListHandle }
 
@@ -129,31 +157,37 @@ export function MessageVirtualList<T>({
 
   useEffect(() => {
     if (!scrollerElement) return
-    const handleWheel = (event: WheelEvent) => onWheel(event)
+    const handleWheel = (event: WheelEvent) => {
+      if (!isWheelOwnedByNestedScroller(event, scrollerElement)) onWheel(event)
+    }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement])
 
-  // Any direct user input inside the scroller does two things: (1) flags real
-  // scroll intent so the runtime can tell a genuine scroll-away from a
-  // programmatic scroll (virtua remeasure jump, a child `scrollIntoView`), and
-  // (2) hands the user the wheel — the runtime stops driving and freezes the
-  // viewport so nothing moves under their pointer. Deliberately unclassified:
-  // expanding a block, copying text, clicking blank space all count. Wheel input
-  // is only (1) — its intent is directional, resolved by the scroll handler.
+  // Direct interactions hand the user the viewport immediately, but only an
+  // actual scroll signal seeds a scroll gesture. Keeping those concepts separate
+  // prevents a click-triggered reflow from being mistaken for user scrolling,
+  // while pointer drags keep long scrollbar gestures live until scrollend.
   useEffect(() => {
     if (!scrollerElement) return
-    const onInput = () => {
-      markUserInput()
-      takeUserControl()
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target === scrollerElement) markUserInput()
+      takeUserControl(event.target instanceof Element ? event.target : null)
     }
-    scrollerElement.addEventListener('pointerdown', onInput, { passive: true })
-    scrollerElement.addEventListener('touchstart', onInput, { passive: true })
-    scrollerElement.addEventListener('keydown', onInput)
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.buttons !== 0) markUserInput()
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      takeUserControl(event.target instanceof Element ? event.target : null)
+      if (isKeyboardScrollIntent(event, scrollerElement)) markUserInput()
+    }
+    scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
+    scrollerElement.addEventListener('pointermove', onPointerMove, { passive: true })
+    scrollerElement.addEventListener('keydown', onKeyDown)
     return () => {
-      scrollerElement.removeEventListener('pointerdown', onInput)
-      scrollerElement.removeEventListener('touchstart', onInput)
-      scrollerElement.removeEventListener('keydown', onInput)
+      scrollerElement.removeEventListener('pointerdown', onPointerDown)
+      scrollerElement.removeEventListener('pointermove', onPointerMove)
+      scrollerElement.removeEventListener('keydown', onKeyDown)
     }
   }, [markUserInput, scrollerElement, takeUserControl])
 
@@ -188,6 +222,7 @@ export function MessageVirtualList<T>({
               onScrollEnd={runtime.scrollerProps.onScrollEnd}>
               {runtime.wrappedRenderItem}
             </Virtualizer>
+            <div ref={runtime.freezeSpacerRef} aria-hidden="true" data-message-virtual-list-freeze-spacer />
           </ScrollOwnershipProvider>
         </div>
       </Scrollbar>

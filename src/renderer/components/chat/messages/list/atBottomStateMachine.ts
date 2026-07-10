@@ -92,14 +92,25 @@ export function reduceAtBottom(
     }
 
     case 'user-scroll': {
+      // Geometry-only scroll events are not intent. virtua remeasure
+      // compensation, browser clamping and child scrollIntoView calls can move
+      // scrollTop in either direction; none of them may enter or leave the
+      // user-scrolled-up latch. Explicit runtime navigation updates this state
+      // through programmatic-stick/reset instead.
+      if (!input.userInitiated) {
+        if (!state.atBottom && state.reason === 'user-scrolled-up') return state
+        return isCloseToBottom(input.offset, input.scrollSize, input.viewportSize, tolerance)
+          ? state.atBottom
+            ? state
+            : { atBottom: true, reason: 'size-stayed-at-bottom' }
+          : state
+      }
       // An upward USER gesture is intent to read — it must never (re-)latch
       // at-bottom, even within tolerance. Right after a top-pin releases, the
       // pinned viewport still measures within (even past) the effective bottom,
       // so without this a small upward wheel would hand the turn straight to
-      // bottom-follow. Programmatic upward jumps (virtua remeasure compensation
-      // mid-stream) are NOT user intent and keep the in-tolerance latch below,
-      // so they can't kill an active follow.
-      if (input.direction === 'up' && input.userInitiated) {
+      // bottom-follow.
+      if (input.direction === 'up') {
         return { atBottom: false, reason: 'user-scrolled-up' }
       }
       const close = isCloseToBottom(input.offset, input.scrollSize, input.viewportSize, tolerance)
@@ -110,17 +121,8 @@ export function reduceAtBottom(
           ? state
           : { atBottom: true, reason: 'scrolled-to-bottom' }
       }
-      // Only an upward scroll counts as "user wants out of auto-follow".
-      // Downward scrolls that don't reach the bottom can be the end-of-animation
-      // event firing after newer chunks arrived (programmatic, not user intent);
-      // latching user-scrolled-up here would kill subsequent auto-stick.
-      if (input.direction === 'up') {
-        return { atBottom: false, reason: 'user-scrolled-up' }
-      }
-      // direction 'down'/'none' that doesn't reach the bottom — keep a prior
-      // user-intent latch. Programmatic forward jumps (virtua remeasure
-      // compensation) report 'down' with no user input; clearing the latch would
-      // let the next in-tolerance size change re-engage auto-stick.
+      // A real downward/neutral user scroll that does not reach the bottom keeps
+      // a prior user-intent latch; otherwise it only records the geometry.
       if (!state.atBottom && state.reason === 'user-scrolled-up') return state
       return { atBottom: false, reason: 'scrolled-not-bottom' }
     }

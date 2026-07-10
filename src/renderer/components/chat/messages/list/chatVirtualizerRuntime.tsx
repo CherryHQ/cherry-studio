@@ -14,7 +14,7 @@
  *
  *   - 'runtime' — the hooks above drive: pin the fresh user message to the top,
  *     follow the streaming bottom, animate scrolls.
- *   - 'user' — the user took over (any pointer/touch/keyboard interaction inside
+ *   - 'user' — the user took over (any pointer/keyboard interaction inside
  *     the scroller via `takeUserControl`, or an upward scroll-away). Runtime
  *     writers go idle and the viewport is frozen where the user holds it: every
  *     observed layout change re-asserts scrollTop against a freeze anchor, so
@@ -99,6 +99,17 @@ export type WrappedItem<T> =
   | { kind: 'data'; key: string; value: T; originalIndex: number }
   | { kind: 'spacer'; key: '__anchor_spacer__'; height: number }
 
+interface FreezeAnchor {
+  /** Stable virtual item identity; resolved back to the current index after prepends. */
+  itemKey: string
+  /** Pixel position inside the item, used when the DOM anchor was replaced. */
+  offsetInItem: number
+  /** Visible semantic element (clicked control / element at viewport top), when available. */
+  element: HTMLElement | null
+  /** Element top relative to the scroller viewport at capture time. */
+  elementViewportTop: number | null
+}
+
 export interface ChatVirtualizerRuntime<T> {
   scrollerRef: RefObject<HTMLDivElement | null>
   /**
@@ -107,6 +118,8 @@ export interface ChatVirtualizerRuntime<T> {
    * spacer-height changes).
    */
   contentRef: RefObject<HTMLDivElement | null>
+  /** Temporary bottom slack used to preserve scrollTop when frozen content shrinks. */
+  freezeSpacerRef: RefObject<HTMLDivElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
   /** Wrapped items array to pass to virtua's `<Virtualizer data>`. */
   wrappedItems: WrappedItem<T>[]
@@ -120,19 +133,20 @@ export interface ChatVirtualizerRuntime<T> {
   scrollerProps: ScrollerEventHandlers
   isScrollToBottomButtonVisible: boolean
   /**
-   * The user directly interacted with the message area (pointer / touch /
-   * keyboard — the host wires this to capture-phase input events on the
+   * The user directly interacted with the message area (pointer / keyboard —
+   * the host wires this to capture-phase input events on the
    * scroller). The runtime hands them the wheel: it stops driving scrollTop
    * (bottom-follow, smooth scroll) and instead freezes the viewport against
    * every layout change, until the user scrolls back to the effective bottom,
    * an explicit scroll-to-bottom runs, or a new turn begins.
    */
-  takeUserControl(): void
+  takeUserControl(preferredAnchor?: Element | null): void
   scrollToBottom(behavior?: ScrollBehavior): void
   /**
-   * Mark that a real user scroll input just happened (wheel is wired via
-   * `scrollerProps.onWheel`; the host should also call this on pointer/touch
-   * starts) so programmatic scrolls aren't mistaken for the user scrolling away.
+   * Mark that a real user scroll input just happened. Wheel is wired through
+   * `scrollerProps.onWheel`; the host calls this for pointer drags and
+   * keyboard scroll commands. Direct clicks use `takeUserControl` without
+   * marking scroll intent.
    */
   markUserInput(): void
 }
@@ -143,19 +157,17 @@ const SCROLL_WHEEL_DEBOUNCE_MS = 100
 // rounding, virtualization remeasure), not intent — only an upward move beyond
 // this many pixels counts as the user taking control back.
 const SCROLL_TAKEOVER_THRESHOLD_PX = 6
-// A scroll event counts as user-initiated only if a real input (wheel / touch /
-// pointer) fired within this window before it. Programmatic scrolls (virtua
-// remeasure jumps, a child `scrollIntoView`) have no preceding input, so they
-// must not release the top pin. Sized to comfortably bridge input→scroll latency
-// (including trackpad momentum, which keeps re-stamping): long enough that a real
-// gesture is never misread as programmatic, short enough that a programmatic
-// scroll arriving a few hundred ms after an unrelated input isn't misread as a
-// gesture.
+// A real scroll-intent signal (wheel, pointer drag, scroll key) seeds
+// a gesture when its first scroll event arrives within this window. Once seeded,
+// the gesture stays active until onScrollEnd, so trackpad momentum and scrollbar
+// drags are not cut off by a timer.
 const USER_SCROLL_INPUT_WINDOW_MS = 250
 // While the user holds the viewport frozen, snap scrollTop back to the freeze
 // anchor when a layout change drifts it by more than this. Kept above
 // subpixel/rounding noise so an already-stable viewport never churns.
 const FREEZE_REASSERT_TOLERANCE_PX = 2
+const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
+  'button,[role="button"],a,input,textarea,select,.block-wrapper,[data-message-id],p,pre,li,table'
 
 export function useChatVirtualizerRuntime<T>({
   items,
@@ -173,6 +185,7 @@ export function useChatVirtualizerRuntime<T>({
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const freezeSpacerRef = useRef<HTMLDivElement | null>(null)
   const vlistHandleRef = useRef<VListHandle | null>(null)
   const smoothScroll = useSmoothScrollAnimation(scrollerRef)
   const [isScrollToBottomButtonVisible, setIsScrollToBottomButtonVisible] = useState(false)
@@ -195,17 +208,40 @@ export function useChatVirtualizerRuntime<T>({
   // bottom-follow, so reaching the bottom re-engages auto-stick. Reset at the
   // start of each turn (see the pin effect and the preserve rising edge below).
   const turnHandedOffRef = useRef(false)
-  // Viewport freeze anchor while the user drives: the virtua item at the
-  // viewport top plus the pixel offset into it. Kept in virtua's offset table
-  // (not a DOM node) so it survives virtualization unmounts; the ResizeObserver
-  // re-asserts scrollTop from it after every layout change.
-  const freezeAnchorRef = useRef<{ itemIndex: number; offsetInItem: number } | null>(null)
-  // Timestamp of the last real user scroll input (wheel / touch / pointer). Lets
-  // us tell a genuine scroll-away from a programmatic scroll (virtua remeasure
-  // jump, a child `scrollIntoView`) so only the former releases the top pin.
+  // Viewport freeze anchor while the user drives. Stable item identity survives
+  // history prepends; a visible DOM element preserves position through reflow
+  // inside one large MessageGroup. The item-relative offset is the fallback when
+  // that element is replaced or virtualized.
+  const freezeAnchorRef = useRef<FreezeAnchor | null>(null)
+  // Temporary bottom slack keeps the old scroll range available when a collapse
+  // or late render makes content shorter while the user owns the viewport.
+  const freezeSpacerHeightRef = useRef(0)
+  const freezeBaselineScrollHeightRef = useRef<number | null>(null)
+  // A timestamp only starts a genuine scroll gesture. The gesture itself remains
+  // active until scrollend, which covers trackpad momentum and scrollbar drags.
   const lastUserInputAtRef = useRef(0)
+  const userScrollGestureRef = useRef(false)
   const markUserInput = useCallback(() => {
     lastUserInputAtRef.current = performance.now()
+  }, [])
+  const itemsRef = useRef(items)
+  itemsRef.current = items
+  const getItemKeyRef = useRef(getItemKey)
+  getItemKeyRef.current = getItemKey
+  const renderItemRef = useRef(renderItem)
+  renderItemRef.current = renderItem
+  const findDataIndexByKey = useCallback((key: string): number => {
+    const list = itemsRef.current
+    const get = getItemKeyRef.current
+    for (let i = 0; i < list.length; i++) {
+      if (get(list[i], i) === key) return i
+    }
+    return -1
+  }, [])
+  const getDataKeyAtIndex = useCallback((index: number): string | null => {
+    const list = itemsRef.current
+    if (index < 0 || index >= list.length) return null
+    return getItemKeyRef.current(list[index], index)
   }, [])
   const anchor = useScrollAnchor({
     scrollerRef,
@@ -215,7 +251,38 @@ export function useChatVirtualizerRuntime<T>({
     startMargin: topPadding
   })
   const bottomFollowInsetRef = useRef(0)
-  bottomFollowInsetRef.current = anchor.spacerHeight
+  bottomFollowInsetRef.current = anchor.spacerHeight + freezeSpacerHeightRef.current
+  const setFreezeSpacerHeight = useCallback(
+    (height: number) => {
+      const next = Math.max(0, height)
+      if (Math.abs(next - freezeSpacerHeightRef.current) <= FREEZE_REASSERT_TOLERANCE_PX) return
+      freezeSpacerHeightRef.current = next
+      bottomFollowInsetRef.current = anchor.spacerHeight + next
+      if (freezeSpacerRef.current) {
+        freezeSpacerRef.current.style.height = `${next}px`
+      }
+    },
+    [anchor.spacerHeight]
+  )
+  const getNaturalScrollHeight = useCallback(() => {
+    const el = scrollerRef.current
+    return el ? Math.max(el.clientHeight, el.scrollHeight - freezeSpacerHeightRef.current) : 0
+  }, [])
+  const maintainFreezeScrollRange = useCallback(
+    (pendingAnchorSpacerDelta = 0) => {
+      const naturalHeight = getNaturalScrollHeight()
+      const baseline = freezeBaselineScrollHeightRef.current ?? naturalHeight
+      freezeBaselineScrollHeightRef.current = baseline
+      setFreezeSpacerHeight(Math.max(0, baseline - (naturalHeight + pendingAnchorSpacerDelta)))
+    },
+    [getNaturalScrollHeight, setFreezeSpacerHeight]
+  )
+  const clearFreeze = useCallback(() => {
+    freezeAnchorRef.current = null
+    freezeBaselineScrollHeightRef.current = null
+    userScrollGestureRef.current = false
+    setFreezeSpacerHeight(0)
+  }, [setFreezeSpacerHeight])
   const isBottomFollowSuppressed = useCallback(
     () =>
       scrollDriverRef.current === 'user' ||
@@ -250,41 +317,96 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- user-held viewport freeze --------------------------------------
 
-  // Record the freeze anchor at the current scroll position: the item under the
-  // viewport top plus the pixel offset into it, in virtua's offset space
-  // (`getItemOffset` excludes `startMargin`, so subtract the top padding first).
-  const captureFreezeAnchor = useCallback(() => {
+  const resolveSemanticAnchor = useCallback((preferredAnchor?: Element | null) => {
+    const scroller = scrollerRef.current
+    if (!scroller) return null
+    let candidate = preferredAnchor
+    if (!candidate) {
+      const rect = scroller.getBoundingClientRect()
+      candidate = scroller.ownerDocument.elementFromPoint?.(rect.left + rect.width / 2, rect.top + 1) ?? null
+    }
+    const htmlCandidate = candidate instanceof HTMLElement ? candidate : candidate?.parentElement
+    if (!htmlCandidate || !scroller.contains(htmlCandidate)) return null
+    const itemElement = htmlCandidate.closest<HTMLElement>('[data-message-key]')
+    const itemKey = itemElement?.dataset.messageKey
+    if (!itemElement || !itemKey) return null
+    const semanticElement = htmlCandidate.closest<HTMLElement>(FREEZE_SEMANTIC_ANCHOR_SELECTOR) ?? htmlCandidate
+    return itemElement.contains(semanticElement) ? { element: semanticElement, itemKey } : null
+  }, [])
+
+  // Capture stable item identity plus an optional visible DOM element. Virtua's
+  // findItemIndex expects the raw scroller-relative offset and applies
+  // startMargin internally, so topPadding must not be subtracted here.
+  const captureFreezeAnchor = useCallback(
+    (preferredAnchor?: Element | null, extendScrollRange = false) => {
+      const el = scrollerRef.current
+      const handle = vlistHandleRef.current
+      if (!el || !handle) return
+      const semantic = resolveSemanticAnchor(preferredAnchor)
+      const visibleIndex = handle.findItemIndex(el.scrollTop)
+      const fallbackIndex = Math.min(Math.max(visibleIndex, 0), itemsRef.current.length - 1)
+      const semanticIndex = semantic ? findDataIndexByKey(semantic.itemKey) : -1
+      const itemIndex = semanticIndex >= 0 ? semanticIndex : fallbackIndex
+      const itemKey = getDataKeyAtIndex(itemIndex)
+      if (!itemKey) {
+        freezeAnchorRef.current = null
+        return
+      }
+      const scrollerTop = el.getBoundingClientRect().top
+      const element = semantic?.element ?? null
+      freezeAnchorRef.current = {
+        itemKey,
+        offsetInItem: el.scrollTop - (Math.max(0, topPadding) + handle.getItemOffset(itemIndex)),
+        element,
+        elementViewportTop: element ? element.getBoundingClientRect().top - scrollerTop : null
+      }
+      if (extendScrollRange) {
+        const naturalHeight = getNaturalScrollHeight()
+        freezeBaselineScrollHeightRef.current = Math.max(freezeBaselineScrollHeightRef.current ?? 0, naturalHeight)
+      }
+    },
+    [findDataIndexByKey, getDataKeyAtIndex, getNaturalScrollHeight, resolveSemanticAnchor, topPadding]
+  )
+
+  // Re-assert the semantic element first so reflow inside one large virtual item
+  // is covered. If React replaced that element, fall back to the stable item key
+  // and its current virtua offset. Active user scrolling is never fought; the
+  // resting semantic anchor is captured once at scrollend.
+  const reassertFreeze = useCallback(() => {
+    const frozen = freezeAnchorRef.current
     const el = scrollerRef.current
+    const content = contentRef.current
     const handle = vlistHandleRef.current
-    if (!el || !handle) return
-    const itemSpaceOffset = Math.max(0, el.scrollTop - Math.max(0, topPadding))
-    const itemIndex = handle.findItemIndex(itemSpaceOffset)
+    if (!frozen || !el || !handle) return
+    if (anchor.isPinned() || smoothScroll.isAnimating() || userScrollGestureRef.current) return
+
+    const itemIndex = findDataIndexByKey(frozen.itemKey)
     if (itemIndex < 0) {
       freezeAnchorRef.current = null
       return
     }
-    freezeAnchorRef.current = { itemIndex, offsetInItem: itemSpaceOffset - handle.getItemOffset(itemIndex) }
-  }, [topPadding, vlistHandleRef])
 
-  // Snap scrollTop back to the freeze anchor after a layout change. Recomputed
-  // from virtua's live offset table, so its own remeasure compensation (which
-  // moves the item offset and scrollTop by the same delta) stays a no-op, while
-  // rogue programmatic nudges (a child `scrollIntoView`) get corrected. Yields
-  // while a pin holds (same position, one writer), during a smooth scroll, and
-  // within the user-input window — the user's own in-flight scrolling must not
-  // be fought; each of their scroll events re-captures the anchor anyway.
-  const reassertFreeze = useCallback(() => {
-    const frozen = freezeAnchorRef.current
-    const el = scrollerRef.current
-    const handle = vlistHandleRef.current
-    if (!frozen || !el || !handle) return
-    if (anchor.isPinned() || smoothScroll.isAnimating()) return
-    if (performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS) return
-    const target = Math.max(0, topPadding) + handle.getItemOffset(frozen.itemIndex) + frozen.offsetInItem
+    const elementItemKey = frozen.element?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+    if (
+      frozen.element &&
+      frozen.elementViewportTop != null &&
+      frozen.element.isConnected &&
+      content?.contains(frozen.element) &&
+      elementItemKey === frozen.itemKey
+    ) {
+      const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top
+      const drift = currentTop - frozen.elementViewportTop
+      if (Math.abs(drift) > FREEZE_REASSERT_TOLERANCE_PX) {
+        el.scrollTop += drift
+      }
+      return
+    }
+
+    const target = Math.max(0, topPadding) + handle.getItemOffset(itemIndex) + frozen.offsetInItem
     if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
       el.scrollTop = target
     }
-  }, [anchor, smoothScroll, topPadding, vlistHandleRef])
+  }, [anchor, findDataIndexByKey, smoothScroll, topPadding])
 
   // Any direct user interaction with the message area hands them the wheel:
   // cancel runtime writers, latch the at-bottom tracker into its protected
@@ -292,18 +414,33 @@ export function useChatVirtualizerRuntime<T>({
   // in-tolerance size change), and freeze the viewport where it stands. An
   // active top-pin keeps holding instead of the freeze (same position, one
   // writer); the freeze takes over if the pin later lets go.
-  const takeUserControl = useCallback(() => {
-    smoothScroll.cancel()
-    scrollDriverRef.current = 'user'
-    atBottom.notifyUserTookControl()
-    captureFreezeAnchor()
-    updateScrollToBottomButtonVisibility()
-  }, [atBottom, captureFreezeAnchor, smoothScroll, updateScrollToBottomButtonVisibility])
+  const takeUserControl = useCallback(
+    (preferredAnchor?: Element | null) => {
+      smoothScroll.cancel()
+      const wasUserDriven = scrollDriverRef.current === 'user'
+      scrollDriverRef.current = 'user'
+      atBottom.notifyUserTookControl()
+      if (!wasUserDriven) {
+        setFreezeSpacerHeight(0)
+        freezeBaselineScrollHeightRef.current = getNaturalScrollHeight()
+      }
+      captureFreezeAnchor(preferredAnchor, wasUserDriven)
+      updateScrollToBottomButtonVisibility()
+    },
+    [
+      atBottom,
+      captureFreezeAnchor,
+      getNaturalScrollHeight,
+      setFreezeSpacerHeight,
+      smoothScroll,
+      updateScrollToBottomButtonVisibility
+    ]
+  )
 
   const handBackToRuntime = useCallback(() => {
     scrollDriverRef.current = 'runtime'
-    freezeAnchorRef.current = null
-  }, [])
+    clearFreeze()
+  }, [clearFreeze])
 
   const stickToEffectiveBottom = useCallback(() => {
     const el = scrollerRef.current
@@ -315,13 +452,6 @@ export function useChatVirtualizerRuntime<T>({
   }, [atBottom, hideScrollToBottomButton, smoothScroll])
 
   // ---- wrap items so the anchor's spacer is included ------------------
-
-  const itemsRef = useRef(items)
-  itemsRef.current = items
-  const getItemKeyRef = useRef(getItemKey)
-  getItemKeyRef.current = getItemKey
-  const renderItemRef = useRef(renderItem)
-  renderItemRef.current = renderItem
 
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
   const previousDataKeysRef = useRef<string[]>([])
@@ -357,27 +487,10 @@ export function useChatVirtualizerRuntime<T>({
     // Tag with data-message-index so the selectionchange listener can
     // map a text selection back to a data index for keepMounted.
     return (
-      <div key={item.key} data-message-index={item.originalIndex} style={{ width: '100%' }}>
+      <div key={item.key} data-message-index={item.originalIndex} data-message-key={item.key} style={{ width: '100%' }}>
         {renderItemRef.current(item.value, item.originalIndex)}
       </div>
     )
-  }, [])
-
-  const findDataIndexByKey = useCallback((key: string): number => {
-    const list = itemsRef.current
-    const get = getItemKeyRef.current
-    for (let i = 0; i < list.length; i++) {
-      if (get(list[i], i) === key) return i
-    }
-    return -1
-  }, [])
-
-  // The spacer is appended after data items, so a wrapped index < data length
-  // is a data item; anything else (the spacer) maps to null.
-  const getDataKeyAtIndex = useCallback((index: number): string | null => {
-    const list = itemsRef.current
-    if (index < 0 || index >= list.length) return null
-    return getItemKeyRef.current(list[index], index)
   }, [])
 
   // ---- per-topic scroll position memory -------------------------------
@@ -408,7 +521,8 @@ export function useChatVirtualizerRuntime<T>({
       const wasPinned = anchor.isPinned()
       // Anchor first: it may adjust spacer height. Auto-stick reads
       // scrollHeight after, so any pin-driven layout change is reflected.
-      anchor.onContentSizeChange()
+      const nextAnchorSpacerHeight = anchor.onContentSizeChange()
+      const pendingAnchorSpacerDelta = nextAnchorSpacerHeight - anchor.spacerHeight
       const pinReleasedByContent = wasPinned && !anchor.isPinned()
       const userDrives = scrollDriverRef.current === 'user'
       if (userDrives) {
@@ -434,6 +548,7 @@ export function useChatVirtualizerRuntime<T>({
         // The single writer while the user drives: hold the frozen viewport
         // against whatever just resized (streaming growth, block toggles,
         // composer/viewport changes, async renders).
+        maintainFreezeScrollRange(pendingAnchorSpacerDelta)
         reassertFreeze()
       } else {
         if (pinReleasedByContent && preserveScrollAnchorRef.current) {
@@ -465,6 +580,7 @@ export function useChatVirtualizerRuntime<T>({
     autoStick,
     captureFreezeAnchor,
     isBottomFollowSuppressed,
+    maintainFreezeScrollRange,
     reassertFreeze,
     smoothScroll,
     stickToEffectiveBottom,
@@ -491,8 +607,6 @@ export function useChatVirtualizerRuntime<T>({
   // "user took over" state.
   const anchorRef = useRef(anchor)
   anchorRef.current = anchor
-  const isBottomFollowSuppressedRef = useRef(isBottomFollowSuppressed)
-  isBottomFollowSuppressedRef.current = isBottomFollowSuppressed
   const stickToEffectiveBottomRef = useRef(stickToEffectiveBottom)
   stickToEffectiveBottomRef.current = stickToEffectiveBottom
   const wasPreservingScrollAnchorRef = useRef(preserveScrollAnchor)
@@ -510,20 +624,29 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
     if (!wasPreserving) return
-    // Falling edge also returns the wheel: with the stream over there is nothing
-    // left to hold the freeze against, and the at-bottom tracker still reads
-    // not-at-bottom after a takeover, so nothing moves until the user does.
-    handBackToRuntime()
+    // A stream ending is not a navigation boundary. Images, syntax highlighting
+    // and lazy previews can still resize afterward, so a user-held viewport keeps
+    // its ownership until the user returns to the bottom or a new turn begins.
+    const userDrives = scrollDriverRef.current === 'user'
+    if (!userDrives) handBackToRuntime()
     const raf = requestAnimationFrame(() => {
-      const shouldKeepBottom = atBottom.isAtBottom() && !isBottomFollowSuppressedRef.current()
-      if (shouldKeepBottom) {
-        anchorRef.current.release()
+      // Once streaming has ended, a user who already returned to the real
+      // bottom no longer needs the released-pin range. Clear it here because
+      // there may be no subsequent scroll or resize event to reclaim it.
+      if (atBottom.isAtBottom()) {
+        anchorRef.current.release({ clearSpacer: true })
+        handBackToRuntime()
         stickToEffectiveBottomRef.current()
+        return
       }
-      anchorRef.current.onContentSizeChange()
+      const nextAnchorSpacerHeight = anchorRef.current.onContentSizeChange()
+      if (userDrives) {
+        maintainFreezeScrollRange(nextAnchorSpacerHeight - anchorRef.current.spacerHeight)
+        reassertFreeze()
+      }
     })
     return () => cancelAnimationFrame(raf)
-  }, [atBottom, handBackToRuntime, preserveScrollAnchor])
+  }, [atBottom, handBackToRuntime, maintainFreezeScrollRange, preserveScrollAnchor, reassertFreeze])
 
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 
@@ -613,10 +736,11 @@ export function useChatVirtualizerRuntime<T>({
     if (!el) return
     const offset = el.scrollTop
     const delta = offset - lastScrollOffsetRef.current
-    // Only a genuine user scroll (recent wheel / touch / pointer) is treated as
+    // Only a genuine user scroll (recent wheel / pointer / keyboard) is treated as
     // intent. virtua's remeasure-compensation jumps and child `scrollIntoView`
     // calls also fire scroll events, with no preceding input.
-    const isUserInitiated = performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS
+    const hasRecentUserScrollIntent = performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS
+    const isUserInitiated = userScrollGestureRef.current || hasRecentUserScrollIntent
     // Programmatic bottom-follow emits scroll events while the viewport is still
     // catching up. Ignore forward progress, sub-threshold jitter, AND any non-user
     // scroll: virtua's remeasure compensation moves scrollTop backward by tens of
@@ -630,7 +754,7 @@ export function useChatVirtualizerRuntime<T>({
       smoothScroll.cancel()
     }
     const viewportSize = el.clientHeight
-    const scrollSize = getEffectiveScrollSize(el, anchor.spacerHeight)
+    const scrollSize = getEffectiveScrollSize(el, bottomFollowInsetRef.current)
     anchor.onUserScroll(offset, isUserInitiated)
     const wheelDir = lastWheelDirRef.current
     const direction: 'up' | 'down' | 'none' =
@@ -638,14 +762,25 @@ export function useChatVirtualizerRuntime<T>({
     lastScrollOffsetRef.current = offset
     if (scrollDriverRef.current === 'user') {
       if (isUserInitiated) {
-        // The user is scrolling their own frozen viewport: the freeze follows
-        // them, and reaching the effective bottom hands the wheel back so
-        // auto-stick can resume on the next growth.
-        captureFreezeAnchor()
+        userScrollGestureRef.current = true
+        // Reflow correction stays paused for the whole gesture. Only extend the
+        // shrink baseline here; the semantic DOM anchor is captured once at
+        // scrollend to avoid elementFromPoint/layout reads on every scroll event.
+        const naturalHeight = getNaturalScrollHeight()
+        freezeBaselineScrollHeightRef.current = Math.max(freezeBaselineScrollHeightRef.current ?? 0, naturalHeight)
         atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: true })
-        if (atBottom.isAtBottom()) {
+        // A released top-pin spacer still lets the user move below the real
+        // content edge. Crossing that effective-bottom threshold must not hand
+        // control back: reclaiming the spacer there clamps scrollTop and drops
+        // the user message to the viewport bottom. Explicit scroll-to-bottom is
+        // the safe path that clears temporary range before following resumes.
+        const hasTemporaryBottomRange = bottomFollowInsetRef.current > FREEZE_REASSERT_TOLERANCE_PX
+        const canReclaimTemporaryRange = !preserveScrollAnchorRef.current
+        if (atBottom.isAtBottom() && (!hasTemporaryBottomRange || canReclaimTemporaryRange)) {
           turnHandedOffRef.current = true
+          anchor.release(hasTemporaryBottomRange ? { clearSpacer: true } : undefined)
           handBackToRuntime()
+          if (hasTemporaryBottomRange) stickToEffectiveBottom()
         }
       }
       // Programmatic scrolls while frozen (virtua remeasure compensation) don't
@@ -660,12 +795,17 @@ export function useChatVirtualizerRuntime<T>({
         turnHandedOffRef.current = true
       }
       if (isUserInitiated && direction === 'up') {
+        userScrollGestureRef.current = true
         // An upward user scroll is a takeover like any other interaction.
         takeUserControl()
       } else if (isBottomFollowSuppressed()) {
         atBottom.reset()
       } else {
         atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction, userInitiated: isUserInitiated })
+        if (isUserInitiated && direction !== 'none' && !atBottom.isAtBottom()) {
+          userScrollGestureRef.current = true
+          takeUserControl()
+        }
       }
     }
     updateScrollToBottomButtonVisibility()
@@ -674,22 +814,27 @@ export function useChatVirtualizerRuntime<T>({
   }, [
     anchor,
     atBottom,
-    captureFreezeAnchor,
+    getNaturalScrollHeight,
     handBackToRuntime,
     isBottomFollowSuppressed,
     maybeNotifyReachTop,
     saveScrollPosition,
     smoothScroll,
+    stickToEffectiveBottom,
     takeUserControl,
     updateScrollToBottomButtonVisibility
   ])
 
   const onScrollEnd = useCallback(() => {
     lastWheelDirRef.current = 'none'
+    if (scrollDriverRef.current === 'user' && userScrollGestureRef.current) {
+      captureFreezeAnchor(undefined, true)
+    }
+    userScrollGestureRef.current = false
     // Scrolling has settled — capture the exact resting position, bypassing the
     // throttle that paces the in-flight `onScroll` saves.
     saveScrollPosition(true)
-  }, [saveScrollPosition])
+  }, [captureFreezeAnchor, saveScrollPosition])
   const scrollerProps = useMemo(() => ({ onWheel, onScroll, onScrollEnd }), [onScroll, onScrollEnd, onWheel])
 
   // ---- selection-survival keepMounted --------------------------------
@@ -729,9 +874,14 @@ export function useChatVirtualizerRuntime<T>({
       // Explicit scroll-to-bottom releases any anchor — caller wants the
       // absolute bottom, not the user-message-top position.
       anchor.release({ clearSpacer: true })
+      // The user chose the live edge: drop the frozen range before resolving
+      // the target. The anchor inset remains until its state update commits, so
+      // the current target still excludes both temporary spacers.
+      turnHandedOffRef.current = true
+      handBackToRuntime()
       const el = scrollerRef.current
       if (!el) return
-      const target = getRealBottom(el, anchor.spacerHeight)
+      const target = getRealBottom(el, bottomFollowInsetRef.current)
       if (behavior === 'smooth') {
         smoothScroll.scrollTo(() => {
           const current = scrollerRef.current
@@ -742,10 +892,6 @@ export function useChatVirtualizerRuntime<T>({
         el.scrollTop = target
       }
       atBottom.notifyProgrammaticStick()
-      // The user chose the bottom: the runtime drives from here, and a preserve
-      // turn no longer suppresses bottom-follow.
-      turnHandedOffRef.current = true
-      handBackToRuntime()
       hideScrollToBottomButton()
     },
     [anchor, atBottom, handBackToRuntime, hideScrollToBottomButton, smoothScroll]
@@ -798,6 +944,7 @@ export function useChatVirtualizerRuntime<T>({
   return {
     scrollerRef,
     contentRef,
+    freezeSpacerRef,
     vlistHandleRef,
     wrappedItems,
     wrappedGetItemKey,
