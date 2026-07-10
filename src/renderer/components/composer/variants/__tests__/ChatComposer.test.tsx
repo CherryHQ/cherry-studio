@@ -1071,6 +1071,10 @@ describe('ChatComposer', () => {
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newTopicButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    const newConversationIcon = newTopicButton.querySelector('.new-conversation-icon')
+    expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
+    expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
+    expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
     expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
       within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
@@ -1087,6 +1091,8 @@ describe('ChatComposer', () => {
         filterText: 'chat.conversation.new'
       })
     )
+    render(<div data-testid="new-topic-panel-icon">{newTopicItem?.icon}</div>)
+    expect(screen.getByTestId('new-topic-panel-icon').querySelector('.new-conversation-icon')).toBeInTheDocument()
     newTopicItem?.action?.({
       context: {} as any,
       action: 'enter',

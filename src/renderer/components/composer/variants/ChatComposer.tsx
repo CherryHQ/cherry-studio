@@ -17,6 +17,7 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -46,7 +47,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, Globe, Lightbulb, MessageSquarePlus } from 'lucide-react'
+import { Bot, Globe, Lightbulb } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -824,7 +825,7 @@ const ChatComposerInner = ({
       {
         id: 'composer:new-conversation',
         label,
-        icon: <MessageSquarePlus size={16} />,
+        icon: <NewConversationIcon size={16} />,
         disabled: newTopicDisabled,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
@@ -1134,7 +1135,7 @@ const ChatComposerInner = ({
         disabled={newTopicDisabled}
         aria-label={t('chat.conversation.new')}
         onClick={() => addNewTopic()}>
-        <MessageSquarePlus size={18} aria-hidden />
+        <NewConversationIcon size={18} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined

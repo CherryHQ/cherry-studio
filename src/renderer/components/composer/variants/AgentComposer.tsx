@@ -17,6 +17,7 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -53,17 +54,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import {
-  Bot,
-  ChevronDown,
-  CircleSlash,
-  Folder,
-  Lightbulb,
-  MessageSquarePlus,
-  Sparkles,
-  TriangleAlert,
-  X
-} from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -162,7 +153,7 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    icon: <Sparkles size={16} />,
+    icon: <Zap size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
@@ -711,7 +702,7 @@ const AgentComposerQuickPanelShortcuts = ({
           aria-haspopup="menu"
           disabled={panelDisabled}
           onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
-          <Sparkles size={18} aria-hidden />
+          <Zap size={18} aria-hidden />
         </Button>
       </Tooltip>
     </>
@@ -1011,7 +1002,7 @@ const AgentComposerInner = ({
       {
         id: 'composer:new-session',
         label,
-        icon: <MessageSquarePlus size={16} />,
+        icon: <NewConversationIcon size={16} />,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
@@ -1224,7 +1215,7 @@ const AgentComposerInner = ({
         className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
         aria-label={t('agent.session.new')}
         onClick={handleCreateEmptySession}>
-        <MessageSquarePlus size={18} aria-hidden />
+        <NewConversationIcon size={18} aria-hidden />
       </Button>
     </Tooltip>
   ) : undefined

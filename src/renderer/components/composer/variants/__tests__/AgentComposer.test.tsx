@@ -695,6 +695,7 @@ describe('AgentComposer', () => {
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(newSessionButton.querySelector('.new-conversation-icon')).toBeInTheDocument()
     expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
       within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
@@ -710,6 +711,8 @@ describe('AgentComposer', () => {
         filterText: 'agent.session.new'
       })
     )
+    render(<div data-testid="new-session-panel-icon">{newSessionItem?.icon}</div>)
+    expect(screen.getByTestId('new-session-panel-icon').querySelector('.new-conversation-icon')).toBeInTheDocument()
     newSessionItem?.action?.({
       context: {} as any,
       action: 'enter',
@@ -785,6 +788,7 @@ describe('AgentComposer', () => {
     expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(skillButton.querySelector('.lucide-zap')).toBeInTheDocument()
 
     fireEvent.click(reasoningButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
@@ -1137,6 +1141,8 @@ describe('AgentComposer', () => {
         filterText: 'pdf'
       })
     )
+    render(<div data-testid="skill-panel-icon">{skillItem?.icon}</div>)
+    expect(screen.getByTestId('skill-panel-icon').querySelector('.lucide-zap')).toBeInTheDocument()
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
     mocks.surfaceProps?.onRootPanelOpen?.()
     expect(mocks.availableSkillsRefresh).toHaveBeenCalledOnce()
