@@ -174,4 +174,13 @@ describe('UserPopup', () => {
     expect(image).toHaveClass('object-cover')
     expect(image).toHaveAttribute('src', avatar)
   })
+
+  it('keeps Fluent emoji artwork at the preview avatar size', async () => {
+    MockUseCacheUtils.setCacheValue('app.user.avatar', '🙂')
+
+    showUserPopup()
+
+    const emojiAvatar = await screen.findByTestId('emoji-avatar')
+    expect(emojiAvatar).toHaveClass('[&_svg[data-fluent-emoji]]:!size-[1em]')
+  })
 })

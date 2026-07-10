@@ -72,14 +72,14 @@ describe('EmojiPicker', () => {
     expect(screen.getByTestId('emoji-scrollbar')).toHaveClass('min-h-0', 'flex-1', 'overscroll-contain')
   })
 
-  it('uses larger emoji glyphs in the grid', async () => {
+  it('uses the previous compact emoji glyph size in the grid', async () => {
     const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠'])
 
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})
 
-    expect(screen.getByRole('button', { name: '🧠' })).toHaveClass('text-3xl')
+    expect(screen.getByRole('button', { name: '🧠' })).toHaveClass('text-2xl')
   })
 
   it('calls onEmojiClick when a recent emoji is picked', async () => {
