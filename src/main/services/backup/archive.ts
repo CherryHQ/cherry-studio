@@ -17,13 +17,13 @@
 
 import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { rename, stat, unlink } from 'node:fs/promises'
+import { link, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
 import { ZipArchive } from 'archiver'
 
-import { BackupCancelledError, DiskFullError } from './errors'
+import { BackupCancelledError, DiskFullError, OutputPathExistsError } from './errors'
 import type { BackupManifest } from './manifest'
 
 export interface ArchiveInputs {
@@ -58,7 +58,7 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
   // TOCTOU window between entry and archive completion.
   try {
     await stat(outPath)
-    throw new Error(`backup: target already exists (no-clobber): ${outPath}`)
+    throw new OutputPathExistsError(outPath)
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
   }
@@ -118,8 +118,17 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
       archive.finalize().catch(reject)
     })
 
-    // Atomic replace — outPath now points at the fully-written archive.
-    await rename(tmpPath, outPath)
+    // Atomic no-clobber publish: hard-link tmp → outPath. link() fails EEXIST if a file
+    // appeared between BackupService.validateOutputPath (entry) and here — TOCTOU-safe,
+    // unlike rename() which silently overwrites on POSIX. Then unlink the tmp name
+    // (outPath holds the archive via its own directory entry; refcount 2 → 1).
+    try {
+      await link(tmpPath, outPath)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
+      throw e
+    }
+    await unlink(tmpPath)
   } catch (e) {
     // Abort the archiver + destroy the write stream BEFORE unlinking the temp
     // file — without this, a warning-triggered reject leaves the archive piping

@@ -45,3 +45,17 @@ export class DiskFullError extends Error {
     this.name = 'DiskFullError'
   }
 }
+
+/**
+ * Thrown when the output path already exists (no-clobber). archive.ts detects this at
+ * publish time (link/EEXIST) — the TOCTOU-safe backstop behind BackupService.validateOutputPath's
+ * entry check, which can race a file appearing between entry and archive completion.
+ * BackupService.toIpcError maps it to BACKUP_OUTPUT_PATH_EXISTS so the renderer sees a
+ * stable code regardless of which check fires.
+ */
+export class OutputPathExistsError extends Error {
+  constructor(outputPath: string) {
+    super(`backup: outputPath already exists (no-clobber): ${outputPath}`)
+    this.name = 'OutputPathExistsError'
+  }
+}

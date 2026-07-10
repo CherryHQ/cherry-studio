@@ -23,9 +23,9 @@
 // side land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -38,7 +38,7 @@ import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { contributorManager } from './contributors'
-import { BackupCancelledError, DiskFullError, InsufficientDiskSpaceError } from './errors'
+import { BackupCancelledError, DiskFullError, InsufficientDiskSpaceError, OutputPathExistsError } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 
@@ -335,10 +335,19 @@ export class BackupService extends BaseService {
    * renderer picks a path via a save dialog, but never trust it across the IPC boundary.
    */
   private validateOutputPath(outputPath: string): void {
-    const resolved = resolve(outputPath)
-    // Refuse to write AT or INSIDE any app-managed path — the archive must never touch
-    // the live DB, the backup temp tree, or managed file/knowledge/notes data.
+    // Canonicalize via realpath of the existing parent (resolves symlinks) so a symlinked
+    // path cannot route the archive into an app-managed dir that lexical isPathInside
+    // misses. The parent must already exist (renderer picks via save dialog); a missing
+    // parent fails here rather than mid-archive.
+    const parent = dirname(resolve(outputPath))
+    const realParent = realpathSync(parent)
+    const canonical = join(realParent, basename(resolve(outputPath)))
+    // Refuse ANY app-managed writable root — the archive must never overwrite the live
+    // DB, managed data, or anything under the app's data home. The broad app.userdata
+    // root covers the narrow feature.* sub-roots; each root is realpath'd so a symlinked
+    // managed dir cannot dodge the check.
     const managedRoots = [
+      application.getPath('app.userdata'),
       application.getPath('app.database.file'),
       application.getPath('feature.backup.temp'),
       application.getPath('feature.files.data'),
@@ -346,17 +355,23 @@ export class BackupService extends BaseService {
       application.getPath('feature.notes.data')
     ]
     for (const root of managedRoots) {
-      if (resolved === root || isPathInside(resolved, root)) {
+      let realRoot = root
+      try {
+        realRoot = realpathSync(root)
+      } catch {
+        // managed root may not exist yet on a fresh install — lexical fallback
+      }
+      if (canonical === realRoot || isPathInside(canonical, realRoot)) {
         throw new IpcError(
           'BACKUP_UNSAFE_OUTPUT_PATH',
           `backup: outputPath targets an app-managed path: ${outputPath}`
         )
       }
     }
-    // No-clobber: refuse to overwrite an existing file. archive.ts writes via a temp
-    // file + atomic rename, which silently overwrites on replace-supporting systems —
-    // a prior good backup (or any user file) at that path would be destroyed.
-    if (existsSync(resolved)) {
+    // No-clobber: refuse to overwrite an existing file. archive.ts publishes via link()
+    // which also refuses (EEXIST), but the entry check gives an early, clear error and
+    // bounds the TOCTOU window to the export duration.
+    if (existsSync(canonical)) {
       throw new IpcError(
         'BACKUP_OUTPUT_PATH_EXISTS',
         `backup: outputPath already exists (no-clobber): ${outputPath}`
@@ -379,6 +394,14 @@ export class BackupService extends BaseService {
       })
     }
     if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
+    if (e instanceof OutputPathExistsError) return new IpcError('BACKUP_OUTPUT_PATH_EXISTS', e.message)
+    // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
+    // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
+    // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.
+    const code = (e as NodeJS.ErrnoException | { code?: string })?.code
+    if (code === 'ENOSPC' || code === 'SQLITE_FULL') {
+      return new IpcError('BACKUP_DISK_FULL', e instanceof Error ? e.message : String(e))
+    }
     return e // unknown throws pass through; IpcApiService folds them to INTERNAL
   }
 
