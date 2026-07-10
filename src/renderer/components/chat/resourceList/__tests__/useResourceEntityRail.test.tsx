@@ -76,7 +76,7 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
         isError: false,
         sortResourcesForEntity: (resources) => [...resources].sort((a, b) => b.updatedAt - a.updatedAt),
         onPickResource: vi.fn(),
-        onStartDraft: vi.fn(),
+        onCreateResource: vi.fn(),
         reorder: vi.fn().mockResolvedValue(undefined),
         refetchEntities: vi.fn().mockResolvedValue(undefined),
         onReorderError: vi.fn(),
@@ -126,7 +126,7 @@ describe('useResourceEntityRail', () => {
       isError: false,
       sortResourcesForEntity: (resources) => [...resources].sort((a, b) => b.updatedAt - a.updatedAt),
       onPickResource: vi.fn(),
-      onStartDraft: vi.fn(),
+      onCreateResource: vi.fn(),
       reorder: vi.fn().mockResolvedValue(undefined),
       refetchEntities: vi.fn().mockResolvedValue(undefined),
       onReorderError: vi.fn()
@@ -163,13 +163,13 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
   })
 
-  it('falls back to a blank draft when the entity has no resources yet', () => {
-    const onStartDraft = vi.fn()
-    const { result } = renderRail({ onStartDraft })
+  it('falls back to a blank resource when the entity has no resources yet', () => {
+    const onCreateResource = vi.fn()
+    const { result } = renderRail({ onCreateResource })
 
     result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' })
 
-    expect(onStartDraft).toHaveBeenCalledWith('assistant-c')
+    expect(onCreateResource).toHaveBeenCalledWith('assistant-c')
   })
 
   it('applies optimistic reorder and refetches entities on success', async () => {

@@ -336,6 +336,33 @@ describe('atomicWriteFile', () => {
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 
+  it('applies options.mode from creation (never on disk under a looser mode)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'secret.txt') as FilePath
+    await atomicWriteFile(target, 'sk-secret', { mode: 0o600 })
+    expect(await readFile(target, 'utf-8')).toBe('sk-secret')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('tightens a pre-existing looser target mode on overwrite', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'was-open.txt') as FilePath
+    await writeFile(target, 'old', { mode: 0o644 })
+    await atomicWriteFile(target, 'new-secret', { mode: 0o600 })
+    expect(await readFile(target, 'utf-8')).toBe('new-secret')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('keeps the default (umask) mode when options.mode is omitted', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'plain.txt') as FilePath
+    await atomicWriteFile(target, 'hello')
+    // Same 0666 & ~umask a plain fs write gets — no accidental tightening.
+    const reference = path.join(tmp, 'reference.txt')
+    await writeFile(reference, 'hello')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe((await fsStatPromise(reference)).mode & 0o777)
+  })
+
   it('cleans up the tmp file when rename fails', async () => {
     // Make the target directory read-only after pre-creating an existing file there,
     // then attempt to overwrite — rename(tmp → target) cannot succeed because the
