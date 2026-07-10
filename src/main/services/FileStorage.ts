@@ -269,12 +269,13 @@ class FileStorage {
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(filePath)) {
+      const nativePath = path.normalize(filePath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(filePath)
-      logger.debug(`External file moved to trash successfully: ${filePath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -283,12 +284,13 @@ class FileStorage {
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(dirPath)) {
+      const nativePath = path.normalize(dirPath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(dirPath)
-      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
