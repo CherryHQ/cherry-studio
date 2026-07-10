@@ -24,7 +24,10 @@ const tools = [
   { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: undefined }
 ] as const
 
-function renderSidebar(statuses: CodeCliSidebarProps['statuses'] = {}) {
+function renderSidebar(
+  statuses: CodeCliSidebarProps['statuses'] = {},
+  providerSummaries: CodeCliSidebarProps['providerSummaries'] = {}
+) {
   render(
     <CodeCliSidebar
       tools={tools as unknown as CodeCliSidebarProps['tools']}
@@ -38,6 +41,7 @@ function renderSidebar(statuses: CodeCliSidebarProps['statuses'] = {}) {
       }}
       installingTools={new Set()}
       upgradingTools={new Set()}
+      providerSummaries={providerSummaries}
     />
   )
 }
@@ -76,5 +80,16 @@ describe('CodeCliSidebar', () => {
 
     expect(screen.getByText('v1.3.0')).toBeInTheDocument()
     expect(screen.getByText('v1.3.0').parentElement?.querySelector('svg')).toHaveClass('text-warning')
+  })
+
+  it('renders the enabled-model label below the tool name', () => {
+    renderSidebar({}, { [CodeCli.CLAUDE_CODE]: 'deepseek-v4-flash' })
+
+    const name = screen.getByText('Claude Code')
+    const summary = screen.getByText('deepseek-v4-flash')
+
+    expect(name.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summary).toHaveClass('font-mono')
+    expect(screen.getByRole('button', { name: /OpenAI Codex/ }).textContent).not.toContain('deepseek-v4-flash')
   })
 })

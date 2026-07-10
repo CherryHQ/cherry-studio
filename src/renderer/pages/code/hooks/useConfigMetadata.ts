@@ -44,11 +44,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     [selectedCliTool]
   )
 
-  const resolveProviderMeta = useCallback(
-    (provider: Provider, providerConfig?: CliProviderConfig) => {
+  const resolveProviderMetaForTool = useCallback(
+    (toolId: CodeCli, provider: Provider, providerConfig?: CliProviderConfig) => {
       const modelId = providerConfig?.modelId
       let modelName: string | undefined
-      if (selectedCliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(providerConfig?.config ?? {})) {
+      if (toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(providerConfig?.config ?? {})) {
         modelName = undefined
       } else if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
@@ -60,8 +60,14 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
         modelName
       }
     },
-    [modelById, selectedCliTool]
+    [modelById]
   )
 
-  return { filterProviders, makeModelFilter, resolveProviderMeta }
+  const resolveProviderMeta = useCallback(
+    (provider: Provider, providerConfig?: CliProviderConfig) =>
+      resolveProviderMetaForTool(selectedCliTool, provider, providerConfig),
+    [resolveProviderMetaForTool, selectedCliTool]
+  )
+
+  return { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool }
 }

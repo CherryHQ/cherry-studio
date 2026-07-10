@@ -2,6 +2,7 @@ import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
@@ -41,6 +42,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   )
   useBunInstallationCache()
   const {
+    configs,
     selectedCliTool,
     currentToolState,
     currentProviderId,
@@ -58,7 +60,28 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers } = useProviders()
-  const { filterProviders, makeModelFilter, resolveProviderMeta } = useConfigMetadata(selectedCliTool)
+  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
+    useConfigMetadata(selectedCliTool)
+
+  // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
+  // provider display name when no model applies (own login, Claude detailed models).
+  const providerSummaries = useMemo(() => {
+    const summaries: Record<string, string> = {}
+    for (const tool of CLI_TOOLS) {
+      const state = configs[tool.value as CodeCliId]
+      const currentId = state?.current
+      if (!currentId) continue
+      if (currentId === CLI_OWN_LOGIN_PROVIDER_ID) {
+        summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
+        continue
+      }
+      const provider = providers.find((p) => p.id === currentId)
+      if (!provider) continue
+      const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
+      summaries[tool.value] = meta.modelName || meta.providerName
+    }
+    return summaries
+  }, [configs, providers, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -180,7 +203,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
       toMeta,
       statuses,
       installingTools,
-      upgradingTools
+      upgradingTools,
+      providerSummaries
     },
     contentProps: activeMeta
       ? {

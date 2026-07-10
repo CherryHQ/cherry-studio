@@ -175,6 +175,7 @@ export const useCodeCli = () => {
   }, [setDirectory])
 
   return {
+    configs,
     selectedCliTool,
     currentToolState,
     currentProviderId,

@@ -351,6 +351,10 @@ vi.mock('../hooks/useConfigMetadata', () => ({
     resolveProviderMeta: (item: Provider, config?: CliProviderConfig) => ({
       providerName: item.name,
       modelName: config?.modelId
+    }),
+    resolveProviderMetaForTool: (_toolId: CodeCli, item: Provider, config?: CliProviderConfig) => ({
+      providerName: item.name,
+      modelName: config?.modelId
     })
   })
 }))
@@ -373,6 +377,7 @@ function mockCodeCliState({
   }
 
   useCodeCliMock.mockReturnValue({
+    configs: { [selectedCliTool]: currentToolState },
     selectedCliTool,
     currentToolState,
     currentProviderId,

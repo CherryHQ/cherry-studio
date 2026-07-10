@@ -18,13 +18,15 @@ export interface CodeCliSidebarProps {
   statuses: Record<string, VersionStatus>
   installingTools: Set<string>
   upgradingTools: Set<string>
+  /** Per-tool enabled-model label shown under the tool name. */
+  providerSummaries: Record<string, string>
 }
 
 const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ status, isBusy }) => {
   const { t } = useTranslation()
   if (isBusy) {
     return (
-      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/60">
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-muted-foreground/60 text-xs">
         <Loader2 className="size-2.5 motion-safe:animate-spin" />
         {t('code.installing')}
       </span>
@@ -33,12 +35,12 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   if (!status) return null
   if (!status.installed) {
     return (
-      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
+      <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 text-xs">{t('code.not_installed')}</span>
     )
   }
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <span className="truncate font-mono text-[11px] text-primary">
+      <span className="truncate font-mono text-primary text-xs">
         v{status.canUpgrade && status.latest ? status.latest : status.current}
       </span>
       {status.canUpgrade && <ArrowUpCircle size={12} className="shrink-0 text-warning" />}
@@ -53,7 +55,8 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   toMeta,
   statuses,
   installingTools,
-  upgradingTools
+  upgradingTools,
+  providerSummaries
 }) => {
   const { t } = useTranslation()
 
@@ -67,6 +70,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
             {tools.map((tool) => {
               const meta = toMeta(tool)
               const isSelected = selectedCliTool === tool.value
+              const summary = providerSummaries[tool.value]
               return (
                 <button
                   key={tool.value}
@@ -76,12 +80,17 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                     isSelected ? 'bg-accent/55' : 'hover:bg-accent/30'
                   }`}>
                   <CLIIcon id={tool.value} size={28} className="size-7 shrink-0" />
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
-                    <SidebarStatusTag
-                      status={statuses[tool.value]}
-                      isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
-                    />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 flex-1 truncate text-foreground text-sm">{meta.label}</div>
+                      <SidebarStatusTag
+                        status={statuses[tool.value]}
+                        isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
+                      />
+                    </div>
+                    {summary && (
+                      <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/50">{summary}</div>
+                    )}
                   </div>
                 </button>
               )
