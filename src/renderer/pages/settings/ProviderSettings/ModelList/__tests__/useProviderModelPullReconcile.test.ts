@@ -24,7 +24,7 @@ const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
   group: model.group,
   endpointTypes
 }))
-const updateProviderMock = vi.fn()
+const enableProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
 
@@ -104,14 +104,14 @@ describe('useProviderModelPullReconcile', () => {
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])
-    enableProviderWhenModelsAvailableMock.mockResolvedValue(false)
+    enableProviderWhenModelsAvailableMock.mockResolvedValue({ status: 'enabled' })
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
     fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
     resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
     useModelsMock.mockReturnValue({ models: [localModel] })
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false },
-      updateProvider: updateProviderMock
+      enableProvider: enableProviderMock
     })
   })
 
@@ -265,7 +265,7 @@ describe('useProviderModelPullReconcile', () => {
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedModel)
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
       { id: 'openai', isEnabled: false },
-      updateProviderMock,
+      enableProviderMock,
       2,
       'model_manage_add'
     )
@@ -273,6 +273,20 @@ describe('useProviderModelPullReconcile', () => {
 
   it('shows an operation failure toast when adding models fails', async () => {
     createModelsMock.mockRejectedValueOnce(new Error('create failed'))
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      await result.current.addModels([fetchedModel as any])
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+  })
+
+  it('shows an operation failure toast when provider enablement fails', async () => {
+    enableProviderWhenModelsAvailableMock.mockResolvedValueOnce({
+      status: 'failed',
+      error: new Error('enable failed')
+    })
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
     await act(async () => {

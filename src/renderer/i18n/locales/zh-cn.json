@@ -6820,8 +6820,6 @@
         "large_group_hidden": "显示剩余 {{count}} 个模型",
         "model_in_use_by_knowledge_base": "该模型正在被知识库使用，无法删除。",
         "operation_failed": "模型操作失败。",
-        "provider_enable_failed": "模型已更新，但未能启用服务商并置顶。",
-        "provider_enable_up_to_date_failed": "模型已是最新，但未能启用服务商并置顶。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
         "remove_listed": "移除全部模型",

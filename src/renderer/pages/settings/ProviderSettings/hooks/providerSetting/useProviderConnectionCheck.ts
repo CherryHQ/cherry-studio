@@ -22,7 +22,7 @@ import { useProviderEndpoints } from './useProviderEndpoints'
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
 export function useProviderConnectionCheck(providerId: string) {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, enableProvider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
   const { models } = useModels(
     { providerId },
@@ -114,9 +114,18 @@ export function useProviderConnectionCheck(providerId: string) {
 
         if (runId !== runIdRef.current) return
 
-        // Enable the provider (if disabled) only after a successful check. Enable
-        // swallows its own errors, so it never diverts to the failure path.
-        await enableProviderWhenModelsAvailable(provider, updateProvider, checkableModels.length, 'connection_check')
+        // Enable the provider (if disabled) only after a successful check. This
+        // is part of the user-visible success path, so an enable failure must
+        // surface as a failed check instead of being hidden by a success state.
+        const enablement = await enableProviderWhenModelsAvailable(
+          provider,
+          enableProvider,
+          checkableModels.length,
+          'connection_check'
+        )
+        if (enablement.status === 'failed') {
+          throw enablement.error
+        }
 
         // The enable await can interleave with a newer check; drop this run if it
         // was superseded or aborted before touching success state.
@@ -170,7 +179,7 @@ export function useProviderConnectionCheck(providerId: string) {
       provider,
       requiresApiKey,
       setTimeoutTimer,
-      updateProvider
+      enableProvider
     ]
   )
 
