@@ -377,14 +377,20 @@ class ModelService {
       return { toRemove, presetBackedRemovalIds: new Set() }
     }
 
-    const rows = db
-      .select({
-        id: userModelTable.id,
-        presetModelId: userModelTable.presetModelId
-      })
-      .from(userModelTable)
-      .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
-      .all()
+    const rows: { id: string; presetModelId: string | null }[] = []
+    for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+      rows.push(
+        ...db
+          .select({
+            id: userModelTable.id,
+            presetModelId: userModelTable.presetModelId
+          })
+          .from(userModelTable)
+          .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+          .all()
+      )
+    }
 
     const managedDefaultIds = new Set<string>()
     const presetBackedRemovalIds = new Set<string>()
@@ -823,25 +829,28 @@ class ModelService {
     const toRemove = removalFilter.toRemove
 
     let actuallyDeleted = 0
-    let deletedIds: string[] = []
+    const deletedIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         db.transaction((tx) => {
           if (toRemove.length > 0) {
-            const deletedRows = tx
-              .delete(userModelTable)
-              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
-              .returning({ id: userModelTable.id })
-              .all()
-            actuallyDeleted = deletedRows.length
-            deletedIds = deletedRows.map((row) => row.id)
+            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+              const deletedRows = tx
+                .delete(userModelTable)
+                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+                .returning({ id: userModelTable.id })
+                .all()
+              actuallyDeleted += deletedRows.length
+              deletedIds.push(...deletedRows.map((row) => row.id))
 
-            if (deletedRows.length > 0) {
-              pinService.purgeForEntitiesTx(
-                tx,
-                'model',
-                deletedRows.map((row) => row.id)
-              )
+              if (deletedRows.length > 0) {
+                pinService.purgeForEntitiesTx(
+                  tx,
+                  'model',
+                  deletedRows.map((row) => row.id)
+                )
+              }
             }
           }
 

@@ -1520,6 +1520,36 @@ describe('ModelService.reconcileForProvider', () => {
     expect(new Set(sortedKeys).size).toBe(sortedKeys.length)
   })
 
+  it('chunks large removal filters and deletes', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const rows = Array.from({ length: 600 }, (_, index) =>
+      modelRow('openai', `managed-model-${index}`, {
+        id: createUniqueModelId('openai', `managed-model-${index}`),
+        presetModelId: `managed-model-${index}`
+      })
+    )
+    for (let i = 0; i < rows.length; i += 25) {
+      await dbh.db.insert(userModelTable).values(rows.slice(i, i + 25))
+    }
+
+    const firstPin = pinService.pin({ entityType: 'model', entityId: rows[0].id })
+    const lastPin = pinService.pin({ entityType: 'model', entityId: rows[rows.length - 1].id })
+
+    const result = modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: rows.map((row) => row.id)
+    })
+
+    const remainingRows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
+    const pins = await dbh.db.select().from(pinTable)
+
+    expect(result).toHaveLength(0)
+    expect(remainingRows).toHaveLength(0)
+    expect(pins.find((pin) => pin.id === firstPin.id)).toBeUndefined()
+    expect(pins.find((pin) => pin.id === lastPin.id)).toBeUndefined()
+  })
+
   it('warns when toRemove references IDs that do not exist for this provider', async () => {
     // S2 regression coverage: stale renderer state passes a toRemove with a
     // non-existent id; reconcile completes but logs the count mismatch.
