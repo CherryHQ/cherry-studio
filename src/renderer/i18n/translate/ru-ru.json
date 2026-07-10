@@ -875,8 +875,8 @@
           "label": "Баш"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Проверяет и управляет конфигурацией этого агента и каналами",
+          "label": "Конфигурация агента"
         },
         "CherryCron": {
           "description": "Управляет встроенным планировщиком",
@@ -891,8 +891,8 @@
           "label": "Поиск знаний"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Отправляет уведомление через подключенный канал",
+          "label": "Уведомить"
         },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Пропустить при резервном копировании такие данные, как изображения, базы знаний и другие файлы данных, и сделать резервную копию только переписки и настроек. Это уменьшает использование места на диске и ускоряет процесс резервного копирования.",
-        "skip_file_data_title": "Упрощенная резервная копия"
+        "skip_file_data_title": "Упрощенная резервная копия",
+        "v2_unavailable": "Резервное копирование и восстановление V2 пока недоступно. Скоро."
       },
       "clear_cache": {
         "button": "Очистка кэша",

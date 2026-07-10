@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspecciona y gestiona esta configuración de agente y canales",
+          "label": "Configuración del Agente"
         },
         "CherryCron": {
           "description": "Gestiona el programador dentro de la aplicación",
@@ -891,8 +891,8 @@
           "label": "Búsqueda de conocimiento"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envía una notificación a través de un canal conectado",
+          "label": "Notificar"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
-        "skip_file_data_title": "Copia de seguridad reducida"
+        "skip_file_data_title": "Copia de seguridad reducida",
+        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
       },
       "clear_cache": {
         "button": "Limpiar caché",

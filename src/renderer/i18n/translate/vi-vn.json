@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Kiểm tra và quản lý cấu hình agent này và các kênh",
+          "label": "Cấu hình Agent"
         },
         "CherryCron": {
           "description": "Quản lý trình lên lịch trong ứng dụng",
@@ -891,8 +891,8 @@
           "label": "Tìm kiếm kiến thức"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Gửi thông báo qua một kênh đã kết nối",
+          "label": "Thông báo"
         },
         "CherryWebFetch": {
           "description": "Tìm nạp và đọc một trang web",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Bỏ qua việc sao lưu các tệp dữ liệu như hình ảnh và cơ sở tri thức, chỉ sao lưu lịch sử trò chuyện và cài đặt. Giảm chiếm dụng dung lượng và tăng tốc độ sao lưu.",
-        "skip_file_data_title": "Sao lưu mỏng"
+        "skip_file_data_title": "Sao lưu mỏng",
+        "v2_unavailable": "Sao lưu & khôi phục V2 chưa khả dụng. Sắp ra mắt."
       },
       "clear_cache": {
         "button": "Xóa bộ nhớ đệm",

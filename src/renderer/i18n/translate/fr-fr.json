@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspecte et gère cette configuration d'agent et ses canaux",
+          "label": "Configuration de l'agent"
         },
         "CherryCron": {
           "description": "Gère le planificateur intégré à l'application",
@@ -891,8 +891,8 @@
           "label": "Recherche de connaissances"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envoie une notification via un canal connecté",
+          "label": "Notifier"
         },
         "CherryWebFetch": {
           "description": "Récupère et lit une page web",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
-        "skip_file_data_title": "Sauvegarde réduite"
+        "skip_file_data_title": "Sauvegarde réduite",
+        "v2_unavailable": "La sauvegarde et la restauration V2 n'est pas encore disponible. Bientôt disponible."
       },
       "clear_cache": {
         "button": "Effacer le cache",

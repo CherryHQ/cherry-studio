@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspectează și gestionează această configurație de agent și canalele sale",
+          "label": "Configurare Agent"
         },
         "CherryCron": {
           "description": "Gestionează programatorul din aplicație",
@@ -891,8 +891,8 @@
           "label": "Căutare de cunoștințe"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Trimite o notificare printr-un canal conectat",
+          "label": "Notificați"
         },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
-        "skip_file_data_title": "Backup simplificat"
+        "skip_file_data_title": "Backup simplificat",
+        "v2_unavailable": "Backup și restaurare V2 nu este încă disponibil. În curând."
       },
       "clear_cache": {
         "button": "Golește memoria cache",

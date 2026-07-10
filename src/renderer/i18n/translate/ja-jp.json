@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "このエージェントの設定とチャンネルを確認および管理します",
+          "label": "エージェント設定"
         },
         "CherryCron": {
           "description": "アプリ内スケジューラを管理します",
@@ -891,8 +891,8 @@
           "label": "ナレッジ検索"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "接続されたチャネルを通じて通知を送信します",
+          "label": "通知"
         },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ"
+        "skip_file_data_title": "精簡バックアップ",
+        "v2_unavailable": "バックアップと復元V2はまだ利用できません。近日公開予定です。"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",
