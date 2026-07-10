@@ -284,7 +284,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               onOpenKnowledgePage ? (
                 <button
                   type="button"
-                  className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground"
                   onClick={onOpenKnowledgePage}>
                   <ArrowUpRight size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
@@ -673,7 +673,7 @@ export function CompactModelField({
             </div>
           </DialogModelFrame>
           {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}
-          {name === 'modelId' && value && !modelLabels[name] ? (
+          {name === 'modelId' && value && !modelLabels[name] && !selectedModel ? (
             <FormDescription className="text-xs">
               {t('library.config.basic.model_not_found', { id: value })}
             </FormDescription>
