@@ -1,9 +1,12 @@
+import { cacheService } from '@renderer/data/CacheService'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
 const hookMocks = vi.hoisted(() => ({
   deleteSession: vi.fn(),
@@ -19,7 +22,8 @@ const hookMocks = vi.hoisted(() => ({
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
-  useUpdateSession: vi.fn()
+  useUpdateSession: vi.fn(),
+  virtualListRenderRows: [] as VirtualListRenderRow[]
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -43,19 +47,59 @@ vi.mock('@renderer/components/VirtualList', () => ({
     header?: ReactNode
     list: T[]
     role?: string
-  }) => (
-    <div data-testid="history-virtual-list" role={role}>
-      {header}
-      {list.map((item, index) => (
-        <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+  }) => {
+    hookMocks.virtualListRenderRows.push(children as VirtualListRenderRow)
+
+    return (
+      <div data-testid="history-virtual-list" role={role}>
+        {header}
+        {list.map((item, index) => (
+          <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const agents = hookMocks.useAgents()?.agents ?? []
+    const items = [...agents.map((agent: AgentEntity) => ({ id: agent.id, name: agent.name })), ...additionalItems]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  },
+  AssistantSelector: ({ additionalItems = [], onChange, trigger, value }: any) => {
+    const assistants = hookMocks.useAssistants()?.assistants ?? []
+    const items = [
+      ...assistants.map((assistant: { id: string; name: string }) => ({ id: assistant.id, name: assistant.name })),
+      ...additionalItems
+    ]
+
+    return (
+      <div>
+        {trigger}
+        {items.map((item: { id: string; name: string }) => (
+          <button type="button" key={item.id} aria-pressed={item.id === value} onClick={() => onChange(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -80,11 +124,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
 }))
 
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    openConversationTab: hookMocks.openConversationTab
-  })
-}))
+vi.mock('@renderer/hooks/useConversationNavigation', () => {
+  const navigation = { openConversationTab: hookMocks.openConversationTab }
+  return { useConversationNavigation: () => navigation }
+})
 
 vi.mock('@renderer/hooks/useTopic', () => ({
   finishTopicRenaming: vi.fn(),
@@ -158,12 +201,8 @@ vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    init: vi.fn(),
-    type: '3rdParty'
-  },
-  useTranslation: () => ({
+vi.mock('react-i18next', () => {
+  const translation = {
     t: (key: string, fallbackOrOptions?: string | Record<string, unknown>, maybeOptions?: Record<string, unknown>) => {
       const fallback = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
       const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
@@ -196,16 +235,15 @@ vi.mock('react-i18next', () => ({
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
         'history.records.bulkDeleteSessions.title': 'Delete selected tasks',
-        'history.records.agentSubtitle': '{{count}} tasks',
         'history.records.agentTitle': 'Agent history',
         'history.records.empty.sessionsDescription': 'No tasks for the current filters.',
         'history.records.empty.sessionsTitle': 'No tasks',
         'history.records.loading.sessionsDescription': 'Loading task list.',
         'history.records.loading.sessionsTitle': 'Loading tasks',
-        'history.records.resultCount': '{{count}} results',
         'history.records.searchSession': 'Search tasks...',
         'history.records.shortTitle': 'History',
-        'history.records.sidebar.status': 'Status',
+        'history.records.clearSearch': 'Clear search',
+        'history.records.filter.statusLabel': 'Status',
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
@@ -219,10 +257,18 @@ vi.mock('react-i18next', () => ({
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
     }
-  })
-}))
+  }
 
-import HistoryRecordsPage from '../HistoryRecordsPage'
+  return {
+    initReactI18next: {
+      init: vi.fn(),
+      type: '3rdParty'
+    },
+    useTranslation: () => translation
+  }
+})
+
+import HistoryRecordsView from '../HistoryRecordsView'
 
 function flushAnimationFrame() {
   return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
@@ -314,7 +360,7 @@ function setupAgentHistory({
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
   render(
-    <HistoryRecordsPage
+    <HistoryRecordsView
       mode="agent"
       open
       activeRecordId={activeRecordId}
@@ -326,7 +372,7 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
-describe('HistoryRecordsPage agent mode', () => {
+describe('HistoryRecordsView agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
@@ -368,6 +414,7 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
+    hookMocks.virtualListRenderRows.length = 0
   })
 
   it('renders sessions from the existing agent session list data', () => {
@@ -378,11 +425,9 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
-    expect(screen.getByText('History')).toBeInTheDocument()
-    expect(screen.getByText('2 tasks')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
     expect(pinButton).toHaveAccessibleName('Unpin')
@@ -393,17 +438,21 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    expect(screen.getByText('Planning notes')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Agent' })).toBeInTheDocument()
+    // Rows are single-line: the session description is searchable but not rendered.
+    expect(screen.queryByText('Planning notes')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
-    expect(within(alphaCells[2]).getAllByText('A').length).toBeGreaterThan(0)
-    expect(within(alphaCells[2]).getByText('Alpha agent')).toBeInTheDocument()
+    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
+    expect(within(alphaCells[1]).getByText('Alpha agent')).toBeInTheDocument()
+    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
+    const headerCells = screen.getAllByRole('columnheader')
+    expect(headerCells[1]).toHaveTextContent('Agent')
+    expect(headerCells[2]).toHaveTextContent('Task')
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gamma agent/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
@@ -419,10 +468,23 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('orders search, filters, and bulk actions across the toolbar', () => {
+    setupAgentHistory()
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
+    const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
+    const statusFilter = screen.getByRole('button', { name: 'Status' })
+    const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Delete' })
+
+    expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(statusFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
   it('filters sessions by selected agent source', () => {
     setupAgentHistory()
 
-    fireEvent.click(screen.getByRole('button', { name: /Beta agent 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -462,8 +524,8 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     expect(hookMocks.useDataApiQuery).not.toHaveBeenCalled()
-    const betaSource = screen.getByRole('button', { name: /Beta agent 1/ })
-    const alphaSource = screen.getByRole('button', { name: /Alpha agent 2/ })
+    const betaSource = screen.getByRole('button', { name: /Beta agent/ })
+    const alphaSource = screen.getByRole('button', { name: /Alpha agent/ })
     expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
@@ -480,12 +542,12 @@ describe('HistoryRecordsPage agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Running 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Failed 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Running 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Running$/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -498,19 +560,34 @@ describe('HistoryRecordsPage agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByRole('button', { name: /Running 0/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Failed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Failed 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Failed$/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Completed 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Completed$/ }))
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('keeps the virtual row renderer stable across stream status updates', () => {
+    setupAgentHistory()
+    const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
+
+    act(() => {
+      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
+        status: 'streaming',
+        activeExecutions: [],
+        awaitingApprovalAnchors: []
+      })
+    })
+
+    expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
   it('groups sessions with a missing agent under the unknown-agent source', () => {
@@ -528,7 +605,7 @@ describe('HistoryRecordsPage agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()
@@ -757,11 +834,11 @@ describe('HistoryRecordsPage agent mode', () => {
       onRecordSelect: vi.fn()
     }
 
-    const { rerender } = render(<HistoryRecordsPage {...props} open />)
-    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    const { rerender } = render(<HistoryRecordsView {...props} open />)
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
 
-    rerender(<HistoryRecordsPage {...props} open={false} />)
-    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    rerender(<HistoryRecordsView {...props} open={false} />)
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
   it('renders an empty state when session search has no matches', () => {
