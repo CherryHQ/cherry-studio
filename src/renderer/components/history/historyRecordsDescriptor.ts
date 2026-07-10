@@ -22,9 +22,6 @@ export interface HistoryRowActions {
 export interface HistoryRecordsStrings {
   /** Filter-bar source field label ("Assistant" / "Agent"). */
   sourceLabel: string
-  sourcePlaceholder: string
-  sourceSearchPlaceholder: string
-  sourceEmpty: string
   /** Keyword search placeholder. */
   searchPlaceholder: string
   /** Title-column header label ("Topic" / "Session"). */

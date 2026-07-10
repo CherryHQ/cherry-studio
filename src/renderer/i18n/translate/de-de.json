@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Agent auswählen",
         "selectAssistant": "Assistent auswählen",
-        "sourceEmpty": "Keine Treffer",
-        "sourcePlaceholder": "Quelle auswählen",
-        "sourceSearchPlaceholder": "Suchen...",
         "statusLabel": "Status",
         "statusPlaceholder": "Status auswählen",
         "unlinkedAssistant": "Unverknüpfter Assistent"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
-      "selectedCount": "{{count}} ausgewählt",
       "shortTitle": "Geschichte",
       "status": {
         "completed": "Abgeschlossen",

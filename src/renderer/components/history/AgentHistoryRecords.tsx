@@ -277,9 +277,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     onRename: handleRenameSession,
     strings: {
       sourceLabel: t('common.agent'),
-      sourcePlaceholder: t('history.records.filter.sourcePlaceholder'),
-      sourceSearchPlaceholder: t('history.records.filter.sourceSearchPlaceholder'),
-      sourceEmpty: t('history.records.filter.sourceEmpty'),
       searchPlaceholder: t('history.records.searchSession'),
       titleColumnLabel: t('history.records.table.session'),
       emptyTitle: t('history.records.empty.sessionsTitle'),

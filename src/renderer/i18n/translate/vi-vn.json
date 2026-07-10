@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Chọn tác nhân",
         "selectAssistant": "Chọn trợ lý",
-        "sourceEmpty": "Không có kết quả phù hợp",
-        "sourcePlaceholder": "Chọn nguồn",
-        "sourceSearchPlaceholder": "Tìm kiếm...",
         "statusLabel": "Trạng thái",
         "statusPlaceholder": "Chọn trạng thái",
         "unlinkedAssistant": "Trợ lý không liên kết"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
-      "selectedCount": "Đã chọn {{count}}",
       "shortTitle": "Lịch sử",
       "status": {
         "completed": "Hoàn thành",

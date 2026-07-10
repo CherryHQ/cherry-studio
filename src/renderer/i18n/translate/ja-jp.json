@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "エージェントを選択",
         "selectAssistant": "アシスタントを選択",
-        "sourceEmpty": "一致する項目はありません",
-        "sourcePlaceholder": "ソースを選択",
-        "sourceSearchPlaceholder": "検索...",
         "statusLabel": "ステータス",
         "statusPlaceholder": "ステータスを選択",
         "unlinkedAssistant": "リンクされていないアシスタント"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
-      "selectedCount": "{{count}}件選択中",
       "shortTitle": "歴史",
       "status": {
         "completed": "完了",

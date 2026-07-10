@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Выберите агента",
         "selectAssistant": "Выберите ассистента",
-        "sourceEmpty": "Совпадений нет",
-        "sourcePlaceholder": "Выберите источник",
-        "sourceSearchPlaceholder": "Поиск...",
         "statusLabel": "Статус",
         "statusPlaceholder": "Выберите статус",
         "unlinkedAssistant": "Несвязанный ассистент"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
-      "selectedCount": "Выбрано: {{count}}",
       "shortTitle": "История",
       "status": {
         "completed": "Завершено",

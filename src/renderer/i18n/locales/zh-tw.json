@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "請選擇智能體",
         "selectAssistant": "請選擇助理",
-        "sourceEmpty": "無符合項目",
-        "sourcePlaceholder": "選擇來源",
-        "sourceSearchPlaceholder": "搜尋...",
         "statusLabel": "狀態",
         "statusPlaceholder": "請選擇狀態",
         "unlinkedAssistant": "未連結的助理"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
-      "selectedCount": "已選 {{count}} 項",
       "shortTitle": "歷史",
       "status": {
         "completed": "已完成",

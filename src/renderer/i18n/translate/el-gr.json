@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Επιλέξτε πράκτορα",
         "selectAssistant": "Επιλέξτε βοηθό",
-        "sourceEmpty": "Δεν υπάρχουν αποτελέσματα",
-        "sourcePlaceholder": "Επιλέξτε πηγή",
-        "sourceSearchPlaceholder": "Αναζήτηση...",
         "statusLabel": "Κατάσταση",
         "statusPlaceholder": "Επιλέξτε κατάσταση",
         "unlinkedAssistant": "Ασύνδετος βοηθός"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
-      "selectedCount": "{{count}} επιλεγμένα",
       "shortTitle": "Ιστορία",
       "status": {
         "completed": "Ολοκληρώθηκε",

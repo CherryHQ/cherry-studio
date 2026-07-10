@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Seleccionar un agente",
         "selectAssistant": "Seleccionar un asistente",
-        "sourceEmpty": "Sin coincidencias",
-        "sourcePlaceholder": "Seleccionar fuente",
-        "sourceSearchPlaceholder": "Buscar...",
         "statusLabel": "Estado",
         "statusPlaceholder": "Seleccionar estado",
         "unlinkedAssistant": "Asistente no vinculado"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Buscar tareas...",
       "searchTopic": "Buscar conversaciones...",
-      "selectedCount": "{{count}} seleccionados",
       "shortTitle": "Historia",
       "status": {
         "completed": "Completado",

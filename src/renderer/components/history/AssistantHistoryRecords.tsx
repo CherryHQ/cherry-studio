@@ -458,9 +458,6 @@ const AssistantHistoryRecords = ({
     onRename: handleRenameTopic,
     strings: {
       sourceLabel: t('common.assistant'),
-      sourcePlaceholder: t('history.records.filter.sourcePlaceholder'),
-      sourceSearchPlaceholder: t('history.records.filter.sourceSearchPlaceholder'),
-      sourceEmpty: t('history.records.filter.sourceEmpty'),
       searchPlaceholder: t('history.records.searchTopic'),
       titleColumnLabel: t('history.records.table.conversation'),
       emptyTitle: t('history.records.empty.title'),

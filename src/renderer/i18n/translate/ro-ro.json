@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Selectează un agent",
         "selectAssistant": "Selectează un asistent",
-        "sourceEmpty": "Niciun rezultat",
-        "sourcePlaceholder": "Selectează sursa",
-        "sourceSearchPlaceholder": "Caută...",
         "statusLabel": "Stare",
         "statusPlaceholder": "Selectează starea",
         "unlinkedAssistant": "Asistent deconectat"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
-      "selectedCount": "{{count}} selectate",
       "shortTitle": "Istorie",
       "status": {
         "completed": "Finalizat",

@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "请选择智能体",
         "selectAssistant": "请选择助手",
-        "sourceEmpty": "无匹配项",
-        "sourcePlaceholder": "选择来源",
-        "sourceSearchPlaceholder": "搜索...",
         "statusLabel": "状态",
         "statusPlaceholder": "请选择状态",
         "unlinkedAssistant": "未关联助手"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
-      "selectedCount": "已选 {{count}} 项",
       "shortTitle": "历史记录",
       "status": {
         "completed": "已完成",

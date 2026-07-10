@@ -2468,9 +2468,6 @@
       "filter": {
         "selectAgent": "Select an agent",
         "selectAssistant": "Select an assistant",
-        "sourceEmpty": "No matches",
-        "sourcePlaceholder": "Select source",
-        "sourceSearchPlaceholder": "Search...",
         "statusLabel": "Status",
         "statusPlaceholder": "Select status",
         "unlinkedAssistant": "Unlinked assistant"
@@ -2483,7 +2480,6 @@
       },
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
-      "selectedCount": "{{count}} selected",
       "shortTitle": "History",
       "status": {
         "completed": "Completed",
