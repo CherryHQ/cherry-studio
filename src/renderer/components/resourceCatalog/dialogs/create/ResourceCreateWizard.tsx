@@ -148,10 +148,10 @@ export function ResourceCreateWizard({
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
-  // protection (overlay / Esc / X) stays locked for the entire submit, not just the
-  // window after the parent renders its loading state — otherwise a failure would write
-  // its error into an already-closed form. Subscribing to isSubmitting (not form values)
-  // keeps the shell off the field-edit re-render path the comment below relies on.
+  // protection (overlay / Esc / X / knowledge-page navigation) stays locked for the
+  // entire submit, not just the window after the parent renders its loading state —
+  // otherwise a failure would write its error into an already-closed form. Subscribing
+  // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
@@ -299,7 +299,8 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep
                     form={form}
-                    onClose={() => onOpenChange(false)}
+                    isSubmitting={submitting}
+                    onClose={() => !submitting && onOpenChange(false)}
                     portalContainer={dialogContentElement}
                   />
                 ) : null}

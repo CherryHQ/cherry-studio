@@ -15,6 +15,7 @@ const dialog = vi.hoisted(() => ({
     | undefined,
   renderCount: 0
 }))
+const tabs = vi.hoisted(() => ({ openTab: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -22,6 +23,18 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ openTab: tabs.openTab })
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
+  KnowledgeBaseField: ({ onOpenKnowledgePage }: { onOpenKnowledgePage?: () => void }) => (
+    <button type="button" disabled={!onOpenKnowledgePage} onClick={onOpenKnowledgePage}>
+      open knowledge
+    </button>
+  )
 }))
 
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
@@ -44,7 +57,6 @@ vi.mock('../steps/PersonaStep', () => ({
     </button>
   )
 }))
-vi.mock('../steps/KnowledgeStep', () => ({ KnowledgeStep: () => <div /> }))
 vi.mock('../steps/CapabilityStep', () => ({ CapabilityStep: () => <div /> }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -130,6 +142,7 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
+const OPEN_KNOWLEDGE = 'open knowledge'
 
 afterEach(() => {
   cleanup()
@@ -137,6 +150,7 @@ afterEach(() => {
   dialog.closeOnOverlayClick = undefined
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
+  tabs.openTab.mockReset()
 })
 
 describe('ResourceCreateWizard close protection', () => {
@@ -155,12 +169,18 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
 
     // In flight: overlay click is disabled, pointer-down-outside is prevented, and the
-    // dialog refuses to forward a close — even though the parent's isSubmitting is still false.
+    // dialog and knowledge-page entry refuse to close it — even though the parent's
+    // isSubmitting is still false.
     expect(dialog.closeOnOverlayClick).toBe(false)
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
+    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
     let prevented = false
     dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
     expect(prevented).toBe(true)
@@ -173,8 +193,35 @@ describe('ResourceCreateWizard close protection', () => {
       await submitPromise
     })
     expect(dialog.closeOnOverlayClick).toBe(true)
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
     dialog.onOpenChange?.(false)
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('blocks knowledge-page navigation while the parent reports a submit in flight', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSubmit = vi.fn()
+    const { rerender } = render(
+      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+
+    rerender(
+      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} isSubmitting />
+    )
+
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+
+    rerender(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
   })
 
   it('keeps the dialog shell stable when a non-gating field changes after ref attach', async () => {

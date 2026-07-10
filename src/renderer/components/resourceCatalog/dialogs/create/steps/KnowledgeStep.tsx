@@ -7,6 +7,7 @@ import type { ResourceCreateWizardFormValues } from '../types'
 
 type KnowledgeStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
+  isSubmitting?: boolean
   onClose?: () => void
   portalContainer: HTMLElement | null
 }
@@ -15,19 +16,20 @@ type KnowledgeStepProps = {
  * Step 3 (assistant): attach knowledge bases. Mirrors the edit dialog's
  * knowledge sub-form — picker popover + linked list — bound to `knowledgeBaseIds`.
  */
-export function KnowledgeStep({ form, onClose, portalContainer }: KnowledgeStepProps) {
+export function KnowledgeStep({ form, isSubmitting = false, onClose, portalContainer }: KnowledgeStepProps) {
   const { openTab } = useTabs()
   const openKnowledgePage = useCallback(() => {
+    if (isSubmitting) return
     onClose?.()
     window.setTimeout(() => openTab('/app/knowledge'), 0)
-  }, [onClose, openTab])
+  }, [isSubmitting, onClose, openTab])
 
   return (
     <KnowledgeBaseField
       form={form}
       portalContainer={portalContainer}
       formLabel={false}
-      onOpenKnowledgePage={openKnowledgePage}
+      onOpenKnowledgePage={isSubmitting ? undefined : openKnowledgePage}
     />
   )
 }
