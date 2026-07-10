@@ -72,7 +72,7 @@ function InlineTokenRemoveButton({
   label,
   onRemove,
   className,
-  iconClassName = tokenRemoveIconClassName
+  iconClassName
 }: {
   label: string
   onRemove: () => void
@@ -91,16 +91,16 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-muted-foreground leading-none opacity-0 outline-none transition-[color,opacity]',
-        'hover:text-foreground hover:opacity-100',
-        'focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100',
+        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'hover:opacity-100',
+        'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
         className
       )}
       onMouseDown={stopTokenActionEvent}
       onClick={handleRemove}
       onKeyDown={(event) => event.stopPropagation()}>
-      <X className={iconClassName} aria-hidden />
+      <X className={cn(tokenRemoveIconClassName, iconClassName)} aria-hidden />
     </button>
   )
 }
@@ -549,7 +549,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           icon={props.token.icon ? props.token.icon : presentation.icon}
           removeLabel={removeLabel}
           onRemove={onRemove}
-          removeButtonClassName="size-full rounded-[5px]"
+          removeButtonClassName={cn(
+            'size-full rounded-[5px]',
+            presentation.variant !== 'text' && presentation.variant !== 'fallback' && 'dark:text-black'
+          )}
           removeIconClassName="size-3"
         />
       </span>

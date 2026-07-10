@@ -432,6 +432,7 @@ describe('ComposerToken', () => {
   it('renders pdf file tokens with pdf variant metadata', () => {
     const { container } = render(
       <ComposerToken
+        onRemove={vi.fn()}
         token={{
           id: 'file:document',
           kind: 'file',
@@ -452,6 +453,8 @@ describe('ComposerToken', () => {
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
+    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('text-current', 'dark:text-black')
+    expect(token?.querySelector('[data-composer-token-remove] svg')).toHaveClass('size-3', 'text-current')
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
 
@@ -589,9 +592,14 @@ describe('ComposerToken', () => {
     expect(removeButton).toBeInTheDocument()
     expect(removeButton).toHaveAttribute('aria-label', '删除')
     expect(removeButton).toHaveClass('size-full', 'rounded-[5px]')
-    expect(removeButton).toHaveClass('text-muted-foreground', 'hover:text-foreground')
-    expect(removeButton).not.toHaveClass('hover:text-destructive')
-    expect(removeButton.querySelector('svg')).toHaveClass('size-3')
+    expect(removeButton).toHaveClass('text-current')
+    expect(removeButton).not.toHaveClass(
+      'dark:text-black',
+      'text-muted-foreground',
+      'hover:text-foreground',
+      'hover:text-destructive'
+    )
+    expect(removeButton.querySelector('svg')).toHaveClass('size-3', 'text-current')
     expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
     const nativeEditorKeyDown = vi.fn()
     screen.getByTestId('editor-keydown-boundary').addEventListener('keydown', nativeEditorKeyDown)
