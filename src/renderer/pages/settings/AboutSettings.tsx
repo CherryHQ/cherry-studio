@@ -11,7 +11,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
