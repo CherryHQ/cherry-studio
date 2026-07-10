@@ -38,14 +38,8 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
       <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
     )
   }
-  return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <span className="truncate font-mono text-[11px] text-primary">
-        v{status.canUpgrade && status.latest ? status.latest : status.current}
-      </span>
-      {status.canUpgrade && <ArrowUpCircle size={12} className="shrink-0 text-warning" />}
-    </div>
-  )
+  if (!status.canUpgrade) return null
+  return <ArrowUpCircle size={12} className="shrink-0 text-warning" />
 }
 
 export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({

@@ -67,19 +67,20 @@ describe('CodeCliSidebar', () => {
     expect(name.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('renders installed versions with the brand color', () => {
+  it('renders no version text for installed tools', () => {
     renderSidebar()
 
-    expect(screen.getByText('v1.2.3')).toHaveClass('text-primary')
+    expect(screen.queryByText('v1.2.3')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /OpenAI Codex/ }).querySelector('svg.text-warning')).toBeNull()
   })
 
-  it('renders the latest version and upgrade icon when an update is available', () => {
+  it('renders only the upgrade icon when an update is available', () => {
     renderSidebar({
       [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', latest: '1.3.0', canUpgrade: true }
     })
 
-    expect(screen.getByText('v1.3.0')).toBeInTheDocument()
-    expect(screen.getByText('v1.3.0').parentElement?.querySelector('svg')).toHaveClass('text-warning')
+    expect(screen.queryByText('v1.3.0')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /OpenAI Codex/ }).querySelector('svg.text-warning')).not.toBeNull()
   })
 
   it('renders the enabled-model label below the tool name', () => {
