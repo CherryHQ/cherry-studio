@@ -2587,9 +2587,7 @@
       "message": "定位到訊息"
     },
     "records": {
-      "agentSubtitle": "{{count}} 個任務",
       "agentTitle": "代理歷史",
-      "assistantSubtitle": "{{count}} 個對話",
       "bulkDelete": "批次刪除",
       "bulkDeleteSessions": {
         "description": "要刪除選中的 {{count}} 個任務嗎？",
@@ -2611,11 +2609,19 @@
         "target": "目標助理",
         "title": "移動選中的對話"
       },
+      "clearSearch": "清除搜尋",
       "empty": {
         "description": "目前篩選條件下沒有對話。",
         "sessionsDescription": "目前篩選條件下沒有任務。",
         "sessionsTitle": "沒有任務",
         "title": "沒有對話"
+      },
+      "filter": {
+        "selectAgent": "請選擇智能體",
+        "selectAssistant": "請選擇助理",
+        "statusLabel": "狀態",
+        "statusPlaceholder": "請選擇狀態",
+        "unlinkedAssistant": "未連結的助理"
       },
       "loading": {
         "description": "正在載入對話列表。",
@@ -2623,15 +2629,9 @@
         "sessionsTitle": "正在載入任務",
         "title": "正在載入對話"
       },
-      "resultCount": "{{count}} 個結果",
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
       "shortTitle": "歷史",
-      "sidebar": {
-        "searchAssistant": "搜尋助理...",
-        "status": "狀態",
-        "unknownAssistant": "未連結的助理"
-      },
       "status": {
         "completed": "已完成",
         "failed": "失敗",
@@ -2639,11 +2639,10 @@
       },
       "table": {
         "actions": "動作",
+        "conversation": "對話",
         "emptyValue": "—",
-        "messages": "訊息",
         "session": "任務",
-        "time": "時間",
-        "title": "標題"
+        "time": "時間"
       },
       "title": "對話歷史記錄"
     },

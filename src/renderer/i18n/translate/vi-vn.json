@@ -2436,9 +2436,7 @@
       "message": "Tìm tin nhắn"
     },
     "records": {
-      "agentSubtitle": "{{count}} nhiệm vụ",
       "agentTitle": "Lịch sử Đại lý",
-      "assistantSubtitle": "{{count}} cuộc trò chuyện",
       "bulkDelete": "Xóa hàng loạt",
       "bulkDeleteSessions": {
         "description": "Xóa {{count}} công việc đã chọn?",
@@ -2460,11 +2458,19 @@
         "target": "Trợ lý mục tiêu",
         "title": "Di chuyển các cuộc trò chuyện đã chọn"
       },
+      "clearSearch": "Xóa tìm kiếm",
       "empty": {
         "description": "Không có cuộc trò chuyện nào cho các bộ lọc hiện tại.",
         "sessionsDescription": "Không có nhiệm vụ nào cho các bộ lọc hiện tại.",
         "sessionsTitle": "Không có nhiệm vụ",
         "title": "Không có cuộc trò chuyện nào"
+      },
+      "filter": {
+        "selectAgent": "Chọn tác nhân",
+        "selectAssistant": "Chọn trợ lý",
+        "statusLabel": "Trạng thái",
+        "statusPlaceholder": "Chọn trạng thái",
+        "unlinkedAssistant": "Trợ lý không liên kết"
       },
       "loading": {
         "description": "Đang tải danh sách cuộc trò chuyện.",
@@ -2472,15 +2478,9 @@
         "sessionsTitle": "Đang tải nhiệm vụ",
         "title": "Đang tải các cuộc trò chuyện"
       },
-      "resultCount": "{{count}} kết quả",
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
       "shortTitle": "Lịch sử",
-      "sidebar": {
-        "searchAssistant": "Trợ lý tìm kiếm...",
-        "status": "Trạng thái",
-        "unknownAssistant": "Trợ lý không liên kết"
-      },
       "status": {
         "completed": "Hoàn thành",
         "failed": "Thất bại",
@@ -2488,11 +2488,10 @@
       },
       "table": {
         "actions": "Hành động",
+        "conversation": "Cuộc trò chuyện",
         "emptyValue": "—",
-        "messages": "Tin nhắn",
         "session": "Nhiệm vụ",
-        "time": "Thời gian",
-        "title": "Tiêu đề"
+        "time": "Thời gian"
       },
       "title": "Lịch sử cuộc trò chuyện"
     },

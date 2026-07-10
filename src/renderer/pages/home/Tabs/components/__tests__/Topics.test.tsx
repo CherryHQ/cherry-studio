@@ -376,6 +376,13 @@ import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
+import {
+  applyOptimisticTopicDisplayMove,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+} from '@renderer/utils/chat/topicsHelpers'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
@@ -388,13 +395,6 @@ import {
   settleTopicImageActionRequest
 } from '../../../messages/topicImageActionBus'
 import { Topics } from '../Topics'
-import {
-  applyOptimisticTopicDisplayMove,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-} from '../topicsHelpers'
 
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
@@ -544,6 +544,7 @@ function renderTopicList({
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
   onCreateTopicAfterClear = vi.fn(),
+  historyRecordsActive,
   onNewTopic = vi.fn(),
   onOpenHistoryRecords = vi.fn(),
   onSetPanePosition,
@@ -558,6 +559,7 @@ function renderTopicList({
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   onCreateTopicAfterClear?: OnNewTopicMock
+  historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
   onNewTopic?: OnNewTopicMock
   onOpenHistoryRecords?: Mock<() => void>
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
@@ -572,6 +574,7 @@ function renderTopicList({
       activeTopic={nextActiveTopic}
       assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
+      historyRecordsActive={historyRecordsActive}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
       onAddAssistant={onAddAssistant}
       setActiveTopic={setActiveTopic}
@@ -1867,6 +1870,22 @@ describe('Topics', () => {
       'topic:assistant:assistant-1',
       'topic:assistant:assistant-2'
     ])
+  })
+
+  it('re-selects the active topic from an assistant group while history records are active', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
+      historyRecordsActive: true
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }))
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
