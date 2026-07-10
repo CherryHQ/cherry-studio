@@ -8,13 +8,13 @@ type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 // Single icon registry: derived from CLI_TOOLS so a tool's icon is declared once.
 const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
 
-interface CLIIconProps {
+interface CliIconProps {
   id: string
   size?: number
   className?: string
 }
 
-export const CLIIcon: FC<CLIIconProps> = ({ id, size = 28, className }) => {
+export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
   const Icon = CLI_ICONS[id]
   if (!Icon) {
     return (

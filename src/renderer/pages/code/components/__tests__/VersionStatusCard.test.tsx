@@ -7,8 +7,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../CLIIcon', () => ({
-  CLIIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
+vi.mock('../CliIcon', () => ({
+  CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 
 describe('VersionStatusCard', () => {

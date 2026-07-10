@@ -55,7 +55,7 @@ describe('useConfigMetadata.resolveProviderMeta', () => {
     const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
 
     const meta = result.current.resolveProviderMeta(apiKeyProvider, {
-      modelId: '',
+      modelId: null,
       config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5' } }
     })
 

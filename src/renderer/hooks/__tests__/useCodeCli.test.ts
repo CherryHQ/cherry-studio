@@ -61,8 +61,7 @@ function providerConfig(toolState: CodeCliToolState, providerId: string): CliPro
 const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
   modelId: overrides.modelId ?? 'anthropic::claude-4',
   ...(overrides.config ? { config: overrides.config } : {}),
-  ...(overrides.sortIndex !== undefined ? { sortIndex: overrides.sortIndex } : {}),
-  ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {})
+  ...(overrides.sortIndex !== undefined ? { sortIndex: overrides.sortIndex } : {})
 })
 
 const state = (providers: Record<string, CliProviderConfig>, current: string | null) => ({
@@ -278,8 +277,33 @@ describe('useCodeCli', () => {
     })
   })
 
+  describe('legacy modelId normalization', () => {
+    it("normalizes the legacy '' sentinel to null on read", () => {
+      setupConfigsMock({
+        'claude-code': state({ anthropic: { modelId: '' as unknown as null }, openrouter: cfg() }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      expect(result.current.providerConfigs['anthropic']?.modelId).toBeNull()
+      expect(result.current.providerConfigs['openrouter']?.modelId).toBe('anthropic::claude-4')
+    })
+
+    it('self-heals the sentinel on the next write', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: { modelId: '' as unknown as null } }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.setCurrentProvider(null)
+      })
+
+      expect(lastToolState(mockSetter).providers['anthropic']?.modelId).toBeNull()
+    })
+  })
+
   describe('setDirectory', () => {
-    it('should set the tool-level directory and prepend to the MRU list', async () => {
+    it('should set the tool-level directory', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
       } as unknown as CodeCliConfigs)
@@ -289,9 +313,7 @@ describe('useCodeCli', () => {
         await result.current.setDirectory('/new/project')
       })
 
-      const toolState = lastToolState(mockSetter)
-      expect(toolState.directory).toBe('/new/project')
-      expect(toolState.directories).toContain('/new/project')
+      expect(lastToolState(mockSetter).directory).toBe('/new/project')
     })
   })
 })

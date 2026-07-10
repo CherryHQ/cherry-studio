@@ -9,7 +9,8 @@ import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/uti
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
-import { CLI_TOOL_PROVIDER_MAP, modelSupportsCliTool } from '../constants/cliTools'
+import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
+import { modelSupportsCliTool } from '../utils/modelSupport'
 
 /**
  * Provider/model resolution for the code-CLI page: builds the per-tool enabled

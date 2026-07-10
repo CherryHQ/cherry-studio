@@ -4,14 +4,18 @@ import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   getClaudeContextModelId,
+  safeCreateUniqueModelId,
   sanitizeCliConfigBlob,
   stripClaudeDetailedModels,
   updateCliConfigDraftConfig,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
+import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   createDraftSnapshot,
@@ -22,6 +26,8 @@ import {
   resolveManagedDraftOptions
 } from './configDraftState'
 import type { ClaudeModelMode, ConfigDraft, ConfigEditPanelProps } from './types'
+
+const logger = loggerService.withContext('useConfigDraftController')
 
 interface ConfigDraftControllerOptions
   extends Pick<ConfigEditPanelProps, 'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'> {
@@ -52,6 +58,7 @@ export function useConfigDraftController({
   apiKeys,
   onSubmit
 }: ConfigDraftControllerOptions): ConfigDraftController {
+  const { t } = useTranslation()
   const initialState = createInitialConfigDraftState(cliTool, providerConfig)
   const initialModelId = initialState.modelId
   const initialConfig = initialState.config
@@ -293,7 +300,11 @@ export function useConfigDraftController({
       } else {
         commitDraft({
           ...current,
-          modelId: connection?.model ? `${provider.id}::${connection.model}` : current.modelId,
+          // connection.model is parsed from a user-edited raw file; fall back to
+          // the current model when it cannot form a valid unique id.
+          modelId: connection?.model
+            ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
+            : current.modelId,
           config: nextConfig,
           files,
           connection: null,
@@ -345,10 +356,14 @@ export function useConfigDraftController({
         })
       }
       onClose()
+    } catch (err) {
+      // Keep the dialog open so the user's edits survive a failed apply.
+      logger.error('Failed to save CLI provider config', err as Error)
+      toast.error(t('code.apply_failed'))
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id])
+  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id, t])
 
   return {
     draft,

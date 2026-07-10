@@ -1,6 +1,7 @@
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
+
 import { parseDotenv } from './dotenv'
 import { parseJsonOrThrow, parseTomlOrThrow, readExternal, resolveAbs } from './file'
-import { CLI_CONFIG_FILE_SPECS } from './targets'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(

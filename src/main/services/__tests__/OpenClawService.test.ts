@@ -1,4 +1,9 @@
-import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY } from '@shared/data/types/model'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { application } from '@application'
+import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +34,8 @@ vi.mock('@application', () => ({
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    })
+    }),
+    getPath: vi.fn()
   }
 }))
 
@@ -500,7 +506,9 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('returns an error for invalid model selections', async () => {
-      const result = await service.syncConfig('invalid-model-id')
+      // Bypasses the compile-time UniqueModelId contract on purpose: the service's
+      // runtime safeParse is the boundary defense for non-IPC callers.
+      const result = await service.syncConfig('invalid-model-id' as UniqueModelId)
 
       expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
     })
@@ -732,6 +740,54 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.syncConfig('vertexai::gemini-2.5-pro')
 
       expect(result).toEqual({ success: false, message: 'OpenClaw sync does not support Vertex AI providers yet' })
+    })
+  })
+
+  // ─── syncProviderConfig existing-config handling ─────────────
+
+  describe('syncProviderConfig existing-config handling', () => {
+    let configDir: string
+
+    // Minimal legacy-shaped provider/model — syncProviderConfig still takes the
+    // migration legacyTypes shapes, not the Data* ones used by syncConfig.
+    const legacyProvider = {
+      id: 'openai',
+      type: 'openai',
+      name: 'OpenAI',
+      apiKey: 'sk-test',
+      apiHost: 'https://api.openai.com',
+      models: [{ id: 'gpt-4o', name: 'GPT-4o' }]
+    } as any
+    const legacyModel = { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o' } as any
+
+    beforeEach(() => {
+      configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-'))
+      vi.mocked(application.getPath).mockReturnValue(configDir)
+    })
+
+    afterEach(() => {
+      fs.rmSync(configDir, { recursive: true, force: true })
+    })
+
+    it('aborts the sync when the existing config is not valid JSON', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      fs.writeFileSync(configPath, '{ not json', 'utf-8')
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toMatch(/not valid JSON/)
+      // The unparseable file must survive so the user can repair it by hand.
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe('{ not json')
+    })
+
+    it('writes a fresh config when none exists yet', async () => {
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toMatchObject({ apiKey: 'sk-test' })
+      expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
     })
   })
 

@@ -56,6 +56,64 @@ describe('renderDotenvFile output round-trips through the real dotenv package', 
   })
 })
 
+describe('renderDotenvFile merge with the original content', () => {
+  it('preserves comments, blank lines, and unparseable lines across a rewrite', () => {
+    const original = '# gemini config\nUSER_KEY=keep\n\nnot env syntax at all\nGEMINI_API_KEY=old\n'
+    const envMap = parseDotenv(original)
+    envMap.set('GEMINI_API_KEY', 'new')
+
+    expect(renderDotenvFile(envMap, original)).toBe(
+      '# gemini config\nUSER_KEY=keep\n\nnot env syntax at all\nGEMINI_API_KEY=new\n'
+    )
+  })
+
+  it('keeps unchanged entries byte-for-byte (quoting style and inline comment survive)', () => {
+    const original = "export USER_KEY='keep' # mine\n"
+    expect(renderDotenvFile(parseDotenv(original), original)).toBe(original)
+  })
+
+  it('drops every occurrence of a deleted key', () => {
+    const original = 'GEMINI_API_KEY=a\n# note\nGEMINI_API_KEY=b\nUSER_KEY=keep\n'
+    const envMap = parseDotenv(original)
+    envMap.delete('GEMINI_API_KEY')
+
+    expect(renderDotenvFile(envMap, original)).toBe('# note\nUSER_KEY=keep\n')
+  })
+
+  it('appends new keys after the preserved content', () => {
+    const original = '# header\nUSER_KEY=keep\n'
+    const envMap = parseDotenv(original)
+    envMap.set('GEMINI_API_KEY', 'sk')
+
+    expect(renderDotenvFile(envMap, original)).toBe('# header\nUSER_KEY=keep\nGEMINI_API_KEY=sk\n')
+  })
+
+  it('keeps an unchanged multi-line quoted value verbatim while replacing a neighbor', () => {
+    const original = 'USER_PEM="a\nb\nc"\nGEMINI_API_KEY=old\n'
+    const envMap = parseDotenv(original)
+    envMap.set('GEMINI_API_KEY', 'new')
+
+    expect(renderDotenvFile(envMap, original)).toBe('USER_PEM="a\nb\nc"\nGEMINI_API_KEY=new\n')
+  })
+
+  it('replaces a changed multi-line quoted value without disturbing its neighbors', () => {
+    const original = '# pem\nUSER_PEM="a\nb\nc"\nAFTER=1\n'
+    const envMap = parseDotenv(original)
+    envMap.set('USER_PEM', 'flat')
+
+    expect(renderDotenvFile(envMap, original)).toBe('# pem\nUSER_PEM=flat\nAFTER=1\n')
+  })
+
+  it('re-reads identically through the real dotenv package after a merge rewrite', () => {
+    const original = '# note\nexport USER_KEY="with # hash"\nGEMINI_API_KEY=old # inline\n'
+    const envMap = parseDotenv(original)
+    envMap.set('GEMINI_API_KEY', 'new')
+    const rewritten = renderDotenvFile(envMap, original)
+
+    expect(parseWithRealDotenv(rewritten)).toEqual({ USER_KEY: 'with # hash', GEMINI_API_KEY: 'new' })
+  })
+})
+
 describe('parseDotenv', () => {
   it('parses a plain unquoted value', () => {
     expect(parseDotenv('KEY=value\n')).toEqual(new Map([['KEY', 'value']]))

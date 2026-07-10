@@ -24,6 +24,7 @@ const {
   installMock,
   upgradeMock,
   removeMock,
+  toastErrorMock,
   navigateMock,
   openSettingsTabMock,
   mockProviders,
@@ -44,6 +45,7 @@ const {
   installMock: vi.fn(),
   upgradeMock: vi.fn(),
   removeMock: vi.fn(),
+  toastErrorMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   mockProviders: [] as Provider[],
@@ -97,7 +99,12 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({ open, onConfirm }: { open?: boolean; onConfirm?: () => void | Promise<void> }) =>
+    open ? (
+      <button type="button" onClick={() => void onConfirm?.()}>
+        confirm remove
+      </button>
+    ) : null,
   Select: ({
     children,
     value,
@@ -113,7 +120,16 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  SearchInput: ({
+    value,
+    placeholder,
+    onChange
+  }: {
+    value: string
+    placeholder?: string
+    onChange: (event: { target: { value: string } }) => void
+  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -161,7 +177,11 @@ vi.mock('@renderer/services/settingsNavigation', () => ({
   openSettingsTab: (...args: unknown[]) => openSettingsTabMock(...args)
 }))
 
-vi.mock('@shared/data/presets/codeCliTools', () => ({
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
+}))
+
+vi.mock('@renderer/pages/code/constants/codeCliTools', () => ({
   CLI_TOOL_PRESET_MAP: {
     [CodeCli.CLAUDE_CODE]: {},
     [CodeCli.OPENAI_CODEX]: {},
@@ -306,8 +326,14 @@ vi.mock('../components/LaunchDialog', () => ({
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: ({ canLaunch }: { canLaunch?: boolean }) => (
-    <div data-can-launch={String(canLaunch)} data-testid="version-status-card" />
+  VersionStatusCard: ({ canLaunch, onRemove }: { canLaunch?: boolean; onRemove?: () => void }) => (
+    <div data-can-launch={String(canLaunch)} data-testid="version-status-card">
+      {onRemove && (
+        <button type="button" onClick={onRemove}>
+          remove tool
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -452,7 +478,7 @@ describe('CodeCliPage', () => {
 
     await waitFor(() =>
       expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
-        modelId: '',
+        modelId: null,
         config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
       })
     )
@@ -470,7 +496,7 @@ describe('CodeCliPage', () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: {
-          modelId: '',
+          modelId: null,
           config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
         }
       }
@@ -494,7 +520,7 @@ describe('CodeCliPage', () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: {
-          modelId: '',
+          modelId: null,
           config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
         }
       }
@@ -586,5 +612,23 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
     expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
     expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
+  })
+
+  it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {
+    mockCodeCliState({
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    removeMock.mockResolvedValue(true)
+    clearCliConfigMock.mockRejectedValue(new Error('EACCES'))
+
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('remove tool'))
+    fireEvent.click(await screen.findByText('confirm remove'))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
+    // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
+    expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
   })
 })

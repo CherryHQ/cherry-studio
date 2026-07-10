@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { OwnLoginConfigPanel } from '../OwnLoginConfigPanel'
 
-const { readOwnLoginCliConfigDraftMock } = vi.hoisted(() => ({
-  readOwnLoginCliConfigDraftMock: vi.fn()
+const { readOwnLoginCliConfigDraftMock, toastErrorMock } = vi.hoisted(() => ({
+  readOwnLoginCliConfigDraftMock: vi.fn(),
+  toastErrorMock: vi.fn()
 }))
 
 const previewFiles: CliConfigFileDraft[] = [
@@ -21,6 +22,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -68,8 +73,8 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   validateCliConfigDraftForWrite: vi.fn()
 }))
 
-vi.mock('../../CLIIcon', () => ({
-  CLIIcon: () => <span data-testid="cli-icon" />
+vi.mock('../../CliIcon', () => ({
+  CliIcon: () => <span data-testid="cli-icon" />
 }))
 
 vi.mock('../AdvancedConfigToggle', () => ({
@@ -172,8 +177,24 @@ describe('OwnLoginConfigPanel', () => {
     )
   })
 
+  it('keeps the dialog open and toasts when the submit fails', async () => {
+    const { onClose } = renderPanel(vi.fn().mockRejectedValue(new Error('write failed')))
+    await waitFor(() => expect(readOwnLoginCliConfigDraftMock).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByText('change config'))
+    const saveButton = screen.getByText('common.save')
+    await waitFor(() => expect(saveButton).not.toBeDisabled())
+
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.apply_failed'))
+    expect(onClose).not.toHaveBeenCalled()
+    // The user's edits survive: the panel is still savable for a retry.
+    expect(saveButton).not.toBeDisabled()
+  })
+
   it('prefills from the saved own-login config so an unchanged panel cannot be saved', async () => {
-    renderPanel(vi.fn().mockResolvedValue(undefined), { modelId: '', config: { effortLevel: 'high' } })
+    renderPanel(vi.fn().mockResolvedValue(undefined), { modelId: null, config: { effortLevel: 'high' } })
     await waitFor(() => expect(readOwnLoginCliConfigDraftMock).toHaveBeenCalled())
 
     expect(screen.getByText('common.save')).toBeDisabled()

@@ -1,4 +1,3 @@
-import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanContext } from '@opentelemetry/api'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -193,8 +192,7 @@ const api = {
     get: (filePath: string): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
-    write: (filePath: string, data: Uint8Array | string, mode?: number) =>
-      ipcRenderer.invoke(IpcChannel.File_Write, filePath, data, mode),
+    write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>
@@ -488,10 +486,6 @@ const api = {
     getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
-  cherryai: {
-    generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
-  },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
       const channel = IpcChannel.Shortcut_RegistrationConflict
@@ -634,9 +628,6 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
-  },
-  analytics: {
-    trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
   }
 }
 

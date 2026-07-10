@@ -1,8 +1,8 @@
 import { CodeCli } from '@shared/types/codeCli'
+import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '@shared/utils/cliConfig'
 import { describe, expect, it } from 'vitest'
 
 import { CLI_CONFIG_ADAPTERS, type CliConfigAdapter, getAdapter } from '../adapters'
-import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '../targets'
 
 /**
  * Guards the central adapter registry: the whole point of consolidating the
@@ -17,7 +17,7 @@ const REQUIRED_METHODS = [
   'buildDraft',
   'assertCredentials',
   'updateDraftConfig',
-  'clear',
+  'buildClearFiles',
   'extractConnection',
   'extractConfig'
 ] as const satisfies readonly (keyof CliConfigAdapter)[]

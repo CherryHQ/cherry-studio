@@ -47,11 +47,9 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
     try {
       const { homePath } = await window.api.getAppInfo()
       const result = await ipcApi.request('code_cli.run', {
+        mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
-        model: '',
-        providerId: '',
-        directory: homePath,
-        options: { loginFlow: true }
+        directory: homePath
       })
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })

@@ -506,23 +506,9 @@ class FileStorage {
   public writeFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
-    data: Uint8Array | string,
-    mode?: number
+    data: Uint8Array | string
   ): Promise<void> => {
-    // `writeFile`'s `mode` option only applies when creating a NEW file; an existing file keeps its
-    // old (possibly world-readable) mode. So when a caller pins a mode (e.g. 0o600 for secret-bearing
-    // CLI config files), tighten an already-existing file's permissions BEFORE writing, so the new
-    // content never lands under the loose old mode. A new file gets `mode` atomically from `writeFile`.
-    if (mode !== undefined && fs.existsSync(filePath)) {
-      // Never swallow: falling through to the write would put secret content under the old, possibly
-      // loose, mode. Log with context (a chmod failure is otherwise indistinguishable from a write
-      // failure at the caller) and rethrow so the caller rolls back and surfaces the error.
-      await fs.promises.chmod(filePath, mode).catch((error) => {
-        logger.error(`Failed to tighten permissions on ${filePath} before writing`, error as Error)
-        throw error
-      })
-    }
-    await fs.promises.writeFile(filePath, data, mode !== undefined ? { mode } : undefined)
+    await fs.promises.writeFile(filePath, data)
   }
 
   public fileNameGuard = async (

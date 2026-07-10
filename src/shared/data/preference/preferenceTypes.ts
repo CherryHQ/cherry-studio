@@ -260,6 +260,7 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
+import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
@@ -278,13 +279,16 @@ export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
 /** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
 export interface CliProviderConfig {
-  /** Unique model id ("providerId::modelId"). */
-  modelId: string
+  /**
+   * Unique model id ("providerId::modelId"), or null for the two legal
+   * model-less states: the own-login placeholder and a Claude detailed-models
+   * config with no common model.
+   */
+  modelId: UniqueModelId | null
   /** User-edited tool-specific config blob. */
   config?: Record<string, unknown>
   /** Sort order in the provider list (lower = first). */
   sortIndex?: number
-  createdAt?: number
 }
 
 /** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
@@ -292,12 +296,10 @@ export interface CodeCliToolState {
   providers: Record<string, CliProviderConfig>
   /** Currently enabled providerId (single-select). */
   current: string | null
-  /** Terminal app — matches `terminalApps` values. */
+  /** Terminal app — an id from `code_cli.get_available_terminals`. */
   terminal?: string
   /** Working directory for this CLI tool (shared across all its providers). */
   directory?: string
-  /** Most-recently-used working directories (MRU, tool-level). */
-  directories?: string[]
 }
 
 /** Preference value for `feature.code_cli.configs`. */

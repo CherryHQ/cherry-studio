@@ -298,6 +298,21 @@ describe('ConfigEditPanel', () => {
     expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
   })
 
+  it('locks tool-field editing while the draft is foreign and unlocks once a model is selected', async () => {
+    renderPanel()
+
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
+
+    // The foreign config belongs to another provider; editing tool params would
+    // rewrite that file in place, so the fields are disabled.
+    expect(screen.getByText('change config')).toBeDisabled()
+
+    // Picking a model flips the draft back to managed, unlocking the fields.
+    fireEvent.click(screen.getByText('select new model'))
+
+    await waitFor(() => expect(screen.getByText('change config')).toBeEnabled())
+  })
+
   it('switches Claude model selection between common and detailed modes', async () => {
     renderPanel()
 
@@ -316,7 +331,7 @@ describe('ConfigEditPanel', () => {
     renderPanel(vi.fn(), {
       isCurrentProvider: false,
       providerConfig: {
-        modelId: '',
+        modelId: null,
         config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-detailed' } }
       }
     })

@@ -245,10 +245,18 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
  * only collects UUID-named files in the entry tree, so a silent leak here
  * would persist indefinitely. The target file is never partially written —
  * callers either see the previous content or the new content.
+ *
+ * `options.mode` applies to the tmp file at open(2), so secret-bearing content
+ * is never on disk under a looser mode; the rename carries the mode to the
+ * target, replacing whatever mode a pre-existing target had.
  */
-export async function atomicWriteFile(target: FilePath, data: string | Uint8Array): Promise<void> {
+export async function atomicWriteFile(
+  target: FilePath,
+  data: string | Uint8Array,
+  options?: { mode?: number }
+): Promise<void> {
   const tmp = tmpNameFor(target)
-  const tmpHandle = await fsOpen(tmp, 'w')
+  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
   try {
     try {
       await tmpHandle.writeFile(data)

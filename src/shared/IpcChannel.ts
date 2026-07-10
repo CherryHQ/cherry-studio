@@ -263,9 +263,6 @@ export enum IpcChannel {
   Ovms_RunOVMS = 'ovms:run-ovms',
   Ovms_StopOVMS = 'ovms:stop-ovms',
 
-  // CherryAI
-  Cherryai_GetSignature = 'cherryai:get-signature',
-
   // Global Skills
   Skill_Install = 'skill:install',
   Skill_Uninstall = 'skill:uninstall',
@@ -285,9 +282,6 @@ export enum IpcChannel {
   LanTransfer_ClientEvent = 'lan-transfer:client-event',
   LanTransfer_SendFile = 'lan-transfer:send-file',
   LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
-
-  // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
   // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
   // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.

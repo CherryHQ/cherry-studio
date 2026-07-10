@@ -32,7 +32,7 @@ interface UseConfigPanelControllerOptions {
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
     providerId: string,
-    partial: { modelId: string } & Partial<CliProviderConfig>
+    partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
   ) => Promise<string>
   setCurrentProvider: (providerId: string | null) => Promise<void>
   setCurrentCliConfigConnection: (connection: CliConfigConnection | null) => void
@@ -80,7 +80,7 @@ export function useConfigPanelController({
     async (values: ConfigEditPanelSubmitValues) => {
       if (!editingProvider) return
       const hasModelValue = 'modelId' in values
-      const modelId = values.modelId ?? (hasModelValue ? '' : (providerConfigs[editingProvider.id]?.modelId ?? ''))
+      const modelId = values.modelId ?? (hasModelValue ? null : (providerConfigs[editingProvider.id]?.modelId ?? null))
       const hasConfigValue = 'config' in values
       const sanitizedConfig = hasConfigValue ? sanitizeCliConfigBlob(selectedCliTool, values.config ?? {}) : undefined
       const configPatch = hasConfigValue ? { config: sanitizedConfig ?? {} } : {}
@@ -210,7 +210,7 @@ export function useConfigPanelController({
         const cfg = providerConfigs[provider.id]
         const cliConfigContext = resolveCliConfigApplyContext(selectedCliTool, provider.id, cfg)
         if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
-          await upsertProviderConfig(provider.id, { modelId: '' })
+          await upsertProviderConfig(provider.id, { modelId: null })
           pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
           toast.error(t('code.launch.validation_error'))
@@ -257,7 +257,7 @@ export function useConfigPanelController({
   const handleOwnLoginSubmit = useCallback(
     async (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => {
       const sanitizedConfig = sanitizeCliConfigBlob(selectedCliTool, values.config)
-      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: '', config: sanitizedConfig })
+      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: null, config: sanitizedConfig })
       logger.info('Updated own-login config', { toolId: selectedCliTool })
 
       // Re-apply to the CLI config file when own login is the active selection. Hand-edited raw

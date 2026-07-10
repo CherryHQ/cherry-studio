@@ -17,7 +17,17 @@ const DEFAULT_TOOL = CodeCli.CLAUDE_CODE
 const EMPTY_TOOL_STATE: CodeCliToolState = { providers: {}, current: null }
 
 function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolState {
-  return configs[toolId] ?? EMPTY_TOOL_STATE
+  const state = configs[toolId] ?? EMPTY_TOOL_STATE
+  // Dev profiles written before `modelId: UniqueModelId | null` may hold the
+  // legacy '' sentinel; normalize on read (this is the preference's only read
+  // choke point) so the next write self-heals. No migration needed.
+  const legacyIds = Object.keys(state.providers).filter((id) => (state.providers[id].modelId as string) === '')
+  if (legacyIds.length === 0) return state
+  const providers = { ...state.providers }
+  for (const id of legacyIds) {
+    providers[id] = { ...providers[id], modelId: null }
+  }
+  return { ...state, providers }
 }
 
 export const useCodeCli = () => {
@@ -63,17 +73,18 @@ export const useCodeCli = () => {
   )
 
   const upsertProviderConfig = useCallback(
-    async (providerId: string, partial: { modelId: string } & Partial<CliProviderConfig>): Promise<string> => {
+    async (
+      providerId: string,
+      partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
+    ): Promise<string> => {
       const toolId = selectedCliTool as CodeCliId
-      const now = Date.now()
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
       const next: CliProviderConfig = {
         modelId: partial.modelId,
         ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
         ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
           ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
-          : {}),
-        createdAt: existing?.createdAt ?? now
+          : {})
       }
       await patchToolState(toolId, (prev) => ({
         ...prev,
@@ -113,7 +124,6 @@ export const useCodeCli = () => {
     async (orderedIds: string[]) => {
       const toolId = selectedCliTool as CodeCliId
       await patchToolState(toolId, (prev) => {
-        const now = Date.now()
         const nextProviders = { ...prev.providers }
         for (let i = 0; i < orderedIds.length; i++) {
           const id = orderedIds[i]
@@ -122,11 +132,11 @@ export const useCodeCli = () => {
             // The virtual own-login entry has no real config; persist a placeholder so its drag
             // position sticks. Real unconfigured providers are still skipped (no empty configs).
             if (id === CLI_OWN_LOGIN_PROVIDER_ID) {
-              nextProviders[id] = { modelId: '', sortIndex: i, createdAt: now }
+              nextProviders[id] = { modelId: null, sortIndex: i }
             }
             continue
           }
-          nextProviders[id] = { ...existing, sortIndex: i, createdAt: existing.createdAt ?? now }
+          nextProviders[id] = { ...existing, sortIndex: i }
         }
         return { ...prev, providers: nextProviders }
       })
@@ -143,19 +153,7 @@ export const useCodeCli = () => {
 
   const setDirectory = useCallback(
     async (directory: string) => {
-      const toolId = selectedCliTool as CodeCliId
-      await patchToolState(toolId, (prev) => {
-        const currentDirs = prev.directories ?? []
-        let newDirs: string[]
-        if (directory && !currentDirs.includes(directory)) {
-          newDirs = [directory, ...currentDirs].slice(0, 10)
-        } else if (directory && currentDirs.includes(directory)) {
-          newDirs = [directory, ...currentDirs.filter((d) => d !== directory)]
-        } else {
-          newDirs = currentDirs
-        }
-        return { ...prev, directory, directories: newDirs }
-      })
+      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, directory }))
     },
     [patchToolState, selectedCliTool]
   )

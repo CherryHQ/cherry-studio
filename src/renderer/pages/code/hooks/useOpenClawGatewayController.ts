@@ -21,7 +21,7 @@ interface UseOpenClawGatewayControllerOptions {
   currentProviderConfig?: CliProviderConfig | null
   upsertProviderConfig: (
     providerId: string,
-    partial: { modelId: string } & Partial<CliProviderConfig>
+    partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
   ) => Promise<string>
   setCurrentProvider: (providerId: string | null) => Promise<void>
 }
@@ -74,30 +74,28 @@ export function useOpenClawGatewayController({
         toolId: selectedCliTool,
         providerId: enabledProvider.id
       })
-      await upsertProviderConfig(enabledProvider.id, { modelId: '' })
+      await upsertProviderConfig(enabledProvider.id, { modelId: null })
       await setCurrentProvider(null)
       toast.error(t('openclaw.error.select_provider_model'))
       return
     }
-    const { providerId, modelId: rawModelId } = parsedModelId
-
     try {
       setLaunching(true)
       setStatus('starting')
       const syncResult = await ipcApi.request('openclaw.sync_config', {
-        uniqueModelId: `${providerId}::${rawModelId}`,
+        uniqueModelId: parsedModelId.uniqueModelId,
         port: gatewayPort
       })
       if (!syncResult.success) {
         setStatus('error')
-        toast.error(syncResult.message || t('code.launch.error'))
+        toast.error(syncResult.message)
         return
       }
 
-      const startResult = await ipcApi.request('openclaw.start_gateway', gatewayPort)
+      const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
         setStatus('error')
-        toast.error(startResult.message || t('code.launch.error'))
+        toast.error(startResult.message)
         return
       }
 
@@ -126,7 +124,7 @@ export function useOpenClawGatewayController({
       setStopping(true)
       const result = await ipcApi.request('openclaw.stop_gateway')
       if (!result.success) {
-        toast.error(result.message || t('code.launch.error'))
+        toast.error(result.message)
         return
       }
       setStatus('stopped')

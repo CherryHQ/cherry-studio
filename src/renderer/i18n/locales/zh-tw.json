@@ -1965,6 +1965,7 @@
     "auto_update_to_latest": "檢查更新並安裝最新版本",
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "can_upgrade": "可升級",
+    "clear_config_failed": "清除 CLI 設定失敗，憑證可能仍保留在該工具的設定檔中",
     "cli_config": {
       "format_failed": "格式化失敗，請檢查檔案格式",
       "hint": "這裡顯示將寫入系統 CLI 設定檔的內容，API Key 不會儲存到偏好設定",
@@ -2062,17 +2063,6 @@
     "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "Code Switch",
-    "tool_description": {
-      "claude_code": "Anthropic 官方 CLI 程式助理",
-      "gemini_cli": "Google 官方 Gemini CLI 程式助理",
-      "github_copilot_cli": "GitHub Copilot CLI 程式助理",
-      "kimi_cli": "Moonshot Kimi CLI 程式助理",
-      "openai_codex": "OpenAI 官方程式碼產生 CLI",
-      "openclaw": "多通道個人 AI 助手，支援 Gateway 常駐服務",
-      "opencode": "開源社群的多模型程式碼 Agent",
-      "qoder_cli": "Qoder CLI 程式助理",
-      "qwen_code": "阿里巴巴 Qwen Code CLI 程式助理"
-    },
     "tool_parameters": "參數設定",
     "up_to_date": "最新版本",
     "update_options": "更新選項",

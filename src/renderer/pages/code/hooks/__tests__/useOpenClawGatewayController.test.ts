@@ -67,7 +67,7 @@ describe('useOpenClawGatewayController', () => {
       await result.current.onLaunch()
     })
 
-    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', 18888)
+    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
   })
 
   // Regression: sync_config writes openclaw.json's gateway.port from the service's in-memory
@@ -112,6 +112,6 @@ describe('useOpenClawGatewayController', () => {
       await result.current.onLaunch()
     })
 
-    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', undefined)
+    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: undefined })
   })
 })

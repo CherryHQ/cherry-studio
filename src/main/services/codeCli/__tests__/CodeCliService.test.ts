@@ -72,7 +72,14 @@ vi.mock('@main/utils/binaryResolver', () => ({
 }))
 
 vi.mock('child_process', () => ({
-  spawn: vi.fn(),
+  // run() awaits the child's spawn/error race before reporting success, so the
+  // fake child must emit 'spawn' to its listener.
+  spawn: vi.fn(() => ({
+    once: (event: string, cb: () => void) => {
+      if (event === 'spawn') cb()
+    },
+    on: () => {}
+  })),
   exec: vi.fn()
 }))
 
@@ -206,7 +213,13 @@ describe('CodeCliService', () => {
       })
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.OPEN_CODE, 'gpt-4o', 'ghost', '/tmp/project')
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.OPEN_CODE,
+        model: 'gpt-4o',
+        providerId: 'ghost',
+        directory: '/tmp/project'
+      })
 
       expect(result).toEqual({
         success: false,
@@ -223,7 +236,13 @@ describe('CodeCliService', () => {
         providerServiceMock.getByProviderId.mockReturnValue({ id: 'deepseek', name: 'DeepSeek' })
         const { codeCliService } = await loadModules()
 
-        const result = await codeCliService.run(CodeCli.OPEN_CODE, badModel, 'deepseek', '/tmp/project')
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.OPEN_CODE,
+          model: badModel,
+          providerId: 'deepseek',
+          directory: '/tmp/project'
+        })
 
         expect(result).toEqual({
           success: false,
@@ -261,10 +280,12 @@ describe('CodeCliService', () => {
         const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
 
-        // loginFlow exempts Claude Code from the provider/model requirement, so control reaches the
-        // command assembly + spawn without needing a provider.
-        const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/$(reboot) proj', {
-          loginFlow: true
+        // The login-flow mode exempts Claude Code from the provider/model requirement, so control
+        // reaches the command assembly + spawn without needing a provider.
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: '/tmp/$(reboot) proj'
         })
 
         expect(result.success).toBe(true)
@@ -281,6 +302,185 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('run (win32 launch assembles a temp .bat and hands it to the terminal)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      platformMock.isMac = false
+      platformMock.isWin = true
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('writes a 0600 .bat with %-doubled paths and launches it via the default cmd /c', async () => {
+      // Fake timers swallow the terminal-availability probe's 5s race timeouts
+      // (the mocked probes resolve via microtasks).
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\100% proj'
+        })
+
+        expect(result.success).toBe(true)
+
+        const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
+        expect(writeCall).toBeDefined()
+        const [batPath, batContent] = writeCall! as unknown as [string, string]
+        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+        // CMD expands %…% even inside double quotes, so the bat writer must double them.
+        expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
+        expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
+        // The temp script can embed injected credentials via the env prefix; keep it owner-only.
+        expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(batPath, 0o600)
+
+        const launch = vi.mocked(spawn).mock.calls.at(-1)
+        expect(launch).toBeDefined()
+        expect(launch![0]).toBe('cmd')
+        expect(launch![1]).toEqual(['/c', batPath])
+        expect(launch![2]).toMatchObject({ shell: true, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('run (linux launch falls back to a detected terminal emulator)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+      platformMock.isMac = false
+      platformMock.isWin = false
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    afterEach(async () => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+      // Restore the module-level default spawn stub (the mock instance is shared across tests).
+      const { spawn } = await import('child_process')
+      vi.mocked(spawn).mockImplementation((() => ({
+        once: (event: string, cb: () => void) => {
+          if (event === 'spawn') cb()
+        },
+        on: () => {}
+      })) as never)
+    })
+
+    /** `which` probes report only `hits` as found; the final launch spawn emits 'spawn'. */
+    async function mockLinuxSpawn(hits: string[]) {
+      const { spawn } = await import('child_process')
+      vi.mocked(spawn).mockImplementation(((cmd: string, args: string[]) => {
+        if (cmd === 'which') {
+          return {
+            on: (event: string, cb: (code: number) => void) => {
+              if (event === 'close') cb(hits.includes(args[0]) ? 0 : 1)
+            }
+          }
+        }
+        return {
+          once: (event: string, cb: () => void) => {
+            if (event === 'spawn') cb()
+          },
+          on: () => {}
+        }
+      }) as never)
+      return spawn
+    }
+
+    it('probes with `which` and launches the first detected terminal (gnome-terminal)', async () => {
+      const spawn = await mockLinuxSpawn(['gnome-terminal'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch).toBeDefined()
+      expect(launch![0]).toBe('gnome-terminal')
+      expect(launch![1]).toEqual([
+        '--working-directory',
+        '/home/me/proj',
+        '--',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+      expect(launch![2]).toMatchObject({ shell: false, detached: true })
+    })
+
+    it('reports a failed launch when the terminal process errors at spawn', async () => {
+      const { spawn } = await import('child_process')
+      vi.mocked(spawn).mockImplementation(((cmd: string) => {
+        if (cmd === 'which') {
+          return {
+            on: (event: string, cb: (code: number) => void) => {
+              if (event === 'close') cb(1)
+            }
+          }
+        }
+        // The launch child fails asynchronously (ENOENT for the missing fallback
+        // terminal); run() must lose the spawn/error race and report failure.
+        return {
+          once: (event: string, cb: (err?: Error) => void) => {
+            if (event === 'error') cb(new Error('spawn xterm ENOENT'))
+          },
+          on: () => {}
+        }
+      }) as never)
+
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('Failed to launch terminal: spawn xterm ENOENT')
+      })
+    })
+
+    it('defaults to xterm with a shell-quoted directory when no emulator is detected', async () => {
+      const spawn = await mockLinuxSpawn([])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/my proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch).toBeDefined()
+      expect(launch![0]).toBe('xterm')
+      // posixQuote keeps the spaced directory a single shell token inside -e.
+      expect((launch![1] as string[]).join(' ')).toContain("cd '/home/me/my proj' && clear")
+    })
+  })
+
   describe('run (provider/model validation is owned solely by the service)', () => {
     beforeEach(async () => {
       // Keep the directory guard failing so a launch that passes validation returns immediately
@@ -292,7 +492,13 @@ describe('CodeCliService', () => {
     it('rejects a normal CLI launch when the provider id is empty', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, 'gpt-4', '', '/tmp/project')
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.CLAUDE_CODE,
+        model: 'gpt-4',
+        providerId: '',
+        directory: '/tmp/project'
+      })
 
       expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code' })
     })
@@ -300,7 +506,13 @@ describe('CodeCliService', () => {
     it('rejects a normal CLI launch when the model is empty', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', 'openai', '/tmp/project')
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.CLAUDE_CODE,
+        model: '',
+        providerId: 'openai',
+        directory: '/tmp/project'
+      })
 
       expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
     })
@@ -308,35 +520,52 @@ describe('CodeCliService', () => {
     it('exempts the Claude login flow from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/project', { loginFlow: true })
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
 
       // Validation is skipped for the login flow, so control flows past the provider/model guards to
       // the next check (the directory guard, forced to fail here) — not rejected on provider/model.
-      expect(result.message).toContain('Directory does not exist')
+      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
     it('exempts providerless CLIs (Qoder) from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.QODER_CLI, '', '', '/tmp/project')
+      const result = await codeCliService.run({
+        mode: 'own-login',
+        cliTool: CodeCli.QODER_CLI,
+        directory: '/tmp/project'
+      })
 
       // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
-      expect(result.message).toContain('Directory does not exist')
+      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
     it('exempts an own-login run of a login-capable tool from the provider/model requirement', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/project', { ownLogin: true })
+      const result = await codeCliService.run({
+        mode: 'own-login',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
 
-      // ownLogin skips the provider/model guards for login-capable tools, so control reaches the directory guard.
-      expect(result.message).toContain('Directory does not exist')
+      // The own-login mode skips the provider/model guards for login-capable tools, so control
+      // reaches the directory guard.
+      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
-    it('still requires a provider for a non-login-capable tool even when ownLogin is set', async () => {
+    it('still requires a provider for a non-login-capable tool even in own-login mode', async () => {
       const { codeCliService } = await loadModules()
 
-      const result = await codeCliService.run(CodeCli.OPEN_CODE, '', '', '/tmp/project', { ownLogin: true })
+      const result = await codeCliService.run({
+        mode: 'own-login',
+        cliTool: CodeCli.OPEN_CODE,
+        directory: '/tmp/project'
+      })
 
       expect(result).toEqual({ success: false, message: 'Provider ID is required for opencode' })
     })

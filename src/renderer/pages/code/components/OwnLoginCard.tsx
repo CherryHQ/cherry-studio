@@ -4,7 +4,7 @@ import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLIIcon } from './CLIIcon'
+import { CliIcon } from './CliIcon'
 
 export interface OwnLoginCardProps {
   toolId: CodeCli
@@ -48,7 +48,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
         />
 
         <span aria-hidden className="shrink-0">
-          <CLIIcon id={toolId} size={24} className="size-6 rounded-md border border-border/30" />
+          <CliIcon id={toolId} size={24} className="size-6 rounded-md border border-border/30" />
         </span>
 
         <div className="min-w-0 flex-1">

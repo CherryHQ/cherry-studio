@@ -1,9 +1,9 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +12,7 @@ import { clearCliConfig } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
-import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
+import type { CodeToolMeta, VersionStatus } from '../types'
 import { useBinaryActions } from './useBinaryActions'
 import { useBunInstallationCache } from './useBunInstallationCache'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
@@ -186,12 +186,13 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           await clearCliConfig({ cliTool: toolId })
         } catch (err) {
           logger.error('Failed to clear CLI config on tool removal:', err as Error)
+          toast.error(t('code.clear_config_failed'))
         }
         await setCurrentProvider(null)
         setCurrentCliConfigConnection(null)
       }
     },
-    [remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection]
+    [remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 

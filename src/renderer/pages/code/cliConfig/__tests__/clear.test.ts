@@ -1,17 +1,25 @@
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { parse as parseToml } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearCliConfig } from '../index'
 
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
+
 let existing: Record<string, string>
 let writes: Record<string, string>
-let modes: Record<string, number | undefined>
 
 beforeEach(() => {
   existing = {}
   writes = {}
-  modes = {}
+  // Clearing still reads the on-disk configs renderer-side to strip the
+  // Cherry-managed keys; only the rewrite crosses to the main process.
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -20,14 +28,18 @@ beforeEach(() => {
         readExternal: vi.fn(async (p: string) => {
           if (p in existing) return existing[p]
           throw new Error(`File does not exist: ${p}`)
-        }),
-        mkdir: vi.fn(async () => undefined),
-        write: vi.fn(async (p: string, content: string, mode?: number) => {
-          writes[p] = content
-          modes[p] = mode
         })
       }
     }
+  })
+  // Translate the `{ target, content }` batch back to `/resolved~/…` paths so
+  // the strip-semantics fixtures stay unchanged.
+  mocks.request.mockReset()
+  mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
+    for (const file of input.files) {
+      writes[`/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`] = file.content
+    }
+    return { success: true }
   })
 })
 
@@ -111,12 +123,19 @@ describe('clearCliConfig', () => {
     })
   })
 
-  it('qwen: missing config is already clear and does not create files', async () => {
+  it('gemini: scrubs managed env keys from .env while preserving user comments and entries', async () => {
+    existing['/resolved~/.gemini/.env'] =
+      '# my proxy\nUSER_KEY=keep\nGEMINI_API_KEY=sk-secret\nGOOGLE_GEMINI_BASE_URL=https://x\n'
+
+    await clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
+
+    expect(writes['/resolved~/.gemini/.env']).toBe('# my proxy\nUSER_KEY=keep\n')
+  })
+
+  it('qwen: missing config is already clear and sends no IPC', async () => {
     await clearCliConfig({ cliTool: CodeCli.QWEN_CODE })
 
-    expect(writes).toEqual({})
-    expect(window.api.file.mkdir).not.toHaveBeenCalled()
-    expect(window.api.file.write).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it('qwen: strips managed settings when config exists', async () => {
@@ -146,12 +165,10 @@ describe('clearCliConfig', () => {
     })
   })
 
-  it('kimi: missing config is already clear and does not create files', async () => {
+  it('kimi: missing config is already clear and sends no IPC', async () => {
     await clearCliConfig({ cliTool: CodeCli.KIMI_CODE })
 
-    expect(writes).toEqual({})
-    expect(window.api.file.mkdir).not.toHaveBeenCalled()
-    expect(window.api.file.write).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it('kimi: strips Cherry-managed entries when config exists', async () => {
@@ -185,24 +202,31 @@ describe('clearCliConfig', () => {
 
   it('is a no-op for tools without a managed config file (openclaw)', async () => {
     await clearCliConfig({ cliTool: CodeCli.OPENCLAW })
-    expect(writes).toEqual({})
+    expect(mocks.request).not.toHaveBeenCalled()
   })
 
-  // Cleared configs still hold non-Cherry secrets on disk — every rewrite must stay 0600, not fall
-  // back to the platform default (0644, world-readable) once it goes through the generic file IPC.
-  it('writes every cleared config file with 0600 permissions', async () => {
+  // Cleared configs still hold non-Cherry secrets — they must be rewritten through the same
+  // transactional main-process writer as applies (0600 + rollback are pinned in configWriter tests).
+  it("rewrites all of a tool's files in one code_cli.write_config batch", async () => {
     existing['/resolved~/.codex/config.toml'] = 'model_provider = "cherry-deepseek"\nuser_key = "keep"'
     existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' })
     await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
 
-    existing['/resolved~/.gemini/.env'] = 'CHERRY_KEY=sk\nUSER_KEY=keep'
-    existing['/resolved~/.gemini/settings.json'] = JSON.stringify({ general: { userSetting: 'keep' } })
-    await clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.OPENAI_CODEX,
+      files: [
+        { target: 'codex-config', content: expect.stringContaining('user_key = "keep"') },
+        { target: 'codex-auth', content: expect.any(String) }
+      ]
+    })
+  })
 
-    expect(modes['/resolved~/.codex/config.toml']).toBe(0o600)
-    expect(modes['/resolved~/.codex/auth.json']).toBe(0o600)
-    expect(modes['/resolved~/.gemini/.env']).toBe(0o600)
-    expect(modes['/resolved~/.gemini/settings.json']).toBe(0o600)
+  it('throws the main-process failure message when the rewrite is rejected', async () => {
+    existing['/resolved~/.codex/config.toml'] = 'model_provider = "cherry-deepseek"'
+    mocks.request.mockResolvedValue({ success: false, message: 'disk full' })
+
+    await expect(clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })).rejects.toThrow('disk full')
   })
 
   // S6: clear must never overwrite a config it can't fully understand — a malformed on-disk file

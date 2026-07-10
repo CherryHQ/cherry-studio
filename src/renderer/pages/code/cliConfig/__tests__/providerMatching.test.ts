@@ -4,11 +4,14 @@ import { describe, expect, it } from 'vitest'
 
 import { cliConfigConnectionMatchesProvider } from '../providerMatching'
 
+// Mirrors the provider-registry seed: chat endpoint at https://aihubmix.com/v1,
+// no dedicated google-generate-content endpoint.
 const aihubmixProvider = {
   id: 'aihubmix',
   name: 'AiHubMix',
+  defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
-    'openai-chat-completions': { baseUrl: 'https://aihubmix.com' }
+    'openai-chat-completions': { baseUrl: 'https://aihubmix.com/v1' }
   }
 } as unknown as Provider
 
@@ -140,6 +143,29 @@ describe('cliConfigConnectionMatchesProvider', () => {
         apiKeys
       )
     ).toBe(true)
+  })
+
+  it('follows a custom-configured aihubmix host instead of the static aihubmix.com default', () => {
+    const customHostProvider = {
+      ...(aihubmixProvider as unknown as Record<string, unknown>),
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://custom.example.com/v1' } }
+    } as unknown as Provider
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://custom.example.com/gemini' },
+        customHostProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://aihubmix.com/gemini' },
+        customHostProvider,
+        apiKeys
+      )
+    ).toBe(false)
   })
 
   it('treats missing connection api key as match when provider has keys configured', () => {

@@ -5,8 +5,8 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
-import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
-import { CLIIcon } from './CLIIcon'
+import type { CodeToolMeta, VersionStatus } from '../types'
+import { CliIcon } from './CliIcon'
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
@@ -72,7 +72,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                   className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
                     isSelected ? 'bg-accent/55' : 'hover:bg-accent/30'
                   }`}>
-                  <CLIIcon id={tool.value} size={28} className="size-7 shrink-0" />
+                  <CliIcon id={tool.value} size={28} className="size-7 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>

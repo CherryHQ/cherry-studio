@@ -1,8 +1,22 @@
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 
 export { sanitizeProviderName } from '@shared/utils/provider'
+
+/**
+ * Non-throwing `createUniqueModelId` for render/event paths fed by user input
+ * (raw config files, Claude detailed env values): empty parts or reserved
+ * route characters yield `undefined` instead of a render-time throw.
+ */
+export function safeCreateUniqueModelId(providerId: string, modelId: string): UniqueModelId | undefined {
+  try {
+    return createUniqueModelId(providerId, modelId)
+  } catch {
+    return undefined
+  }
+}
 
 export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys?.find((k) => k.isEnabled)?.key ?? ''

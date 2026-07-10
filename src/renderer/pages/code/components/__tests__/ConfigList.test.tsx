@@ -10,6 +10,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const { reorderableListProps } = vi.hoisted(() => ({
+  reorderableListProps: vi.fn()
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode }) => (
     <button type="button" {...props}>
@@ -19,17 +23,21 @@ vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
   ReorderableList: <T,>(props: {
     items: T[]
+    visibleItems?: T[]
     gap: string
     itemStyle?: CSSProperties
     getId: (item: T) => string
     renderItem: (item: T, index: number, state: { dragging: boolean }) => ReactNode
-  }) => (
-    <div data-testid="code-config-reorderable-list" data-gap={props.gap} style={props.itemStyle}>
-      {props.items.map((item, index) => (
-        <div key={props.getId(item)}>{props.renderItem(item, index, { dragging: false })}</div>
-      ))}
-    </div>
-  )
+  }) => {
+    reorderableListProps(props)
+    return (
+      <div data-testid="code-config-reorderable-list" data-gap={props.gap} style={props.itemStyle}>
+        {(props.visibleItems ?? props.items).map((item, index) => (
+          <div key={props.getId(item)}>{props.renderItem(item, index, { dragging: false })}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../ConfigCard', () => ({
@@ -122,6 +130,35 @@ describe('ConfigList', () => {
     // The mocked ProviderCard has no Configure button, so the only one belongs to the own-login row.
     fireEvent.click(screen.getByText('code.configure'))
     expect(onConfigure).toHaveBeenCalledWith(ownLogin)
+  })
+
+  // Regression (kangfenmao): dragging while a search filter is active used to hand
+  // ReorderableList only the filtered rows as `items`, so persisting the reorder
+  // dropped every provider hidden by the filter. The full list must stay `items`;
+  // the filter narrows `visibleItems` only (ReorderableList merges the subset order
+  // back into the full list — pinned in packages/ui reorder-visible-subset tests).
+  it('passes the full provider list as items and the search matches as visibleItems', () => {
+    const providers = ['Alpha', 'Beta', 'Alphabet', 'Gamma', 'Alpaca'].map(
+      (name) => ({ id: name.toLowerCase(), name }) as Provider
+    )
+    render(
+      <ConfigList
+        selectedCliTool={CodeCli.CLAUDE_CODE}
+        toolName="Claude Code"
+        providers={providers}
+        providerConfigs={{}}
+        currentProviderId={null}
+        resolveMeta={(p) => ({ providerName: p.name })}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+        searchTerm="alp"
+      />
+    )
+
+    const props = reorderableListProps.mock.lastCall?.[0] as { items: Provider[]; visibleItems: Provider[] }
+    expect(props.items.map((p) => p.id)).toEqual(['alpha', 'beta', 'alphabet', 'gamma', 'alpaca'])
+    expect(props.visibleItems.map((p) => p.id)).toEqual(['alpha', 'alphabet', 'alpaca'])
   })
 
   it('omits the Configure button on the own-login row for a non-configurable tool', () => {

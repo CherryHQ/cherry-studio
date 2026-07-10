@@ -1,11 +1,10 @@
 import { application } from '@application'
 import type { openclawRequestSchemas } from '@shared/ipc/schemas/openclaw'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-
-type GatewayStatusResult = { success: boolean; message?: string }
+import type { OperationResult } from '@shared/types/codeTools'
 
 /** Run a gateway operation, turning a thrown error into a failed OperationResult. */
-async function asOperationResult(fn: () => Promise<GatewayStatusResult>): Promise<GatewayStatusResult> {
+async function asOperationResult(fn: () => Promise<OperationResult>): Promise<OperationResult> {
   try {
     return await fn()
   } catch (error) {
@@ -14,7 +13,8 @@ async function asOperationResult(fn: () => Promise<GatewayStatusResult>): Promis
 }
 
 export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
-  'openclaw.start_gateway': (input) => asOperationResult(() => application.get('OpenClawService').startGateway(input)),
+  'openclaw.start_gateway': (input) =>
+    asOperationResult(() => application.get('OpenClawService').startGateway(input.port)),
   'openclaw.stop_gateway': () => asOperationResult(() => application.get('OpenClawService').stopGateway()),
   'openclaw.get_status': async () => {
     // The renderer owns the gateway port (via preference) and only consumes status here, so keep

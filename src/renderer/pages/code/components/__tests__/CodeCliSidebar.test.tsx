@@ -15,8 +15,8 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-vi.mock('../CLIIcon', () => ({
-  CLIIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
+vi.mock('../CliIcon', () => ({
+  CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 
 const tools = [

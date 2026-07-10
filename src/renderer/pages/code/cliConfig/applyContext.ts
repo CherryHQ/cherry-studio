@@ -4,18 +4,21 @@ import { CodeCli } from '@shared/types/codeCli'
 import { sanitizeCliConfigBlob } from './adapters'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from './claudeModels'
 
-export function parseConfiguredModelId(modelId: string | undefined): { providerId: string; modelId: string } | null {
+export function parseConfiguredModelId(
+  // Wide on purpose: tolerates legacy '' and corrupt dev-profile values.
+  modelId: string | null | undefined
+): { uniqueModelId: UniqueModelId; providerId: string; modelId: string } | null {
   const result = UniqueModelIdSchema.safeParse(modelId)
   if (!result.success) {
     return null
   }
-  return parseUniqueModelId(result.data)
+  return { uniqueModelId: result.data, ...parseUniqueModelId(result.data) }
 }
 
 export function resolveCliConfigApplyContext(
   cliTool: CodeCli,
   providerId: string,
-  providerConfig: { modelId?: string; config?: Record<string, unknown> } | undefined
+  providerConfig: { modelId?: string | null; config?: Record<string, unknown> } | undefined
 ): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
   if (cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)) {
@@ -23,7 +26,7 @@ export function resolveCliConfigApplyContext(
     const parsedDetailedModelId = parseConfiguredModelId(detailedModelId)
     if (detailedModelId && parsedDetailedModelId) {
       return {
-        modelId: detailedModelId,
+        modelId: parsedDetailedModelId.uniqueModelId,
         providerId: parsedDetailedModelId.providerId,
         rawModelId: parsedDetailedModelId.modelId,
         writePrimaryModel: false
@@ -32,9 +35,9 @@ export function resolveCliConfigApplyContext(
   }
 
   const parsedModelId = parseConfiguredModelId(providerConfig?.modelId)
-  if (!providerConfig?.modelId || !parsedModelId) return null
+  if (!parsedModelId) return null
   return {
-    modelId: providerConfig.modelId as UniqueModelId,
+    modelId: parsedModelId.uniqueModelId,
     providerId: parsedModelId.providerId,
     rawModelId: parsedModelId.modelId,
     writePrimaryModel: true

@@ -87,22 +87,37 @@ export function useConfigEditPanelBodyProps({
       })
     : null
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
-  const advancedFields = renderToolFields({
-    cliTool,
-    config: draft.config,
-    onChange: onConfigChange,
-    section: 'advanced',
-    providerId: provider.id,
-    modelFilter
-  })
-  const toolFields = renderToolFields({
-    cliTool,
-    config: draft.config,
-    onChange: onConfigChange,
-    section: 'basic',
-    providerId: provider.id,
-    modelFilter
-  })
+  // A foreign draft belongs to another provider/tool; tool-field edits would
+  // rewrite that file in place, so lock them until the user picks a model
+  // (which flips the draft back to managed). Raw-file editing stays open.
+  const lockForeignFields = (fields: ReactNode): ReactNode =>
+    fields && isForeignDraft ? (
+      <fieldset disabled className="min-w-0 opacity-60">
+        {fields}
+      </fieldset>
+    ) : (
+      fields
+    )
+  const advancedFields = lockForeignFields(
+    renderToolFields({
+      cliTool,
+      config: draft.config,
+      onChange: onConfigChange,
+      section: 'advanced',
+      providerId: provider.id,
+      modelFilter
+    })
+  )
+  const toolFields = lockForeignFields(
+    renderToolFields({
+      cliTool,
+      config: draft.config,
+      onChange: onConfigChange,
+      section: 'basic',
+      providerId: provider.id,
+      modelFilter
+    })
+  )
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return {

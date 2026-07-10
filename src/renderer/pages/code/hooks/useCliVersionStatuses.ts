@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
 import { CLI_BINARY_NAMES } from '../constants/cliTools'
-import type { VersionStatus } from '../types/codeCli'
+import type { VersionStatus } from '../types'
 
 const logger = loggerService.withContext('useCliVersionStatus')
 

@@ -1,3 +1,4 @@
+import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -7,6 +8,7 @@ import { codeCliHandlers } from '../codeCli'
 
 const codeCliService = {
   run: vi.fn(),
+  writeConfigFiles: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 }
 
@@ -22,49 +24,76 @@ const ctx = { senderId: 'w1' }
 
 describe('codeCliHandlers', () => {
   describe('code_cli.run', () => {
-    it('delegates to CodeCliService.run and returns the result', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
+    it('delegates the run input object to CodeCliService.run and returns the result', async () => {
+      codeCliService.run.mockResolvedValue({ success: true })
       const input = {
-        cliTool: 'claude-code',
+        mode: 'normal' as const,
+        cliTool: CodeCli.CLAUDE_CODE,
         model: 'gpt-4',
         providerId: 'openai',
         directory: '/tmp',
-        options: { terminal: 'iTerm2' }
+        terminal: 'iTerm2'
       }
       const result = await codeCliHandlers['code_cli.run'](input, ctx)
-      expect(codeCliService.run).toHaveBeenCalledWith('claude-code', 'gpt-4', 'openai', '/tmp', { terminal: 'iTerm2' })
-      expect(result).toEqual({ success: true, message: 'ok' })
+      expect(codeCliService.run).toHaveBeenCalledWith(input)
+      expect(result).toEqual({ success: true })
     })
 
     it('does not accept renderer-supplied env', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
+      codeCliService.run.mockResolvedValue({ success: true })
       const input = {
-        cliTool: 'claude-code',
+        mode: 'normal' as const,
+        cliTool: CodeCli.CLAUDE_CODE,
         model: 'gpt-4',
         providerId: 'openai',
-        directory: '/tmp',
-        options: {}
+        directory: '/tmp'
       }
 
       await codeCliHandlers['code_cli.run'](input, ctx)
 
-      expect(codeCliService.run).toHaveBeenCalledWith('claude-code', 'gpt-4', 'openai', '/tmp', {})
+      expect(codeCliService.run).toHaveBeenCalledWith(input)
     })
 
-    it('allows Claude login flow without provider or model', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
+    it('allows the Claude login flow without provider or model', async () => {
+      codeCliService.run.mockResolvedValue({ success: true })
       const input = {
-        cliTool: 'claude-code',
-        model: '',
-        providerId: '',
-        directory: '/tmp',
-        options: { loginFlow: true }
+        mode: 'login-flow' as const,
+        cliTool: CodeCli.CLAUDE_CODE as const,
+        directory: '/tmp'
       }
 
       const result = await codeCliHandlers['code_cli.run'](input, ctx)
 
-      expect(codeCliService.run).toHaveBeenCalledWith('claude-code', '', '', '/tmp', { loginFlow: true })
-      expect(result).toEqual({ success: true, message: 'ok' })
+      expect(codeCliService.run).toHaveBeenCalledWith(input)
+      expect(result).toEqual({ success: true })
+    })
+  })
+
+  describe('code_cli.write_config', () => {
+    it('delegates cliTool and files to CodeCliService.writeConfigFiles', async () => {
+      codeCliService.writeConfigFiles.mockResolvedValue(undefined)
+      const input = {
+        cliTool: CodeCli.CLAUDE_CODE as const,
+        files: [{ target: 'claude-settings' as const, content: '{}\n' }]
+      }
+
+      const result = await codeCliHandlers['code_cli.write_config'](input, ctx)
+
+      expect(codeCliService.writeConfigFiles).toHaveBeenCalledWith(input.cliTool, input.files)
+      expect(result).toEqual({ success: true })
+    })
+
+    it('turns a thrown write error into a failed OperationResult instead of rejecting', async () => {
+      codeCliService.writeConfigFiles.mockRejectedValue(new Error('disk full'))
+      const input = {
+        cliTool: CodeCli.OPENAI_CODEX as const,
+        files: [{ target: 'codex-auth' as const, content: '{}\n' }]
+      }
+
+      await expect(codeCliHandlers['code_cli.write_config'](input, ctx)).resolves.toEqual({
+        success: false,
+        message: 'disk full'
+      })
     })
   })
 

@@ -10,6 +10,7 @@ import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -17,11 +18,13 @@ import {
   type TerminalConfig,
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
-import type { CodeToolsRunResult } from '@shared/types/codeTools'
+import type { OperationResult } from '@shared/types/codeTools'
+import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { sanitizeProviderName } from '@shared/utils/provider'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
+import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
 import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
@@ -115,11 +118,11 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
+  private getToolInstallSpec(cliTool: CodeCli): { name: string; tool: string } {
     return getCodeCliInstallSpec(cliTool)
   }
 
-  public async getCliExecutableName(cliTool: string) {
+  public async getCliExecutableName(cliTool: CodeCli) {
     return getCodeCliPackageSpec(cliTool).executable
   }
 
@@ -319,35 +322,38 @@ export class CodeCliService extends BaseService {
     return []
   }
 
-  async run(
-    cliTool: string,
-    model: string,
-    providerId: string,
-    directory: string,
-    options: { terminal?: string; loginFlow?: boolean; ownLogin?: boolean } = {}
-  ): Promise<CodeToolsRunResult> {
+  /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
+  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+    return writeCliConfigFiles(cliTool, files)
+  }
+
+  async run(input: CodeCliRunInput): Promise<OperationResult> {
+    const { cliTool, directory } = input
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     const env: Record<string, string> = { ...getBinaryExecutionEnv() }
     logger.debug(`Environment variables:`, Object.keys(env))
-    logger.debug(`Options:`, options)
+    logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
       logger.error(message)
       return { success: false, message }
     }
 
-    const isLoginFlow = cliTool === CodeCli.CLAUDE_CODE && options.loginFlow === true
+    const normal = input.mode === 'normal' ? input : null
+    const isLoginFlow = input.mode === 'login-flow'
     const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
     // "Own login" run: the CLI uses its own stored account login, so no Cherry
     // provider/model is injected (the renderer already cleared any prior config).
     // Gated to login-capable tools so a genuinely missing provider still errors.
-    const isOwnLoginRun = options.ownLogin === true && LOGIN_CAPABLE_CLI_TOOLS.has(cliTool as CodeCli)
-    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && providerId.trim().length === 0) {
+    const isOwnLoginRun = input.mode === 'own-login' && LOGIN_CAPABLE_CLI_TOOLS.has(cliTool)
+    // The IPC schema already enforces non-empty ids on the normal arm; these
+    // guards keep the friendly messages for direct (test/service) callers.
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.providerId.trim()) {
       const message = `Provider ID is required for ${cliTool}`
       logger.error(message)
       return { success: false, message }
     }
-    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && model.trim().length === 0) {
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.model.trim()) {
       const message = `Model is required for ${cliTool}`
       logger.error(message)
       return { success: false, message }
@@ -446,12 +452,19 @@ export class CodeCliService extends BaseService {
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
+      if (!normal) {
+        // Unreachable in practice: opencode is neither login-capable nor
+        // providerless, so non-normal modes were rejected above. Narrows types.
+        const message = `Provider ID is required for ${cliTool}`
+        logger.error(message)
+        return { success: false, message }
+      }
       let providerName: string
       try {
-        const provider = providerService.getByProviderId(providerId)
+        const provider = providerService.getByProviderId(normal.providerId)
         providerName = sanitizeProviderName(provider.name, provider.id)
       } catch (error) {
-        const message = `OpenCode provider not found: ${providerId}`
+        const message = `OpenCode provider not found: ${normal.providerId}`
         logger.error(message, error as Error)
         return { success: false, message }
       }
@@ -459,12 +472,12 @@ export class CodeCliService extends BaseService {
       // other CLI writes the model into its own config file). Reject anything outside the model-id
       // charset rather than launch, so a model id carrying shell metacharacters can't inject into the
       // `sh -c` / AppleScript / `.bat` command this string is assembled into.
-      if (!isShellSafeModelId(model)) {
-        const message = `Unsupported model id for ${cliTool}: ${model}`
+      if (!isShellSafeModelId(normal.model)) {
+        const message = `Unsupported model id for ${cliTool}: ${normal.model}`
         logger.error(message)
         return { success: false, message }
       }
-      baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
+      baseCommand = `${baseCommand} --model cherry-${providerName}/${normal.model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 
@@ -482,7 +495,7 @@ export class CodeCliService extends BaseService {
     // this command is assembled into a shell string (and a Windows .bat), and
     // a renderer-supplied string would
     // be a shell-injection surface. A plain launch from the CLI page is unaffected.
-    if (options.loginFlow) {
+    if (isLoginFlow) {
       baseCommand = `${baseCommand} /login`
     }
 
@@ -498,7 +511,7 @@ export class CodeCliService extends BaseService {
         // (double-quoting it only blocks `"`, leaving command substitution live).
         const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
 
-        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
         const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
@@ -581,7 +594,7 @@ export class CodeCliService extends BaseService {
         }
 
         // Use selected terminal configuration
-        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
         // Get command and args from terminal configuration
@@ -645,6 +658,9 @@ export class CodeCliService extends BaseService {
             // Check if terminal exists
             const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
             await new Promise((resolve) => {
+              // A failed `which` spawn emits 'error'; without a listener that is
+              // an uncaught exception in the main process. Treat it as not found.
+              checkResult.on('error', () => resolve(-1))
               checkResult.on('close', (code) => {
                 if (code === 0) {
                   foundTerminal = terminal
@@ -688,21 +704,26 @@ export class CodeCliService extends BaseService {
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 
-      spawn(terminalCommand, terminalArgs, {
+      const child = spawn(terminalCommand, terminalArgs, {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
         env: processEnv,
         shell: isWin
       })
+      // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
+      // missing); without a listener that becomes an uncaught exception after
+      // run() already reported success. Wait for the spawn/error race so launch
+      // failures surface as a failed result instead.
+      await new Promise<void>((resolve, reject) => {
+        child.once('spawn', resolve)
+        child.once('error', reject)
+      })
+      child.on('error', (error) => logger.error('Terminal process error after launch', error))
 
-      const successMessage = `Launched ${cliTool} in new terminal window`
-      logger.info(successMessage)
+      logger.info(`Launched ${cliTool} in new terminal window`)
 
-      return {
-        success: true,
-        message: successMessage
-      }
+      return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`

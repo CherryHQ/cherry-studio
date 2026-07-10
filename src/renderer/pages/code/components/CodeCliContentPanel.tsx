@@ -1,13 +1,13 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, SearchInput } from '@cherrystudio/ui'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink, Search } from 'lucide-react'
+import { CircleAlert, ExternalLink } from 'lucide-react'
 import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
+import type { CodeToolMeta, VersionStatus } from '../types'
 import { ConfigList } from './ConfigList'
 import { VersionStatusCard } from './VersionStatusCard'
 
@@ -123,9 +123,9 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               {supportedProviders.length > 0 && (
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="font-medium text-foreground text-sm">{t('code.model_providers')}</h2>
-                  <div className="flex h-7 w-52 shrink-0 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pr-1 pl-2.5">
-                    <Search className="size-3.5 shrink-0 text-muted-foreground/60" />
-                    <input
+                  <div className="w-52 shrink-0">
+                    <SearchInput
+                      size="sm"
                       value={providerSearch}
                       placeholder={t('code.search_provider_placeholder')}
                       onChange={(event) => setProviderSearch(event.target.value)}
@@ -135,7 +135,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
                           setProviderSearch('')
                         }
                       }}
-                      className="min-w-0 flex-1 bg-transparent text-foreground/80 text-sm leading-none outline-none placeholder:text-muted-foreground/60"
+                      onClear={() => setProviderSearch('')}
+                      clearLabel={t('common.clear')}
                     />
                   </div>
                 </div>

@@ -83,7 +83,7 @@ describe('useLaunchDialogController', () => {
 
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
-      expect.objectContaining({ options: expect.objectContaining({ terminal: 'terminal' }) })
+      expect.objectContaining({ mode: 'normal', terminal: 'terminal' })
     )
   })
 
@@ -112,7 +112,7 @@ describe('useLaunchDialogController', () => {
 
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
-      expect.objectContaining({ options: expect.objectContaining({ terminal: 'iterm2' }) })
+      expect.objectContaining({ mode: 'normal', terminal: 'iterm2' })
     )
   })
 
@@ -137,7 +137,7 @@ describe('useLaunchDialogController', () => {
 
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
-      expect.objectContaining({ options: expect.objectContaining({ terminal: 'terminal' }) })
+      expect.objectContaining({ mode: 'own-login', terminal: 'terminal' })
     )
   })
 })

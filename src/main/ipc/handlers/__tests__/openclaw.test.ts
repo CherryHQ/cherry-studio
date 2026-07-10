@@ -6,7 +6,8 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 import { openclawHandlers } from '../openclaw'
 
 const openClawService = {
-  getStatus: vi.fn()
+  getStatus: vi.fn(),
+  startGateway: vi.fn()
 }
 
 beforeEach(() => {
@@ -20,6 +21,23 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('openclawHandlers', () => {
+  describe('openclaw.start_gateway', () => {
+    it('unwraps { port } and forwards it to the service', async () => {
+      openClawService.startGateway.mockResolvedValue({ success: true })
+      const result = await openclawHandlers['openclaw.start_gateway']({ port: 18888 }, ctx)
+      expect(openClawService.startGateway).toHaveBeenCalledWith(18888)
+      expect(result).toEqual({ success: true })
+    })
+
+    it('turns a thrown service error into a failed OperationResult instead of rejecting', async () => {
+      openClawService.startGateway.mockRejectedValue(new Error('bind failed'))
+      await expect(openclawHandlers['openclaw.start_gateway']({}, ctx)).resolves.toEqual({
+        success: false,
+        message: 'bind failed'
+      })
+    })
+  })
+
   describe('openclaw.get_status', () => {
     it('projects to { status }, keeping the gateway port off the wire', async () => {
       // The renderer owns the port via preference and only consumes status here; the handler must

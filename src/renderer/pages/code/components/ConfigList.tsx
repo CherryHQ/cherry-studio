@@ -69,7 +69,8 @@ export const ConfigList: FC<ConfigListProps> = ({
 
   return (
     <ReorderableList
-      items={displayedProviders}
+      items={providers}
+      visibleItems={displayedProviders}
       getId={(p) => p.id}
       onReorder={onReorder}
       gap="0.5rem"

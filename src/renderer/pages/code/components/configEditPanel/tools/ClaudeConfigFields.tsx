@@ -4,6 +4,7 @@ import {
   CLAUDE_DETAILED_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
+  safeCreateUniqueModelId,
   stripClaudeOneMMarker
 } from '@renderer/pages/code/cliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -127,7 +128,8 @@ function getRawModelId(uniqueModelId: UniqueModelId | undefined): string {
 }
 
 function toProviderModelId(providerId: string | undefined, modelId: string): UniqueModelId | undefined {
-  return providerId && modelId ? `${providerId}::${modelId}` : undefined
+  // modelId comes from a user-typed env value; never throw in a render path.
+  return providerId && modelId ? safeCreateUniqueModelId(providerId, modelId) : undefined
 }
 
 export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({

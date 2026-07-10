@@ -1,39 +1,29 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { ipcApi } from '@renderer/ipc'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import { readExternalOrNull, resolveAbs, writeExternalConfigFile } from './file'
-import { CLI_CONFIG_FILE_SPECS, FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from './targets'
 import type { CliConfigDraftBuildArgs, CliConfigFileDraft, CliConfigWriteArgs, ResolvedCliConfigContext } from './types'
 import { firstApiKey } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
 /**
- * Renderer-side CLI config file writing for the file-based CLI tools.
+ * Renderer-side CLI config drafting for the file-based CLI tools.
  *
- * Injection runs at the "enable config" trigger (see CodeCliPage); launch
- * (`ipcApi.request('code_cli.run', …)`) is terminal-only. OpenClaw config is
- * handled by the main-process OpenClawService, so this module is a no-op for it.
- *
- * There is no namespace-resolve IPC, so the renderer resolves the paths via
- * `window.api.resolvePath` instead of `application.getPath`.
+ * This module builds and validates the config-file drafts; the disk write is
+ * main-process (`code_cli.write_config`, which owns path resolution, atomic
+ * 0600 writes, and snapshot/rollback). Injection runs at the "enable config"
+ * trigger (see CodeCliPage); launch (`ipcApi.request('code_cli.run', …)`) is
+ * terminal-only. OpenClaw config is handled by the main-process
+ * OpenClawService, so this module is a no-op for it.
  */
-interface FileSnapshot {
-  path: string
-  existed: boolean
-  previousContent: string
-}
-
-async function snapshotFile(path: string): Promise<FileSnapshot> {
-  const previousContent = await readExternalOrNull(path)
-  return { path, existed: previousContent !== null, previousContent: previousContent ?? '' }
-}
 
 /**
  * File-configured tools Ollama can actually be selected for — it only exposes
@@ -53,7 +43,14 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
     dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
-    dataApiService.get(`/models/${args.modelId}`).catch(() => null)
+    // Model metadata only tunes optional fields (endpoint pick, context window),
+    // so a fetch failure degrades the config quietly — leave a breadcrumb.
+    dataApiService
+      .get(`/models/${args.modelId}`)
+      .catch((error) => {
+        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+        return null
+      })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -111,7 +108,7 @@ function assertCliConfigCredentials(cliTool: string, context: ResolvedCliConfigC
 
 export async function writeCliConfigDraft(args: {
   cliTool: string
-  modelId?: string
+  modelId?: UniqueModelId
   configBlob?: Record<string, unknown>
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
@@ -135,42 +132,17 @@ export async function writeCliConfigDraft(args: {
   }
   validateCliConfigDraftForWrite(files)
 
-  const snapshots: FileSnapshot[] = []
-  const writeTargets = await Promise.all(
-    files.map(async (file) => ({
-      path: file.path || (await resolveAbs(CLI_CONFIG_FILE_SPECS[file.target].path)),
-      content: file.content
-    }))
-  )
-
-  try {
-    let writeQueue = Promise.resolve()
-    for (const target of writeTargets) {
-      writeQueue = writeQueue.then(async () => {
-        snapshots.push(await snapshotFile(target.path))
-        await writeExternalConfigFile(target.path, target.content)
-        logger.info(`Applied ${args.cliTool} config to ${target.path}`)
-      })
-    }
-    await writeQueue
-  } catch (error) {
-    let rollbackQueue = Promise.resolve()
-    for (const snapshot of snapshots.slice().reverse()) {
-      rollbackQueue = rollbackQueue.then(async () => {
-        if (snapshot.existed) {
-          await writeExternalConfigFile(snapshot.path, snapshot.previousContent).catch((rollbackError) => {
-            logger.error(`Failed to roll back ${snapshot.path} after write failure`, rollbackError as Error)
-          })
-        } else {
-          await window.api.file.deleteExternalFile(snapshot.path).catch((rollbackError) => {
-            logger.error(`Failed to delete ${snapshot.path} during rollback`, rollbackError as Error)
-          })
-        }
-      })
-    }
-    await rollbackQueue
-    throw error
+  if (!isFileConfiguredCli(args.cliTool)) {
+    throw new Error(`${args.cliTool} does not use config files`)
   }
+  const result = await ipcApi.request('code_cli.write_config', {
+    cliTool: args.cliTool,
+    files: files.map(({ target, content }) => ({ target, content }))
+  })
+  if (!result.success) {
+    throw new Error(result.message)
+  }
+  logger.info(`Applied ${args.cliTool} config`)
   return undefined
 }
 
@@ -219,8 +191,8 @@ export async function readOwnLoginCliConfigDraft(args: {
  * Apply an "own login" config to the CLI config file without writing any
  * credentials/model. Writes hand-edited `files` verbatim when provided,
  * otherwise rebuilds them from the tool params. Reuses `writeCliConfigDraft`'s
- * files path (snapshot + rollback), bypassing the credential-requiring
- * `resolveContext`.
+ * files path (validate → code_cli.write_config), bypassing the
+ * credential-requiring `resolveContext`.
  */
 export async function writeOwnLoginCliConfigDraft(args: {
   cliTool: string

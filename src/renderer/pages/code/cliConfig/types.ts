@@ -1,17 +1,8 @@
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CliConfigLanguage, CliConfigTarget } from '@shared/utils/cliConfig'
 
-export type CliConfigTarget =
-  | 'claude-settings'
-  | 'codex-config'
-  | 'codex-auth'
-  | 'opencode-config'
-  | 'gemini-env'
-  | 'gemini-settings'
-  | 'qwen-settings'
-  | 'kimi-config'
-
-export type CliConfigLanguage = 'json' | 'toml' | 'dotenv'
+export type { CliConfigLanguage, CliConfigTarget }
 
 export interface CliConfigFileDraft {
   target: CliConfigTarget
@@ -30,7 +21,7 @@ export interface CliConfigConnection {
 export interface CliConfigWriteArgs {
   cliTool: string
   /** Unique model id ("providerId::modelId"). */
-  modelId: string
+  modelId: UniqueModelId
   /** User-edited config blob (claude-code / codex / opencode consume it). */
   configBlob?: Record<string, unknown>
   /** Claude Code only: whether to write env.ANTHROPIC_MODEL. */

@@ -13,7 +13,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { refreshShellEnv } from '@main/utils/shellEnv'
-import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
+import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { OperationResult } from '@shared/types/codeTools'
@@ -502,7 +502,7 @@ export class OpenClawService extends BaseService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
-  public async syncConfig(uniqueModelId: unknown, port?: number): Promise<OperationResult> {
+  public async syncConfig(uniqueModelId: UniqueModelId, port?: number): Promise<OperationResult> {
     try {
       // Apply the caller's gateway port before writing openclaw.json so the config's
       // gateway.port matches the port startGateway() will bind and health-check. Without
@@ -658,14 +658,16 @@ export class OpenClawService extends BaseService {
         logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
 
-      // Read existing config
+      // Read existing config. An unparseable file aborts the sync instead of
+      // being rebuilt from scratch — silently replacing it would destroy any
+      // hand-edited OpenClaw config the user could otherwise repair.
       let config: OpenClawConfig = {}
       if (fs.existsSync(openclawConfigPath())) {
+        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
         try {
-          const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
           config = JSON.parse(content)
         } catch {
-          logger.warn('Failed to parse existing OpenClaw config, creating new one')
+          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
         }
       }
 

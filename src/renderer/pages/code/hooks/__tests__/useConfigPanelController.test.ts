@@ -259,7 +259,7 @@ describe('useConfigPanelController', () => {
       })
 
       expect(options.upsertProviderConfig).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID, {
-        modelId: '',
+        modelId: null,
         config: { effortLevel: 'high' }
       })
       expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({

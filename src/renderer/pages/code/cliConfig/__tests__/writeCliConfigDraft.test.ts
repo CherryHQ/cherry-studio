@@ -1,9 +1,17 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 /** Per-path DataApi.get mock returning provider / api-keys / model payloads.
  * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
@@ -80,6 +88,8 @@ describe('writeCliConfigDraft', () => {
     written = null
     writes = []
     existing = {}
+    // Draft building still reads config files renderer-side; the mock keeps
+    // resolving `~/…` spec paths to `/resolved~/…` for the `existing` fixture.
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -88,15 +98,19 @@ describe('writeCliConfigDraft', () => {
           readExternal: vi.fn(async (absPath: string) => {
             if (absPath in existing) return existing[absPath]
             throw new Error(`File does not exist: ${absPath}`)
-          }),
-          mkdir: vi.fn(async () => undefined),
-          write: vi.fn(async (absPath: string, content: string) => {
-            written = { path: absPath, content }
-            writes.push({ path: absPath, content })
-          }),
-          deleteExternalFile: vi.fn(async () => undefined)
+          })
         }
       }
+    })
+    // The disk write is main-process now (`code_cli.write_config` carries
+    // `{ target, content }`, never a path). Translate each target back to the
+    // same `/resolved~/…` path so the content fixtures stay unchanged.
+    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
+      for (const file of input.files) {
+        written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        writes.push(written)
+      }
+      return { success: true }
     })
   })
 
@@ -769,6 +783,25 @@ describe('writeCliConfigDraft', () => {
       const settings = JSON.parse(findWrite('settings.json').content)
       expect(settings.general).toEqual({ vimMode: true, preferredEditor: 'vim' })
     })
+
+    it('preserves .env comments and user entries verbatim across an apply', async () => {
+      existing['/resolved~/.gemini/.env'] = '# my proxy\nUSER_PROXY=http://localhost:8080\nGEMINI_API_KEY=old\n'
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      expect(findWrite('.env').content).toBe(
+        '# my proxy\nUSER_PROXY=http://localhost:8080\nGEMINI_API_KEY=sk-secret\n' +
+          'GOOGLE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com\n'
+      )
+    })
   })
 
   describe('qwen-code (~/.qwen/settings.json)', () => {
@@ -798,10 +831,6 @@ describe('writeCliConfigDraft', () => {
       })
 
       const parsed = JSON.parse(written!.content)
-      const mkdirMock = vi.mocked(window.api.file.mkdir)
-      const writeMock = vi.mocked(window.api.file.write)
-      expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.qwen')
-      expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.general).toMatchObject({
         vimMode: true,
         enableAutoUpdate: false
@@ -866,10 +895,6 @@ describe('writeCliConfigDraft', () => {
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(written!.content) as Record<string, any>
-      const mkdirMock = vi.mocked(window.api.file.mkdir)
-      const writeMock = vi.mocked(window.api.file.write)
-      expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.kimi-code')
-      expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.default_model).toBe('cherry-DeepSeek')
       expect(parsed.default_permission_mode).toBe('auto')
       expect(parsed.default_plan_mode).toBe(true)
@@ -900,23 +925,6 @@ describe('writeCliConfigDraft', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(written!.content) as Record<string, any>
       expect(parsed.loop_control).toEqual({ max_steps_per_turn: 12 })
-    })
-
-    it('does not write when parent directory creation fails', async () => {
-      mockGet({
-        '/providers/deepseek': () => openaiCompatProvider,
-        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
-        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
-      })
-      vi.mocked(window.api.file.mkdir).mockRejectedValueOnce(new Error('mkdir failed'))
-
-      await expect(
-        writeCliConfigDraft({
-          cliTool: CodeCli.KIMI_CODE,
-          modelId: 'deepseek::deepseek-chat'
-        })
-      ).rejects.toThrow('mkdir failed')
-      expect(window.api.file.write).not.toHaveBeenCalled()
     })
   })
 
@@ -1120,39 +1128,10 @@ describe('writeCliConfigDraft', () => {
       await expect(
         writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
       ).rejects.toThrow(/EACCES/)
-      // Nothing was written — the real file (and its unmanaged keys) is untouched.
-      expect(writes).toEqual([])
-    })
-
-    it('does not delete a real config file during rollback when its snapshot read fails', async () => {
-      // Drive the write with explicit `files` so the snapshot/rollback path is
-      // exercised directly, independent of the build-time read (covered above).
-      // codex writes config.toml then auth.json; a real read error while
-      // snapshotting config.toml must abort before either file is touched, not
-      // be recorded as "didn't exist" and later trash-deleted during rollback.
-      const files = [
-        {
-          target: 'codex-config' as const,
-          label: 'Codex config',
-          path: '/resolved~/.codex/config.toml',
-          language: 'toml' as const,
-          content: 'model = "new-model"'
-        },
-        {
-          target: 'codex-auth' as const,
-          label: 'Codex auth',
-          path: '/resolved~/.codex/auth.json',
-          language: 'json' as const,
-          content: '{"OPENAI_API_KEY":"sk-secret"}'
-        }
-      ]
-      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
-        throw new Error('EBUSY: resource busy or locked')
-      })
-
-      await expect(writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, files })).rejects.toThrow(/EBUSY/)
-      expect(writes).toEqual([])
-      expect(window.api.file.deleteExternalFile).not.toHaveBeenCalled()
+      // Nothing was sent to the main-process writer — the real file (and its
+      // unmanaged keys) is untouched. (Snapshot/rollback safety around the
+      // write itself is a main-side property, pinned in configWriter tests.)
+      expect(mocks.request).not.toHaveBeenCalled()
     })
   })
 })

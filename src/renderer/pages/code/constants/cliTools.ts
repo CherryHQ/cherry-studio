@@ -10,7 +10,7 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { isGeminiProvider } from '@shared/utils/provider'
@@ -63,10 +63,11 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
 /**
  * CLI tool → supported-provider filter. Filters mirror the file injection in
  * `writeCliConfigDraft` so a provider only shows up when its CLI-compatible endpoint can
- * actually back the CLI. All judgments are based on `endpointConfigs` (the
- * only source injection reads), never on `defaultChatEndpoint`/
- * `presetProviderId` indirect signals that may be unset on user or migrated
- * providers.
+ * actually back the CLI. Judgments are based on `endpointConfigs` (the only source
+ * injection reads), with one exception: Gemini CLI also admits providers
+ * `isGeminiProvider` recognizes via id/`presetProviderId`/`defaultChatEndpoint`
+ * plus the static aggregator allow-list, since its injection can derive the
+ * Gemini URL from the default chat endpoint (see `resolveGeminiBaseUrl`).
  *
  * - Claude Code: inject reads `anthropic-messages`.
  * - Codex: inject reads `openai-responses` only. Chat-completions is no longer
@@ -87,43 +88,4 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.QODER_CLI]: () => [],
   [CodeCli.GITHUB_COPILOT_CLI]: () => []
-}
-
-const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
-
-function hasModelEndpoint(model: Model, endpoint: string): boolean {
-  if (!model.endpointTypes?.length) return true
-  return model.endpointTypes.includes(endpoint as any)
-}
-
-function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
-  if (!model.endpointTypes?.length) return true
-  return model.endpointTypes.some((endpoint) => endpoints.includes(endpoint))
-}
-
-export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      return hasModelEndpoint(model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    case CodeCli.OPENAI_CODEX:
-      return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_RESPONSES)
-    case CodeCli.OPEN_CODE:
-      return hasAnyModelEndpoint(model, [
-        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        ...OPENAI_LIKE_ENDPOINTS
-      ])
-    case CodeCli.OPENCLAW:
-      return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
-    case CodeCli.GEMINI_CLI:
-      return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
-    case CodeCli.QWEN_CODE:
-    case CodeCli.KIMI_CODE:
-      return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
-    case CodeCli.QODER_CLI:
-    case CodeCli.GITHUB_COPILOT_CLI:
-      return false
-    default:
-      return false
-  }
 }

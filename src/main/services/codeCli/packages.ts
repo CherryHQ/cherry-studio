@@ -35,14 +35,12 @@ export const CODE_CLI_PACKAGE_SPECS: Record<CodeCli, CodeCliPackageSpec> = {
   [CodeCli.GITHUB_COPILOT_CLI]: { executable: 'copilot', packageName: '@github/copilot', install: 'npm' }
 }
 
-export function getCodeCliPackageSpec(cliTool: string): CodeCliPackageSpec {
-  const spec = CODE_CLI_PACKAGE_SPECS[cliTool as CodeCli]
-  if (!spec) throw new Error(`Unsupported CLI tool: ${cliTool}`)
-  return spec
+export function getCodeCliPackageSpec(cliTool: CodeCli): CodeCliPackageSpec {
+  return CODE_CLI_PACKAGE_SPECS[cliTool]
 }
 
 /** `BinaryManager` install spec: a mise registry short-name or `npm:<pkg>`. */
-export function getCodeCliInstallSpec(cliTool: string): { name: string; tool: string } {
+export function getCodeCliInstallSpec(cliTool: CodeCli): { name: string; tool: string } {
   const spec = getCodeCliPackageSpec(cliTool)
   return { name: spec.executable, tool: spec.install === 'npm' ? `npm:${spec.packageName}` : spec.executable }
 }

@@ -25,7 +25,7 @@ interface UseLaunchDialogControllerOptions {
   selectedTerminal?: string
   upsertProviderConfig: (
     providerId: string,
-    partial: { modelId: string } & Partial<CliProviderConfig>
+    partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
   ) => Promise<string>
   setCurrentProvider: (providerId: string | null) => Promise<void>
   setTerminal: (terminal: string) => Promise<void>
@@ -84,11 +84,10 @@ export function useLaunchDialogController({
       try {
         setLaunching(true)
         const runResult = await ipcApi.request('code_cli.run', {
+          mode: 'own-login',
           cliTool: selectedCliTool,
-          model: '',
-          providerId: '',
           directory,
-          options: { terminal: effectiveTerminal, ownLogin: isOwnLoginSelected || undefined }
+          terminal: effectiveTerminal
         })
         if (!runResult.success) {
           toast.error(runResult.message)
@@ -114,7 +113,7 @@ export function useLaunchDialogController({
         providerId: enabledProvider?.id
       })
       if (enabledProvider) {
-        await upsertProviderConfig(enabledProvider.id, { modelId: '' })
+        await upsertProviderConfig(enabledProvider.id, { modelId: null })
       }
       await setCurrentProvider(null)
       toast.error(t('code.launch.validation_error'))
@@ -124,11 +123,12 @@ export function useLaunchDialogController({
     try {
       setLaunching(true)
       const runResult = await ipcApi.request('code_cli.run', {
+        mode: 'normal',
         cliTool: selectedCliTool,
         model: cliConfigContext.rawModelId,
         providerId: cliConfigContext.providerId,
         directory,
-        options: { terminal: effectiveTerminal }
+        terminal: effectiveTerminal
       })
       if (!runResult.success) {
         toast.error(runResult.message)

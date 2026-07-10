@@ -6,7 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractConnectionFromCliConfigDraft: vi.fn(),
-  readCliConfigFiles: vi.fn()
+  readCliConfigFiles: vi.fn(),
+  toastError: vi.fn()
+}))
+
+vi.mock('@renderer/services/LoggerService', () => ({
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
@@ -43,7 +56,10 @@ const foreignConnection: CliConfigConnection = {
   model: 'deepseek-chat'
 }
 
-function renderController(apiKeys: ApiKeyEntry[] | undefined) {
+function renderController(
+  apiKeys: ApiKeyEntry[] | undefined,
+  handlers: { onSubmit?: ReturnType<typeof vi.fn>; onClose?: ReturnType<typeof vi.fn> } = {}
+) {
   return renderHook(
     (props: { apiKeys: ApiKeyEntry[] | undefined }) =>
       useConfigDraftController({
@@ -52,8 +68,8 @@ function renderController(apiKeys: ApiKeyEntry[] | undefined) {
         providerConfig: { modelId: 'deepseek::deepseek-chat' },
         isCurrentProvider: true,
         apiKeys: props.apiKeys,
-        onSubmit: vi.fn(),
-        onClose: vi.fn()
+        onSubmit: handlers.onSubmit ?? vi.fn(),
+        onClose: handlers.onClose ?? vi.fn()
       }),
     { initialProps: { apiKeys } }
   )
@@ -114,5 +130,54 @@ describe('useConfigDraftController (initial load vs. apiKeys race)', () => {
     })
 
     expect(mocks.readCliConfigFiles).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useConfigDraftController (submit failure)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.readCliConfigFiles.mockResolvedValue([])
+    mocks.extractConnectionFromCliConfigDraft.mockReturnValue(null)
+  })
+
+  async function renderDirtyController(onSubmit: ReturnType<typeof vi.fn>, onClose: ReturnType<typeof vi.fn>) {
+    const rendered = renderController([{ id: 'k1', key: 'sk-real', isEnabled: true }], { onSubmit, onClose })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    // Clearing the model differs from the initial draft → dirty, and skips the
+    // async managed-draft rebuild, keeping the submit path synchronous.
+    act(() => rendered.result.current.onModelSelect(undefined))
+    expect(rendered.result.current.canSave).toBe(true)
+    return rendered
+  }
+
+  it('keeps the dialog open and toasts when the submit fails', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('write failed'))
+    const onClose = vi.fn()
+    const { result } = await renderDirtyController(onSubmit, onClose)
+
+    await act(async () => {
+      result.current.onSubmit()
+    })
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith('code.apply_failed')
+    expect(result.current.submitting).toBe(false)
+  })
+
+  it('closes the dialog when the submit succeeds', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const onClose = vi.fn()
+    const { result } = await renderDirtyController(onSubmit, onClose)
+
+    await act(async () => {
+      result.current.onSubmit()
+    })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 })

@@ -8,24 +8,6 @@ export async function resolveAbs(p: string): Promise<string> {
   return window.api.resolvePath(p)
 }
 
-function getParentDir(absPath: string): string | null {
-  const slash = absPath.lastIndexOf('/')
-  const backslash = absPath.lastIndexOf('\\')
-  const index = Math.max(slash, backslash)
-  if (index < 0) return null
-  if (index === 0) return absPath.slice(0, 1)
-  if (index === 2 && /^[A-Za-z]:[\\/]/.test(absPath)) return absPath.slice(0, 3)
-  return absPath.slice(0, index)
-}
-
-export async function writeExternalConfigFile(absPath: string, content: Uint8Array | string): Promise<void> {
-  const parentDir = getParentDir(absPath)
-  if (parentDir) {
-    await window.api.file.mkdir(parentDir)
-  }
-  await window.api.file.write(absPath, content, 0o600)
-}
-
 function isMissingFileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return message.includes('File does not exist') || message.includes('ENOENT')
@@ -50,8 +32,9 @@ function parseOrThrow<T>(content: string, label: string, absPath: string, parseF
   try {
     return parseFn(content)
   } catch (err) {
-    // parseFn (parseJsonOrThrow/parseTomlOrThrow) already redacts its own message at the source, so
-    // every caller — this wrapper, validateCliConfigDraftForWrite, draftUpdater.ts — is covered.
+    // Safe to embed: parseTomlOrThrow redacts its message at the source, and
+    // parseJsonOrThrow's messages carry no file content (only an error count) —
+    // if it ever starts embedding source, it must redact like the TOML parser.
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(`Failed to parse ${label} at ${absPath}: ${rawMessage}`)
   }

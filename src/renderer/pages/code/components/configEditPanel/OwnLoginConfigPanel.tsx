@@ -8,13 +8,14 @@ import {
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLIIcon } from '../CLIIcon'
+import { CliIcon } from '../CliIcon'
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
 import { renderToolFields } from './toolFieldRenderer'
@@ -76,10 +77,12 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       setMode('managed')
       setError('')
       const loadId = ++loadIdRef.current
-      void readOwnLoginCliConfigDraft({ cliTool, configBlob: sanitized }).then((nextFiles) => {
-        if (loadId !== loadIdRef.current) return
-        setFiles(nextFiles)
-      })
+      void readOwnLoginCliConfigDraft({ cliTool, configBlob: sanitized })
+        .then((nextFiles) => {
+          if (loadId !== loadIdRef.current) return
+          setFiles(nextFiles)
+        })
+        .catch((err) => logger.error('Failed to rebuild own-login config preview', err as Error))
     },
     [cliTool]
   )
@@ -107,10 +110,14 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       setSubmitting(true)
       await onSubmit({ config, cliConfigFiles: mode === 'raw' ? files : undefined })
       onClose()
+    } catch (err) {
+      // Keep the dialog open so the user's edits survive a failed apply.
+      logger.error('Failed to save own-login config', err as Error)
+      toast.error(t('code.apply_failed'))
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, submitting, config, files, mode, onSubmit, onClose])
+  }, [canSave, submitting, config, files, mode, onSubmit, onClose, t])
 
   const toolFields = renderToolFields({
     cliTool,
@@ -131,7 +138,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            <CLIIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />
+            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />
             <span className="min-w-0 truncate">{t('code.own_login.title', { toolName })}</span>
           </DialogTitle>
         </DialogHeader>

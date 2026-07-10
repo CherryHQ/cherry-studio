@@ -38,3 +38,4 @@ export type {
   CliConfigTarget,
   CliConfigWriteArgs
 } from './types'
+export { safeCreateUniqueModelId } from './values'

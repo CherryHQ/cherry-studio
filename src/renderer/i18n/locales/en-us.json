@@ -1965,6 +1965,7 @@
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
     "can_upgrade": "Upgrade available",
+    "clear_config_failed": "Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
     "cli_config": {
       "format_failed": "Format failed. Check the file syntax.",
       "hint": "This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
@@ -2062,17 +2063,6 @@
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
     "title": "Code Switch",
-    "tool_description": {
-      "claude_code": "Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "Google's official Gemini command-line AI coding agent",
-      "github_copilot_cli": "GitHub Copilot command-line AI coding assistant",
-      "kimi_cli": "Moonshot Kimi command-line AI coding agent",
-      "openai_codex": "OpenAI's official code generation CLI",
-      "openclaw": "Multi-channel personal AI assistant with gateway service",
-      "opencode": "Open-source multi-model coding agent",
-      "qoder_cli": "Qoder command-line AI coding assistant",
-      "qwen_code": "Alibaba Qwen Code command-line AI coding agent"
-    },
     "tool_parameters": "Parameter Settings",
     "up_to_date": "Up to date",
     "update_options": "Update Options",

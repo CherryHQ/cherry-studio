@@ -1,6 +1,19 @@
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
+import {
+  CLAUDE_SETTINGS_PATH,
+  type CliConfigWriteFile,
+  CODEX_AUTH_PATH,
+  CODEX_CONFIG_PATH,
+  type FileConfiguredCli,
+  GEMINI_ENV_PATH,
+  GEMINI_SETTINGS_PATH,
+  getCliConfigTargets,
+  KIMI_CONFIG_PATH,
+  OPENCODE_CONFIG_PATH,
+  QWEN_CONFIG_PATH
+} from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
 
 import {
@@ -67,18 +80,6 @@ import {
   sanitizeOpenCodeConfigBlob,
   sanitizeQwenConfigBlob
 } from './sanitize'
-import {
-  CLAUDE_SETTINGS_PATH,
-  CODEX_AUTH_PATH,
-  CODEX_CONFIG_PATH,
-  type FileConfiguredCli,
-  GEMINI_ENV_PATH,
-  GEMINI_SETTINGS_PATH,
-  getCliConfigTargets,
-  KIMI_CONFIG_PATH,
-  OPENCODE_CONFIG_PATH,
-  QWEN_CONFIG_PATH
-} from './targets'
 import type {
   CliConfigConnection,
   CliConfigDraftBuildArgs,
@@ -130,8 +131,12 @@ export interface CliConfigAdapter {
     connection: CliConfigConnection,
     configBlob: Record<string, any>
   ): CliConfigFileDraft[]
-  /** Remove every Cherry-managed key from the on-disk config file(s), leaving user keys intact. */
-  clear(): Promise<void>
+  /**
+   * Build the rewrites that strip every Cherry-managed key from the on-disk
+   * config file(s), leaving user keys intact. Files with nothing to rewrite are
+   * omitted; the caller persists the entries via `code_cli.write_config`.
+   */
+  buildClearFiles(): Promise<CliConfigWriteFile[]>
   /** Read the connection (baseUrl/apiKey/model) back out of the draft files. */
   extractConnection(files: CliConfigFileDraft[]): CliConfigConnection | null
   /** Read the persisted tool params back out of the draft files. */
@@ -217,10 +222,10 @@ const claudeAdapter: CliConfigAdapter = {
       )
     )
   },
-  async clear() {
+  async buildClearFiles() {
     const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
     const existing = await readValidatedJsonOrNull(absPath, 'Claude Code settings')
-    if (!existing) return
+    if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     if (next.permissions && typeof next.permissions === 'object') {
@@ -234,7 +239,7 @@ const claudeAdapter: CliConfigAdapter = {
       for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
       next.env = env
     }
-    await window.api.file.write(absPath, renderJsonFile(next), 0o600)
+    return [{ target: 'claude-settings', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
@@ -318,11 +323,12 @@ const codexAdapter: CliConfigAdapter = {
       connection.apiKey ? renderJsonFile(buildCodexAuthConfig(auth, connection.apiKey)) : renderJsonFile(auth)
     )
   },
-  async clear() {
+  async buildClearFiles() {
     const absPath = await resolveAbs(CODEX_CONFIG_PATH)
     const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
     const existing = await readValidatedTomlOrNull(absPath, 'Codex config')
     const existingAuth = await readValidatedJsonOrNull(authAbsPath, 'Codex auth')
+    const files: CliConfigWriteFile[] = []
     if (existing) {
       const next: Record<string, any> = {}
       for (const [key, value] of Object.entries(existing)) {
@@ -334,13 +340,14 @@ const codexAdapter: CliConfigAdapter = {
         next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
       }
       dropFeatureGoalsIfEmpty(next)
-      await window.api.file.write(absPath, stringifyToml(next), 0o600)
+      files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
     if (existingAuth?.OPENAI_API_KEY !== undefined) {
       const nextAuth = { ...existingAuth }
       delete nextAuth.OPENAI_API_KEY
-      await window.api.file.write(authAbsPath, renderJsonFile(nextAuth), 0o600)
+      files.push({ target: 'codex-auth', content: renderJsonFile(nextAuth) })
     }
+    return files
   },
   extractConnection(files) {
     const config = parseTomlOrThrow(getDraftFile(files, 'codex-config')?.content ?? '')
@@ -379,6 +386,10 @@ const openCodeAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+    // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
+    // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
+    // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
+    // appends /messages.
     const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
     const existing = await readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files)
     const env = asRecord(configBlob.env)
@@ -432,16 +443,16 @@ const openCodeAdapter: CliConfigAdapter = {
     )
     return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))
   },
-  async clear() {
+  async buildClearFiles() {
     const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
     const existing = await readValidatedJsonOrNull(absPath, 'OpenCode config')
-    if (!existing) return
+    if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     if (next.provider && typeof next.provider === 'object') {
       next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
     }
-    await window.api.file.write(absPath, renderJsonFile(next), 0o600)
+    return [{ target: 'opencode-config', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
@@ -477,11 +488,14 @@ const geminiAdapter: CliConfigAdapter = {
   sanitize: sanitizeGeminiConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, configBlob } = context
-    const envMap = parseDotenv(await readDraftFileText('gemini-env', args.files))
+    const envText = await readDraftFileText('gemini-env', args.files)
     const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files)
     const baseUrl = resolveGeminiBaseUrl(provider)
     return [
-      await makeDraftFile('gemini-env', renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl }))),
+      await makeDraftFile(
+        'gemini-env',
+        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl }), envText)
+      ),
       await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiSettingsConfig(settings, { model }, configBlob)))
     ]
   },
@@ -493,14 +507,18 @@ const geminiAdapter: CliConfigAdapter = {
     return [await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiOwnLoginSettings(settings, configBlob)))]
   },
   updateDraftConfig(files, connection, configBlob) {
-    const envMap = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
+    const envText = getDraftFile(files, 'gemini-env')?.content ?? ''
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
     return replaceDraftContent(
       replaceDraftContent(
         files,
         'gemini-env',
         renderDotenvFile(
-          buildGeminiEnvConfig(envMap, { apiKey: connection.apiKey ?? '', baseUrl: connection.baseUrl ?? '' })
+          buildGeminiEnvConfig(parseDotenv(envText), {
+            apiKey: connection.apiKey ?? '',
+            baseUrl: connection.baseUrl ?? ''
+          }),
+          envText
         )
       ),
       'gemini-settings',
@@ -509,25 +527,27 @@ const geminiAdapter: CliConfigAdapter = {
       )
     )
   },
-  async clear() {
+  async buildClearFiles() {
+    const files: CliConfigWriteFile[] = []
     const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
     const envText = await readExternalOrNull(envAbsPath)
     if (envText !== null) {
       const envMap = parseDotenv(envText)
       for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
-      await window.api.file.write(envAbsPath, renderDotenvFile(envMap), 0o600)
+      files.push({ target: 'gemini-env', content: renderDotenvFile(envMap, envText) })
     }
 
     const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
     const settings = await readValidatedJsonOrNull(settingsAbsPath, 'Gemini CLI settings')
-    if (!settings) return
+    if (!settings) return files
     applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(settings)
     if (settings.model && typeof settings.model === 'object') {
       delete settings.model.name
       if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
     }
-    await window.api.file.write(settingsAbsPath, renderJsonFile(settings), 0o600)
+    files.push({ target: 'gemini-settings', content: renderJsonFile(settings) })
+    return files
   },
   extractConnection(files) {
     const env = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
@@ -591,10 +611,10 @@ const qwenAdapter: CliConfigAdapter = {
       )
     )
   },
-  async clear() {
+  async buildClearFiles() {
     const absPath = await resolveAbs(QWEN_CONFIG_PATH)
     const existing = await readValidatedJsonOrNull(absPath, 'Qwen Code config')
-    if (!existing) return
+    if (!existing) return []
     const next: Record<string, any> = { ...existing }
     if (next.env && typeof next.env === 'object') {
       next.env = omitKeysByPrefix(next.env as Record<string, any>, 'CHERRY_')
@@ -606,7 +626,7 @@ const qwenAdapter: CliConfigAdapter = {
     applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(next)
     delete next.model
-    await window.api.file.write(absPath, renderJsonFile(next), 0o600)
+    return [{ target: 'qwen-settings', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
@@ -685,10 +705,10 @@ const kimiAdapter: CliConfigAdapter = {
       )
     )
   },
-  async clear() {
+  async buildClearFiles() {
     const absPath = await resolveAbs(KIMI_CONFIG_PATH)
     const existing = await readValidatedTomlOrNull(absPath, 'Kimi Code config')
-    if (!existing) return
+    if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const table of ['providers', 'models'] as const) {
       if (next[table] && typeof next[table] === 'object') {
@@ -697,7 +717,7 @@ const kimiAdapter: CliConfigAdapter = {
     }
     applyManagedTomlSettings(next, {})
     delete next.default_model
-    await window.api.file.write(absPath, stringifyToml(next), 0o600)
+    return [{ target: 'kimi-config', content: stringifyToml(next) }]
   },
   extractConnection(files) {
     const config = parseTomlOrThrow(getDraftFile(files, 'kimi-config')?.content ?? '')
