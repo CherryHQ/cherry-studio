@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Suy nghĩ sâu ({{seconds}} giây)",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "Xin chào, tôi là Trợ lý Mặc định. Bạn có thể bắt đầu trò chuyện với tôi ngay bây giờ",
+      "name": "Trợ lý mặc định",
       "topic": {
         "name": "Chủ đề Mặc định"
       }
@@ -4034,7 +4034,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "Ghim mô hình này",
       "unpin": "Gỡ ghim mô hình"
     },

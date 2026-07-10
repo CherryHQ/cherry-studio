@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Gândit profund ({{seconds}} secunde)",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "Salut, sunt Asistentul Implicit. Poți începe să discuți cu mine imediat",
+      "name": "Asistent Implicit",
       "topic": {
         "name": "Subiect implicit"
       }
@@ -4034,7 +4034,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "Fixează acest model",
       "unpin": "Dezactivează modelul"
     },

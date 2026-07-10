@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "深く考えています（{{seconds}} 秒）",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
+      "name": "デフォルトアシスタント",
       "topic": {
         "name": "デフォルトトピック"
       }
@@ -4034,7 +4034,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },

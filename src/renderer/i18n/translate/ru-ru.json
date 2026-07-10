@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Мыслим ({{seconds}} секунд)",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
+      "name": "Ассистент по умолчанию",
       "topic": {
         "name": "Топик по умолчанию"
       }
@@ -4034,7 +4034,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "Закрепить эту модель",
       "unpin": "Открепить модель"
     },

@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Profundamente pensado (demorou {{seconds}} segundos)",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "Olá, eu sou o assistente padrão. Você pode começar a conversar comigo agora.",
+      "name": "Assistente Padrão",
       "topic": {
         "name": "Tópico Padrão"
       }
@@ -4034,7 +4034,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "Fixar este modelo",
       "unpin": "Desafixar modelo"
     },
