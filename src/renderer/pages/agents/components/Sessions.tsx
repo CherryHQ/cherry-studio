@@ -1915,12 +1915,9 @@ function SessionListBody({
         </ResourceList.ErrorState>
       }
       emptyFallback={
-        <ResourceList.EmptyState
-          compact
-          preset="no-session"
-          className="h-full px-5 py-10"
-          title={t('agent.session.empty.title')}
-        />
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+          {t('agent.session.empty.title')}
+        </div>
       }
       renderItem={renderItem}
     />

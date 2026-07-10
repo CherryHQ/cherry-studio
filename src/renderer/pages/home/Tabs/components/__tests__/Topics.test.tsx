@@ -940,8 +940,21 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    expect(screen.getByText('No conversations')).toBeInTheDocument()
-    expect(screen.getByText('No conversations').closest('.h-full')).toBeInTheDocument()
+    const emptyStateText = screen.getByText('No conversations')
+
+    expect(emptyStateText).toHaveClass(
+      'h-full',
+      'w-full',
+      'max-w-sm',
+      'px-5',
+      'py-10',
+      'text-center',
+      'text-xs',
+      'text-muted-foreground',
+      'break-words'
+    )
+    expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
+    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(
       screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
     ).not.toBeInTheDocument()

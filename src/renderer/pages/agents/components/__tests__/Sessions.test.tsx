@@ -961,8 +961,21 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    expect(screen.getByRole('heading', { name: 'No tasks' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'No tasks' }).closest('.h-full')).toBeInTheDocument()
+    const emptyStateText = screen.getByText('No tasks')
+
+    expect(emptyStateText).toHaveClass(
+      'h-full',
+      'w-full',
+      'max-w-sm',
+      'px-5',
+      'py-10',
+      'text-center',
+      'text-xs',
+      'text-muted-foreground',
+      'break-words'
+    )
+    expect(screen.queryByRole('heading', { name: 'No tasks' })).not.toBeInTheDocument()
+    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()
