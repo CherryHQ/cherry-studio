@@ -1,6 +1,4 @@
-import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { NavbarHeader } from '@renderer/components/Navbar'
-import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
@@ -24,10 +22,6 @@ const AgentChatNavbar = ({
   sidebarOpen,
   onSidebarToggle
 }: Props) => {
-  useCommandHandler('app.search', () => {
-    void GlobalSearchPopup.show()
-  })
-
   return (
     <NavbarHeader className={cn('agent-navbar relative h-(--navbar-height)', className)}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
