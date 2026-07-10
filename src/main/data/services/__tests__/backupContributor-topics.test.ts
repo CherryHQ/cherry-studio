@@ -1,4 +1,5 @@
 // Unit tests for the TOPICS contributor — pure declaration assertions (no DB).
+import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import type { CloneAggregateContext } from '@main/data/db/backup/contributorTypes'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { fileEntryTable } from '@main/data/db/schemas/file'

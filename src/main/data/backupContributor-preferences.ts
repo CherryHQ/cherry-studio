@@ -13,8 +13,14 @@
 //
 // Preset: full + lite.
 
-import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
-import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
+import type { Dirent } from 'node:fs'
+import { lstatSync, realpathSync } from 'node:fs'
+import { readdir } from 'node:fs/promises'
+import { extname, join, relative, resolve, sep } from 'node:path'
+
+import { loggerService } from '@logger'
+import type { BackupContributor, FileResourceContext } from '@main/data/db/backup/contributorTypes'
+import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 import { isPathInside } from '@main/utils/legacyFile'
 
