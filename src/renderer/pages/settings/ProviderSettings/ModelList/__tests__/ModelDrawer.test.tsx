@@ -121,7 +121,7 @@ const { confirmActionShow } = vi.hoisted(() => ({
     return true
   })
 }))
-vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, children, footer }: any) =>

@@ -1,6 +1,8 @@
+import { isLocalPaddleocrModelDownloaded } from '@main/ai/inference/ocrModelPaths'
 import { isMac, isWin } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/documentToMarkdown/handler'
+import { localPaddleocrImageToTextHandler } from './localPaddleocr/imageToText/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/documentToMarkdown/handler'
 import { mistralDocumentToMarkdownHandler } from './mistral/documentToMarkdown/handler'
 import { mistralImageToTextHandler } from './mistral/imageToText/handler'
@@ -31,6 +33,13 @@ export const processorRegistry = {
     capabilities: {
       image_to_text: paddleImageToTextHandler,
       document_to_markdown: paddleDocumentToMarkdownHandler
+    }
+  },
+  'local-paddleocr': {
+    // Only usable once the model files are on disk (downloaded via the settings card).
+    isAvailable: isLocalPaddleocrModelDownloaded,
+    capabilities: {
+      image_to_text: localPaddleocrImageToTextHandler
     }
   },
   ovocr: {

@@ -110,7 +110,8 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-import BackupPopup from '../BackupPopup'
+import BackupPopup from '@renderer/pages/settings/DataSettings/BackupPopup'
+
 import ContentPopup from '../ContentPopup'
 
 beforeEach(() => {

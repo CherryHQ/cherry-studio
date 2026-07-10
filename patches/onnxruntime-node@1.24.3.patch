@@ -1,0 +1,20 @@
+diff --git a/dist/binding.js b/dist/binding.js
+index 0c6db2e92192376628ae6f428f38e14e1e1d36d4..21ccdd25b7056041a0459e2bf89a66d4253c3f0c 100644
+--- a/dist/binding.js
++++ b/dist/binding.js
+@@ -5,9 +5,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.initOrt = exports.binding = void 0;
+ const onnxruntime_common_1 = require("onnxruntime-common");
+ // export native binding
+-exports.binding = 
++exports.binding =
+ // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+-require(`../bin/napi-v6/${process.platform}/${process.arch}/onnxruntime_binding.node`);
++// PATCHED by Cherry Studio (patches/onnxruntime-node@1.24.3.patch): the native binary is no
++// longer bundled — it is downloaded on first use into {userData}/Toolchain/onnxruntime and its
++// absolute path is threaded in via CHERRY_ONNXRUNTIME_BINDING_PATH (set by the inference worker
++// before its first lazy require of this package — see OnnxRuntimeBinaryService / inferenceWorkerSource.ts).
++require(process.env.CHERRY_ONNXRUNTIME_BINDING_PATH || `../bin/napi-v6/${process.platform}/${process.arch}/onnxruntime_binding.node`);
+ let ortInitialized = false;
+ const initOrt = () => {
+     if (!ortInitialized) {

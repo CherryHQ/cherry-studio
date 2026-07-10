@@ -27,7 +27,7 @@ import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmojiPicker } from '../EmojiPicker'
+import { EmojiPicker } from './EmojiPicker'
 
 type Props = PopupInjectedProps<Record<string, never>>
 

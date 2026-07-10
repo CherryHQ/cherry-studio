@@ -1,6 +1,6 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import {
   exportMarkdownToJoplin,

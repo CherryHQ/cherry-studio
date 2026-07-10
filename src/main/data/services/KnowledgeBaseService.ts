@@ -229,7 +229,7 @@ export class KnowledgeBaseService {
     return rowToKnowledgeBase(row)
   }
 
-  update(id: string, dto: UpdateKnowledgeBaseDto): KnowledgeBase {
+  update(id: string, dto: UpdateKnowledgeBaseDto, options?: { allowEmbeddingModelBackfill?: boolean }): KnowledgeBase {
     const existing = this.getById(id)
 
     const nextEmbeddingModelId =
@@ -242,17 +242,29 @@ export class KnowledgeBaseService {
     // already written for this base's items, so it is only allowed while the base
     // is still empty — a base with items must go through restore-into-a-new-base
     // instead (see the mutable fields comment in UpdateKnowledgeBaseSchema).
+    //
+    // The one exception is `allowEmbeddingModelBackfill`: a BM25-only base (no model
+    // configured yet) has no vectors to invalidate, so its caller (KnowledgeService.
+    // enableEmbeddingModel) may set a model in place and backfill embeddings for the
+    // existing items instead of routing through restore-into-a-new-base. This flag is
+    // internal-only — the public update route never passes it — and it never forgives
+    // switching an already-configured model, only the null-to-a-model transition.
     if (embeddingModelChanged || dimensionsChanged) {
-      const [{ count: itemCount }] = this.db
-        .select({ count: sqlCount(knowledgeItemTable.id) })
-        .from(knowledgeItemTable)
-        .where(and(eq(knowledgeItemTable.baseId, id), ne(knowledgeItemTable.status, 'deleting')))
-        .all()
+      const isFirstTimeEmbeddingSetup = existing.embeddingModelId === null && nextEmbeddingModelId !== null
+      const skipItemCountGuard = options?.allowEmbeddingModelBackfill === true && isFirstTimeEmbeddingSetup
 
-      if (itemCount > 0) {
-        throw DataApiErrorFactory.validation({
-          embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
-        })
+      if (!skipItemCountGuard) {
+        const [{ count: itemCount }] = this.db
+          .select({ count: sqlCount(knowledgeItemTable.id) })
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, id), ne(knowledgeItemTable.status, 'deleting')))
+          .all()
+
+        if (itemCount > 0) {
+          throw DataApiErrorFactory.validation({
+            embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+          })
+        }
       }
     }
 

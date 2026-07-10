@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import MultiSelectActionPopup from '../MultiSelectionPopup'
+import MultiSelectActionPopup from '../MultiSelectActionPopup'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, disabled, onClick }: any) => (

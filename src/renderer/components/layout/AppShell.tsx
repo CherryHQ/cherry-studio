@@ -9,8 +9,8 @@ import { useCallback, useEffect, useMemo } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
+import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
-import SearchPopup from '../Popups/SearchPopup'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
@@ -22,7 +22,7 @@ export const AppShell = () => {
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
 
   const handleOpenGlobalSearch = useCallback(() => {
-    void SearchPopup.show()
+    void GlobalSearchPopup.show()
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)

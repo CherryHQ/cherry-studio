@@ -2738,6 +2738,8 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
+      "download_local_embedding": "下載本機模型",
+      "download_local_embedding_failed": "本機嵌入模型下載失敗",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
       "file_processing": "文件處理",
@@ -2764,7 +2766,8 @@
       "separator_rule": "分隔符规则",
       "smart_chunking": "智慧分段",
       "threshold": "相似度閾值",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "使用本機模型"
     },
     "recall": {
       "collapse": "收起片段",
@@ -4681,6 +4684,7 @@
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
     "mineru": "MinerU",
@@ -5938,6 +5942,30 @@
       "installError": "工具安裝失敗",
       "installing": "安裝中...",
       "invalidTool": "工具名稱或識別碼無效",
+      "localModels": {
+        "cancel": "取消",
+        "description": "在本機執行的模型，下載後即可離線使用，無需 API Key。",
+        "download": "下載",
+        "embedding": {
+          "name": "本機嵌入模型",
+          "subtitle": "Qwen3 Embedding 0.6B · 約 614 MB"
+        },
+        "notice": {
+          "downloadFailed": "下載失敗，請檢查網路後重試。",
+          "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "removeFailed": "刪除失敗，請查看日誌。"
+        },
+        "ocr": {
+          "name": "本機 OCR 模型",
+          "subtitle": "PaddleOCR PP-OCRv6 · 約 140 MB"
+        },
+        "remove": "刪除",
+        "status": {
+          "downloading": "下載中…",
+          "ready": "已就緒"
+        },
+        "title": "本機模型"
+      },
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
       "remove": "移除工具",
@@ -7342,6 +7370,13 @@
           "doc2x": {
             "description": "高級檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "在本機行程內執行的 PaddleOCR（PP-OCRv6 中等模型），完全離線、無需 API Key，辨識在背景執行緒進行不阻塞介面。首次使用請先在「環境相依」中下載模型（約 140MB）。",
+            "name": "本機 PaddleOCR",
+            "status": {
+              "local": "完全本機離線執行"
+            }
           },
           "mineru": {
             "description": "OpenDataLab 開源的高品質 PDF 擷取工具。",
