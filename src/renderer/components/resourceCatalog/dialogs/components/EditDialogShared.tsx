@@ -13,7 +13,9 @@ import {
   FormMessage,
   Input,
   MenuList,
-  NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Scrollbar,
   Tabs,
   TabsList,
@@ -695,47 +697,45 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         logger.warn('Failed to copy prompt variable to clipboard', error as Error)
       })
   }
-  const content = (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <div className="font-medium text-neutral-50 text-xs">{t('library.config.prompt.variables_title')}</div>
-        <div className="text-neutral-300 text-xs leading-relaxed">
-          {t('library.config.prompt.variables_description')}
-        </div>
-      </div>
-      <div className="rounded-md border border-neutral-700/70 bg-neutral-800/70 px-2 py-1.5 text-neutral-200 text-xs">
-        {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
-      </div>
-      <div>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs">
-          {PROMPT_VARIABLES.map((variable) => (
-            <div key={variable.name} className="contents">
-              <button
-                type="button"
-                className="rounded px-1 text-left text-neutral-50 transition-colors hover:bg-neutral-700/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-500"
-                aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
-                onClick={() => copyVariable(variable.name)}>
-                {variable.name}
-              </button>
-              <span className="font-sans">{t(variable.i18n)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
   return (
-    <NormalTooltip
-      content={content}
-      delayDuration={300}
-      align="center"
-      sideOffset={0}
-      contentProps={{
-        portalContainer,
-        className: 'w-80 p-3'
-      }}>
-      <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
-    </NormalTooltip>
+    <Popover>
+      <PopoverTrigger asChild>
+        <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+      </PopoverTrigger>
+      <PopoverContent
+        portalContainer={portalContainer}
+        align="center"
+        sideOffset={0}
+        aria-label={t('library.config.prompt.variables_title')}
+        className="w-80 p-3">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
+            <div className="text-foreground-secondary text-xs leading-relaxed">
+              {t('library.config.prompt.variables_description')}
+            </div>
+          </div>
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-foreground-secondary text-xs">
+            {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
+          </div>
+          <div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-foreground-secondary text-xs">
+              {PROMPT_VARIABLES.map((variable) => (
+                <div key={variable.name} className="contents">
+                  <button
+                    type="button"
+                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
+                    onClick={() => copyVariable(variable.name)}>
+                    {variable.name}
+                  </button>
+                  <span className="font-sans">{t(variable.i18n)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

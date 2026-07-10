@@ -1,19 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { type ReactNode, useState } from 'react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type TooltipAlign = 'start' | 'center' | 'end'
-type TooltipSide = 'top' | 'right' | 'bottom' | 'left'
-
-const { mockNormalTooltipProps, mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
-  mockNormalTooltipProps: [] as Array<{
-    align?: TooltipAlign
-    side?: TooltipSide
-    sideOffset?: number
-  }>,
+const { mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
   mockUseQuery: vi.fn(),
   mockOpenTab: vi.fn(),
@@ -78,34 +70,6 @@ vi.mock('@renderer/hooks/tab/useTabs', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof CherryStudioUi>()
-  return {
-    ...actual,
-    NormalTooltip: ({
-      children,
-      content,
-      align,
-      side,
-      sideOffset
-    }: {
-      children: ReactNode
-      content: ReactNode
-      align?: TooltipAlign
-      side?: TooltipSide
-      sideOffset?: number
-    }) => {
-      mockNormalTooltipProps.push({ align, side, sideOffset })
-      return (
-        <div>
-          {children}
-          <div data-testid="tooltip-content">{content}</div>
-        </div>
-      )
-    }
-  }
-})
-
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
 import { PromptVariablesPopover } from '../EditDialogShared'
@@ -119,22 +83,36 @@ describe('EditDialogShared', () => {
     mockToastSuccess.mockReset()
     writeText.mockResolvedValue(undefined)
     mockLoggerWarn.mockReset()
-    mockNormalTooltipProps.length = 0
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }
     })
   })
 
-  it('copies a prompt variable from the tooltip content', async () => {
-    render(<PromptVariablesPopover portalContainer={null} />)
+  it('opens the prompt variables popover from the keyboard and copies a variable', async () => {
+    const portalContainer = document.createElement('div')
+    document.body.append(portalContainer)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy {{date}}' }))
+    try {
+      render(<PromptVariablesPopover portalContainer={portalContainer} />)
 
-    expect(writeText).toHaveBeenCalledWith('{{date}}')
-    await vi.waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Copied'))
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
-    expect(mockNormalTooltipProps.at(-1)).toMatchObject({ align: 'center', side: undefined, sideOffset: 0 })
+      expect(screen.queryByRole('button', { name: 'Copy {{date}}' })).not.toBeInTheDocument()
+
+      screen.getByRole('button', { name: 'System variables' }).focus()
+      await userEvent.keyboard('{Enter}')
+
+      const copyButton = await screen.findByRole('button', { name: 'Copy {{date}}' })
+      expect(portalContainer.querySelector('[data-slot="popover-content"]')).toContainElement(copyButton)
+      expect(copyButton).toHaveFocus()
+
+      await userEvent.click(copyButton)
+
+      expect(writeText).toHaveBeenCalledWith('{{date}}')
+      await vi.waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Copied'))
+      expect(mockLoggerWarn).not.toHaveBeenCalled()
+    } finally {
+      portalContainer.remove()
+    }
   })
 
   it('opens the knowledge page from the add knowledge popover footer', () => {
