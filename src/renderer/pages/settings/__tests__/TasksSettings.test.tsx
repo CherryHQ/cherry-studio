@@ -67,6 +67,11 @@ const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>
 }))
 
+const translationMock = vi.hoisted(() => ({
+  i18n: { language: 'en-US' },
+  t: (key: string) => key
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
@@ -129,10 +134,7 @@ vi.mock('@renderer/components/ListItem', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    i18n: { language: 'en-US' },
-    t: (key: string) => key
-  })
+  useTranslation: () => translationMock
 }))
 
 vi.mock('@cherrystudio/ui', () => {
