@@ -2061,7 +2061,7 @@
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
-    "title": "程式碼工具",
+    "title": "Code Switch",
     "tool_description": {
       "claude_code": "Anthropic 官方 CLI 程式助理",
       "gemini_cli": "Google 官方 Gemini CLI 程式助理",
@@ -7719,7 +7719,7 @@
   "title": {
     "apps": "小程式",
     "chat": "對話",
-    "code": "程式碼",
+    "code": "Code Switch",
     "files": "檔案",
     "home": "首頁",
     "knowledge": "知識庫",

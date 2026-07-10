@@ -2061,7 +2061,7 @@
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
-    "title": "代码工具",
+    "title": "Code Switch",
     "tool_description": {
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google 官方 Gemini CLI 编程助手",
@@ -7719,7 +7719,7 @@
   "title": {
     "apps": "小程序",
     "chat": "对话",
-    "code": "Code",
+    "code": "Code Switch",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",
