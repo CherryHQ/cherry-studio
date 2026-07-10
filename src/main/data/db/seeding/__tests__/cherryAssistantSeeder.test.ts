@@ -24,6 +24,10 @@ function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
 describe('CherryAssistantSeeder', () => {
   const dbh = setupTestDatabase()
 
+  it('uses a constant version so preset changes cannot bypass deletion memory', () => {
+    expect(new CherryAssistantSeeder().version).toBe('1')
+  })
+
   function insertOrdinaryAgent(): string {
     const id = 'ordinary-agent'
     dbh.db

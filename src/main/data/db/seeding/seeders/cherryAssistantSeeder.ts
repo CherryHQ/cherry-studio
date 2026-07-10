@@ -9,17 +9,15 @@ import { count, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
-import { hashObject } from '../hashObject'
-
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
   readonly description = 'Insert the builtin Cherry Assistant agent for empty agent libraries'
   readonly executionPolicy = 'run-on-change' as const
-  readonly version: string
-
-  constructor() {
-    this.version = hashObject(CHERRY_ASSISTANT_SEED)
-  }
+  // Deliberately manual, despite the seeding guide's checksum default: this seeder is
+  // a one-time eligibility check and never updates existing rows. Preset content is
+  // resolved from the bundle at runtime; changing this version would let preset edits
+  // punch through the journal after users delete all agents and recreate the assistant.
+  readonly version = '1'
 
   run(db: DbType): void {
     db.transaction((tx) => {
