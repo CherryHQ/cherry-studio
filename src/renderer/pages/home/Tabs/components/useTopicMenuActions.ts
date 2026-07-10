@@ -1,6 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'

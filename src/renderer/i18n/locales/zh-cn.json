@@ -2739,6 +2739,8 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
+      "download_local_embedding": "下载本地模型",
+      "download_local_embedding_failed": "本地嵌入模型下载失败",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
@@ -2765,7 +2767,8 @@
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "使用本地模型"
     },
     "recall": {
       "collapse": "收起片段",
@@ -4682,6 +4685,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5939,6 +5943,30 @@
       "installError": "工具安装失败",
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
+      "localModels": {
+        "cancel": "取消",
+        "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
+        "download": "下载",
+        "embedding": {
+          "name": "本地嵌入模型",
+          "subtitle": "Qwen3 Embedding 0.6B · 约 614 MB"
+        },
+        "notice": {
+          "downloadFailed": "下载失败，请检查网络后重试。",
+          "inUse": "该模型仍被知识库使用，已保留权重。",
+          "removeFailed": "删除失败，请查看日志。"
+        },
+        "ocr": {
+          "name": "本地 OCR 模型",
+          "subtitle": "PaddleOCR PP-OCRv6 · 约 140 MB"
+        },
+        "remove": "删除",
+        "status": {
+          "downloading": "下载中…",
+          "ready": "已就绪"
+        },
+        "title": "本地模型"
+      },
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
       "remove": "移除工具",
@@ -7351,6 +7379,13 @@
           "doc2x": {
             "description": "高级文件还原引擎。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。首次使用请先在「环境依赖」中下载模型（约 140MB）。",
+            "name": "本地 PaddleOCR",
+            "status": {
+              "local": "完全本地离线运行"
+            }
           },
           "mineru": {
             "description": "OpenDataLab 开源的高质量 PDF 提取工具。",

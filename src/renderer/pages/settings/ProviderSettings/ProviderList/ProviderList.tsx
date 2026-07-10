@@ -1,5 +1,5 @@
 import { useReorder } from '@data/hooks/useReorder'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'

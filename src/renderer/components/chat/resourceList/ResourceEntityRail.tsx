@@ -3,7 +3,7 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'

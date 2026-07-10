@@ -83,7 +83,7 @@ vi.mock('react-i18next', () => ({
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
-import SearchPopup from '../SearchPopup'
+import GlobalSearchPopup from '../GlobalSearchPopup'
 
 afterEach(() => {
   // Unmount the host first so settling/removing leftover entries triggers no React
@@ -99,12 +99,12 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('SearchPopup', () => {
+describe('GlobalSearchPopup', () => {
   it('allows the search panel to autofocus the search input when opened', async () => {
     render(<PopupHost />)
 
     act(() => {
-      void SearchPopup.show()
+      void GlobalSearchPopup.show()
     })
 
     await waitFor(() => {
@@ -116,7 +116,7 @@ describe('SearchPopup', () => {
     render(<PopupHost />)
 
     act(() => {
-      void SearchPopup.show()
+      void GlobalSearchPopup.show()
     })
 
     await screen.findByLabelText('Search input')
@@ -132,7 +132,7 @@ describe('SearchPopup', () => {
     render(<PopupHost />)
 
     act(() => {
-      void SearchPopup.show()
+      void GlobalSearchPopup.show()
     })
 
     const overlay = await screen.findByTestId('dialog-overlay')

@@ -1,8 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
-import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import {
   SettingDivider,
   SettingGroup,
@@ -23,7 +20,10 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
+import { LanTransferPopup } from './LanTransferPopup'
+import RestorePopup from './RestorePopup'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron

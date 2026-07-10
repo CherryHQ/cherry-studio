@@ -12,6 +12,7 @@ import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -120,6 +121,15 @@ export async function providerToAiSdkConfig(
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: buildGrokCliConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
+    // Local embedding runs fully in-process (transformers.js in a worker): no
+    // endpoint, baseURL, or apiKey. Without this entry it falls through to the
+    // openai-compatible builder, which hands ai-core an empty baseURL and throws
+    // "Invalid URL". Route it to its own registered provider so embed calls reach
+    // LocalEmbeddingModel.doEmbed directly.
+    {
+      match: (p) => p.id === LOCAL_EMBEDDING_PROVIDER_ID,
+      build: (ctx) => ({ providerId: LOCAL_EMBEDDING_PROVIDER_ID, endpoint: ctx.endpoint, providerSettings: {} })
+    },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.

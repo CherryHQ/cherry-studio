@@ -2739,6 +2739,8 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Top K",
+      "download_local_embedding": "Download Local Model",
+      "download_local_embedding_failed": "Failed to download the local embedding model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2765,7 +2767,8 @@
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Use Local Model"
     },
     "recall": {
       "collapse": "Collapse Chunk",
@@ -4682,6 +4685,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5939,6 +5943,30 @@
       "installError": "Failed to install tool",
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
+      "localModels": {
+        "cancel": "Cancel",
+        "description": "Models that run locally on your device — download once, then use offline with no API key.",
+        "download": "Download",
+        "embedding": {
+          "name": "Local Embedding",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "Download failed. Check your connection and try again.",
+          "inUse": "Still used by a knowledge base; the weights were kept.",
+          "removeFailed": "Remove failed. Check the logs for details."
+        },
+        "ocr": {
+          "name": "Local OCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Remove",
+        "status": {
+          "downloading": "Downloading…",
+          "ready": "Ready"
+        },
+        "title": "Local Models"
+      },
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -7351,6 +7379,13 @@
           "doc2x": {
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
+            "name": "Local PaddleOCR",
+            "status": {
+              "local": "Runs fully on your device"
+            }
           },
           "mineru": {
             "description": "OpenDataLab's open-source high-quality PDF extraction tool.",

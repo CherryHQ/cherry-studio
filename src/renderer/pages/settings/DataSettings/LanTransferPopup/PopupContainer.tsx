@@ -5,9 +5,9 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLanTransfer } from './hook'
 import { LanDeviceCard } from './LanDeviceCard'
 import type { PopupResolveData } from './types'
+import { useLanTransfer } from './useLanTransfer'
 
 export const PopupContainer: FC<PopupInjectedProps<PopupResolveData>> = ({ open, resolve }) => {
   const { t } = useTranslation()

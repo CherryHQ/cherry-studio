@@ -1,5 +1,5 @@
 import { useCache } from '@data/hooks/useCache'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
 import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'

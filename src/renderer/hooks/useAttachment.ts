@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
+import TextFilePreviewPopup from '@renderer/components/TextFilePreviewPopup'
 import { popup } from '@renderer/services/popup'
 import { FILE_TYPE, type FileType } from '@renderer/types/file'
 import { useTranslation } from 'react-i18next'

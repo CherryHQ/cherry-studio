@@ -4,7 +4,7 @@ import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Deferred so the popup's imperative shell (this module, statically imported by
-// AppShell / ShellTabBarActions / AgentChatNavbar / MessagesService) no longer
+// AppShell / ShellTabBarActions / AgentChatNavbar) no longer
 // drags the panel's heavy graph — the chat message renderer and resource-edit
 // dialogs — into the window's first-screen modulepreload set. The panel loads
 // on first open instead.
@@ -39,6 +39,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   )
 }
 
-const SearchPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
+const GlobalSearchPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
 
-export default SearchPopup
+export default GlobalSearchPopup

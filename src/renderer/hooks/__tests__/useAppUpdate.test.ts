@@ -11,7 +11,7 @@ import { useAppUpdateState } from '../useAppUpdate'
 vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
 
-vi.mock('@renderer/components/Popups/UpdateDialogPopup', () => ({
+vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: vi.fn() }
 }))
 
