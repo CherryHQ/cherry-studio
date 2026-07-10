@@ -11,8 +11,6 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { TerminalConfig } from '@shared/types/codeCli'
-import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
@@ -51,9 +49,6 @@ import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
-
-// OpenClaw types
-type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 type DirectoryListOptions = {
   recursive?: boolean
@@ -491,24 +486,6 @@ const api = {
     getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
-  codeCli: {
-    run: (
-      cliTool: string,
-      model: string,
-      directory: string,
-      env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean }
-    ): Promise<CodeToolsRunResult> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
-    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
-    setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
-    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
-    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
-  },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
       const channel = IpcChannel.Shortcut_RegistrationConflict
@@ -651,30 +628,6 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
-  },
-  openclaw: {
-    checkInstalled: (): Promise<{
-      installed: boolean
-      path: string | null
-      needsMigration: boolean
-    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    install: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
-    uninstall: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
-    startGateway: (port?: number): Promise<OperationResult> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
-    stopGateway: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
-    getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
-    getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (uniqueModelId: string): Promise<OperationResult> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, uniqueModelId),
-    checkUpdate: (): Promise<{
-      hasUpdate: boolean
-      currentVersion: string | null
-      latestVersion: string | null
-      message?: string
-    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckUpdate),
-    performUpdate: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_PerformUpdate)
   }
 }
 
