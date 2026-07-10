@@ -21,7 +21,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'reac
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
-import UserPopup from '../Popups/UserPopup'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -31,6 +30,7 @@ import {
   type SidebarVisibleLayout,
   UserAvatar
 } from '../Sidebar'
+import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'

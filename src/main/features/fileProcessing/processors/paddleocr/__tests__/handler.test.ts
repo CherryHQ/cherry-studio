@@ -41,8 +41,8 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
-import { buildPollResult, paddleDocumentToMarkdownHandler } from '../document-to-markdown/handler'
-import { paddleImageToTextHandler } from '../image-to-text/handler'
+import { buildPollResult, paddleDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
+import { paddleImageToTextHandler } from '../imageToText/handler'
 
 const documentFile = FileInfoSchema.parse({
   path: '/tmp/input.pdf',

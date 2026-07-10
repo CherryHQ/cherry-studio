@@ -125,6 +125,49 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  describe('getLatestUpdated', () => {
+    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
+      const workspace = await createWorkspace('latest')
+      // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
+      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'created-newest',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'mid',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        },
+        {
+          id: 'active-latest',
+          agentId: 'agent-session-test',
+          name: 'C',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          updatedAt: 300
+        }
+      ])
+
+      const latest = agentSessionService.getLatestUpdated()
+      expect(latest?.id).toBe('active-latest')
+      // Fully hydrated (workspace joined), matching getById.
+      expect(latest?.workspace.id).toBe(workspace.id)
+    })
+
+    it('returns null when there are no sessions', () => {
+      expect(agentSessionService.getLatestUpdated()).toBeNull()
+    })
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
 
@@ -632,6 +675,94 @@ describe('AgentSessionService', () => {
     const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
+    // Pinned sessions float to the top ordered by pin.orderKey (user drag),
+    // independent of their own orderKey; unpinned follow session.orderKey ASC.
+    // s1/s2 are created first (largest orderKey → last under orderKey ASC) yet
+    // pinning floats them ahead of the unpinned s3/s4, proving pin precedence.
+    const s1 = await createSession('S1')
+    const s2 = await createSession('S2')
+    const s3 = await createSession('S3')
+    const s4 = await createSession('S4')
+    await dbh.db.insert(pinTable).values([
+      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+    ])
+
+    const result = agentSessionService.listByCursor()
+    // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
+    expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
+    expect(result.nextCursor).toBeUndefined()
+  })
+
+  it('paginates the session pin section then unpinned section via cursor', async () => {
+    const s1 = await createSession('S1')
+    const s2 = await createSession('S2')
+    const s3 = await createSession('S3')
+    await dbh.db.insert(pinTable).values([
+      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+    ])
+
+    // limit=1: page1 = first pinned, page2 = second pinned (spills to entity start),
+    // page3 = the single unpinned session.
+    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    expect(page1.items.map((item) => item.id)).toEqual([s1.id])
+    expect(page1.nextCursor).toBeDefined()
+
+    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    expect(page2.items.map((item) => item.id)).toEqual([s2.id])
+    expect(page2.nextCursor).toBeDefined()
+
+    const page3 = agentSessionService.listByCursor({ limit: 1, cursor: page2.nextCursor })
+    expect(page3.items.map((item) => item.id)).toEqual([s3.id])
+    expect(page3.nextCursor).toBeUndefined()
+  })
+
+  it('does not skip pinned sessions with the same orderKey across pages', async () => {
+    const workspace = await createWorkspace('duplicate-pin-order-key')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-pinned-1',
+        agentId: 'agent-session-test',
+        name: 'Pinned 1',
+        workspaceId: workspace.id,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-pinned-2',
+        agentId: 'agent-session-test',
+        name: 'Pinned 2',
+        workspaceId: workspace.id,
+        orderKey: 'a1'
+      }
+    ])
+    await dbh.db.insert(pinTable).values([
+      {
+        id: 'pin-a',
+        entityType: 'session',
+        entityId: 'session-pinned-1',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'pin-b',
+        entityType: 'session',
+        entityId: 'session-pinned-2',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+    expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
+    expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])
   })
 
   it('deletes sessions when the workspace row is deleted', async () => {

@@ -15,6 +15,7 @@ import { type Model as SharedModel } from '@shared/data/types/model'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isNonChatModel } from '@shared/utils/model'
+import { isNoApiKeyProvider } from '@shared/utils/provider'
 import { ChevronDown, Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -26,8 +27,6 @@ import UpdateButton from './components/UpdateButton'
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
-const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
-
 interface TitleSectionProps {
   title: string
   description: string
@@ -108,7 +107,7 @@ const OpenClawPage: FC = () => {
       if (isNonChatModel(model)) return false
       const provider = providers.find((p) => p.id === model.providerId)
       if (!provider) return false
-      if (NO_API_KEY_PROVIDERS.has(provider.id)) return true
+      if (isNoApiKeyProvider(provider)) return true
       return provider.apiKeys.some((k) => k.isEnabled)
     },
     [providers]
