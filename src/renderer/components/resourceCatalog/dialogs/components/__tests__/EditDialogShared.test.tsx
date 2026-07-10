@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,6 +12,8 @@ const { mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoist
   mockOpenTab: vi.fn(),
   mockToastSuccess: vi.fn()
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@logger', () => ({
   loggerService: {
