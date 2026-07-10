@@ -46,13 +46,13 @@ describe('EmojiIcon', () => {
     })
   })
 
-  it('should render the stable default when a special emoji has no Fluent artwork', () => {
+  it('should preserve special emoji when Fluent artwork is unavailable', () => {
     const unsupportedEmojis = ['👨‍👩‍👧‍👦', '🇨🇳']
 
     unsupportedEmojis.forEach((emoji) => {
       const { container } = render(<EmojiIcon emoji={emoji} />)
-      expect(container.querySelectorAll('svg[data-fluent-emoji="😀"]')).toHaveLength(2)
-      expect(container.textContent).not.toContain(emoji)
+      expect(container.querySelector('svg[data-fluent-emoji]')).not.toBeInTheDocument()
+      expect(container).toHaveTextContent(emoji)
     })
   })
 

@@ -185,7 +185,7 @@ describe('ResourceSelectorShell', () => {
       expect(row.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
     })
 
-    it('falls back to the default assistant emoji when an item emoji has no Fluent artwork', () => {
+    it('preserves an item emoji when Fluent artwork is unavailable', () => {
       const unsupportedEmoji = '👨‍👩‍👧‍👦'
 
       render(
@@ -202,8 +202,8 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       const row = screen.getByRole('option', { name: /Unsupported assistant/ })
-      expect(row.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
-      expect(row).not.toHaveTextContent(unsupportedEmoji)
+      expect(row.querySelector('svg[data-fluent-emoji]')).not.toBeInTheDocument()
+      expect(row).toHaveTextContent(unsupportedEmoji)
     })
 
     it('fills the unified popover content height when available space is unconstrained', async () => {

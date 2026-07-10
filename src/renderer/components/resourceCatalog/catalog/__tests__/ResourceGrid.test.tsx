@@ -671,14 +671,14 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('+2')).not.toBeInTheDocument()
   })
 
-  it('renders unsupported assistant emoji avatars with the default Fluent fallback', () => {
+  it('preserves assistant emoji avatars when Fluent artwork is unavailable', () => {
     const unsupportedEmoji = '👨‍👩‍👧‍👦'
     const { container } = render(
       <ResourceCard resource={createAssistantResource({ avatar: unsupportedEmoji })} {...getResourceCardProps()} />
     )
 
-    expect(container.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
-    expect(screen.queryByText(unsupportedEmoji)).not.toBeInTheDocument()
+    expect(container.querySelector('svg[data-fluent-emoji]')).not.toBeInTheDocument()
+    expect(screen.getByText(unsupportedEmoji)).toBeInTheDocument()
   })
 })
 

@@ -1,4 +1,3 @@
-import { hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
 import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'
@@ -49,7 +48,7 @@ export const loadStableEmojiOptions = (locale: LanguageVarious): Promise<EmojiRe
 
       return response.json() as Promise<EmojiRecord[]>
     })
-    .then((records) => records.filter((record) => record.group < 9 && hasFluentEmojiIcon(record.emoji)))
+    .then((records) => records.filter((record) => record.group < 9))
     .catch((error) => {
       stableOptionsCache.delete(url)
       throw error

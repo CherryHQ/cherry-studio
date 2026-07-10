@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MockUseCacheUtils } from '../../../../../tests/__mocks__/renderer/useCache'
@@ -26,17 +26,17 @@ describe('useRecentEmojis', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['📚', '🧠', '📁'])
   })
 
-  it('filters unsupported persisted emojis and cleans the cache', async () => {
+  it('preserves unmapped persisted emojis without rewriting the cache', () => {
     const unsupportedEmoji = '👨‍👩‍👧‍👦'
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', unsupportedEmoji, '📁'])
 
     const { result } = renderHook(() => useRecentEmojis())
 
-    expect(result.current.recent).toEqual(['🧠', '📁'])
-    await waitFor(() => expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['🧠', '📁']))
+    expect(result.current.recent).toEqual(['🧠', unsupportedEmoji, '📁'])
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['🧠', unsupportedEmoji, '📁'])
   })
 
-  it('ignores unsupported emojis when pushing recent entries', () => {
+  it('pushes unmapped emojis into recent entries', () => {
     const unsupportedEmoji = '👨‍👩‍👧‍👦'
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠'])
 
@@ -45,7 +45,7 @@ describe('useRecentEmojis', () => {
       result.current.pushRecent(unsupportedEmoji)
     })
 
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['🧠'])
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual([unsupportedEmoji, '🧠'])
   })
 
   it('promotes a repeated emoji without duplicating it', () => {

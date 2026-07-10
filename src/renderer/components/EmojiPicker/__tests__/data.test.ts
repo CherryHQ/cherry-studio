@@ -58,7 +58,7 @@ describe('loadStableEmojiOptions', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns only stable avatar emoji options covered by Fluent artwork', async () => {
+  it('returns valid avatar emoji options even when Fluent artwork is unavailable', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const loadStableEmojiOptions = await loadFreshEmojiData()
@@ -75,6 +75,7 @@ describe('loadStableEmojiOptions', () => {
 
     await expect(loadStableEmojiOptions('en-US')).resolves.toEqual([
       { emoji: '😀', annotation: 'grinning face', group: 0, order: 1, version: 1 },
+      { emoji: '👨‍👩‍👧‍👦', annotation: 'family', group: 0, order: 2, version: 2 },
       { emoji: '🫠', annotation: 'melting face', group: 0, order: 3, version: 14 }
     ])
   })
