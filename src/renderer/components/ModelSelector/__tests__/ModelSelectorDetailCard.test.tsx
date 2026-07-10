@@ -15,6 +15,7 @@ const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, 
       className?: string
       side?: string
       align?: string
+      collisionBoundary?: HTMLElement | null
       collisionPadding?: number
       avoidCollisions?: boolean
       portalContainer?: HTMLElement | null
@@ -66,6 +67,7 @@ vi.mock('@cherrystudio/ui', () => ({
     className,
     side,
     align,
+    collisionBoundary,
     collisionPadding,
     avoidCollisions,
     portalContainer
@@ -74,11 +76,20 @@ vi.mock('@cherrystudio/ui', () => ({
     className?: string
     side?: string
     align?: string
+    collisionBoundary?: HTMLElement | null
     collisionPadding?: number
     avoidCollisions?: boolean
     portalContainer?: HTMLElement | null
   }) => {
-    mockHoverCardContentProps.push({ className, side, align, collisionPadding, avoidCollisions, portalContainer })
+    mockHoverCardContentProps.push({
+      className,
+      side,
+      align,
+      collisionBoundary,
+      collisionPadding,
+      avoidCollisions,
+      portalContainer
+    })
     return <div className={className}>{children}</div>
   },
   HoverCardTrigger: ({ children, ref }: { children: ReactNode; ref?: Ref<HTMLSpanElement> }) => (
@@ -200,7 +211,7 @@ describe('ModelSelectorDetailCard', () => {
     })
   })
 
-  it('uses the portal container bounds when choosing a horizontal side', () => {
+  it('uses a narrow portal container as the placement and collision boundary', () => {
     const model = makeModel()
     const portalContainer = document.createElement('div')
     portalContainer.dataset.testPortal = 'true'
@@ -212,10 +223,10 @@ describe('ModelSelectorDetailCard', () => {
         return {
           x: 180,
           y: 120,
-          width: 680,
+          width: 280,
           height: 420,
           top: 120,
-          right: 860,
+          right: 460,
           bottom: 540,
           left: 180,
           toJSON: () => {}
@@ -223,14 +234,14 @@ describe('ModelSelectorDetailCard', () => {
       }
 
       return {
-        x: 560,
+        x: 320,
         y: 180,
-        width: 280,
+        width: 120,
         height: 36,
         top: 180,
-        right: 840,
+        right: 440,
         bottom: 216,
-        left: 560,
+        left: 320,
         toJSON: () => {}
       } as DOMRect
     })
@@ -246,6 +257,7 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
       side: 'left',
       align: 'start',
+      collisionBoundary: portalContainer,
       portalContainer
     })
   })
