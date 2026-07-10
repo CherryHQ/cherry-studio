@@ -13,7 +13,7 @@
 
 import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { ArrowDown } from 'lucide-react'
-import { type ReactNode, type Ref, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
 
@@ -42,7 +42,6 @@ function canConsumeVerticalWheel(element: HTMLElement, deltaY: number): boolean 
 }
 
 function isWheelOwnedByNestedScroller(event: WheelEvent, scroller: HTMLElement): boolean {
-  if (event.deltaY === 0) return true
   const target = event.target instanceof Element ? event.target : null
   let element = target instanceof HTMLElement ? target : target?.parentElement
   while (element && element !== scroller) {
@@ -158,6 +157,9 @@ export function MessageVirtualList<T>({
   useEffect(() => {
     if (!scrollerElement) return
     const handleWheel = (event: WheelEvent) => {
+      // A purely horizontal wheel neither scrolls this list nor signals
+      // vertical intent — it must not take scroll ownership away.
+      if (event.deltaY === 0) return
       if (isWheelOwnedByNestedScroller(event, scrollerElement)) {
         takeUserControl(event.target instanceof Element ? event.target : null)
         return
@@ -172,14 +174,26 @@ export function MessageVirtualList<T>({
   // actual scroll signal seeds a scroll gesture. Keeping those concepts separate
   // prevents a click-triggered reflow from being mistaken for user scrolling,
   // while pointer drags keep long scrollbar gestures live until scrollend.
+  // Only drags that PRESSED inside the scroller count: a drag entering from
+  // outside (text selection started in the composer) carries no scroll intent,
+  // and marking it would let a concurrent virtua remeasure jump read as a user
+  // scroll-away.
+  const pointerDownInsideScrollerRef = useRef(false)
   useEffect(() => {
     if (!scrollerElement) return
+    const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
+      pointerDownInsideScrollerRef.current = true
       if (event.target === scrollerElement) markUserInput()
       takeUserControl(event.target instanceof Element ? event.target : null)
     }
     const onPointerMove = (event: PointerEvent) => {
-      if (event.buttons !== 0) markUserInput()
+      if (event.buttons !== 0 && pointerDownInsideScrollerRef.current) markUserInput()
+    }
+    // The release can land anywhere (a scrollbar drag ends off-list), so the
+    // gesture flag resets at the document level.
+    const onPointerEnd = () => {
+      pointerDownInsideScrollerRef.current = false
     }
     const onKeyDown = (event: KeyboardEvent) => {
       takeUserControl(event.target instanceof Element ? event.target : null)
@@ -187,10 +201,14 @@ export function MessageVirtualList<T>({
     }
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
     scrollerElement.addEventListener('pointermove', onPointerMove, { passive: true })
+    ownerDocument.addEventListener('pointerup', onPointerEnd, { passive: true })
+    ownerDocument.addEventListener('pointercancel', onPointerEnd, { passive: true })
     scrollerElement.addEventListener('keydown', onKeyDown)
     return () => {
       scrollerElement.removeEventListener('pointerdown', onPointerDown)
       scrollerElement.removeEventListener('pointermove', onPointerMove)
+      ownerDocument.removeEventListener('pointerup', onPointerEnd)
+      ownerDocument.removeEventListener('pointercancel', onPointerEnd)
       scrollerElement.removeEventListener('keydown', onKeyDown)
     }
   }, [markUserInput, scrollerElement, takeUserControl])

@@ -646,6 +646,16 @@ export function useChatVirtualizerRuntime<T>({
   anchorRef.current = anchor
   const stickToEffectiveBottomRef = useRef(stickToEffectiveBottom)
   stickToEffectiveBottomRef.current = stickToEffectiveBottom
+  // The freeze callbacks change identity whenever the anchor spacer state does.
+  // The falling-edge RAF below must survive those re-renders (cancelling it
+  // would silently skip the spacer reclaim), so the effect reads them through
+  // refs and keeps `preserveScrollAnchor` as its only changing dependency.
+  const handBackToRuntimeRef = useRef(handBackToRuntime)
+  handBackToRuntimeRef.current = handBackToRuntime
+  const maintainFreezeScrollRangeRef = useRef(maintainFreezeScrollRange)
+  maintainFreezeScrollRangeRef.current = maintainFreezeScrollRange
+  const reassertFreezeRef = useRef(reassertFreeze)
+  reassertFreezeRef.current = reassertFreeze
   const wasPreservingScrollAnchorRef = useRef(preserveScrollAnchor)
   useEffect(() => {
     const wasPreserving = wasPreservingScrollAnchorRef.current
@@ -658,7 +668,7 @@ export function useChatVirtualizerRuntime<T>({
         readNavigationActiveRef.current = false
         smoothScroll.cancel()
         turnHandedOffRef.current = false
-        handBackToRuntime()
+        handBackToRuntimeRef.current()
       }
       return
     }
@@ -667,7 +677,7 @@ export function useChatVirtualizerRuntime<T>({
     // and lazy previews can still resize afterward, so a user-held viewport keeps
     // its ownership until the user returns to the bottom or a new turn begins.
     const userDrives = scrollDriverRef.current === 'user'
-    if (!userDrives) handBackToRuntime()
+    if (!userDrives) handBackToRuntimeRef.current()
     const raf = requestAnimationFrame(() => {
       // Once streaming has ended, a user who already returned to the real
       // bottom no longer needs the released-pin range. Clear it here because
@@ -680,18 +690,18 @@ export function useChatVirtualizerRuntime<T>({
           FREEZE_REASSERT_TOLERANCE_PX
       if (atBottom.isAtBottom() && (!deferredResume || isAtRealBottom)) {
         anchorRef.current.release({ clearSpacer: true })
-        handBackToRuntime()
+        handBackToRuntimeRef.current()
         if (!deferredResume) stickToEffectiveBottomRef.current()
         return
       }
       const nextAnchorSpacerHeight = anchorRef.current.onContentSizeChange()
       if (userDrives) {
-        maintainFreezeScrollRange(nextAnchorSpacerHeight - anchorRef.current.spacerHeight)
-        reassertFreeze()
+        maintainFreezeScrollRangeRef.current(nextAnchorSpacerHeight - anchorRef.current.spacerHeight)
+        reassertFreezeRef.current()
       }
     })
     return () => cancelAnimationFrame(raf)
-  }, [atBottom, handBackToRuntime, maintainFreezeScrollRange, preserveScrollAnchor, reassertFreeze, smoothScroll])
+  }, [atBottom, preserveScrollAnchor, smoothScroll])
 
   // ---- scrollToTopKey trigger: pin the named item ---------------------
 

@@ -172,6 +172,47 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
   })
 
+  it('ignores purely horizontal wheel input instead of taking scroll ownership', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    fireEvent.wheel(scroller, { deltaY: 0, deltaX: 40 })
+    expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+  })
+
+  it('marks scroll intent only for pointer drags that pressed inside the scroller', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+
+    // A drag entering from outside (text selection started in the composer)
+    // must not count as scroll intent.
+    fireEvent.pointerMove(scroller, { buttons: 1 })
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+
+    fireEvent.pointerDown(screen.getByTestId('item-0'))
+    fireEvent.pointerMove(scroller, { buttons: 1 })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+
+    // Releasing anywhere ends the gesture, even off-list.
+    fireEvent.pointerUp(document)
+    fireEvent.pointerMove(scroller, { buttons: 1 })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+  })
+
   it('separates direct takeover from actual scroll-intent signals and removes the listeners on unmount', () => {
     const { unmount } = render(
       <MessageVirtualList

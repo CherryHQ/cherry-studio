@@ -1754,6 +1754,99 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('still reclaims the spacer at stream end when a re-render lands before the reclaim frame', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 0
+      const naturalContentHeight = 1300
+      const view = render(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const getAnchorSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const getFreezeSpacerHeight = () => Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+      const scroller = runtime!.scrollerRef.current!
+      const content = runtime!.contentRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+      })
+      setElementMetric(content, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+      })
+      runtime!.vlistHandleRef.current = createHandle({
+        findItemIndex: vi.fn(() => 0),
+        getItemOffset: vi.fn((index) => (index === 1 ? 1000 : 0))
+      })
+      raf.tick(60)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          preserveScrollAnchor
+          scrollToTopKey="current-user-message"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(getAnchorSpacerHeight()).toBe(400)
+
+      scrollTop = 1000
+      act(() => runtime!.scrollerProps.onScroll(1000))
+      scrollTop = 800
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(800)
+      })
+      scrollTop = 900
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(900)
+      })
+      expect(getAnchorSpacerHeight()).toBe(400)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          scrollToTopKey="current-user-message"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      // A commit between the falling edge and its reclaim frame changes the
+      // identities of the freeze callbacks (any anchor-spacer state change does
+      // this in production). It must not cancel the scheduled reclaim.
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          scrollToTopKey="current-user-message"
+          topPadding={2}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+
+      expect(getAnchorSpacerHeight()).toBe(0)
+      expect(getFreezeSpacerHeight()).toBe(0)
+      expect(scrollTop).toBe(900)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('keeps user ownership after streaming ends so late layout stays anchored', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
