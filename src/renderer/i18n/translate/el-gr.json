@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Επιθεωρεί και διαχειρίζεται αυτήν τη διαμόρφωση πράκτορα και τα κανάλια",
+          "label": "Ρύθμιση Πράκτορα"
         },
         "CherryCron": {
           "description": "Διαχειρίζεται τον ενσωματωμένο προγραμματιστή εντός της εφαρμογής",
@@ -891,8 +891,8 @@
           "label": "Αναζήτηση Γνώσης"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Αποστέλλει μια ειδοποίηση μέσω ενός συνδεδεμένου καναλιού",
+          "label": "Ειδοποίηση"
         },
         "CherryWebFetch": {
           "description": "Ανάκτηση και ανάγνωση μιας ιστοσελίδας",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
-        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας"
+        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
+        "v2_unavailable": "Η δημιουργία αντιγράφων ασφαλείας και η επαναφορά V2 δεν είναι ακόμα διαθέσιμες. Έρχονται σύντομα."
       },
       "clear_cache": {
         "button": "Καθαρισμός Μνήμης",

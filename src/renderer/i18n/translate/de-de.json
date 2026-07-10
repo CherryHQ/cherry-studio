@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Überwacht und verwaltet diese Agentenkonfiguration und Kanäle",
+          "label": "Agent-Konfiguration"
         },
         "CherryCron": {
           "description": "Verwaltet den In-App-Planer",
@@ -891,8 +891,8 @@
           "label": "Wissenskontrolle"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Sendet eine Benachrichtigung über einen verbundenen Kanal",
+          "label": "Benachrichtigen"
         },
         "CherryWebFetch": {
           "description": "Ruft eine Webseite ab und liest sie",
@@ -5344,7 +5344,8 @@
       },
       "backup": {
         "skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
-        "skip_file_data_title": "Kompaktes Backup"
+        "skip_file_data_title": "Kompaktes Backup",
+        "v2_unavailable": "Backup & Restore V2 ist noch nicht verfügbar. Kommt bald."
       },
       "clear_cache": {
         "button": "Cache löschen",
