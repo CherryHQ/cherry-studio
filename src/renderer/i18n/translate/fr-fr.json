@@ -2435,9 +2435,7 @@
       "message": "Localiser le message"
     },
     "records": {
-      "agentSubtitle": "{{count}} tâches",
       "agentTitle": "Historique de l'agent",
-      "assistantSubtitle": "{{count}} conversations",
       "bulkDelete": "Suppression par lots",
       "bulkDeleteSessions": {
         "description": "Supprimer {{count}} tâche(s) sélectionnée(s) ?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Chargement des tâches",
         "title": "Chargement des conversations"
       },
-      "resultCount": "{{count}} résultats",
       "searchSession": "Rechercher des tâches...",
       "searchTopic": "Rechercher des conversations...",
       "shortTitle": "Histoire",

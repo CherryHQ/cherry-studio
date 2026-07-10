@@ -92,19 +92,14 @@ export function buildAssistantSources(
   unlinkedAssistantLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const counts = new Map<string, number>()
-
-  for (const topic of topics) {
-    const sourceId = getTopicSourceId(topic, assistantById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unlinkedCount = counts.get(UNLINKED_ASSISTANT_SOURCE_ID) ?? 0
+  const hasUnlinkedAssistant = topics.some(
+    (topic) => getTopicSourceId(topic, assistantById) === UNLINKED_ASSISTANT_SOURCE_ID
+  )
 
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: topics.length
+      label: t('common.all')
     },
     ...Array.from(assistantById.values())
       .sort(
@@ -114,15 +109,13 @@ export function buildAssistantSources(
       .map((assistant) => ({
         id: assistant.id,
         label: assistant.name,
-        count: counts.get(assistant.id) ?? 0,
         icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
       })),
-    ...(unlinkedCount > 0
+    ...(hasUnlinkedAssistant
       ? [
           {
             id: UNLINKED_ASSISTANT_SOURCE_ID,
             label: unlinkedAssistantLabel,
-            count: unlinkedCount,
             icon: <Bot size={15} />
           }
         ]
@@ -137,19 +130,14 @@ export function buildAgentSources(
   unknownAgentLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const counts = new Map<string, number>()
-
-  for (const session of sessions) {
-    const sourceId = getSessionAgentSourceId(session, agentById)
-    counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
-  }
-  const unknownCount = counts.get(UNKNOWN_AGENT_SOURCE_ID) ?? 0
+  const hasUnknownAgent = sessions.some(
+    (session) => getSessionAgentSourceId(session, agentById) === UNKNOWN_AGENT_SOURCE_ID
+  )
 
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all'),
-      count: sessions.length
+      label: t('common.all')
     },
     ...Array.from(agentById.values())
       .sort((left, right) => getAgentSourceRank(left.id, agentRankById) - getAgentSourceRank(right.id, agentRankById))
@@ -157,7 +145,6 @@ export function buildAgentSources(
         return {
           id: agent.id,
           label: agent.name,
-          count: counts.get(agent.id) ?? 0,
           icon: (
             <EmojiIcon
               emoji={getAgentAvatarFromConfiguration(agent.configuration)}
@@ -168,12 +155,11 @@ export function buildAgentSources(
           )
         }
       }),
-    ...(unknownCount > 0
+    ...(hasUnknownAgent
       ? [
           {
             id: UNKNOWN_AGENT_SOURCE_ID,
             label: unknownAgentLabel,
-            count: unknownCount,
             icon: <Bot size={15} />
           }
         ]

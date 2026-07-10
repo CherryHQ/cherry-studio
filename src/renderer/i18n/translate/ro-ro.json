@@ -2435,9 +2435,7 @@
       "message": "Localizează mesajul"
     },
     "records": {
-      "agentSubtitle": "{{count}} sarcini",
       "agentTitle": "Istoric agent",
-      "assistantSubtitle": "{{count}} conversații",
       "bulkDelete": "Ștergere în lot",
       "bulkDeleteSessions": {
         "description": "Ștergeți {{count}} sarcină(e) selectată(e)?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Se încarcă sarcinile",
         "title": "Încărcare conversații"
       },
-      "resultCount": "{{count}} rezultate",
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
       "shortTitle": "Istorie",

@@ -2435,9 +2435,7 @@
       "message": "Εφαρμογή στο μήνυμα"
     },
     "records": {
-      "agentSubtitle": "{{count}} εργασίες",
       "agentTitle": "Ιστορικό Πράκτορα",
-      "assistantSubtitle": "{{count}} συνομιλίες",
       "bulkDelete": "Διαγραφή Παρτίδας",
       "bulkDeleteSessions": {
         "description": "Διαγραφή {{count}} επιλεγμένης(-ών) εργασίας(-ών);",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Φόρτωση εργασιών",
         "title": "Φόρτωση συνομιλιών"
       },
-      "resultCount": "{{count}} αποτελέσματα",
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
       "shortTitle": "Ιστορία",

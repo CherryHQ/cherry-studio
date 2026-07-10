@@ -8,7 +8,6 @@ export type HistorySourceStatus = 'all' | 'running' | 'completed' | 'failed'
 export interface HistorySourceOption {
   id: string
   label: string
-  count: number
   icon?: ReactNode
 }
 

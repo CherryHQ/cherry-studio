@@ -2435,9 +2435,7 @@
       "message": "Localizar mensaje"
     },
     "records": {
-      "agentSubtitle": "{{count}} tareas",
       "agentTitle": "Historial del Agente",
-      "assistantSubtitle": "{{count}} conversaciones",
       "bulkDelete": "Eliminación por lotes",
       "bulkDeleteSessions": {
         "description": "¿Eliminar {{count}} tarea(s) seleccionada(s)?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Cargando tareas",
         "title": "Cargando conversaciones"
       },
-      "resultCount": "{{count}} resultados",
       "searchSession": "Buscar tareas...",
       "searchTopic": "Buscar conversaciones...",
       "shortTitle": "Historia",

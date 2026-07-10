@@ -2435,9 +2435,7 @@
       "message": "定位到訊息"
     },
     "records": {
-      "agentSubtitle": "{{count}} 個任務",
       "agentTitle": "代理歷史",
-      "assistantSubtitle": "{{count}} 個對話",
       "bulkDelete": "批次刪除",
       "bulkDeleteSessions": {
         "description": "要刪除選中的 {{count}} 個任務嗎？",
@@ -2482,7 +2480,6 @@
         "sessionsTitle": "正在載入任務",
         "title": "正在載入對話"
       },
-      "resultCount": "{{count}} 個結果",
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
       "selectedCount": "已選 {{count}} 項",

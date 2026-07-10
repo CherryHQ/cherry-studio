@@ -1,9 +1,12 @@
+import { cacheService } from '@renderer/data/CacheService'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
 const hookMocks = vi.hoisted(() => ({
   deleteSession: vi.fn(),
@@ -19,7 +22,8 @@ const hookMocks = vi.hoisted(() => ({
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
-  useUpdateSession: vi.fn()
+  useUpdateSession: vi.fn(),
+  virtualListRenderRows: [] as VirtualListRenderRow[]
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -43,14 +47,18 @@ vi.mock('@renderer/components/VirtualList', () => ({
     header?: ReactNode
     list: T[]
     role?: string
-  }) => (
-    <div data-testid="history-virtual-list" role={role}>
-      {header}
-      {list.map((item, index) => (
-        <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+  }) => {
+    hookMocks.virtualListRenderRows.push(children as VirtualListRenderRow)
+
+    return (
+      <div data-testid="history-virtual-list" role={role}>
+        {header}
+        {list.map((item, index) => (
+          <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
@@ -116,11 +124,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
 }))
 
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    openConversationTab: hookMocks.openConversationTab
-  })
-}))
+vi.mock('@renderer/hooks/useConversationNavigation', () => {
+  const navigation = { openConversationTab: hookMocks.openConversationTab }
+  return { useConversationNavigation: () => navigation }
+})
 
 vi.mock('@renderer/hooks/useTopic', () => ({
   finishTopicRenaming: vi.fn(),
@@ -194,12 +201,8 @@ vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    init: vi.fn(),
-    type: '3rdParty'
-  },
-  useTranslation: () => ({
+vi.mock('react-i18next', () => {
+  const translation = {
     t: (key: string, fallbackOrOptions?: string | Record<string, unknown>, maybeOptions?: Record<string, unknown>) => {
       const fallback = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
       const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
@@ -232,13 +235,11 @@ vi.mock('react-i18next', () => ({
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
         'history.records.bulkDeleteSessions.title': 'Delete selected tasks',
-        'history.records.agentSubtitle': '{{count}} tasks',
         'history.records.agentTitle': 'Agent history',
         'history.records.empty.sessionsDescription': 'No tasks for the current filters.',
         'history.records.empty.sessionsTitle': 'No tasks',
         'history.records.loading.sessionsDescription': 'Loading task list.',
         'history.records.loading.sessionsTitle': 'Loading tasks',
-        'history.records.resultCount': '{{count}} results',
         'history.records.searchSession': 'Search tasks...',
         'history.records.selectedCount': '{{count}} selected',
         'history.records.shortTitle': 'History',
@@ -260,8 +261,16 @@ vi.mock('react-i18next', () => ({
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
     }
-  })
-}))
+  }
+
+  return {
+    initReactI18next: {
+      init: vi.fn(),
+      type: '3rdParty'
+    },
+    useTranslation: () => translation
+  }
+})
 
 import HistoryRecordsView from '../HistoryRecordsView'
 
@@ -409,6 +418,7 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
+    hookMocks.virtualListRenderRows.length = 0
   })
 
   it('renders sessions from the existing agent session list data', () => {
@@ -564,6 +574,21 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('keeps the virtual row renderer stable across stream status updates', () => {
+    setupAgentHistory()
+    const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
+
+    act(() => {
+      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
+        status: 'streaming',
+        activeExecutions: [],
+        awaitingApprovalAnchors: []
+      })
+    })
+
+    expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
   it('groups sessions with a missing agent under the unknown-agent source', () => {

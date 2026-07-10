@@ -2435,9 +2435,7 @@
       "message": "Найти сообщение"
     },
     "records": {
-      "agentSubtitle": "{{count}} задач",
       "agentTitle": "История агента",
-      "assistantSubtitle": "{{count}} разговоров",
       "bulkDelete": "Пакетное удаление",
       "bulkDeleteSessions": {
         "description": "Удалить выбранное задание ({{count}})?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Загрузка задач",
         "title": "Загрузка бесед"
       },
-      "resultCount": "{{count}} результатов",
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
       "shortTitle": "История",

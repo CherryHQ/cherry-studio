@@ -2435,9 +2435,7 @@
       "message": "Tìm tin nhắn"
     },
     "records": {
-      "agentSubtitle": "{{count}} nhiệm vụ",
       "agentTitle": "Lịch sử Đại lý",
-      "assistantSubtitle": "{{count}} cuộc trò chuyện",
       "bulkDelete": "Xóa hàng loạt",
       "bulkDeleteSessions": {
         "description": "Xóa {{count}} công việc đã chọn?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Đang tải nhiệm vụ",
         "title": "Đang tải các cuộc trò chuyện"
       },
-      "resultCount": "{{count}} kết quả",
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
       "shortTitle": "Lịch sử",

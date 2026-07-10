@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
   TopicExportMenuOptions
@@ -28,13 +29,13 @@ import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
+import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAssistantSources,
@@ -352,6 +353,59 @@ const AssistantHistoryRecords = ({
     (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
     [getRendererTopic, onRecordSelect]
   )
+  const rowDescriptor = useMemo(
+    () => ({
+      getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getSourceLabel: (topic: HistoryTopicItem) =>
+        (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
+      renderAvatar: (topic: HistoryTopicItem) => {
+        const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+        return (
+          renderAssistantEntityIcon(
+            assistantIconType,
+            {
+              emoji: assistant?.emoji ?? DEFAULT_ASSISTANT_EMOJI,
+              modelId: assistant?.modelId ?? defaultModelId,
+              modelName: assistant?.modelName
+            },
+            defaultModelId
+          ) ?? <Bot size={14} />
+        )
+      },
+      rowHeight: 32,
+      getSelectLabel: (topic: HistoryTopicItem) =>
+        `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
+      getRowActions: (topic: HistoryTopicItem, openRename: (id: string, name: string) => void) => {
+        const contextOverride = { onStartRename: () => openRename(topic.id, topic.name ?? '') }
+        const actions = topicMenuPreset.getActions(topic, contextOverride)
+        return {
+          actions,
+          onAction: (action: ResolvedAction) => topicMenuPreset.onAction(topic, action, contextOverride)
+        }
+      },
+      onOpen: handleTopicSelect,
+      onTogglePin: handlePinTopic,
+      renderRowMenu: (_topic: HistoryTopicItem, row: ReactElement, rowActions: HistoryRowActions) =>
+        rowActions.actions.length ? (
+          <HistoryActionContextMenu actions={rowActions.actions} className="z-50" onAction={rowActions.onAction}>
+            {row}
+          </HistoryActionContextMenu>
+        ) : (
+          row
+        )
+    }),
+    [
+      assistantById,
+      assistantIconType,
+      defaultModelId,
+      handlePinTopic,
+      handleTopicSelect,
+      t,
+      topicMenuPreset,
+      unlinkedAssistantLabel
+    ]
+  )
 
   const descriptor: HistoryRecordDescriptor<HistoryTopicItem> = {
     mode: 'assistant',
@@ -361,41 +415,7 @@ const AssistantHistoryRecords = ({
     matchesSearch,
     onBulkDelete: handleBulkDeleteTopics,
     onActiveRecordChange,
-    getName: (topic) => topic.name || t('chat.default.topic.name'),
-    getUpdatedAt: (topic) => topic.updatedAt,
-    getSourceLabel: (topic) =>
-      (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
-    renderAvatar: (topic) => {
-      const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
-      return (
-        renderAssistantEntityIcon(
-          assistantIconType,
-          {
-            emoji: assistant?.emoji ?? DEFAULT_ASSISTANT_EMOJI,
-            modelId: assistant?.modelId ?? defaultModelId,
-            modelName: assistant?.modelName
-          },
-          defaultModelId
-        ) ?? <Bot size={14} />
-      )
-    },
-    rowHeight: 32,
-    getSelectLabel: (topic) => `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
-    getRowActions: (topic, openRename) => {
-      const contextOverride = { onStartRename: () => openRename(topic.id, topic.name ?? '') }
-      const actions = topicMenuPreset.getActions(topic, contextOverride)
-      return { actions, onAction: (action) => topicMenuPreset.onAction(topic, action, contextOverride) }
-    },
-    onOpen: handleTopicSelect,
-    onTogglePin: handlePinTopic,
-    renderRowMenu: (_topic, row, rowActions) =>
-      rowActions.actions.length ? (
-        <HistoryActionContextMenu actions={rowActions.actions} className="z-50" onAction={rowActions.onAction}>
-          {row}
-        </HistoryActionContextMenu>
-      ) : (
-        row
-      ),
+    ...rowDescriptor,
     sources: assistantSources,
     renderSourceFilter: (selectedId, onSelect) => {
       const source = selectedId ? assistantSources.find((candidate) => candidate.id === selectedId) : undefined
@@ -437,7 +457,6 @@ const AssistantHistoryRecords = ({
     onBulkMove: handleBulkMoveTopics,
     onRename: handleRenameTopic,
     strings: {
-      subtitle: t('history.records.assistantSubtitle', { count: topics.length }),
       sourceLabel: t('common.assistant'),
       sourcePlaceholder: t('history.records.filter.sourcePlaceholder'),
       sourceSearchPlaceholder: t('history.records.filter.sourceSearchPlaceholder'),

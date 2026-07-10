@@ -33,14 +33,30 @@ export function HistoryRecordList<T>({
   const list = useMemo(() => Array.from(items), [items])
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null)
   const [showFixedActionShadow, setShowFixedActionShadow] = useState(false)
+  const {
+    getId,
+    getName,
+    getRowActions,
+    getSelectLabel,
+    getSourceLabel,
+    getUpdatedAt,
+    isPinned,
+    onOpen,
+    onRename,
+    onTogglePin,
+    renderAvatar,
+    renderRowMenu,
+    rowHeight,
+    strings: { deleteLabel, pinLabel, unpinLabel }
+  } = descriptor
 
   const openRename = useCallback((id: string, name: string) => setRenameTarget({ id, name }), [])
   const handleRenameSubmit = useCallback(
     (name: string) => {
       if (!renameTarget) return
-      void descriptor.onRename(renameTarget.id, name)
+      void onRename(renameTarget.id, name)
     },
-    [descriptor, renameTarget]
+    [onRename, renameTarget]
   )
   const handleRenameOpenChange = useCallback((open: boolean) => {
     if (!open) setRenameTarget(null)
@@ -70,32 +86,31 @@ export function HistoryRecordList<T>({
 
   const renderRow = useCallback(
     (item: T) => {
-      const id = descriptor.getId(item)
-      const rowActions = descriptor.getRowActions(item, openRename)
-      const isPinned = descriptor.isPinned(id)
+      const id = getId(item)
+      const rowActions = getRowActions(item, openRename)
+      const pinned = isPinned(id)
       const row = (
         <HistoryRecordRow
           actions={rowActions.actions}
-          avatar={descriptor.renderAvatar(item)}
-          deleteLabel={descriptor.strings.deleteLabel}
-          description={descriptor.getDescription?.(item)}
-          isPinned={isPinned}
-          isSelected={!isPinned && isSelected(id)}
-          minHeight={descriptor.rowHeight}
-          pinLabel={descriptor.strings.pinLabel}
-          selectLabel={descriptor.getSelectLabel(item)}
+          avatar={renderAvatar(item)}
+          deleteLabel={deleteLabel}
+          isPinned={pinned}
+          isSelected={!pinned && isSelected(id)}
+          minHeight={rowHeight}
+          pinLabel={pinLabel}
+          selectLabel={getSelectLabel(item)}
           showFixedActionShadow={showFixedActionShadow}
-          sourceLabel={descriptor.getSourceLabel(item)}
-          timeLabel={formatHistoryTime(descriptor.getUpdatedAt(item), t)}
-          title={descriptor.getName(item)}
-          unpinLabel={descriptor.strings.unpinLabel}
+          sourceLabel={getSourceLabel(item)}
+          timeLabel={formatHistoryTime(getUpdatedAt(item), t)}
+          title={getName(item)}
+          unpinLabel={unpinLabel}
           onAction={rowActions.onAction}
-          onOpen={() => descriptor.onOpen(item)}
+          onOpen={() => onOpen(item)}
           onSelectedChange={(checked) => onToggleSelection(id, checked)}
           onTogglePin={async () => {
             // Pinning a selected row makes it unselectable, so drop it from the selection after success
             // (a no-op when unpinning, since pinned rows are never selected).
-            const result = await descriptor.onTogglePin(item)
+            const result = await onTogglePin(item)
             if (result !== false) {
               onToggleSelection(id, false)
             }
@@ -103,9 +118,30 @@ export function HistoryRecordList<T>({
         />
       )
 
-      return descriptor.renderRowMenu(item, row, rowActions)
+      return renderRowMenu(item, row, rowActions)
     },
-    [descriptor, isSelected, onToggleSelection, openRename, showFixedActionShadow, t]
+    [
+      deleteLabel,
+      getId,
+      getName,
+      getRowActions,
+      getSelectLabel,
+      getSourceLabel,
+      getUpdatedAt,
+      isPinned,
+      isSelected,
+      onOpen,
+      onTogglePin,
+      onToggleSelection,
+      openRename,
+      pinLabel,
+      renderAvatar,
+      renderRowMenu,
+      rowHeight,
+      showFixedActionShadow,
+      t,
+      unpinLabel
+    ]
   )
 
   return (

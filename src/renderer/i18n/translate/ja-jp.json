@@ -2435,9 +2435,7 @@
       "message": "メッセージを探す"
     },
     "records": {
-      "agentSubtitle": "{{count}}件のタスク",
       "agentTitle": "エージェント履歴",
-      "assistantSubtitle": "{{count}}件の会話",
       "bulkDelete": "バッチ削除",
       "bulkDeleteSessions": {
         "description": "選択したタスク {{count}} 件を削除しますか？",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "タスクを読み込んでいます",
         "title": "会話を読み込んでいます"
       },
-      "resultCount": "{{count}}件の結果",
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "歴史",

@@ -2435,9 +2435,7 @@
       "message": "Locate the message"
     },
     "records": {
-      "agentSubtitle": "{{count}} tasks",
       "agentTitle": "Agent History",
-      "assistantSubtitle": "{{count}} conversations",
       "bulkDelete": "Batch Delete",
       "bulkDeleteSessions": {
         "description": "Delete {{count}} selected task(s)?",
@@ -2482,7 +2480,6 @@
         "sessionsTitle": "Loading tasks",
         "title": "Loading conversations"
       },
-      "resultCount": "{{count}} results",
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "selectedCount": "{{count}} selected",

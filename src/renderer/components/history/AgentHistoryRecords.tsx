@@ -1,3 +1,4 @@
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -10,13 +11,13 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
+import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAgentSources,
@@ -184,6 +185,46 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
     [onRecordSelect]
   )
+  const rowDescriptor = useMemo(
+    () => ({
+      getName: (session: SessionListItem) => session.name || t('common.unnamed'),
+      getUpdatedAt: (session: SessionListItem) => session.updatedAt,
+      getSourceLabel: (session: SessionListItem) =>
+        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
+      renderAvatar: (session: SessionListItem) => {
+        const agent = session.agentId ? agentById.get(session.agentId) : undefined
+        return (
+          <EmojiIcon
+            emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+            size={20}
+            fontSize={12}
+            className="mr-0 text-foreground"
+          />
+        )
+      },
+      rowHeight: 32,
+      getSelectLabel: (session: SessionListItem) => `${t('common.select')} ${session.name || t('common.unnamed')}`,
+      getRowActions: (session: SessionListItem, openRename: (id: string, name: string) => void) => {
+        const contextOverride = { startEdit: () => openRename(session.id, session.name ?? '') }
+        const actions = sessionMenuPreset.getActions(session, contextOverride)
+        return {
+          actions,
+          onAction: (action: ResolvedAction) => sessionMenuPreset.onAction(session, action, contextOverride)
+        }
+      },
+      onOpen: handleSessionSelect,
+      onTogglePin: (session: SessionListItem) => handleToggleSessionPin(session.id),
+      renderRowMenu: (_session: SessionListItem, row: ReactElement, rowActions: HistoryRowActions) =>
+        rowActions.actions.length ? (
+          <HistoryActionContextMenu actions={rowActions.actions} className="z-50" onAction={rowActions.onAction}>
+            {row}
+          </HistoryActionContextMenu>
+        ) : (
+          row
+        )
+    }),
+    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t]
+  )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {
     mode: 'agent',
@@ -194,38 +235,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     matchesSearch,
     onBulkDelete: handleBulkDeleteSessions,
     onActiveRecordChange,
-    getName: (session) => session.name || t('common.unnamed'),
-    getUpdatedAt: (session) => session.updatedAt,
-    getSourceLabel: (session) =>
-      (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
-    renderAvatar: (session) => {
-      const agent = session.agentId ? agentById.get(session.agentId) : undefined
-      return (
-        <EmojiIcon
-          emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
-          size={20}
-          fontSize={12}
-          className="mr-0 text-foreground"
-        />
-      )
-    },
-    rowHeight: 32,
-    getSelectLabel: (session) => `${t('common.select')} ${session.name || t('common.unnamed')}`,
-    getRowActions: (session, openRename) => {
-      const contextOverride = { startEdit: () => openRename(session.id, session.name ?? '') }
-      const actions = sessionMenuPreset.getActions(session, contextOverride)
-      return { actions, onAction: (action) => sessionMenuPreset.onAction(session, action, contextOverride) }
-    },
-    onOpen: handleSessionSelect,
-    onTogglePin: (session) => handleToggleSessionPin(session.id),
-    renderRowMenu: (_session, row, rowActions) =>
-      rowActions.actions.length ? (
-        <HistoryActionContextMenu actions={rowActions.actions} className="z-50" onAction={rowActions.onAction}>
-          {row}
-        </HistoryActionContextMenu>
-      ) : (
-        row
-      ),
+    ...rowDescriptor,
     sources: agentSources,
     renderSourceFilter: (selectedId, onSelect) => {
       const source = selectedId ? agentSources.find((candidate) => candidate.id === selectedId) : undefined
@@ -266,7 +276,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     statusOptions: statusItems,
     onRename: handleRenameSession,
     strings: {
-      subtitle: t('history.records.agentSubtitle', { count: sessions.length }),
       sourceLabel: t('common.agent'),
       sourcePlaceholder: t('history.records.filter.sourcePlaceholder'),
       sourceSearchPlaceholder: t('history.records.filter.sourceSearchPlaceholder'),

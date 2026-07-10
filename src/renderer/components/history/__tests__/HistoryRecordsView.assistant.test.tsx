@@ -287,10 +287,8 @@ vi.mock('react-i18next', () => ({
         'history.records.bulkMoveTopics.success': 'Moved {{count}} conversation(s)',
         'history.records.bulkMoveTopics.target': 'Target assistant',
         'history.records.bulkMoveTopics.title': 'Move selected conversations',
-        'history.records.assistantSubtitle': '{{count}} conversations',
         'history.records.empty.description': 'No conversations for the current filters.',
         'history.records.empty.title': 'No conversations',
-        'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search conversations...',
         'history.records.selectedCount': '{{count}} selected',
         'history.records.shortTitle': 'History',
@@ -1331,9 +1329,7 @@ describe('HistoryRecordsView locale resources', () => {
       'common.save'
     ]
     const requiredRecordKeys = [
-      'agentSubtitle',
       'agentTitle',
-      'assistantSubtitle',
       'bulkMove',
       'bulkMoveTopics.confirm',
       'bulkMoveTopics.description',
@@ -1358,7 +1354,6 @@ describe('HistoryRecordsView locale resources', () => {
       'loading.sessionsDescription',
       'loading.sessionsTitle',
       'loading.title',
-      'resultCount',
       'searchSession',
       'searchTopic',
       'selectedCount',

@@ -28,7 +28,6 @@ export interface HistoryRecordsController<T> {
   bulkDeleteCount: number
   selectAllState: SelectAllState
   selectionDisabled: boolean
-  resultCount: number
   isSelected: (id: string) => boolean
   toggleSelection: (id: string, checked: boolean) => void
   toggleSelectAll: (checked: boolean) => void
@@ -181,7 +180,6 @@ export function useHistoryRecordsController<T>({
     bulkDeleteCount: selectedDeletableIds.length,
     selectAllState,
     selectionDisabled: selectableIds.length === 0,
-    resultCount: visibleItems.length,
     isSelected,
     toggleSelection,
     toggleSelectAll,

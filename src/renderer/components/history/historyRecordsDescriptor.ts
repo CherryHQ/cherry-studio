@@ -20,7 +20,6 @@ export interface HistoryRowActions {
 
 /** i18n strings that differ between assistant (topic) and agent (session) modes. */
 export interface HistoryRecordsStrings {
-  subtitle: string
   /** Filter-bar source field label ("Assistant" / "Agent"). */
   sourceLabel: string
   sourcePlaceholder: string
@@ -64,8 +63,6 @@ export interface HistoryRecordDescriptor<T> {
   getUpdatedAt: (item: T) => string
   getSourceLabel: (item: T) => string
   renderAvatar: (item: T) => ReactNode
-  /** Agent mode only: optional second line under the title. */
-  getDescription?: (item: T) => string | undefined
   rowHeight: number
   getSelectLabel: (item: T) => string
   /** Build the row's menu actions; `openRename` lets a menu item open the rename dialog. */

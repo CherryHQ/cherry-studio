@@ -2435,9 +2435,7 @@
       "message": "定位到消息"
     },
     "records": {
-      "agentSubtitle": "{{count}} 个任务",
       "agentTitle": "智能体历史记录",
-      "assistantSubtitle": "{{count}} 个对话",
       "bulkDelete": "批量删除",
       "bulkDeleteSessions": {
         "description": "将删除选中的 {{count}} 个任务。",
@@ -2482,7 +2480,6 @@
         "sessionsTitle": "正在加载任务",
         "title": "正在加载对话"
       },
-      "resultCount": "{{count}} 条结果",
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
       "selectedCount": "已选 {{count}} 项",

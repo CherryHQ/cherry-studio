@@ -422,7 +422,6 @@ interface HistoryRecordRowProps {
   actions: readonly ResolvedAction[]
   avatar: ReactNode
   deleteLabel: string
-  description?: string
   isPinned: boolean
   isSelected: boolean
   minHeight: number
@@ -439,12 +438,11 @@ interface HistoryRecordRowProps {
   onTogglePin?: () => void | Promise<void>
 }
 
-/** One record row shared by both modes; the optional description line renders only when present. */
+/** One record row shared by both history modes. */
 export const HistoryRecordRow = ({
   actions,
   avatar,
   deleteLabel,
-  description,
   isPinned,
   isSelected,
   minHeight,
@@ -477,9 +475,6 @@ export const HistoryRecordRow = ({
           <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
             <HistoryTitleButton title={title} onOpen={onOpen} />
           </RowFlex>
-          {description && (
-            <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">{description}</span>
-          )}
         </div>
       </RowFlex>
     </div>

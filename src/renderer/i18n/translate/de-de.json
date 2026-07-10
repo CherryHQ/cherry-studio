@@ -2435,9 +2435,7 @@
       "message": "Zu Nachricht navigieren"
     },
     "records": {
-      "agentSubtitle": "{{count}} Aufgaben",
       "agentTitle": "Agentenhistorie",
-      "assistantSubtitle": "{{count}} Gespräche",
       "bulkDelete": "Stapel löschen",
       "bulkDeleteSessions": {
         "description": "{{count}} ausgewählte Aufgabe(n) löschen?",
@@ -2471,7 +2469,6 @@
         "sessionsTitle": "Aufgaben laden",
         "title": "Konversationen werden geladen"
       },
-      "resultCount": "{{count}} Ergebnisse",
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
