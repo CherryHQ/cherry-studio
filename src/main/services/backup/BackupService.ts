@@ -340,7 +340,20 @@ export class BackupService extends BaseService {
     // misses. The parent must already exist (renderer picks via save dialog); a missing
     // parent fails here rather than mid-archive.
     const parent = dirname(resolve(outputPath))
-    const realParent = realpathSync(parent)
+    let realParent: string
+    try {
+      realParent = realpathSync(parent)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Missing parent (renderer passed a path under a not-yet-created dir) — give the
+        // renderer a branchable code rather than letting raw ENOENT fold to INTERNAL.
+        throw new IpcError(
+          'BACKUP_OUTPUT_PATH_INVALID',
+          `backup: outputPath parent directory does not exist: ${parent}`
+        )
+      }
+      throw e
+    }
     const canonical = join(realParent, basename(resolve(outputPath)))
     // Refuse ANY app-managed writable root — the archive must never overwrite the live
     // DB, managed data, or anything under the app's data home. The broad app.userdata
