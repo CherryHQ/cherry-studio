@@ -30,13 +30,15 @@ import { dirname, join, resolve } from 'node:path'
 import { application } from '@application'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { isPathInside } from '@main/utils/legacyFile'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { contributorManager } from './contributors'
-import { InsufficientDiskSpaceError } from './errors'
+import { BackupCancelledError, DiskFullError, InsufficientDiskSpaceError } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 
@@ -64,23 +66,35 @@ export class BackupService extends BaseService {
   private orchestrator?: ExportOrchestrator
   /** Cached last migration `when` (folderMillis) — the schema-version fingerprint. */
   private schemaMigrationId?: string
-  /** Progress event bus — bridged to the renderer (backup.progress event) in onInit. */
-  private readonly _onProgress = new Emitter<BackupProgressUpdate>()
+  /** Progress event bus — re-created in onInit each (re)start so stop→start gets a fresh emitter. */
+  private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active export (null when idle). */
   private activeExport: ActiveExport | null = null
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
     // Other main-side services may also subscribe to this._onProgress.event.
-    this.registerDisposable(this._onProgress)
+    // Re-create the emitter each (re)start: BaseService disposes it in its stop
+    // finally, so re-registering the same disposed instance on restart would make
+    // fire() a no-op and silently drop all progress events.
+    const progress = new Emitter<BackupProgressUpdate>()
+    this._onProgress = progress
+    this.registerDisposable(progress)
     this.registerDisposable(
-      this._onProgress.event((update) => {
+      progress.event((update) => {
         // broadcast (not send-to-window) — the export can be triggered from any window
         // hosting the backup UI (dev Settings route today; main / dedicated later), and
         // every hosting window subscribes via useIpcOn('backup.progress').
         application.get('IpcApiService').broadcast('backup.progress', update)
       })
     )
+    // DEV-only gate: contributor finalize is startup validation (a bad registry throws
+    // ContributorFinalizeError → @ErrorHandling('fail-fast') aborts bootstrap). The only
+    // consumer today is the DEV Settings route — the prod V2 settings UI has not landed.
+    // Skip finalize + orchestrator construction in packaged builds so a contributor-
+    // registry regression cannot crash every prod boot. Drop this gate when the prod UI
+    // ships in this stack (startBackup then runs in packaged builds too).
+    if (app.isPackaged) return
     // Lazily run the 26-invariant contributor finalize at startup. A violation
     // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
     // (the startup-validation contract; see ContributorManager docstring).
@@ -129,13 +143,17 @@ export class BackupService extends BaseService {
    */
   async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<BackupV2StartResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {
-      // Unreachable in normal boot (onInit sets both); reached only if onInit threw
-      // + error handling were changed away from fail-fast. Guard anyway.
+      // Unreachable in normal boot (onInit sets both, unless dev-gated off in packaged
+      // builds); reached only if onInit threw + error handling were changed away from
+      // fail-fast. Guard anyway.
       throw new Error('BackupService: not initialized (onInit did not complete)')
     }
     if (this.activeExport) {
       throw new Error('BackupService: an export is already running (cancel it first)')
     }
+    // Refuse unsafe output paths BEFORE any work: renderer must not overwrite the live
+    // DB or other app-managed data, and must not clobber an existing file (no-clobber).
+    this.validateOutputPath(outputPath)
     // Reserve the active slot BEFORE the preflight await so a concurrent startBackup
     // sees it as busy — two invokes that both pass the null check would otherwise
     // both suspend in preflight, then both start (the second overwriting activeExport
@@ -156,10 +174,15 @@ export class BackupService extends BaseService {
         schemaMigrationId: this.schemaMigrationId,
         signal: abortController.signal,
         onProgress: (u) => {
-          this._onProgress.fire({ ...u, backupId })
+          this._onProgress?.fire({ ...u, backupId })
         }
       })
       return { backupId, archivePath: result.archivePath }
+    } catch (e) {
+      // Map domain errors to stable IpcError codes so the renderer can branch on
+      // e.code (cancel / disk-full) instead of regex on a message. IpcApi passes
+      // IpcError instances through unchanged (IpcError.from returns the instance).
+      throw this.toIpcError(e)
     } finally {
       if (this.activeExport === active) this.activeExport = null
     }
@@ -303,5 +326,67 @@ export class BackupService extends BaseService {
     // managed default — that would silently omit the user's real notes while
     // still exporting note overlay rows keyed to the custom rootPath.
     return requireReadableDir(candidate, 'custom Notes root')
+  }
+
+  /**
+   * Refuse unsafe output paths. The renderer passes an arbitrary outputPath; without
+   * validation, archive.ts's atomic rename would let it overwrite the live DB or other
+   * app-managed data, and silently clobber any existing file. Defense in depth — the
+   * renderer picks a path via a save dialog, but never trust it across the IPC boundary.
+   */
+  private validateOutputPath(outputPath: string): void {
+    const resolved = resolve(outputPath)
+    // Refuse to write AT or INSIDE any app-managed path — the archive must never touch
+    // the live DB, the backup temp tree, or managed file/knowledge/notes data.
+    const managedRoots = [
+      application.getPath('app.database.file'),
+      application.getPath('feature.backup.temp'),
+      application.getPath('feature.files.data'),
+      application.getPath('feature.knowledgebase.data'),
+      application.getPath('feature.notes.data')
+    ]
+    for (const root of managedRoots) {
+      if (resolved === root || isPathInside(resolved, root)) {
+        throw new IpcError(
+          'BACKUP_UNSAFE_OUTPUT_PATH',
+          `backup: outputPath targets an app-managed path: ${outputPath}`
+        )
+      }
+    }
+    // No-clobber: refuse to overwrite an existing file. archive.ts writes via a temp
+    // file + atomic rename, which silently overwrites on replace-supporting systems —
+    // a prior good backup (or any user file) at that path would be destroyed.
+    if (existsSync(resolved)) {
+      throw new IpcError(
+        'BACKUP_OUTPUT_PATH_EXISTS',
+        `backup: outputPath already exists (no-clobber): ${outputPath}`
+      )
+    }
+  }
+
+  /**
+   * Map backup domain errors to stable IpcError codes before they cross the IPC
+   * boundary. The transport folds non-IpcError throws to INTERNAL, losing the class;
+   * promoting them here preserves a code useBackupV2 can branch on (cancel vs disk
+   * vs other) instead of regex on the message string.
+   */
+  private toIpcError(e: unknown): unknown {
+    if (e instanceof BackupCancelledError) return new IpcError('BACKUP_CANCELLED', e.message)
+    if (e instanceof InsufficientDiskSpaceError) {
+      return new IpcError('BACKUP_INSUFFICIENT_DISK', e.message, {
+        needed: e.needed,
+        available: e.available
+      })
+    }
+    if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
+    return e // unknown throws pass through; IpcApiService folds them to INTERNAL
+  }
+
+  protected onStop(): void {
+    // Signal an in-flight export to abort so shutdown is not holding the snapshot
+    // copy + staging open. The orchestrator checks the abort signal at its next step
+    // boundary + its finally cleans up temp + staging. (Sync stop cannot await the
+    // async drain; abort is the bounded-shutdown lever.)
+    this.activeExport?.abortController.abort()
   }
 }
