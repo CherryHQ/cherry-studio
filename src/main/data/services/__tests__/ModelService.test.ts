@@ -1473,7 +1473,7 @@ describe('ModelService.reconcileForProvider', () => {
     await dbh.db
       .insert(userModelTable)
       .values([
-        modelRow('openai', 'gpt-4o', { id: openaiGpt4o }),
+        modelRow('openai', 'gpt-4o', { id: openaiGpt4o, presetModelId: 'gpt-4o' }),
         modelRow('openai', 'gpt-4o-mini', { id: openaiGpt4oMini }),
         modelRow('anthropic', 'claude-3-5-sonnet', { id: anthropicClaude })
       ])
