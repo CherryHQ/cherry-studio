@@ -57,7 +57,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate
 }))
 
-vi.mock('@renderer/services/settingsNavigation', () => ({
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mockOpenSettingsTab
 }))
 
