@@ -5504,7 +5504,8 @@
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup"
+        "skip_file_data_title": "Slim Backup",
+        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
       },
       "clear_cache": {
         "button": "Clear Cache",

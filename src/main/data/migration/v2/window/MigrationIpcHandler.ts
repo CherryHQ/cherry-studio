@@ -34,6 +34,11 @@ let currentProgress: MigrationProgress = {
   migrators: []
 }
 
+// Recovered non-default data directory to surface on the introduction screen.
+// Held separately from currentProgress so it survives Retry (which rebuilds the
+// introduction progress from scratch) instead of vanishing after a failed run.
+let dataLocationNotice: string | null = null
+
 /**
  * Register all migration IPC handlers
  */
@@ -197,11 +202,13 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
       // Reset to the introduction stage so the user can re-trigger migration from its Start button.
+      // Carry the data-location notice back so it doesn't disappear after a failed export.
       updateProgress({
         stage: 'introduction',
         overallProgress: 0,
         currentMessage: 'Ready to retry migration',
-        migrators: []
+        migrators: [],
+        ...(dataLocationNotice ? { dataLocation: dataLocationNotice } : {})
       })
       return true
     } catch (error) {
@@ -346,6 +353,7 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
 export function resetMigrationData(): void {
   inFlightMigration = null
   quitScheduled = false
+  dataLocationNotice = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
@@ -367,4 +375,15 @@ export function setVersionIncompatible(reason: VersionBlockReason, details: Reco
     i18nMessage: { key: `migration.version_incompatible.${reason}`, params: details },
     migrators: []
   }
+}
+
+/**
+ * Seed the recovered non-default data directory so the introduction screen can
+ * show a "data migration directory" notice. Must be called BEFORE
+ * registerMigrationIpcHandlers() so the renderer picks it up via GetProgress on
+ * mount. Also retained across Retry (see the Retry handler).
+ */
+export function setDataLocationNotice(dataLocation: string): void {
+  dataLocationNotice = dataLocation
+  currentProgress = { ...currentProgress, dataLocation }
 }
