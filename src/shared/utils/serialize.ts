@@ -81,6 +81,9 @@ function tryLenientSerialize(value: unknown, space?: string | number): string {
       if (val instanceof RegExp) return `{RegExp: "${val.toString()}"}`
       if (typeof val === 'function') return `[Function: ${val.name || 'anonymous'}]`
       if (typeof val === 'symbol') return `Symbol(${String(val.description)})`
+      // bigint is not JSON-serializable; JSON.stringify throws on it, so convert
+      // to string here to keep this best-effort serializer from throwing.
+      if (typeof val === 'bigint') return val.toString()
       if (val instanceof Map) return Object.fromEntries(val.entries())
       if (val instanceof Set) return Array.from(val)
       if (val === undefined) return '[undefined]'
