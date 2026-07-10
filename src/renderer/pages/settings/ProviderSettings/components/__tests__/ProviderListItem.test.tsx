@@ -58,7 +58,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-green-500')).toHaveClass('right-1.5')
   })
 
   it('reserves a trailing slot when enabled-state dot is shown', () => {

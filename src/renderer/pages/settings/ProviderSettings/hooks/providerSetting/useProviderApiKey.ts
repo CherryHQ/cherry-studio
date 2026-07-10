@@ -212,7 +212,14 @@ export function useProviderApiKey(providerId: string) {
       return
     }
 
-    await saveApiKeyRef.current(normalizedInputApiKey)
+    try {
+      await saveApiKeyRef.current(normalizedInputApiKey)
+    } catch (error) {
+      logger.error('Failed to save API keys', error as Error)
+      toast.error(i18n.t('settings.provider.api_key.save_failed'))
+      setValue((current) => ({ ...current, hasPendingSync: true }))
+      throw error
+    }
   }, [saveLater])
 
   return useMemo(

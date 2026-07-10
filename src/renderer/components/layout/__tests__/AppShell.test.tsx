@@ -25,7 +25,7 @@ vi.mock('@renderer/ipc/useIpcOn', () => ({
   useIpcOn: vi.fn()
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }

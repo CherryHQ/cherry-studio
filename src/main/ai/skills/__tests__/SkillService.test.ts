@@ -135,14 +135,32 @@ describe('SkillService', () => {
       expect(two?.isEnabled).toBe(false)
     })
 
-    it('returns isEnabled: false for all skills when agentId has no skill rows', async () => {
+    it('defaults isEnabled to false for non-builtin skills and true for builtin skills when agentId has no skill rows', async () => {
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
 
       const result = await skillService.list({ agentId: AGENT_ID })
 
-      expect(result.every((s) => s.isEnabled === false)).toBe(true)
+      const nonBuiltin = result.filter((s) => s.id !== SKILL_ID_BUILTIN)
+      const builtin = result.find((s) => s.id === SKILL_ID_BUILTIN)
+      expect(nonBuiltin.every((s) => s.isEnabled === false)).toBe(true)
+      expect(builtin?.isEnabled).toBe(true)
+    })
+
+    it('an explicit disabled row for a builtin skill overrides the enabled-by-default fallback', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_BUILTIN,
+        isEnabled: false
+      })
+
+      const result = await skillService.list({ agentId: AGENT_ID })
+
+      expect(result.find((s) => s.id === SKILL_ID_BUILTIN)?.isEnabled).toBe(false)
     })
 
     it('filters by search against name or description in the database', async () => {
@@ -448,9 +466,10 @@ describe('SkillService', () => {
       } as never)
     })
 
-    it('is a no-op when skill exists and files were not updated', async () => {
+    it('does not re-hash or re-parse metadata when skill exists and files were not updated', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash1')
+      await seedAgent()
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
         name: 'My Builtin',
@@ -463,6 +482,26 @@ describe('SkillService', () => {
       await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
 
       expect(skillService['installer'].computeContentHash).not.toHaveBeenCalled()
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+
+    it('never writes agent_skill rows, leaving per-agent enablement to the read-time builtin default', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'My Builtin',
+        folderName: FOLDER_NAME,
+        source: 'builtin',
+        contentHash: 'hash1',
+        isEnabled: false
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_BUILTIN, isEnabled: false })
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      expect(rows).toEqual([expect.objectContaining({ agentId: AGENT_ID, isEnabled: false })])
     })
 
     it('updates metadata when skill exists and files were updated', async () => {
@@ -487,10 +526,9 @@ describe('SkillService', () => {
       expect(row?.contentHash).toBe('hash2')
     })
 
-    it('inserts and enables for all agents on first install', async () => {
+    it('inserts a new builtin skill on first install, already enabled for existing agents without any agent_skill row', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash3')
-      const enableSpy = vi.spyOn(skillService, 'enableForAllAgents').mockResolvedValue(undefined)
       await seedAgent()
 
       await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
@@ -501,7 +539,11 @@ describe('SkillService', () => {
         .where(eq(agentGlobalSkillTable.folderName, FOLDER_NAME))
       expect(rows).toHaveLength(1)
       expect(rows[0]?.source).toBe('builtin')
-      expect(enableSpy).toHaveBeenCalledOnce()
+
+      const joinRows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
+      expect(joinRows).toHaveLength(0)
+      const [installed] = await skillService.list({ agentId: AGENT_ID })
+      expect(installed?.isEnabled).toBe(true)
     })
   })
 

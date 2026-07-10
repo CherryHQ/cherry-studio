@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
-const useProviderAutoModelSyncMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
@@ -17,10 +16,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
-}))
-
-vi.mock('../hooks/providerSetting/useProviderAutoModelSync', () => ({
-  useProviderAutoModelSync: (...args: any[]) => useProviderAutoModelSyncMock(...args)
 }))
 
 vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
@@ -85,10 +80,9 @@ describe('ProviderSetting', () => {
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
   })
 
-  it('keeps page-level coordination hooks at the page boundary', () => {
+  it('keeps onboarding coordination at the page boundary', () => {
     render(<ProviderSetting providerId="openai" isOnboarding />)
 
-    expect(useProviderAutoModelSyncMock).toHaveBeenCalledWith('openai')
     expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
       providerId: 'openai',
       isOnboarding: true

@@ -1,5 +1,5 @@
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 

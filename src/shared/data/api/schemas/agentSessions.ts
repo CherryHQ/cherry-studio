@@ -149,6 +149,11 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
+/** Response for `GET /agent-sessions/latest` — the most-recently-updated session, or `null` when there are none. */
+export interface LatestAgentSessionResponse {
+  session: AgentSessionEntity | null
+}
+
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 const DeleteAgentSessionsIdsQueryValueSchema = z
@@ -191,6 +196,21 @@ export type AgentSessionSchemas = {
     DELETE: {
       query: DeleteAgentSessionsQueryParams
       response: DeleteAgentSessionsResult
+    }
+  }
+
+  /**
+   * Most-recently-updated session across all agents.
+   *
+   * First-entry restore reads this to resume the last-touched session. Declared
+   * before `/agent-sessions/:sessionId` and matched exactly by the server router,
+   * so `latest` is never mistaken for a session id. Proves global latest via
+   * `updatedAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
+   * page.
+   */
+  '/agent-sessions/latest': {
+    GET: {
+      response: LatestAgentSessionResponse
     }
   }
 

@@ -12,7 +12,11 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
-import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import {
+  agentMcpServerTable,
+  assistantKnowledgeBaseTable,
+  assistantMcpServerTable
+} from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -59,6 +63,7 @@ export class MigrationEngine {
   private progressCallback?: (progress: MigrationProgress) => void
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
+  private legacyDataConfirmed = false
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -70,9 +75,15 @@ export class MigrationEngine {
   /**
    * Initialize the migration engine by creating a bare DB connection.
    * Must be called before needsMigration() or run().
+   *
+   * @param legacyDataConfirmed Whether the gate confirmed the resolved userData
+   *   holds v1 data (see MigrationPaths.resolveMigrationPaths). Stored and read
+   *   by needsMigration() so a redirected-but-electron-store-empty directory is
+   *   never markCompleted-locked as a "fresh install".
    */
-  initialize(paths: MigrationPaths): void {
+  initialize(paths: MigrationPaths, legacyDataConfirmed = false): void {
     this._paths = paths
+    this.legacyDataConfirmed = legacyDataConfirmed
     this.migrationDb = MigrationDbService.create(paths)
   }
 
@@ -109,9 +120,16 @@ export class MigrationEngine {
   }
 
   /**
-   * Check if migration is needed
+   * Check if migration is needed.
+   *
+   * With a stored migration status, the status decides. Without one, this is a
+   * first launch: migrate iff there is legacy data. `legacyDataConfirmed` (from
+   * the gate's path resolution) is the authoritative signal — it recognizes v1
+   * data via version.log / Chromium storage / config keys, markers the narrower
+   * `hasLegacyData()` electron-store probe misses. ORing them prevents a
+   * redirected custom directory whose electron-store happens to be empty from
+   * being mis-detected as a fresh install and markCompleted-locked forever.
    */
-  //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
     const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
@@ -122,13 +140,13 @@ export class MigrationEngine {
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
-    if (!this.hasLegacyData()) {
-      logger.info('Fresh install detected (no legacy data found), skipping migration')
-      await this.markCompleted()
-      return false
+    if (this.legacyDataConfirmed || this.hasLegacyData()) {
+      return true
     }
 
-    return true
+    logger.info('Fresh install detected (no legacy data found), skipping migration')
+    await this.markCompleted()
+    return false
   }
 
   /**
@@ -331,6 +349,7 @@ export class MigrationEngine {
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
+      { table: agentMcpServerTable, name: 'agent_mcp_server' },
       { table: agentChannelTable, name: 'agent_channel' },
       // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },
