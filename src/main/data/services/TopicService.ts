@@ -428,7 +428,12 @@ export class TopicService {
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
     if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
+      const pinAfter = cursor.orderKey
+        ? or(
+            gt(pinTable.orderKey, cursor.orderKey),
+            and(eq(pinTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
+        : undefined
       const pinRows = db
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
@@ -454,7 +459,7 @@ export class TopicService {
         const last = items[items.length - 1]
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
         }
       }
 

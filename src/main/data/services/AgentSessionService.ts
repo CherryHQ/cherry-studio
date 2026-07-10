@@ -232,7 +232,12 @@ export class AgentSessionService {
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
 
     if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
+      const pinAfter = cursor.orderKey
+        ? or(
+            gt(pinTable.orderKey, cursor.orderKey),
+            and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
+          )
+        : undefined
       const pinRows = db
         .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
         .from(sessionsTable)
@@ -257,7 +262,10 @@ export class AgentSessionService {
 
       if (hasMoreInPin) {
         const last = items[items.length - 1]
-        return { items: items.map((i) => i.session), nextCursor: encodePinCursor(last.pinOrderKey ?? '') }
+        return {
+          items: items.map((i) => i.session),
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
+        }
       }
 
       if (items.length >= limit) {

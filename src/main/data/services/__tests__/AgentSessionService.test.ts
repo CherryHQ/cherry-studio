@@ -721,6 +721,50 @@ describe('AgentSessionService', () => {
     expect(page3.nextCursor).toBeUndefined()
   })
 
+  it('does not skip pinned sessions with the same orderKey across pages', async () => {
+    const workspace = await createWorkspace('duplicate-pin-order-key')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-pinned-1',
+        agentId: 'agent-session-test',
+        name: 'Pinned 1',
+        workspaceId: workspace.id,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-pinned-2',
+        agentId: 'agent-session-test',
+        name: 'Pinned 2',
+        workspaceId: workspace.id,
+        orderKey: 'a1'
+      }
+    ])
+    await dbh.db.insert(pinTable).values([
+      {
+        id: 'pin-a',
+        entityType: 'session',
+        entityId: 'session-pinned-1',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'pin-b',
+        entityType: 'session',
+        entityId: 'session-pinned-2',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+    expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
+    expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])
+  })
+
   it('deletes sessions when the workspace row is deleted', async () => {
     const workspace = await createWorkspace('transient')
     const session = await createSession('Workspace delete', workspace.id)

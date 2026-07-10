@@ -275,6 +275,24 @@ describe('TopicService', () => {
       expect(page3.nextCursor).toBeUndefined()
     })
 
+    it('does not skip pinned topics with the same orderKey across pages', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'p1', name: 'P1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'p2', name: 'P2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(pinTable).values([
+        { id: 'pin-1', entityType: 'topic', entityId: 'p1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'pin-2', entityType: 'topic', entityId: 'p2', orderKey: 'a0', createdAt: 1, updatedAt: 1 }
+      ])
+
+      const page1 = service.listByCursor({ limit: 1 })
+      const page2 = service.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+      expect(page1.items.map((topic) => topic.id)).toEqual(['p1'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['p2'])
+    })
+
     it('spills partially-filled pin section into unpinned in the same page', async () => {
       // Single pinned topic, limit=3 — pin section fills 1, unpinned fills
       // remaining 2 in the same response (no extra round-trip).
@@ -348,6 +366,7 @@ describe('TopicService', () => {
     it.each([
       'gibberish',
       'topic:123:legacy-id', // legacy pre-rename cursor → unknown section, safe fallback
+      'pin:a0', // legacy orderKey-only pin cursor → missing stable id, safe fallback
       'entity:orphan-no-id', // malformed: entity section missing id separator
       'unknown-section:foo',
       'pin' // missing colon
@@ -374,8 +393,8 @@ describe('TopicService', () => {
         { id: 'u1', name: 'U1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 'u2', name: 'U2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
       ])
-      // Cursor points at a pin orderKey for a row that no longer exists.
-      const result = service.listByCursor({ cursor: 'pin:a99' })
+      // Cursor points at a pin tuple for a row that no longer exists.
+      const result = service.listByCursor({ cursor: 'pin:a99:missing-topic-id' })
       expect(result.items).toHaveLength(0)
       expect(result.nextCursor).toBe('entity:')
 

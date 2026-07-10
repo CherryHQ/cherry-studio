@@ -14,7 +14,7 @@
  * now share the identical contract, so the drift-prone codec lives here once
  * instead of being hand-rolled per service.
  *
- * Wire format: `pin:<pinOrderKey>` (empty `pinOrderKey` = pin section start) /
+ * Wire format: `pin:<pinOrderKey>:<id>` /
  *              `entity:<entityOrderKey>:<id>` / `entity:` (pin exhausted, entity section start).
  *
  * Stale/legacy cursors fall back to the first page (warn) instead of throwing —
@@ -26,11 +26,11 @@ import { loggerService } from '@logger'
 const logger = loggerService.withContext('pinnedListCursor')
 
 export type PinnedListCursor =
-  | { section: 'pin'; orderKey: string }
+  | { section: 'pin'; orderKey: string; id: string }
   | { section: 'entity'; orderKey: string; id: string }
   | { section: 'entity'; orderKey: null; id: null }
 
-const FIRST_PAGE_CURSOR: PinnedListCursor = { section: 'pin', orderKey: '' }
+const FIRST_PAGE_CURSOR: PinnedListCursor = { section: 'pin', orderKey: '', id: '' }
 
 /**
  * Decode a wire cursor. `undefined` (no cursor) means "first page"; a malformed
@@ -46,7 +46,12 @@ export function decodePinnedListCursor(raw: string | undefined, context: string)
   const rest = raw.slice(firstColon + 1)
 
   if (section === 'pin') {
-    return { section: 'pin', orderKey: rest }
+    const sep = rest.indexOf(':')
+    if (sep < 0) return warnAndFallback(raw, context, 'malformed pin cursor (missing id separator)')
+    const orderKey = rest.slice(0, sep)
+    const id = rest.slice(sep + 1)
+    if (!orderKey || !id) return warnAndFallback(raw, context, 'malformed pin cursor (empty orderKey or id)')
+    return { section: 'pin', orderKey, id }
   }
   if (section === 'entity') {
     if (rest === '') return { section: 'entity', orderKey: null, id: null }
@@ -69,8 +74,8 @@ function warnAndFallback(raw: string, context: string, reason: string): PinnedLi
   return FIRST_PAGE_CURSOR
 }
 
-export function encodePinCursor(orderKey: string): string {
-  return `pin:${orderKey}`
+export function encodePinCursor(orderKey: string, id: string): string {
+  return `pin:${orderKey}:${id}`
 }
 
 export function encodeEntityCursor(orderKey: string, id: string): string {
