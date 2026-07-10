@@ -191,6 +191,10 @@ const MessageList = () => {
     messageListRef.current?.scrollToKey(groupKey, 'start')
   }, [])
 
+  const scrollToOutlineElement = useCallback((element: HTMLElement, align: 'start' | 'nearest') => {
+    messageListRef.current?.scrollToElement(element, align)
+  }, [])
+
   const updateActiveMessageOutline = useCallback(() => {
     if (!shouldTrackMessageOutline) {
       setActiveOutline((current) => (current ? null : current))
@@ -561,7 +565,11 @@ const MessageList = () => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
+        <MessageOutline
+          message={activeOutlineMessage}
+          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+          onNavigateToElement={scrollToOutlineElement}
+        />
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation

@@ -165,6 +165,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 50
     fireEvent.wheel(content, { deltaY: 40 })
     expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
+    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith(content)
 
     region.scrollTop = 200
     fireEvent.wheel(content, { deltaY: 40 })

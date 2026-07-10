@@ -158,11 +158,15 @@ export function MessageVirtualList<T>({
   useEffect(() => {
     if (!scrollerElement) return
     const handleWheel = (event: WheelEvent) => {
-      if (!isWheelOwnedByNestedScroller(event, scrollerElement)) onWheel(event)
+      if (isWheelOwnedByNestedScroller(event, scrollerElement)) {
+        takeUserControl(event.target instanceof Element ? event.target : null)
+        return
+      }
+      onWheel(event)
     }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
-  }, [onWheel, scrollerElement])
+  }, [onWheel, scrollerElement, takeUserControl])
 
   // Direct interactions hand the user the viewport immediately, but only an
   // actual scroll signal seeds a scroll gesture. Keeping those concepts separate

@@ -1,5 +1,4 @@
 import { createSlugger, extractTextFromNode, Scrollbar } from '@cherrystudio/ui'
-import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import React, { useMemo } from 'react'
@@ -13,6 +12,7 @@ import type { MessageListItem } from '../types'
 interface MessageOutlineProps {
   message: MessageListItem
   multiModelMessageStyle: MultiModelMessageStyle
+  onNavigateToElement(element: HTMLElement, align: 'start' | 'nearest'): void
 }
 
 interface HeadingItem {
@@ -21,7 +21,7 @@ interface HeadingItem {
   text: string
 }
 
-const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle }) => {
+const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle, onNavigateToElement }) => {
   const messageParts = useMessageParts(message.id)
 
   const headings: HeadingItem[] = useMemo(() => {
@@ -81,7 +81,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
         const scrollBlock = ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 'nearest' : 'start'
-        scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
+        onNavigateToElement(headingElement, scrollBlock)
       }
     }
   }
