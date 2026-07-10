@@ -455,7 +455,9 @@ topicActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   danger: true,
-  availability: ({ topic, topicsLength }) => ({ visible: topicsLength > 1 && !topic.pinned }),
+  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
+  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
+  availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
     title: t('chat.topics.manage.delete.confirm.title'),
     description: t('chat.topics.manage.delete.confirm.content', { count: 1 }),
