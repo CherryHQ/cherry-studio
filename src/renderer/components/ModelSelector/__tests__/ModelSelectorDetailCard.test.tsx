@@ -15,10 +15,10 @@ const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, 
       className?: string
       side?: string
       align?: string
-      collisionBoundary?: HTMLElement | null
+      collisionBoundary?: Element
       collisionPadding?: number
       avoidCollisions?: boolean
-      portalContainer?: HTMLElement | null
+      portalContainer?: DocumentFragment | Element | null
     }>,
     mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
   })
@@ -76,10 +76,10 @@ vi.mock('@cherrystudio/ui', () => ({
     className?: string
     side?: string
     align?: string
-    collisionBoundary?: HTMLElement | null
+    collisionBoundary?: Element
     collisionPadding?: number
     avoidCollisions?: boolean
-    portalContainer?: HTMLElement | null
+    portalContainer?: DocumentFragment | Element | null
   }) => {
     mockHoverCardContentProps.push({
       className,
@@ -260,6 +260,20 @@ describe('ModelSelectorDetailCard', () => {
       collisionBoundary: portalContainer,
       portalContainer
     })
+  })
+
+  it('does not use a document fragment as the collision boundary', () => {
+    const model = makeModel()
+    const portalContainer = document.createDocumentFragment()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({ portalContainer })
+    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
   })
 
   it('renders reasoning options from getModelSupportedReasoningEffortOptions', () => {
