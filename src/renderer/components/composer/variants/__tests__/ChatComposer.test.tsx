@@ -1332,8 +1332,8 @@ describe('ChatComposer', () => {
       })
     })
 
-    // The FileEntry is created at send time: the sent file part carries fileEntryId + a file:// url
-    // + a real MIME, not the raw path / literal extension.
+    // The FileEntry is created at send time: the sent file part carries both file identities,
+    // a file:// URL, and a real MIME instead of the raw path / literal extension.
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/doc.pdf' })
     const sentOptions = onSend.mock.calls[0]?.[1]
     expect(sentOptions?.userMessageParts).toEqual([
@@ -1343,7 +1343,7 @@ describe('ChatComposer', () => {
         url: 'file:///p/fe-1.pdf',
         mediaType: 'application/pdf',
         filename: 'doc.pdf',
-        providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+        providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
       }
     ])
   })
