@@ -456,6 +456,60 @@ describe('MessagePartsRenderer', () => {
     blocks.forEach((b) => expect(b.getAttribute('data-single')).toBe('false'))
   })
 
+  it('hides the duplicate user image when its composer file token is visible', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Look ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-image',
+                    kind: 'file',
+                    label: 'photo.png',
+                    index: 0,
+                    textOffset: 5
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+  })
+
+  it('keeps a user image when no composer file token is visible', () => {
+    renderParts(
+      [
+        { type: 'text', text: 'Look at this' } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+  })
+
   it('skips image parts without url', () => {
     renderParts([{ type: 'file', mediaType: 'image/png' } as unknown as CherryMessagePart])
     expect(screen.queryByTestId('mock-image-block')).toBeNull()
