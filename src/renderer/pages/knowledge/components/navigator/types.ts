@@ -41,7 +41,6 @@ export interface BaseNavigatorGroupSectionProps {
 
 export interface BaseNavigatorSectionTriggerProps {
   label: string
-  itemCount: number
   leadingSlot?: ReactNode
   actionSlot?: ReactNode
 }
@@ -67,7 +66,6 @@ export interface KnowledgeBaseRowProps {
 
 export interface KnowledgeGroupRowProps {
   group: Group
-  itemCount: number
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBase: (groupId: string) => void
   onDeleteGroup: (groupId: string) => Promise<void> | void

@@ -27,13 +27,12 @@ const BaseNavigatorGroupSection = ({
       {group ? (
         <KnowledgeGroupRow
           group={group}
-          itemCount={section.items.length}
           onRenameGroup={onRenameGroup}
           onCreateBase={onCreateBaseInGroup}
           onDeleteGroup={onDeleteGroup}
         />
       ) : (
-        <BaseNavigatorSectionTrigger label={groupLabel} itemCount={section.items.length} />
+        <BaseNavigatorSectionTrigger label={groupLabel} />
       )}
 
       <AccordionContent

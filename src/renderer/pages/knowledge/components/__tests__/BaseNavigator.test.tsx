@@ -554,7 +554,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByText('workspace')).toBeInTheDocument()
   })
 
-  it('places group counts next to their labels inside the trigger', () => {
+  it('does not render item counts next to the group labels', () => {
     render(
       <BaseNavigator
         bases={[
@@ -576,8 +576,8 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(within(screen.getByRole('button', { name: /默认/ })).getByText('1')).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /Research/ })).getByText('1')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /默认/ })).queryByText('1')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /Research/ })).queryByText('1')).not.toBeInTheDocument()
   })
 
   it('keeps the group expand and collapse motion classes attached', () => {
