@@ -117,40 +117,58 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   return binding.join('+')
 }
 
-const getDefaultShortcutPreferenceForRule = (rule: RegisteredKeybindingRule): ResolvedCommandShortcutPreference => {
+const resolvePlatformBinding = (
+  platformBindings: PreferenceShortcutType['platformBindings'] | undefined,
+  platform?: SupportedPlatform
+): ShortcutBinding | undefined => {
+  if (!platform) {
+    return undefined
+  }
+
+  const binding = platformBindings?.[platform]
+  return Array.isArray(binding) ? normalizeShortcutBinding(binding) : undefined
+}
+
+const getDefaultShortcutPreferenceForRule = (
+  rule: RegisteredKeybindingRule,
+  platform?: SupportedPlatform
+): ResolvedCommandShortcutPreference => {
   const fallback = DefaultPreferences.default[rule.preferenceKey]
+  const platformBinding = resolvePlatformBinding(fallback?.platformBindings, platform)
+  const fallbackBinding = fallback?.binding?.length ? normalizeShortcutBinding(fallback.binding) : undefined
 
   return {
-    binding: fallback?.binding?.length ? normalizeShortcutBinding(fallback.binding) : rule.defaultBinding,
+    binding: platformBinding ?? fallbackBinding ?? rule.defaultBinding,
     enabled: typeof fallback?.enabled === 'boolean' ? fallback.enabled : true
   }
 }
 
 export const getCommandDefaultShortcutPreference = (
-  command: CommandId
+  command: CommandId,
+  platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
   if (!rule) {
     return undefined
   }
-  return getDefaultShortcutPreferenceForRule(rule)
+  return getDefaultShortcutPreferenceForRule(rule, platform)
 }
 
 export const resolveCommandShortcutPreference = (
   command: CommandId,
-  preference?: PreferenceShortcutType | null
+  preference?: PreferenceShortcutType | null,
+  platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
   if (!rule) {
     return undefined
   }
 
-  const fallback = getDefaultShortcutPreferenceForRule(rule)
+  const fallback = getDefaultShortcutPreferenceForRule(rule, platform)
+  const preferencePlatformBinding = resolvePlatformBinding(preference?.platformBindings, platform)
   const binding: ShortcutBinding =
     preference != null
-      ? preference.binding?.length
-        ? normalizeShortcutBinding(preference.binding)
-        : []
+      ? (preferencePlatformBinding ?? (preference.binding?.length ? normalizeShortcutBinding(preference.binding) : []))
       : fallback.binding
 
   return {
@@ -170,7 +188,7 @@ export const resolveCommandKeybinding = ({
     return undefined
   }
 
-  const shortcutPreference = resolveCommandShortcutPreference(command, preference)
+  const shortcutPreference = resolveCommandShortcutPreference(command, preference, platform)
   if (!shortcutPreference) {
     return undefined
   }
@@ -234,16 +252,17 @@ export const findKeybindingConflicts = ({
   rules = REGISTERED_KEYBINDINGS
 }: FindKeybindingConflictsOptions): KeybindingConflict[] => {
   const commandRule = rules.find((rule) => rule.command === command)
+  const candidatePreference = resolveCommandShortcutPreference(command, preference, platform)
   if (
     !commandRule ||
-    !preference.enabled ||
-    !preference.binding.length ||
+    !candidatePreference?.enabled ||
+    !candidatePreference.binding.length ||
     !isPlatformSupported(commandRule, platform)
   ) {
     return []
   }
 
-  const candidateBinding = normalizeShortcutBinding(preference.binding)
+  const candidateBinding = normalizeShortcutBinding(candidatePreference.binding)
   const candidateTriggers = getTriggerBindings(candidateBinding, commandRule.additionalBindings)
   const preferenceLookup = {
     ...preferences,
@@ -268,7 +287,11 @@ export const findKeybindingConflicts = ({
       continue
     }
 
-    const conflictingPreference = resolveCommandShortcutPreference(rule.command, preferenceLookup[rule.command])
+    const conflictingPreference = resolveCommandShortcutPreference(
+      rule.command,
+      preferenceLookup[rule.command],
+      platform
+    )
     if (!conflictingPreference?.enabled || !conflictingPreference.binding.length) {
       continue
     }

@@ -1,3 +1,4 @@
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
 import { describe, expect, it } from 'vitest'
 
@@ -76,6 +77,14 @@ describe('command definitions', () => {
       defaultBinding: ['CommandOrControl', '-'],
       additionalBindings: [['CommandOrControl', 'numsub']]
     })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.next')).toMatchObject({
+      command: 'tab.next',
+      defaultBinding: ['CommandOrControl', 'Tab']
+    })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.prev')).toMatchObject({
+      command: 'tab.prev',
+      defaultBinding: ['CommandOrControl', 'Shift', 'Tab']
+    })
   })
 
   it('resolves commands by id', () => {
@@ -133,6 +142,37 @@ describe('command shortcut preferences', () => {
       enabled: false
     })
   })
+
+  it('uses platform-specific defaults when a shortcut default differs by platform', () => {
+    expect(getCommandDefaultShortcutPreference('tab.next', 'darwin')).toEqual({
+      binding: ['Ctrl', 'Tab'],
+      enabled: true
+    })
+    expect(getCommandDefaultShortcutPreference('tab.prev', 'darwin')).toEqual({
+      binding: ['Ctrl', 'Shift', 'Tab'],
+      enabled: true
+    })
+    expect(getCommandDefaultShortcutPreference('tab.next', 'win32')).toEqual({
+      binding: ['CommandOrControl', 'Tab'],
+      enabled: true
+    })
+  })
+
+  it('uses platform bindings carried by default preferences without overriding user shortcuts', () => {
+    expect(
+      resolveCommandKeybinding({
+        command: 'tab.next',
+        preference: DefaultPreferences.default['shortcut.tab.next'],
+        context: {},
+        platform: 'darwin'
+      })?.binding
+    ).toEqual(['Ctrl', 'Tab'])
+
+    expect(resolveCommandShortcutPreference('tab.next', { binding: ['Alt', 'J'], enabled: true }, 'darwin')).toEqual({
+      binding: ['Alt', 'J'],
+      enabled: true
+    })
+  })
 })
 
 describe('resolveCommandKeybinding', () => {
@@ -145,6 +185,24 @@ describe('resolveCommandKeybinding', () => {
 
     expect(resolved?.binding).toEqual(['CommandOrControl', 'N'])
     expect(resolved?.accelerator).toBe('CommandOrControl+N')
+  })
+
+  it('resolves tab navigation to control-tab on macOS', () => {
+    expect(
+      resolveCommandKeybinding({
+        command: 'tab.next',
+        context: {},
+        platform: 'darwin'
+      })?.binding
+    ).toEqual(['Ctrl', 'Tab'])
+
+    expect(
+      resolveCommandKeybinding({
+        command: 'tab.prev',
+        context: {},
+        platform: 'darwin'
+      })?.binding
+    ).toEqual(['Ctrl', 'Shift', 'Tab'])
   })
 
   it('uses user preference when provided', () => {
@@ -222,6 +280,53 @@ describe('resolveCommandByKeybinding', () => {
         scope: 'main'
       })
     ).toBe('app.zoom.in')
+  })
+
+  it('uses platform-specific defaults when resolving pressed keys', () => {
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['Ctrl', 'Tab'],
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBe('tab.next')
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Tab'],
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBeUndefined()
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Tab'],
+        context: {},
+        platform: 'win32',
+        scope: 'renderer'
+      })
+    ).toBe('tab.next')
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['Ctrl', 'Shift', 'Tab'],
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBe('tab.prev')
+
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Shift', 'Tab'],
+        context: {},
+        platform: 'win32',
+        scope: 'renderer'
+      })
+    ).toBe('tab.prev')
   })
 
   it('does not resolve disabled, cleared, unsupported, or unavailable commands', () => {
@@ -374,9 +479,31 @@ describe('findKeybindingConflicts', () => {
     ])
   })
 
+  it('checks candidate shortcuts with platform-specific default bindings', () => {
+    expect(
+      findKeybindingConflicts({
+        command: 'tab.next',
+        preference: DefaultPreferences.default['shortcut.tab.next'],
+        preferences: { 'topic.create': { binding: ['Ctrl', 'Tab'], enabled: true } },
+        platform: 'darwin',
+        rules: [
+          testRule('tab.next', { defaultBinding: ['CommandOrControl', 'Tab'] }),
+          testRule('topic.create', { defaultBinding: ['Ctrl', 'Tab'] })
+        ]
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'tab.next',
+        conflictingCommand: 'topic.create',
+        binding: ['Ctrl', 'Tab'],
+        conflictingBinding: ['Ctrl', 'Tab']
+      })
+    ])
+  })
+
   it('keeps default registered keybindings free of hard conflicts', () => {
     for (const rule of REGISTERED_KEYBINDINGS) {
-      const preference = getCommandDefaultShortcutPreference(rule.command)
+      const preference = getCommandDefaultShortcutPreference(rule.command, 'darwin')
       if (!preference) continue
 
       expect(

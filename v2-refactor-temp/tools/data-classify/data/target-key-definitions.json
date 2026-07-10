@@ -512,6 +512,46 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Tab"
+        ],
+        "enabled": true,
+        "platformBindings": {
+          "darwin": [
+            "Ctrl",
+            "Tab"
+          ]
+        }
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "Tab"
+        ],
+        "enabled": true,
+        "platformBindings": {
+          "darwin": [
+            "Ctrl",
+            "Shift",
+            "Tab"
+          ]
+        }
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.prev (unified command system)"
+    },
+    {
       "targetKey": "menu.presentation_mode",
       "type": "PreferenceTypes.MenuPresentationMode",
       "defaultValue": "cherry",

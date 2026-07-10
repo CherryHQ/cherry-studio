@@ -457,6 +457,10 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.selection.toggle': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.tab.next': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.tab.prev': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.topic.create': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.topic.rename': PreferenceTypes.PreferenceShortcutType
@@ -735,6 +739,16 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.quick_assistant.toggle': { binding: ['CommandOrControl', 'E'], enabled: false },
     'shortcut.selection.capture_text': { binding: [], enabled: false },
     'shortcut.selection.toggle': { binding: [], enabled: false },
+    'shortcut.tab.next': {
+      binding: ['CommandOrControl', 'Tab'],
+      enabled: true,
+      platformBindings: { darwin: ['Ctrl', 'Tab'] }
+    },
+    'shortcut.tab.prev': {
+      binding: ['CommandOrControl', 'Shift', 'Tab'],
+      enabled: true,
+      platformBindings: { darwin: ['Ctrl', 'Shift', 'Tab'] }
+    },
     'shortcut.topic.create': { binding: ['CommandOrControl', 'N'], enabled: true },
     'shortcut.topic.rename': { binding: ['CommandOrControl', 'T'], enabled: false },
     'shortcut.topic.sidebar.toggle': { binding: ['CommandOrControl', ']'], enabled: true },

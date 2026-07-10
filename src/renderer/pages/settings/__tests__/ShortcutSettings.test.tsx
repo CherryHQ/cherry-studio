@@ -1,5 +1,6 @@
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -16,6 +17,7 @@ const shortcutsMock = vi.hoisted(() => ({
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () => void) => callback()))
 const clearTimeoutTimerMock = vi.hoisted(() => vi.fn())
 const registrationConflictMock = vi.hoisted(() => vi.fn(() => vi.fn()))
+const preferenceServiceSetMultipleMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -57,6 +59,12 @@ vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
     shortcuts: shortcutsMock.shortcuts,
     updatePreference: shortcutsMock.updatePreference
   })
+}))
+
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    setMultiple: preferenceServiceSetMultipleMock
+  }
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
@@ -120,9 +128,26 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
-  const command: CommandId = 'app.search'
+const makeShortcut = ({
+  command = 'app.search',
+  binding = [],
+  enabled = binding.length > 0,
+  defaultPreference = { binding: [], enabled: false },
+  preferenceValue,
+  defaultPreferenceValue = defaultPreference
+}: {
+  command?: CommandId
+  binding?: ShortcutBinding
+  enabled?: boolean
+  defaultPreference?: PreferenceShortcutType
+  preferenceValue?: PreferenceShortcutType
+  defaultPreferenceValue?: PreferenceShortcutType
+} = {}): ShortcutListItem => {
   const key = commandShortcutPreferenceKey(command)
+  const preference = {
+    binding,
+    enabled
+  }
 
   return {
     command,
@@ -135,14 +160,10 @@ const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
       preferenceKey: key,
       defaultBinding: ['CommandOrControl', 'Shift', 'F']
     },
-    preference: {
-      binding,
-      enabled: binding.length > 0
-    },
-    defaultPreference: {
-      binding: [],
-      enabled: false
-    }
+    preference,
+    preferenceValue: preferenceValue ?? preference,
+    defaultPreference,
+    defaultPreferenceValue
   }
 }
 
@@ -158,6 +179,8 @@ describe('ShortcutSettings shortcut recorder', () => {
     shortcutsMock.shortcuts = [makeShortcut()]
     shortcutsMock.updatePreference.mockReset()
     shortcutsMock.updatePreference.mockResolvedValue(undefined)
+    preferenceServiceSetMultipleMock.mockReset()
+    preferenceServiceSetMultipleMock.mockResolvedValue(undefined)
     setTimeoutTimerMock.mockClear()
     clearTimeoutTimerMock.mockClear()
     registrationConflictMock.mockClear()
@@ -207,5 +230,77 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.keyDown(recorder, { key: 'Process', code: 'KeyK', ctrlKey: true, bubbles: true })
 
     expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+  })
+
+  it('resets a platform-specific default shortcut without dropping platform bindings', async () => {
+    const defaultPreferenceValue: PreferenceShortcutType = {
+      binding: ['CommandOrControl', 'Tab'],
+      enabled: true,
+      platformBindings: { darwin: ['Ctrl', 'Tab'] }
+    }
+    shortcutsMock.shortcuts = [
+      makeShortcut({
+        command: 'tab.next',
+        binding: ['CommandOrControl', 'Alt', 'Tab'],
+        enabled: true,
+        defaultPreference: {
+          binding: ['Ctrl', 'Tab'],
+          enabled: true
+        },
+        preferenceValue: {
+          binding: ['CommandOrControl', 'Alt', 'Tab'],
+          enabled: true
+        },
+        defaultPreferenceValue
+      })
+    ]
+
+    const { container } = renderShortcutSettings()
+
+    const resetButton = container.querySelector('.shortcut-undo-icon')
+    expect(resetButton).not.toBeNull()
+    fireEvent.click(resetButton as Element)
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', defaultPreferenceValue)
+    })
+  })
+
+  it('bulk toggles shortcuts using the full persisted preference shape', async () => {
+    shortcutsMock.shortcuts = [
+      makeShortcut({
+        command: 'tab.next',
+        binding: ['Ctrl', 'Tab'],
+        enabled: true,
+        defaultPreference: {
+          binding: ['Ctrl', 'Tab'],
+          enabled: true
+        },
+        preferenceValue: {
+          binding: ['CommandOrControl', 'Tab'],
+          enabled: true,
+          platformBindings: { darwin: ['Ctrl', 'Tab'] }
+        },
+        defaultPreferenceValue: {
+          binding: ['CommandOrControl', 'Tab'],
+          enabled: true,
+          platformBindings: { darwin: ['Ctrl', 'Tab'] }
+        }
+      })
+    ]
+
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.all_disable' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.tab.next': {
+          binding: ['CommandOrControl', 'Tab'],
+          enabled: false,
+          platformBindings: { darwin: ['Ctrl', 'Tab'] }
+        }
+      })
+    })
   })
 })
