@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
@@ -73,7 +74,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
   const handleFetch = useCallback(async () => {
     if (!token.trim()) {
-      window.toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
+      toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
       return
     }
 
@@ -85,13 +86,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
       if (result.success) {
         setAllServers({ ...allServers, [provider.key]: result.allServers })
-        window.toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
+        toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
-        window.toast.error(result.message)
+        toast.error(result.message)
       }
     } catch (error: any) {
       logger.error('Failed to fetch MCP servers', error)
-      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
     } finally {
       setIsFetching(false)
     }
@@ -190,9 +191,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                         if (!isAlreadyAdded) {
                           try {
                             await addMcpServer(toCreateMcpServerDto(server))
-                            window.toast.success(t('settings.mcp.addSuccess'))
+                            toast.success(t('settings.mcp.addSuccess'))
                           } catch {
-                            window.toast.error(t('settings.mcp.addError'))
+                            toast.error(t('settings.mcp.addError'))
                           }
                         }
                       }}>

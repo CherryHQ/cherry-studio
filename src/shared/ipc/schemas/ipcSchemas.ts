@@ -6,9 +6,11 @@ import { cherryinRequestSchemas } from './cherryin'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { miniAppRequestSchemas } from './miniApp'
 import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
+import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
@@ -30,9 +32,11 @@ export const ipcRequestSchemas = {
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...localModelRequestSchemas,
   ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
+  ...printRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,
   ...selectionRequestSchemas,
@@ -51,6 +55,7 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
+  LocalModelEventSchemas &
   OAuthEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas

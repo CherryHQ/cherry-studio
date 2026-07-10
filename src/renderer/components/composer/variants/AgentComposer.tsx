@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
@@ -34,10 +34,11 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -46,15 +47,19 @@ import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
+import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -94,6 +99,44 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+
+const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
+  const filePath = canonicalizeAbsolutePath(attachment.path) as FilePath
+  const metadataById = await ipcApi.request('file.batch_get_metadata', {
+    items: [{ key: filePath, handle: createFilePathHandle(filePath) }]
+  })
+  const metadata = metadataById[filePath]
+  if (!metadata || metadata.kind !== 'file') {
+    throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
+  }
+
+  return {
+    type: 'file',
+    url: toFileUrl(filePath),
+    mediaType: metadata.mime,
+    filename: attachment.origin_name || attachment.name
+  }
+}
+
+const buildAgentFilePartsForAttachments = (
+  attachments: ComposerAttachment[],
+  accessiblePaths: readonly string[]
+): Promise<FileUIPart[]> => {
+  return Promise.all(
+    attachments.map((attachment) =>
+      isPathWithinAccessiblePath(attachment.path, accessiblePaths)
+        ? buildAccessiblePathFilePart(attachment)
+        : buildFilePartsForAttachments([attachment]).then((fileParts) => {
+            const [filePart] = fileParts
+            if (!filePart) {
+              throw new Error(`Failed to build file part for attachment: ${attachment.path}`)
+            }
+            return filePart
+          })
+    )
+  )
+}
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -173,17 +216,19 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (sessionLayout === 'classic' && onCreateEmptySession) {
+    if (isClassicSessionLayout && onCreateEmptySession) {
       void onCreateEmptySession()
       return
     }
 
     void onNewSessionDraft?.()
-  }, [onCreateEmptySession, onNewSessionDraft, sessionLayout])
-  const hasNewSessionShortcutAction =
-    sessionLayout === 'classic' ? Boolean(onCreateEmptySession || onNewSessionDraft) : Boolean(onNewSessionDraft)
+  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
+  const hasNewSessionShortcutAction = isClassicSessionLayout
+    ? Boolean(onCreateEmptySession || onNewSessionDraft)
+    : Boolean(onNewSessionDraft)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -455,6 +500,7 @@ const AgentComposerWorkspaceControl = ({
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
@@ -462,23 +508,63 @@ const AgentComposerWorkspaceControl = ({
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
+  const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
   const trigger = (
     <Button
       variant="ghost"
       size="sm"
+      type="button"
       className={cn(
         baseTriggerClassName,
+        !menuOpen && 'group',
+        'relative',
         iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
-      aria-label={workspaceWarning}>
+      aria-label={workspaceWarning}
+      onClick={(event) => {
+        const target = event.target as Element | null
+        if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        if (!workspaceChanging) void onWorkspaceChange?.(null)
+      }}>
       {hasWarning ? (
         <TriangleAlert size={14} aria-hidden />
       ) : isSystemWorkspace ? (
         <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
       ) : (
-        <Folder size={14} aria-hidden className="text-muted-foreground" />
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          <Folder
+            size={14}
+            aria-hidden
+            className={cn(
+              'shrink-0 text-muted-foreground transition-all duration-200',
+              canQuickClearWorkspace && !menuOpen && 'group-hover:scale-75 group-hover:opacity-0'
+            )}
+          />
+          {canQuickClearWorkspace && (
+            <NormalTooltip content={t('agent.session.workspace_selector.no_project')} side="top">
+              <span
+                data-clear-workspace-button
+                data-testid="clear-workspace-button"
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
+                  workspaceChanging && 'cursor-not-allowed opacity-50'
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}>
+                <X size={10} className="stroke-[2.5]" />
+              </span>
+            </NormalTooltip>
+          )}
+        </span>
       )}
       <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
       {onWorkspaceChange ? (
@@ -495,6 +581,8 @@ const AgentComposerWorkspaceControl = ({
       mountStrategy="lazy-keep"
       disabled={workspaceChanging}
       trigger={trigger}
+      open={menuOpen}
+      onOpenChange={setMenuOpen}
     />
   ) : (
     trigger
@@ -672,7 +760,8 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -693,7 +782,7 @@ const AgentComposerInner = ({
   const textRef = useRef(text)
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const accessiblePaths = sessionData?.accessiblePaths ?? []
+  const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableMentionModelTrigger = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
@@ -836,7 +925,7 @@ const AgentComposerInner = ({
 
     const label = t('agent.session.new')
 
-    if (sessionLayout === 'classic') {
+    if (isClassicSessionLayout) {
       if (!onCreateEmptySession) return []
 
       return [
@@ -867,7 +956,7 @@ const AgentComposerInner = ({
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, onNewSessionDraft, sessionLayout, t])
+  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -913,12 +1002,10 @@ const AgentComposerInner = ({
     [availableSkills, draftCacheKey, reconcileTokens]
   )
 
-  const placeholderText = useMemo(() => {
-    if (isSoulModeEnabled(agentBase?.configuration)) return t('agent.input.soul_placeholder')
-    return t('agent.input.placeholder', {
-      key: getSendMessageShortcutLabel(sendMessageShortcut)
-    })
-  }, [agentBase?.configuration, sendMessageShortcut, t])
+  const placeholderText = useMemo(
+    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
+    [sendMessageShortcut, t]
+  )
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
@@ -930,7 +1017,7 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
-        const fileParts = await buildFilePartsForAttachments(attachments)
+        const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
@@ -942,7 +1029,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -969,7 +1056,7 @@ const AgentComposerInner = ({
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -987,11 +1074,11 @@ const AgentComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
       if (workspaceWarning) {
-        window.toast?.error(workspaceWarning)
+        toast.error(workspaceWarning)
         return
       }
       const payload = buildQueuedPayload(draft)
@@ -1020,7 +1107,7 @@ const AgentComposerInner = ({
           setDraftTokens(previousDraftTokens)
           draftTokensRef.current = previousDraftTokens
           writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          window.toast?.error(t('chat.input.send_failed'))
+          toast.error(t('chat.input.send_failed'))
         }
       })
     },
@@ -1073,7 +1160,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1119,7 +1206,7 @@ const AgentComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1180,7 +1267,8 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1201,7 +1289,7 @@ const MissingAgentHomeComposerInner = ({
     [onAgentChange, text]
   )
   const handleBlockedSend = useCallback(() => {
-    window.toast?.error(selectAgentMessage)
+    toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
@@ -1214,7 +1302,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

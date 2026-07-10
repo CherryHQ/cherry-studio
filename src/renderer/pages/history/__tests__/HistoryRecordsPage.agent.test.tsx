@@ -121,17 +121,27 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Popups/ObsidianExportPopup', () => ({
+vi.mock('@renderer/components/ObsidianExportPopup', () => ({
   default: { show: vi.fn() }
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: { show: hookMocks.promptShow }
 }))
 
-vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
+vi.mock('@renderer/components/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
+
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed).
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
@@ -163,7 +173,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
-        'agent.session.edit.title': 'Edit task',
+        'agent.session.edit.title': 'Edit task name',
         'agent.session.pin.title': 'Pin task',
         'agent.session.update.error.failed': 'Failed to update task',
         'agent.session.unpin.title': 'Unpin task',
@@ -319,17 +329,8 @@ function setupAgentHistory({
 describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn()
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     MockCacheUtils.resetMocks()
+    confirmActionShow.mockClear()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
     hookMocks.deleteSessions.mockReset()
@@ -783,7 +784,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(menuContent ?? null).toBeInTheDocument()
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Rename',
+      'Edit task name',
       'Pin task',
       '',
       'Delete'
@@ -798,7 +799,10 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual(['Rename', 'Unpin task'])
+    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
+      'Edit task name',
+      'Unpin task'
+    ])
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
@@ -807,7 +811,7 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit task name' }))
       await flushAnimationFrame()
     })
 
@@ -817,7 +821,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Edit task')
+    expect(dialog).toHaveTextContent('Edit task name')
     const input = within(dialog).getByLabelText('Name')
     expect(hookMocks.updateSession).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
@@ -914,12 +918,9 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
-    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
+    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -940,9 +941,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -961,9 +960,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 

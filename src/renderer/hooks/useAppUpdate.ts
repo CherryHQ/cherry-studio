@@ -1,19 +1,24 @@
 import { useCache } from '@data/hooks/useCache'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
 import { notificationService } from '@renderer/services/notification'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export const useAppUpdateState = () => {
   const [appUpdateState, setAppUpdateState] = useCache('app.dist.update_state')
 
-  const updateAppUpdateState = (state: Partial<CacheAppUpdateState>) => {
-    setAppUpdateState({ ...appUpdateState, ...state })
-  }
+  const updateAppUpdateState = useCallback(
+    (state: Partial<CacheAppUpdateState>) => {
+      setAppUpdateState((previous) => ({ ...previous, ...state }))
+    },
+    [setAppUpdateState]
+  )
 
   return {
     appUpdateState,
@@ -21,12 +26,14 @@ export const useAppUpdateState = () => {
   }
 }
 
-//TODO: 这个函数是从useUpdateHandler中复制过来的，是v2数据重构时调整的，但这个函数本身需要重构和优化（并不需要用在use中）。by fullex
+// REFACTOR(window-runtime-init): copied from the old useUpdateHandler and adjusted
+// during the v2 data refactor — but it should NOT be a React hook at all. It is a
+// main-only IPC->notification subscriber (twin of useStorageMonitorNotification) and
+// belongs in a notification/service layer, not the window render tree. — fullex
 export function useAppUpdateHandler() {
   const { t } = useTranslation()
-  const { updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
   // notificationService is imported as a module-level singleton
-  const { appUpdateState } = useAppUpdateState()
   const manualCheckRef = useRef(appUpdateState.manualCheck)
 
   // Keep ref in sync with current state
@@ -42,8 +49,9 @@ export function useAppUpdateHandler() {
     const removers = [
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
         updateAppUpdateState({ checking: false, manualCheck: false })
-        if (window.location.hash.includes('settings/about')) {
-          window.toast.success(t('settings.about.updateNotAvailable'))
+        // Only surface the "already up to date" result for a user-initiated check.
+        if (manualCheckRef.current) {
+          toast.success(t('settings.about.updateNotAvailable'))
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
@@ -79,15 +87,17 @@ export function useAppUpdateHandler() {
           void UpdateDialogPopup.show({ releaseInfo })
         }
       }),
-      ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
+      ipcRenderer.on(IpcChannel.UpdateError, (_, error?: Error) => {
         updateAppUpdateState({
           checking: false,
           downloading: false,
           downloadProgress: 0,
           manualCheck: false
         })
-        if (window.location.hash.includes('settings/about')) {
-          window.modal.info({
+        // AppUpdaterService swallows updater failures after broadcasting UpdateError, so
+        // AboutSettings.onCheckUpdate never sees them — surface it here for manual checks.
+        if (manualCheckRef.current) {
+          void popup.info({
             title: t('settings.about.updateError'),
             content: error?.message || t('settings.about.updateError'),
             icon: null

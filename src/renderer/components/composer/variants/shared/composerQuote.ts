@@ -16,7 +16,6 @@ export const createQuoteToken = (selectedText: string, label: string): ComposerD
 
 interface QuoteInsertionActions {
   insertToken: (token: ComposerDraftToken) => void
-  toggleExpanded: (nextState?: boolean) => void
 }
 
 /**
@@ -30,8 +29,6 @@ export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actio
   const insertQuote = useEffectEvent((selectedText: string) => {
     if (!selectedText) return
     actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
-    // Reveal the composer so the freshly inserted quote is visible even when collapsed.
-    actionsRef.current.toggleExpanded(true)
   })
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { toast } from '@renderer/services/toast'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -297,7 +298,7 @@ export default function ProviderEditorDrawer({
       await onSubmit(payload)
     } catch (error) {
       logger.error('Provider editor submit failed', error as Error)
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
     } finally {
       setIsSubmitting(false)
     }

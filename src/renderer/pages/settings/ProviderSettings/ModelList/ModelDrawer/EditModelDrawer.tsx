@@ -9,8 +9,10 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -207,7 +209,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSave = useCallback(
     (overrides?: BuildPatchOverrides) => {
       void handleUpdateModel(buildPatch(overrides)).catch(() => {
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [buildPatch, handleUpdateModel, t]
@@ -259,18 +261,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const { modelId } = parseUniqueModelId(model.id)
 
-    window.modal.confirm({
+    const deleted = await ConfirmActionPopup.show({
       title: t('common.delete_confirm'),
       content: t('settings.models.manage.remove_model'),
-      okButtonProps: { danger: true },
+      danger: true,
       okText: t('common.delete'),
-      centered: true,
-      onOk: async () => {
-        await deleteModel(model.providerId ?? providerId, modelId)
-        window.toast.success(t('common.delete_success'))
-        onClose()
-      }
+      action: () => deleteModel(model.providerId ?? providerId, modelId)
     })
+    if (!deleted) return
+
+    toast.success(t('common.delete_success'))
+    onClose()
   }, [deleteModel, model, onClose, providerId, t])
 
   if (!provider || !model) {
@@ -328,7 +329,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   className={fieldClasses.iconButton}
                   onClick={() => {
                     void navigator.clipboard.writeText(apiModelId)
-                    window.toast.success(t('message.copied'))
+                    toast.success(t('message.copied'))
                   }}>
                   <CopyIcon size={14} />
                 </button>

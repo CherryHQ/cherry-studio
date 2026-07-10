@@ -90,6 +90,7 @@ const providerKeyMap = {
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
   zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding',
   opencode: 'provider.opencode'
 } as const
 
@@ -185,7 +186,7 @@ export const getThemeModeLabelKey = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
-  assistants: 'agent.session.group.conversation',
+  assistants: 'title.chat',
   agents: 'title.work',
   paintings: 'title.paintings',
   translate: 'translate.title',

@@ -1302,8 +1302,10 @@ describe('AssistantDataService', () => {
         { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
       ])
 
-      assistantDataService.delete('ast-1', { deleteTopics: true })
+      const result = assistantDataService.delete('ast-1', { deleteTopics: true })
 
+      expect(result.deleted).toBe(true)
+      expect(result.deletedTopicIds).toEqual(['topic-1'])
       const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       expect(assistantRows[0].deletedAt).toBeTruthy()
       const topicRows = await dbh.db.select().from(topicTable)

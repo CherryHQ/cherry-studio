@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -362,7 +363,6 @@ describe('ModelSelector', () => {
       return 1
     })
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
-    Object.assign(window, { toast: { error: vi.fn() } })
   })
 
   afterEach(() => {
@@ -379,7 +379,7 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getAllByLabelText('models.action.pin')[0])
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('common.error'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.error'))
     expect(mockLoggerError).toHaveBeenCalledWith('Failed to toggle model pin', expect.any(Error), {
       modelId: 'openai::gpt-4'
     })

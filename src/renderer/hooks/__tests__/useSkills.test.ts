@@ -3,19 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const toggleSkillMock = vi.hoisted(() => vi.fn())
 const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
-const toastErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
 }))
 
+import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
@@ -59,45 +58,26 @@ describe('useInstalledSkills', () => {
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    toggleSkillMock.mockImplementation(async ({ skillId, isEnabled }) => ({
-      success: true,
-      data: createSkill({ id: skillId, isEnabled, updatedAt: '2024-01-02T00:00:00.000Z' })
-    }))
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     vi.stubGlobal('api', {
       skill: {
-        toggle: toggleSkillMock,
         uninstall: uninstallSkillMock,
         listLocal: listLocalSkillsMock
       }
     })
-    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('reads skills with DataApi and toggles agent skill through IPC', async () => {
+  it('reads skills with DataApi scoped to the agent', () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
     expect(result.current.skills).toHaveLength(2)
-    expect(useQueryMock).toHaveBeenCalledWith('/skills', { query: { agentId: 'agent-1' } })
-
-    let toggleSuccess = false
-    await act(async () => {
-      toggleSuccess = await result.current.toggle('skill-1', true)
-    })
-
-    expect(toggleSuccess).toBe(true)
-    expect(toggleSkillMock).toHaveBeenCalledWith({
-      agentId: 'agent-1',
-      skillId: 'skill-1',
-      isEnabled: true
-    })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+    expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
@@ -127,33 +107,14 @@ describe('useInstalledSkills', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
-  it('does not toggle when no agent context is provided', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let toggleSuccess = true
-    await act(async () => {
-      toggleSuccess = await result.current.toggle('skill-1', true)
-    })
-
-    expect(toggleSuccess).toBe(false)
-    expect(toggleSkillMock).not.toHaveBeenCalled()
-    expect(invalidateMock).not.toHaveBeenCalled()
-  })
-
-  it('logs, toasts, and rethrows toggle and uninstall failures', async () => {
+  it('logs, toasts, and rethrows uninstall failures', async () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
-
-    toggleSkillMock.mockRejectedValueOnce(new Error('toggle failed'))
-    await act(async () => {
-      await expect(result.current.toggle('skill-1', true)).rejects.toThrow('toggle failed')
-    })
-    expect(toastErrorMock).toHaveBeenCalledWith('toggle failed')
 
     uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
     await act(async () => {
       await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('uninstall failed')
+    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {
@@ -233,7 +194,6 @@ describe('useSkillInstall', () => {
         installFromDirectory: installSkillFromDirectoryMock
       }
     })
-    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
@@ -334,13 +294,13 @@ describe('useSkillInstall', () => {
     await act(async () => {
       await expect(result.current.installFromZip('/tmp/bad.zip')).rejects.toThrow('zip failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('zip failed')
+    expect(toast.error).toHaveBeenCalledWith('zip failed')
 
     installSkillFromDirectoryMock.mockResolvedValueOnce({ success: false, error: 'directory failed' })
     await act(async () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
+    expect(toast.error).toHaveBeenCalledWith('directory failed')
   })
 })
 

@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -22,9 +23,9 @@ const mocks = vi.hoisted(() => ({
   setSelectedKnowledgeBases: vi.fn(),
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
-  toastError: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
+  toggleExpanded: vi.fn(),
   getDraft: vi.fn(),
   reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
@@ -111,7 +112,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
         },
-        toggleExpanded: vi.fn(),
+        toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         getDraft: mocks.getDraft
@@ -383,7 +384,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'topic.layout': mocks.topicLayout
+      'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
   }
@@ -562,9 +563,9 @@ describe('ChatComposer', () => {
     )
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
-    mocks.toastError.mockReset()
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
+    mocks.toggleExpanded.mockReset()
     mocks.getDraft.mockReset()
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
     mocks.reconcileTokens.mockReset()
@@ -636,10 +637,6 @@ describe('ChatComposer', () => {
           on: mocks.ipcOn
         }
       }
-    })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: { error: mocks.toastError }
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -765,6 +762,7 @@ describe('ChatComposer', () => {
         promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
       })
     )
+    expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
@@ -970,6 +968,17 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
+  it('keeps the assistant selector available in classic layout when no assistant is selected', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistant = undefined
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} onDraftAssistantChange={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
+  })
+
   it('keeps the assistant switcher in the toolbar in the modern layout', () => {
     mocks.topicLayout = 'modern'
 
@@ -1086,7 +1095,7 @@ describe('ChatComposer', () => {
         mentionedModels: undefined
       })
     )
-    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
@@ -1099,7 +1108,7 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select assistant 2'))
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('button.select_assistant')
+    expect(toast.error).toHaveBeenCalledWith('button.select_assistant')
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-missing', { assistantId: 'assistant-2' })
     expect(mocks.setDefaultModel).not.toHaveBeenCalled()
   })
@@ -1137,7 +1146,7 @@ describe('ChatComposer', () => {
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
   it('queues a follow-up while the topic is streaming (does not send directly)', async () => {
@@ -1175,7 +1184,7 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
@@ -1190,7 +1199,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toHaveLength(1)
-    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
@@ -1219,7 +1228,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toEqual([syncedFile, unsyncedFile])
-    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
@@ -1242,7 +1251,7 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('keeps the current draft when sending a new message fails', async () => {
@@ -2454,7 +2463,7 @@ describe('ChatComposer', () => {
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
-    expect(mocks.toastError).not.toHaveBeenCalledWith('message.error.operation_unavailable')
+    expect(toast.error).not.toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('does not fork and resend an edited draft while only some attached file tokens are reflected in the editor', async () => {
@@ -2507,7 +2516,7 @@ describe('ChatComposer', () => {
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
-    expect(mocks.toastError).not.toHaveBeenCalledWith('message.error.operation_unavailable')
+    expect(toast.error).not.toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('keeps editing when the edited message fork and resend fails', async () => {
@@ -2537,7 +2546,7 @@ describe('ChatComposer', () => {
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
-    expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('keeps editing and errors out when buildEditedMessageParts fails (e.g. attachment builder rejects)', async () => {
@@ -2600,7 +2609,7 @@ describe('ChatComposer', () => {
 
     expect(forkAndResend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
-    expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('does not auto-enable assistant knowledge bases and keeps manual deletion', async () => {

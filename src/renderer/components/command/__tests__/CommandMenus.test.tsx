@@ -514,17 +514,31 @@ describe('CommandContextMenu', () => {
     expect(firstSelect).not.toHaveBeenCalled()
   })
 
-  it('keeps lazy cherry menus mounted when static items are empty', async () => {
+  it('keeps lazy cherry menus mounted without rendering empty content when static items are empty', async () => {
     preferenceValues['menu.presentation_mode'] = 'cherry'
     const getExtraItems = vi.fn().mockResolvedValue([])
 
-    renderMenu({ location: 'webcontents.context', getExtraItems })
+    renderMenu({ location: 'chat.message.context', getExtraItems })
     await act(async () => {
       fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
       await Promise.resolve()
     })
 
     expect(getExtraItems).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('menu-content')).not.toBeInTheDocument()
+  })
+
+  it('renders cherry menu content when a lazy resolver returns extra items', async () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    renderMenu({
+      location: 'chat.message.context',
+      getExtraItems: () => [{ type: 'item', id: 'tool:fresh', label: 'Fresh Tool', onSelect: vi.fn() }]
+    })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    expect(await screen.findByText('Fresh Tool')).toBeInTheDocument()
+    expect(screen.getByTestId('menu-content')).toBeInTheDocument()
   })
 
   it('renders async extra items in cherry mode', async () => {

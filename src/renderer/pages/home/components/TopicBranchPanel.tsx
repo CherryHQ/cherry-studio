@@ -11,6 +11,7 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, GitBranch } from 'lucide-react'
@@ -120,7 +121,7 @@ const TopicBranchPanel: FC<Props> = ({
           return
         }
         logger.error('Failed to set active branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [activeDraftAnchorId, graph.nodes, onCancelBranchDraft, onLocateMessage, refetch, setActiveNode, t, topicId]
@@ -140,14 +141,14 @@ const TopicBranchPanel: FC<Props> = ({
 
       try {
         await onStartBranchDraft(messageId)
-        window.toast.success(t('chat.message.new.branch.created'))
+        toast.success(t('chat.message.new.branch.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('startMessageBranch from topic flow on missing message', { messageId, topicId })
           return
         }
         logger.error('Failed to start message branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [graph.activeNodeId, graph.nodes, onStartBranchDraft, t, topicId]
@@ -160,14 +161,14 @@ const TopicBranchPanel: FC<Props> = ({
           params: { id: topicId },
           body: { nodeId: messageId }
         })
-        window.toast.success(t('chat.message.flow.copy_topic.created'))
+        toast.success(t('chat.message.flow.copy_topic.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('copyBranchToNewTopic from topic flow on missing message', { messageId, topicId })
           return
         }
         logger.error('Failed to copy topic branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [copyBranchToNewTopic, t, topicId]
@@ -241,7 +242,7 @@ const TopicBranchPanel: FC<Props> = ({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
         {topicName && (
           <>

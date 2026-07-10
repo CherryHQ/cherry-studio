@@ -12,6 +12,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { toast } from '@renderer/services/toast'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
@@ -88,7 +89,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
       await window.api.file.openPath(workdir)
       setLastUsedTarget(FILE_MANAGER_TARGET)
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: workdir })))
+      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: workdir })))
     }
   }, [setLastUsedTarget, t, workdir])
 
@@ -97,7 +98,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
     try {
       await window.api.file.showInFolder(fileTargetPath)
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
+      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
     }
   }, [fileTargetPath, t])
 
@@ -106,7 +107,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
     try {
       await window.api.file.openPath(fileTargetPath)
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
+      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
     }
   }, [fileTargetPath, t])
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
@@ -11,11 +12,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('useTranslateHistory', () => {
-  const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
-
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
   it('registers history CRUD mutations with shared refresh keys', () => {

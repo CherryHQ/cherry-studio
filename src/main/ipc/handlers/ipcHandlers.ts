@@ -8,9 +8,11 @@ import { cherryinHandlers } from './cherryin'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { localModelHandlers } from './localModel'
 import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
+import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { selectionHandlers } from './selection'
@@ -34,9 +36,11 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...localModelHandlers,
   ...miniAppHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
+  ...printHandlers,
   ...profileHandlers,
   ...providerHandlers,
   ...selectionHandlers,

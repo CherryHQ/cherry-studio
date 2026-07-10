@@ -2,6 +2,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
 import { buildEditorUrl } from '@renderer/utils/editor'
@@ -115,7 +116,7 @@ export function useMessageLeafCapabilities({
     async (file) => {
       const fileType = parseFileTypes(file.type)
       if (fileType === null) {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
         return
       }
 
@@ -127,7 +128,7 @@ export function useMessageLeafCapabilities({
       try {
         await safeOpen(fileMetadataToHandle(file))
       } catch {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
       }
     },
     [preview, t]

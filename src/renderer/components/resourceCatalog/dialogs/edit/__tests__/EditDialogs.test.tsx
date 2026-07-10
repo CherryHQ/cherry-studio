@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -14,8 +15,6 @@ const {
   fetchGenerateMock,
   mcpStatusState,
   openSettingsTabMock,
-  toastErrorMock,
-  toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -52,8 +51,6 @@ const {
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
-  toastErrorMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -184,16 +181,12 @@ vi.mock('@renderer/hooks/useSkills', () => ({
       }
     ],
     loading: false,
-    toggle: toggleSkillMock
+    refresh: vi.fn()
   })
 }))
 
 vi.mock('@renderer/hooks/usePromptProcessor', () => ({
   usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
-}))
-
-vi.mock('@renderer/components/TopView/toast', () => ({
-  useToasts: () => ({ error: toastErrorMock })
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -211,8 +204,6 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string, fallback?: string) =>
         ({
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           'common.avatar': 'Avatar',
@@ -246,8 +237,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use workspace soul files and autonomous tools.',
-          'library.config.agent.field.soul_enabled.label': 'Autonomous mode',
           'library.config.agent.field.instructions.label': 'Instructions',
           'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
@@ -426,7 +415,6 @@ const AGENT: AgentDetail = {
   mcps: [],
   configuration: {
     avatar: '🤖',
-    soul_enabled: false,
     heartbeat_enabled: true,
     heartbeat_interval: 30
   },
@@ -515,7 +503,6 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
-  toggleSkillMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -529,13 +516,6 @@ function selectTab(name: string) {
   fireEvent.mouseDown(tab, { button: 0, ctrlKey: false })
   fireEvent.click(tab)
   fireEvent.keyDown(tab, { key: 'Enter', code: 'Enter' })
-}
-
-function expandToolsMenu() {
-  const toolsButton = screen.getByRole('button', { name: 'Tools' })
-  if (toolsButton.getAttribute('aria-expanded') !== 'true') {
-    fireEvent.click(toolsButton)
-  }
 }
 
 function expectHelpTrigger(label: string, description: string) {
@@ -722,7 +702,6 @@ describe('edit dialogs', () => {
 
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    expandToolsMenu()
     selectTab('MCP')
 
     expect(await screen.findByText('@cherry/mcp-auto-install')).toBeInTheDocument()
@@ -736,9 +715,7 @@ describe('edit dialogs', () => {
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'false')
-    expandToolsMenu()
+    expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
 
@@ -807,7 +784,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith({
+      expect(toast.error).toHaveBeenCalledWith({
         description: 'Check or change the default model, then try again.',
         title: 'Failed to generate prompt'
       })
@@ -830,7 +807,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith({
+      expect(toast.error).toHaveBeenCalledWith({
         description: 'Check or change the default model, then try again.',
         title: 'Failed to generate prompt'
       })
@@ -868,36 +845,11 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('hides permission mode while autonomous mode is enabled', async () => {
+  it('shows agent tool categories directly in the left tab list', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Autonomous mode' }))
-
-    expect(screen.queryByRole('combobox', { name: 'Permission mode' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          configuration: expect.objectContaining({
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
-          })
-        })
-      })
-    )
-  })
-
-  it('uses the left tools submenu to switch agent tool categories', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
+    expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
-
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'false')
-    expandToolsMenu()
     expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.queryByText('No built-in tools enabled')).not.toBeInTheDocument()
 
@@ -905,11 +857,6 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Read')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tools' }))
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('tab', { name: 'Built-in tools' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Tools' }))
     selectTab('MCP')
     expect(screen.getByText('MCP One')).toBeInTheDocument()
 
@@ -917,11 +864,29 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
+  it('queues agent skill toggles until the edit dialog is saved', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
+        })
+      })
+    )
+  })
+
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
     const onAssistantOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} onSaved={vi.fn()} />)
 
-    expandToolsMenu()
     selectTab('MCP')
     fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
@@ -939,7 +904,6 @@ describe('edit dialogs', () => {
 
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onAgentOpenChange} onSaved={vi.fn()} />)
 
-    expandToolsMenu()
     selectTab('MCP')
 
     expect(screen.getByText('MCP services')).toBeInTheDocument()

@@ -49,7 +49,6 @@ describe('useProviderPullReconcile — C3 single-flight by api-key signature', (
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({ provider: { id: 'openai' } })
-    window.toast = { success: vi.fn(), error: vi.fn() } as any
   })
 
   it('dedupes concurrent calls for the same key onto one upstream fetch', async () => {
