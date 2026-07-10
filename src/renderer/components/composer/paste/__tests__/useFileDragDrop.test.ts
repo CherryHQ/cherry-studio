@@ -271,12 +271,48 @@ describe('useFileDragDrop', () => {
     expect(setFiles).not.toHaveBeenCalled()
   })
 
-  it('keeps missing path text as text when directory lookup fails', async () => {
-    const path = '/Users/jd/Missing/a.md'
+  it.each(['/Users/jd/Missing/a.md', '/api/v1/users'])(
+    'keeps missing path-like text as text when the path does not resolve: %s',
+    async (path) => {
+      const setFiles = vi.fn()
+      const onTextDropped = vi.fn()
+      const onFolderPathDropped = vi.fn()
+      fileApi.isDirectory.mockResolvedValue(false)
+      fileApi.get.mockResolvedValue(null)
+
+      const { result } = renderHook(() =>
+        useFileDragDrop({
+          supportedExts: ['.md'],
+          setFiles,
+          onTextDropped,
+          onFolderPathDropped,
+          enabled: true,
+          t
+        })
+      )
+
+      await act(async () => {
+        await result.current.handleDrop?.(createDropEvent(path))
+      })
+
+      expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
+      expect(fileApi.get).toHaveBeenCalledWith(path)
+      expect(onTextDropped).toHaveBeenCalledWith(path)
+      expect(onFolderPathDropped).not.toHaveBeenCalled()
+      expect(setFiles).not.toHaveBeenCalled()
+      expect(toast.info).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+  )
+
+  it('shows the unsupported-file toast only after a dropped path resolves to a file', async () => {
+    const path = '/Users/jd/Notes/archive.bin'
     const setFiles = vi.fn()
     const onTextDropped = vi.fn()
     const onFolderPathDropped = vi.fn()
-    fileApi.isDirectory.mockRejectedValue(new Error('missing'))
+    fileApi.isDirectory.mockResolvedValue(false)
+    fileApi.get.mockResolvedValue({ ...createFileMetadata(path), ext: '.bin' })
+    fileApi.isTextFile.mockResolvedValue(false)
 
     const { result } = renderHook(() =>
       useFileDragDrop({
@@ -294,7 +330,10 @@ describe('useFileDragDrop', () => {
     })
 
     expect(fileApi.isDirectory).toHaveBeenCalledWith(path)
-    expect(onTextDropped).toHaveBeenCalledWith(path)
+    expect(fileApi.get).toHaveBeenCalledWith(path)
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onTextDropped).not.toHaveBeenCalled()
     expect(onFolderPathDropped).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
   })

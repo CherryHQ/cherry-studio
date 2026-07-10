@@ -142,19 +142,20 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
         }
 
         if (pathKind === 'file') {
-          const extensionSet = new Set(options.supportedExts)
-          if (!(await isSupportedFile(droppedPath, extensionSet))) {
-            toast.info(options.t('chat.input.file_not_supported'))
-            return
-          }
-
           try {
             const selectedFile = await window.api.file.get(droppedPath)
-            if (selectedFile) {
-              options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments([selectedFile])])
+            if (!selectedFile) {
+              options.onTextDropped?.(droppedText)
               return
             }
-            toast.error(options.t('chat.input.file_error'))
+
+            const extensionSet = new Set(options.supportedExts)
+            if (!(await isSupportedFile(droppedPath, extensionSet))) {
+              toast.info(options.t('chat.input.file_not_supported'))
+              return
+            }
+
+            options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments([selectedFile])])
             return
           } catch (error) {
             logger.error('handleDrop path:', error as Error)
