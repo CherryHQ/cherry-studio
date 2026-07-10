@@ -1,3 +1,4 @@
+import { isAbortError } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
@@ -21,6 +22,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { CompactPartData } from '@shared/data/types/uiParts'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
@@ -34,7 +36,13 @@ import {
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { prepareChatMessages } from './messages/attachmentRouting'
+import {
+  compactChatContext,
+  CONTEXT_COMPACTION_SUMMARY_MAX_TOKENS,
+  CONTEXT_COMPACTION_SYSTEM_PROMPT
+} from './messages/contextCompaction'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
+import { toModelMessages } from './messages/messageRules'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -55,6 +63,28 @@ import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
+
+function insertCompactionMarker(
+  stream: ReadableStream<UIMessageChunk>,
+  marker: CompactPartData
+): ReadableStream<UIMessageChunk> {
+  let inserted = false
+  return stream.pipeThrough(
+    new TransformStream<UIMessageChunk, UIMessageChunk>({
+      transform(chunk, controller) {
+        controller.enqueue(chunk)
+        if (!inserted) {
+          inserted = true
+          controller.enqueue({
+            type: 'data-compact',
+            id: crypto.randomUUID(),
+            data: marker
+          } as UIMessageChunk)
+        }
+      }
+    })
+  )
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -379,6 +409,7 @@ export class AiService extends BaseService {
       isToolCapable: isFunctionCallingModel(model),
       signal
     })
+    const mediaCapabilities = resolveMediaCapabilities(model)
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -390,10 +421,60 @@ export class AiService extends BaseService {
       system,
       options,
       hookParts: [this.analyticsHookPart(model), ...hookParts],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities
     })
 
-    return agent.stream(preparedMessages, signal)
+    let modelMessages: ModelMessage[] | undefined
+    let compactionMarker: Awaited<ReturnType<typeof compactChatContext>>['marker']
+    if (request.contextCompaction === 'auto') {
+      try {
+        const compaction = await compactChatContext({
+          messages: preparedMessages,
+          system,
+          tools,
+          config: {
+            enabled: application.get('PreferenceService').get('chat.context_compaction.enabled'),
+            keepRecentMessages: application
+              .get('PreferenceService')
+              .get('chat.context_compaction.keep_recent_messages'),
+            triggerPercent: application.get('PreferenceService').get('chat.context_compaction.trigger_percent')
+          },
+          limits: {
+            contextWindow: model.contextWindow,
+            maxInputTokens: model.maxInputTokens,
+            maxOutputTokens: options.maxOutputTokens ?? model.maxOutputTokens
+          },
+          mediaCapabilities,
+          signal,
+          generateSummary: (messages, summarySignal) =>
+            this.generateText({
+              uniqueModelId: request.uniqueModelId,
+              apiKeyOverride: request.apiKeyOverride,
+              system: CONTEXT_COMPACTION_SYSTEM_PROMPT,
+              messages,
+              callOverrides: { maxOutputTokens: CONTEXT_COMPACTION_SUMMARY_MAX_TOKENS },
+              requestOptions: {
+                ...request.requestOptions,
+                signal: summarySignal,
+                maxRetries: 0
+              }
+            })
+        })
+        modelMessages = compaction.modelMessages
+        compactionMarker = compaction.marker
+      } catch (error) {
+        if (signal.aborted || isAbortError(error)) throw error
+        logger.warn('Context compaction failed; continuing with the original history', {
+          chatId: request.chatId,
+          modelId: model.id,
+          error
+        })
+        modelMessages = await toModelMessages(preparedMessages, mediaCapabilities)
+      }
+    }
+
+    const stream = agent.stream(preparedMessages, signal, modelMessages)
+    return compactionMarker ? insertCompactionMarker(stream, compactionMarker) : stream
   }
 
   private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {

@@ -57,6 +57,14 @@ export interface VideoPartData {
 export interface CompactPartData {
   content: string
   compactedContent: string
+  /** Ordinary-chat automatic compaction boundary. Absent on migrated legacy compact blocks. */
+  coveredThroughMessageId?: string
+  promptVersion?: number
+  beforeTokens?: number
+  afterTokens?: number
+  summaryInputTokens?: number
+  summaryOutputTokens?: number
+  createdAt?: string
 }
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */

@@ -7481,6 +7481,15 @@
       "zip": "ZIP"
     },
     "system": {
+      "context_compaction": {
+        "enabled": "自動壓縮聊天上下文",
+        "enabled_tip": "在接近模型上下文上限前摘要較早的訊息，原始聊天記錄不會被刪除。",
+        "keep_recent_messages": "保留最近訊息數",
+        "keep_recent_messages_tip": "這些最新訊息會保留原文而不參與摘要。數值越高，近期細節保留越多，但長對話可壓縮出的空間越少。",
+        "title": "上下文管理",
+        "trigger_percent": "上下文用量達到此比例時壓縮",
+        "trigger_percent_tip": "比例越低，壓縮越早且摘要呼叫成本越高；比例越高，保留的原始上下文越多，但距離模型上限的餘量越小。"
+      },
       "title": "系統"
     },
     "theme": {

@@ -117,6 +117,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     const history = prepared.models[0].request.messages
     expect(history).toBeDefined()
+    expect(prepared.models[0].request.contextCompaction).toBe('auto')
     expect(flatten(history!)).toEqual([
       { role: 'user', text: 'first question' },
       // The paused partial survives into the rebuilt prompt — this is the B4 efficacy guarantee.

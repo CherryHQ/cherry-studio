@@ -214,6 +214,7 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
+    expect(request.contextCompaction).toBe('auto')
     // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
     expect(request.messageId).toBeUndefined()
   })

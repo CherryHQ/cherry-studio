@@ -1,5 +1,6 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
@@ -18,6 +19,8 @@ const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
+const mockAgentStream = vi.fn()
+const mockAgentGenerate = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
@@ -41,6 +44,18 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
 
 vi.mock('../utils/customFetch', () => ({
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
+}))
+
+vi.mock('../runtime/aiSdk/Agent', () => ({
+  Agent: class {
+    stream(...args: unknown[]) {
+      return mockAgentStream(...args)
+    }
+
+    generate(...args: unknown[]) {
+      return mockAgentGenerate(...args)
+    }
+  }
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -97,6 +112,46 @@ function createService(): InstanceType<typeof AiService> {
   return new (AiService as any)()
 }
 
+function compactableMessages() {
+  return Array.from({ length: 12 }, (_, index) => ({
+    id: `m${index}`,
+    role: index % 2 === 0 ? ('user' as const) : ('assistant' as const),
+    parts: [{ type: 'text' as const, text: `${index}:${'x'.repeat(400)}` }]
+  }))
+}
+
+function stubCompactionChat(service: InstanceType<typeof AiService>) {
+  vi.spyOn(service as any, 'buildAgentParamsFor').mockResolvedValue({
+    sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    tools: undefined,
+    plugins: [],
+    system: 'Be helpful.',
+    options: { maxOutputTokens: 100 },
+    model: {
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      contextWindow: 1200,
+      capabilities: []
+    },
+    hookParts: [],
+    nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+    fileAttachments: []
+  })
+  mockApplicationGet.mockImplementation((name: string) => {
+    if (name === 'PreferenceService') {
+      return {
+        get: (key: string) => {
+          if (key === 'chat.context_compaction.enabled') return true
+          if (key === 'chat.context_compaction.keep_recent_messages') return 8
+          return 80
+        }
+      }
+    }
+    return undefined
+  })
+}
+
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -126,6 +181,63 @@ describe('AiService', () => {
       isEnabled: true,
       isHidden: false
     })
+    mockAgentStream.mockReturnValue(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'start' })
+          controller.enqueue({ type: 'finish' })
+          controller.close()
+        }
+      })
+    )
+    mockAgentGenerate.mockResolvedValue({ text: 'Compacted history.', usage: { inputTokens: 100, outputTokens: 20 } })
+  })
+
+  it('compacts ordinary chat history and persists the summary marker in the assistant stream', async () => {
+    const service = createService()
+    stubCompactionChat(service)
+    const messages = compactableMessages()
+
+    const stream = await service.streamText({
+      chatId: 'topic-1',
+      uniqueModelId: 'openai::gpt-4o',
+      trigger: 'submit-message',
+      messages,
+      contextCompaction: 'auto',
+      requestOptions: { signal: new AbortController().signal }
+    } as any)
+    const chunks: UIMessageChunk[] = []
+    for await (const chunk of stream) chunks.push(chunk)
+
+    expect(mockAgentGenerate).toHaveBeenCalledOnce()
+    const prepared = mockAgentStream.mock.calls[0][2]
+    expect(JSON.stringify(prepared)).toContain('<conversation_summary>')
+    expect(chunks[0]).toMatchObject({ type: 'start' })
+    expect(chunks[1]).toMatchObject({
+      type: 'data-compact',
+      data: { content: 'Compacted history.', promptVersion: 1 }
+    })
+  })
+
+  it('falls back to the original history when summary generation fails', async () => {
+    const service = createService()
+    stubCompactionChat(service)
+    mockAgentGenerate.mockRejectedValueOnce(new Error('summary unavailable'))
+    const messages = compactableMessages()
+
+    const stream = await service.streamText({
+      chatId: 'topic-1',
+      uniqueModelId: 'openai::gpt-4o',
+      trigger: 'submit-message',
+      messages,
+      contextCompaction: 'auto',
+      requestOptions: { signal: new AbortController().signal }
+    } as any)
+    const chunks: UIMessageChunk[] = []
+    for await (const chunk of stream) chunks.push(chunk)
+
+    expect(JSON.stringify(mockAgentStream.mock.calls[0][2])).toContain(`"text":"0:${'x'.repeat(400)}"`)
+    expect(chunks).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'data-compact' })]))
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {

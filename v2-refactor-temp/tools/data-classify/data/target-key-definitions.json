@@ -130,6 +130,27 @@
       "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "chat.context_compaction.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable automatic context compaction for persistent and temporary AI chats"
+    },
+    {
+      "targetKey": "chat.context_compaction.keep_recent_messages",
+      "type": "number",
+      "defaultValue": 8,
+      "status": "classified",
+      "description": "Number of recent messages preserved verbatim during automatic context compaction"
+    },
+    {
+      "targetKey": "chat.context_compaction.trigger_percent",
+      "type": "number",
+      "defaultValue": 80,
+      "status": "classified",
+      "description": "Context usage percentage that triggers automatic chat compaction"
+    },
+    {
       "targetKey": "topic.naming.model_id",
       "type": "string",
       "defaultValue": null,

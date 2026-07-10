@@ -7481,6 +7481,15 @@
       "zip": "ZIP"
     },
     "system": {
+      "context_compaction": {
+        "enabled": "Automatically compact chat context",
+        "enabled_tip": "Summarize older messages before the model's context window fills up. Original chat history is preserved.",
+        "keep_recent_messages": "Recent messages to keep",
+        "keep_recent_messages_tip": "These latest messages are kept verbatim instead of being summarized. A higher value preserves more detail but leaves less space for long conversations.",
+        "title": "Context Management",
+        "trigger_percent": "Compact at context usage",
+        "trigger_percent_tip": "Lower values compact sooner and cost more summary calls. Higher values preserve more original context but leave less room before the model limit."
+      },
       "title": "System"
     },
     "theme": {
