@@ -61,7 +61,7 @@ function createContext(
   } as unknown as MigrationContext
 }
 
-function makeProvider(id: string, models: Array<{ id: string; supported_endpoint_types?: Array<'jina-rerank'> }> = []) {
+function makeProvider(id: string, models: Array<{ id: string; supported_endpoint_types?: string[] }> = []) {
   return {
     id,
     name: `Provider ${id}`,
@@ -574,12 +574,12 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
-    it('maps Jina rerank endpoint metadata to endpoint and capability for opaque NewAPI model ids', async () => {
+    it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
             {
-              ...makeProvider('new-api', [{ id: 'opaque-model-id', supported_endpoint_types: ['jina-rerank'] }])
+              ...makeProvider('new-api', [{ id: 'opaque-model-id', supported_endpoint_types: [' JINA-RERANK '] }])
             }
           ]
         }

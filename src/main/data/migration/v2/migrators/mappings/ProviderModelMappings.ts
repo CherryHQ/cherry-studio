@@ -526,7 +526,7 @@ function mapEndpointTypes(
   const mapped: EndpointType[] = []
   for (const type of sourceTypes) {
     if (!type) continue
-    const result = ENDPOINT_MAP[type]
+    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
     if (result !== undefined) {
       mapped.push(result)
     } else {
