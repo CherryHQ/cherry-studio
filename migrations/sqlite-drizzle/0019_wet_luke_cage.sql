@@ -1,0 +1,1 @@
+CREATE INDEX `agent_session_updated_at_idx` ON `agent_session` (`updated_at`);

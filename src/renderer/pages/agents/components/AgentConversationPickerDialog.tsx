@@ -83,8 +83,7 @@ export function AgentConversationPickerDialog({
             description: values.description,
             configuration: {
               avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
+              permission_mode: 'bypassPermissions'
             }
           }
         })

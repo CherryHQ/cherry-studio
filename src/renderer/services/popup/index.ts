@@ -5,8 +5,8 @@
  *
  * Which API do I want?
  *  - A standard confirm or strong acknowledge   → popup.confirm / popup.error / popup.info / popup.warning
- *  - Confirm, then run a fallible async action  → ConfirmActionPopup (components/Popups): OK spinner + retry, Promise<boolean>
- *  - Show arbitrary content in a modal shell    → ContentPopup (components/Popups): no buttons, void
+ *  - Confirm, then run a fallible async action  → ConfirmActionPopup (components/popups): OK spinner + retry, Promise<boolean>
+ *  - Show arbitrary content in a modal shell    → ContentPopup (components/popups): no buttons, void
  *  - Anything bespoke (own buttons, typed R)    → createPopup(Component) → handle.show(props): Promise<R>
  *  - The open state belongs to a parent         → inline controlled `<Dialog open>` — do NOT route through here
  *  - An anchored overlay (menu/popover/tooltip) → the Radix primitive directly — not a popup
@@ -17,7 +17,7 @@
  *    never hangs and never rejects. Popups are therefore unusable on a window-startup path (the host subscribes only
  *    after its first commit).
  *  - React.lazy: a popup component that lazy-loads must carry its own <Suspense> boundary — useSyncExternalStore
- *    updates are not transitions and will surface the nearest fallback (see components/Popups/SearchPopup for the shape).
+ *    updates are not transitions and will surface the nearest fallback (see components/GlobalSearch/GlobalSearchPopup for the shape).
  */
 export { createPopup } from './createPopup'
 export { POPUP_EXIT_MS, popupService } from './PopupService'

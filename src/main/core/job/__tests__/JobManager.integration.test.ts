@@ -872,4 +872,78 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
   })
+
+  describe('delayed promotion re-arm on early once-fire', () => {
+    // The once-timer elapses on the monotonic clock while promoteDelayedDue
+    // compares scheduledAt <= Date.now() on the wall clock; the domains round
+    // to whole ms independently, so a fire can land with Date.now() still 1ms
+    // short of scheduledAt and promote nothing (measured locally at ~0.4% of
+    // fires). These tests pin the miss deterministically by no-oping the FIRST
+    // promotion pass; the job must still complete via a re-armed second pass.
+    it('re-arms the delayed-job promotion when the first fire misses', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.delayed.skew', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(
+            tx,
+            'tx.delayed.skew' as never,
+            { message: 'later', sleepMs: 5 } as never,
+            {
+              scheduledAt: Date.now() + 50
+            } as never
+          )
+        },
+        { behavior: 'immediate' }
+      )
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      // The mocked miss must have been followed by a real promotion pass.
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('re-arms the retry promotion when the first fire misses', async () => {
+      let attempts = 0
+      const handler: JobHandler = {
+        recovery: 'retry',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 50, maxDelayMs: 50 },
+        async execute() {
+          attempts++
+          if (attempts === 1) throw new Error('first-attempt-fails')
+          return { echoed: 'recovered' }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['retry.skew.task', handler]]
+      })
+
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      promoteSpy.mockImplementationOnce(() => 0)
+
+      const handle = jobManager.enqueue('retry.skew.task' as never, { message: 'flaky-once' } as never)
+
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
+      expect(attempts).toBe(2)
+      expect(promoteSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      promoteSpy.mockRestore()
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
 })

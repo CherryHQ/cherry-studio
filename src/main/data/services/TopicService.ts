@@ -23,13 +23,19 @@ import type {
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import {
+  decodePinnedListCursor,
+  encodeEntityCursor,
+  encodeEntitySectionStart,
+  encodePinCursor
+} from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
@@ -92,56 +98,6 @@ function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: Readonl
   }
 }
 
-// Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
-type Cursor =
-  | { section: 'pin'; orderKey: string }
-  | { section: 'topic'; updatedAt: number; id: string }
-  | { section: 'topic'; updatedAt: null; id: null }
-
-const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
-
-// Stale/legacy cursors fall back to first page (warn) instead of throwing —
-// cursors are opaque server-issued tokens, a 422 here would lock out renderers.
-function decodeCursor(raw: string): Cursor {
-  const firstColon = raw.indexOf(':')
-  if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
-  const section = raw.slice(0, firstColon)
-  const rest = raw.slice(firstColon + 1)
-
-  if (section === 'pin') {
-    return { section: 'pin', orderKey: rest }
-  }
-  if (section === 'topic') {
-    if (rest === '') return { section: 'topic', updatedAt: null, id: null }
-    const sep = rest.indexOf(':')
-    if (sep < 0) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
-    const updatedAt = Number(rest.slice(0, sep))
-    const id = rest.slice(sep + 1)
-    if (!Number.isFinite(updatedAt) || !id) {
-      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt or empty id)')
-    }
-    return { section: 'topic', updatedAt, id }
-  }
-  return warnAndFallback(raw, `unknown cursor section "${section}"`)
-}
-
-function warnAndFallback(raw: string, reason: string): Cursor {
-  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return FIRST_PAGE_CURSOR
-}
-
-function encodePinCursor(orderKey: string): string {
-  return `pin:${orderKey}`
-}
-
-function encodeTopicCursor(updatedAt: number, id: string): string {
-  return `topic:${updatedAt}:${id}`
-}
-
-function encodeTopicSectionStart(): string {
-  return 'topic:'
-}
-
 function buildSearchPredicate(q: string | undefined): SQL | undefined {
   const trimmed = q?.trim()
   if (!trimmed) return undefined
@@ -166,6 +122,30 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  /**
+   * The single most-recently-updated non-deleted topic across all assistants, or
+   * `null` when the library is empty.
+   *
+   * First-entry restore resumes the last-touched conversation. It cannot read the
+   * regular first page of `listByCursor` for this: that page is pinned-first then
+   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
+   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
+   * latest independent of how the rail happens to page.
+   */
+  getLatestUpdated(): Topic | null {
+    const db = application.get('DbService').getDb()
+
+    const [row] = db
+      .select()
+      .from(topicTable)
+      .where(isNull(topicTable.deletedAt))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(1)
+      .all()
+
+    return row ? rowToTopic(row) : null
   }
 
   ensureTraceId(topicId: string): string {
@@ -432,22 +412,28 @@ export class TopicService {
   }
 
   /**
-   * Two-section page: pinned topics (via `pin` JOIN, ordered by pin.orderKey)
-   * then unpinned (ordered by `updatedAt DESC, id ASC`). A partial pin page
-   * spills into the unpinned section to fill `limit`. `topic.orderKey` is
-   * maintained but unused at read time — it's there for a future drag-mode
-   * toggle.
+   * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
+   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
+   * drag order). A partial pin page spills into the unpinned section to fill
+   * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
+   * one pagination contract (pinned-first, then manual order); recency ordering
+   * for the time-grouped view is applied by the renderer over the loaded list.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
+    const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
     if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
+      const pinAfter = cursor.orderKey
+        ? or(
+            gt(pinTable.orderKey, cursor.orderKey),
+            and(eq(pinTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
+        : undefined
       const pinRows = db
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
@@ -458,10 +444,10 @@ export class TopicService {
         .all()
 
       // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
-      // non-empty `cursor.orderKey`. Hand back a topic-section-start cursor so
+      // non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
       // the next call advances cleanly instead of restarting topics from the top.
       if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeTopicSectionStart() }
+        return { items: [], nextCursor: encodeEntitySectionStart() }
       }
 
       const hasMoreInPin = pinRows.length > limit
@@ -473,29 +459,28 @@ export class TopicService {
         const last = items[items.length - 1]
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
         }
       }
 
       if (items.length >= limit) {
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodeTopicSectionStart()
+          nextCursor: encodeEntitySectionStart()
         }
       }
     }
 
-    // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
-    // the id tiebreaker prevents dedup/skip across pages when two rows share
-    // an updatedAt.
+    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
+    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
 
     let topicAfter: SQL | undefined
-    if (cursor.section === 'topic' && cursor.updatedAt !== null) {
+    if (cursor.section === 'entity' && cursor.orderKey !== null) {
       topicAfter = or(
-        lt(topicTable.updatedAt, cursor.updatedAt),
-        and(eq(topicTable.updatedAt, cursor.updatedAt), gt(topicTable.id, cursor.id))
+        gt(topicTable.orderKey, cursor.orderKey),
+        and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
       )
     }
 
@@ -503,7 +488,7 @@ export class TopicService {
       .select()
       .from(topicTable)
       .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
       .limit(remaining + 1)
       .all()
 
@@ -515,7 +500,7 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeTopicCursor(last.updatedAt, last.id)
+      nextCursor = encodeEntityCursor(last.orderKey, last.id)
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
