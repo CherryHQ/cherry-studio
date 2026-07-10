@@ -52,7 +52,6 @@ export function BasicInfoStep({ form, portalContainer, fallbackAvatar, modelFilt
           label={t('common.name')}
           placeholder={t('library.config.dialogs.create.name_placeholder')}
           required
-          autoFocus
         />
       </div>
 

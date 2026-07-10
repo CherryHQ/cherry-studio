@@ -30,8 +30,8 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
-  KnowledgeBaseField: ({ onOpenKnowledgePage }: { onOpenKnowledgePage?: () => void }) => (
-    <button type="button" disabled={!onOpenKnowledgePage} onClick={onOpenKnowledgePage}>
+  KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
+    <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
       open knowledge
     </button>
   )

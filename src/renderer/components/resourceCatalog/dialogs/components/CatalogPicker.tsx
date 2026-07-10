@@ -16,7 +16,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Plus } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CatalogItem {
@@ -172,6 +172,12 @@ export const AddCatalogPopover: FC<{
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 
+  useEffect(() => {
+    if (!disabled) return
+    setOpen(false)
+    setSearch('')
+  }, [disabled])
+
   const options = useMemo(() => {
     return items
       .filter((it) => !enabledIds.has(it.id))
@@ -196,6 +202,7 @@ export const AddCatalogPopover: FC<{
   }, [options, search])
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled && nextOpen) return
     setOpen(nextOpen)
     if (!nextOpen) setSearch('')
   }
@@ -225,6 +232,7 @@ export const AddCatalogPopover: FC<{
           <CommandInput
             value={search}
             onValueChange={setSearch}
+            disabled={disabled}
             placeholder={searchPlaceholder}
             className="h-8 text-xs"
           />
@@ -237,10 +245,10 @@ export const AddCatalogPopover: FC<{
                   <CommandItem
                     key={option.value}
                     value={option.value}
-                    disabled={option.disabled}
+                    disabled={disabled || option.disabled}
                     className="rounded-md"
                     onSelect={() => {
-                      if (option.item.pickable === false) return
+                      if (disabled || option.item.pickable === false) return
                       onAdd(option.value)
                       handleOpenChange(false)
                     }}>

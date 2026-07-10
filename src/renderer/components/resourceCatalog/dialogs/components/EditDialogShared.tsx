@@ -189,11 +189,13 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
   formLabel = true,
+  disabled = false,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  disabled?: boolean
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
@@ -261,6 +263,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    disabled={disabled}
                     onClick={() => remove(kb.id)}
                     aria-label={t('library.config.knowledge.remove_aria')}
                     className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
@@ -278,7 +281,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             triggerLabel={t('library.config.knowledge.add')}
             searchPlaceholder={t('library.config.knowledge.search')}
             emptyLabel={t('library.config.knowledge.no_more')}
-            disabled={isLoading}
+            disabled={isLoading || disabled}
             align="start"
             triggerPosition="start"
             triggerClassName="mt-2"
@@ -287,7 +290,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               onOpenKnowledgePage ? (
                 <button
                   type="button"
-                  className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground"
+                  disabled={disabled}
+                  className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                   onClick={onOpenKnowledgePage}>
                   <ArrowUpRight size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>

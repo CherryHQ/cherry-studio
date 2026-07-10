@@ -27,10 +27,10 @@ const routerMocks = vi.hoisted(() => ({
 // @cherrystudio/ui stub shadows it).
 vi.mock('@cherrystudio/ui/components/primitives/portal-container', async (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => {
-  const { PortalContainerProvider, usePortalContainer } = await import(
+  const { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer } = await import(
     '@cherrystudio/ui/components/primitives/portal-container'
   )
-  return { PortalContainerProvider, usePortalContainer }
+  return { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer }
 })
 
 vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))

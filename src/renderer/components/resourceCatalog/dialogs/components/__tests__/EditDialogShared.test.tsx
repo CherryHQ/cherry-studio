@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
@@ -76,6 +76,10 @@ vi.mock('@renderer/hooks/tab/useTabs', () => ({
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
 import { PromptVariablesPopover } from '../EditDialogShared'
+
+beforeAll(() => {
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
 
 describe('EditDialogShared', () => {
   const writeText = vi.fn()
@@ -166,5 +170,46 @@ describe('EditDialogShared', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('closes and disables the knowledge picker when submission starts', async () => {
+    mockUseQuery.mockReturnValue({
+      data: { items: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }] },
+      isLoading: false
+    })
+
+    function Harness() {
+      const [isSubmitting, setIsSubmitting] = useState(false)
+      const form = useForm<ResourceCreateWizardFormValues>({
+        defaultValues: {
+          avatar: '💬',
+          name: '',
+          description: '',
+          modelId: null,
+          prompt: '',
+          knowledgeBaseIds: [],
+          skillIds: []
+        }
+      })
+
+      return (
+        <Form {...form}>
+          <KnowledgeStep form={form} isSubmitting={isSubmitting} portalContainer={null} />
+          <button type="button" onClick={() => setIsSubmitting(true)}>
+            Start submission
+          </button>
+        </Form>
+      )
+    }
+
+    render(<Harness />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    expect(screen.getByText('Knowledge one')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start submission' }))
+
+    expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
   })
 })

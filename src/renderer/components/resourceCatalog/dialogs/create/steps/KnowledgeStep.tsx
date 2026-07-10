@@ -29,7 +29,8 @@ export function KnowledgeStep({ form, isSubmitting = false, onClose, portalConta
       form={form}
       portalContainer={portalContainer}
       formLabel={false}
-      onOpenKnowledgePage={isSubmitting ? undefined : openKnowledgePage}
+      disabled={isSubmitting}
+      onOpenKnowledgePage={openKnowledgePage}
     />
   )
 }
