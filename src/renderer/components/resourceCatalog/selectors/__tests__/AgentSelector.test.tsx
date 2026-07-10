@@ -79,6 +79,11 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/hooks/useModel')>()),
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock

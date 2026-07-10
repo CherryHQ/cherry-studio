@@ -1,11 +1,25 @@
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
-  defaultModel: undefined as { id: string } | undefined
+  defaultModel: undefined as Model | undefined
 }))
+
+function makeModel(id: UniqueModelId = 'provider::default'): Model {
+  return {
+    id,
+    providerId: 'provider',
+    apiModelId: id.split('::')[1],
+    name: 'Default model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -75,7 +89,7 @@ afterEach(() => {
 
 describe('ResourceCreateWizard', () => {
   it('prefills the model from the default model when the wizard opens', async () => {
-    modelHook.defaultModel = { id: 'provider::default' }
+    modelHook.defaultModel = makeModel()
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -83,7 +97,7 @@ describe('ResourceCreateWizard', () => {
   })
 
   it('does not prefill a default model rejected by the wizard model filter', async () => {
-    modelHook.defaultModel = { id: 'provider::default' }
+    modelHook.defaultModel = makeModel()
 
     render(
       <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
@@ -156,7 +170,7 @@ describe('ResourceCreateWizard', () => {
   })
 
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {
-    modelHook.defaultModel = { id: 'provider::default' }
+    modelHook.defaultModel = makeModel()
 
     render(
       <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
@@ -166,7 +180,7 @@ describe('ResourceCreateWizard', () => {
   })
 
   it('prefills the default model for agent kind when accepted by the model filter', async () => {
-    modelHook.defaultModel = { id: 'provider::default' }
+    modelHook.defaultModel = makeModel()
 
     render(
       <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => true} />
