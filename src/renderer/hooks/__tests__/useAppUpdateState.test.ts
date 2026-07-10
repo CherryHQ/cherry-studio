@@ -6,18 +6,10 @@ import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAppUpdateState } from '../useAppUpdate'
+import { useAppUpdateState } from '../useAppUpdateState'
 
 vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
-
-vi.mock('@renderer/components/UpdateDialogPopup', () => ({
-  default: { show: vi.fn() }
-}))
-
-vi.mock('@renderer/services/notification', () => ({
-  notificationService: { send: vi.fn() }
-}))
 
 function createDefaultUpdateState(): CacheAppUpdateState {
   return { ...DefaultUseCache['app.dist.update_state'] }

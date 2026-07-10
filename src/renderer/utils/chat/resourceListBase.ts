@@ -113,6 +113,39 @@ export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: Gr
     .map(({ item }) => item)
 }
 
+export function sortRankedResourceItems<T>(
+  items: readonly T[],
+  {
+    getRank,
+    isPinned,
+    compareWithinGroup
+  }: {
+    getRank: (item: T) => number
+    isPinned: (item: T) => boolean
+    compareWithinGroup: (a: T, b: T) => number
+  }
+): T[] {
+  return items
+    .map((item, index) => ({ item, index, rank: getRank(item), pinned: isPinned(item) }))
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank
+      if (a.pinned || b.pinned) return a.index - b.index
+      const withinDelta = compareWithinGroup(a.item, b.item)
+      if (withinDelta !== 0) return withinDelta
+      return a.index - b.index
+    })
+    .map(({ item }) => item)
+}
+
+export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
+  return (a, b) => {
+    const aMs = Date.parse(getUpdatedAt(a))
+    const bMs = Date.parse(getUpdatedAt(b))
+    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
+    return 0
+  }
+}
+
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
 
 export function compareResourceOrderKey(a?: string, b?: string) {

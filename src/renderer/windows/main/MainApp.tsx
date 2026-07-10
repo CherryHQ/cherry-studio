@@ -8,8 +8,9 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
+
+import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 
 const logger = loggerService.withContext('MainApp')
 

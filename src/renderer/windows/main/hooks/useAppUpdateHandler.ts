@@ -1,30 +1,13 @@
-import { useCache } from '@data/hooks/useCache'
 import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
-import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-export const useAppUpdateState = () => {
-  const [appUpdateState, setAppUpdateState] = useCache('app.dist.update_state')
-
-  const updateAppUpdateState = useCallback(
-    (state: Partial<CacheAppUpdateState>) => {
-      setAppUpdateState((previous) => ({ ...previous, ...state }))
-    },
-    [setAppUpdateState]
-  )
-
-  return {
-    appUpdateState,
-    updateAppUpdateState
-  }
-}
 
 // REFACTOR(window-runtime-init): copied from the old useUpdateHandler and adjusted
 // during the v2 data refactor — but it should NOT be a React hook at all. It is a
