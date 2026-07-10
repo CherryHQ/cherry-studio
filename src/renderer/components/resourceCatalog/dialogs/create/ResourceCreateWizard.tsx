@@ -167,9 +167,9 @@ export function ResourceCreateWizard({
 
   const defaultCreateModelId = useMemo<UniqueModelId | null>(() => {
     if (!defaultModel) return null
-    if (kind === 'assistant' && modelFilter && !modelFilter(defaultModel)) return null
+    if (modelFilter && !modelFilter(defaultModel)) return null
     return defaultModel.id
-  }, [defaultModel, modelFilter, kind])
+  }, [defaultModel, modelFilter])
 
   useEffect(() => {
     if (!open) return

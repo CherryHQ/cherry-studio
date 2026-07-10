@@ -155,11 +155,21 @@ describe('ResourceCreateWizard', () => {
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
   })
 
-  it('prefills the default model for agent kind even when rejected by the model filter', async () => {
+  it('does not prefill the default model for agent kind when rejected by the model filter', async () => {
     modelHook.defaultModel = { id: 'provider::default' }
 
     render(
       <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+    )
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
+  it('prefills the default model for agent kind when accepted by the model filter', async () => {
+    modelHook.defaultModel = { id: 'provider::default' }
+
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => true} />
     )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
