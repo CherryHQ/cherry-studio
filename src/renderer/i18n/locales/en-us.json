@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Cherry assistant. You can start chatting with me right away",
-      "name": "Cherry assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }

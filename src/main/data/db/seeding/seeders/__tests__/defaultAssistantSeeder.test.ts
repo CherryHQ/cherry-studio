@@ -53,7 +53,7 @@ describe('DefaultAssistantSeeder', () => {
 
     expect(assistant?.id).toMatch(UUID_V4_PATTERN)
     expect(assistant).toMatchObject({
-      name: 'Cherry assistant',
+      name: 'Cherry Assistant',
       emoji: DEFAULT_ASSISTANT_EMOJI,
       prompt: DEFAULT_ASSISTANT_PROMPT,
       modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
@@ -117,7 +117,7 @@ describe('DefaultAssistantSeeder', () => {
     expect(() => new DefaultAssistantSeeder().run(dbh.db)).not.toThrow()
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
-    expect(assistant?.name).toBe('Cherry assistant')
+    expect(assistant?.name).toBe('Cherry Assistant')
   })
 
   it('falls back to the English default assistant name when preferred system languages are empty', async () => {
@@ -128,7 +128,7 @@ describe('DefaultAssistantSeeder', () => {
     new DefaultAssistantSeeder().run(dbh.db)
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
-    expect(assistant?.name).toBe('Cherry assistant')
+    expect(assistant?.name).toBe('Cherry Assistant')
   })
 
   it('does not seed the default assistant when an active assistant already exists', async () => {
