@@ -462,7 +462,7 @@ const AssistantHistoryRecords = ({
       sourceSearchPlaceholder: t('history.records.filter.sourceSearchPlaceholder'),
       sourceEmpty: t('history.records.filter.sourceEmpty'),
       searchPlaceholder: t('history.records.searchTopic'),
-      titleColumnLabel: t('history.records.table.title'),
+      titleColumnLabel: t('history.records.table.conversation'),
       emptyTitle: t('history.records.empty.title'),
       emptyDescription: t('history.records.empty.description'),
       loadingTitle: t('history.records.loading.title'),

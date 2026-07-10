@@ -2491,10 +2491,10 @@
       },
       "table": {
         "actions": "アクション",
+        "conversation": "会話",
         "emptyValue": "—",
         "session": "タスク",
-        "time": "時間",
-        "title": "タイトル"
+        "time": "時間"
       },
       "title": "会話履歴"
     },

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
-  'grid min-w-[760px] grid-cols-[44px_minmax(280px,2.5fr)_minmax(180px,1fr)_100px_84px]'
+  'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
   'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-sm leading-5'
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
@@ -144,10 +144,10 @@ export const HistoryTableHeader = ({
       />
     </div>
     <div className={historyHeaderCellClassName} role="columnheader">
-      {titleLabel}
+      {sourceLabel}
     </div>
     <div className={historyHeaderCellClassName} role="columnheader">
-      {sourceLabel}
+      {titleLabel}
     </div>
     <div className={historyHeaderCellClassName} role="columnheader">
       {timeLabel}
@@ -470,20 +470,20 @@ export const HistoryRecordRow = ({
       onCheckedChange={onSelectedChange}
     />
     <div className={historyBodyCellClassName} role="cell">
+      <RowFlex className="min-w-0 items-center gap-2">
+        <span className="flex size-6 shrink-0 items-center justify-center text-foreground text-sm leading-none">
+          {avatar}
+        </span>
+        <span className="truncate text-foreground text-xs">{sourceLabel}</span>
+      </RowFlex>
+    </div>
+    <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 flex-1 items-center">
         <div className="min-w-0 flex-1" data-testid="history-record-rename-field">
           <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
             <HistoryTitleButton title={title} onOpen={onOpen} />
           </RowFlex>
         </div>
-      </RowFlex>
-    </div>
-    <div className={historyBodyCellClassName} role="cell">
-      <RowFlex className="min-w-0 items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center text-foreground text-sm leading-none">
-          {avatar}
-        </span>
-        <span className="truncate text-foreground text-xs">{sourceLabel}</span>
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">

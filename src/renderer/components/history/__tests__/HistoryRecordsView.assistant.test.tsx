@@ -299,9 +299,9 @@ vi.mock('react-i18next', () => ({
         'history.records.filter.statusLabel': 'Status',
         'history.records.filter.unlinkedAssistant': 'Unlinked assistant',
         'history.records.table.actions': 'Actions',
+        'history.records.table.conversation': 'Conversation',
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
-        'history.records.table.title': 'Title',
         'history.records.title': 'Conversation history',
         'notes.save': 'Save to notes',
         'selector.common.pinned_title': 'Pinned'
@@ -445,9 +445,12 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
-    expect(within(alphaCells[2]).getAllByText('A').length).toBeGreaterThan(0)
-    expect(within(alphaCells[2]).getByText('Alpha assistant')).toBeInTheDocument()
+    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
+    expect(within(alphaCells[1]).getByText('Alpha assistant')).toBeInTheDocument()
+    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
+    const headerCells = screen.getAllByRole('columnheader')
+    expect(headerCells[1]).toHaveTextContent('Assistant')
+    expect(headerCells[2]).toHaveTextContent('Conversation')
     expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
     fireEvent.click(alphaRow)
@@ -1338,7 +1341,8 @@ describe('HistoryRecordsView locale resources', () => {
       'filter.statusLabel',
       'filter.statusPlaceholder',
       'filter.unlinkedAssistant',
-      'selectedCount'
+      'selectedCount',
+      'table.conversation'
     ]
     const requiredRecordKeys = [
       'agentTitle',
@@ -1375,9 +1379,9 @@ describe('HistoryRecordsView locale resources', () => {
       'status.running',
       'table.emptyValue',
       'table.actions',
+      'table.conversation',
       'table.session',
       'table.time',
-      'table.title',
       'title'
     ]
     const originalLocaleResources = [enUS, zhCN, zhTW]

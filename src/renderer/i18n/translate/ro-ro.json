@@ -2491,10 +2491,10 @@
       },
       "table": {
         "actions": "Acțiuni",
+        "conversation": "Conversație",
         "emptyValue": "—",
         "session": "Sarcină",
-        "time": "Timp",
-        "title": "Titlu"
+        "time": "Timp"
       },
       "title": "Istoricul conversației"
     },

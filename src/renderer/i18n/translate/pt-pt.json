@@ -2491,10 +2491,10 @@
       },
       "table": {
         "actions": "Ações",
+        "conversation": "Conversa",
         "emptyValue": "—",
         "session": "Tarefa",
-        "time": "Tempo",
-        "title": "Título"
+        "time": "Tempo"
       },
       "title": "Histórico de Conversa"
     },

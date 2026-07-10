@@ -2491,10 +2491,10 @@
       },
       "table": {
         "actions": "Aktionen",
+        "conversation": "Unterhaltung",
         "emptyValue": "—",
         "session": "Aufgabe",
-        "time": "Zeit",
-        "title": "Titel"
+        "time": "Zeit"
       },
       "title": "Konversationsverlauf"
     },
