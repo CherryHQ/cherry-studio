@@ -244,9 +244,12 @@ export function MessageVirtualList<T>({
               onScrollEnd={runtime.scrollerProps.onScrollEnd}>
               {runtime.wrappedRenderItem}
             </Virtualizer>
-            <div ref={runtime.freezeSpacerRef} aria-hidden="true" data-message-virtual-list-freeze-spacer />
           </ScrollOwnershipProvider>
         </div>
+        {/* Outside the content wrapper: the anchor derives its natural content
+            size from contentRef.scrollHeight, and this runtime-owned slack must
+            not inflate that measurement (it made the pinned spacer collapse). */}
+        <div ref={runtime.freezeSpacerRef} aria-hidden="true" data-message-virtual-list-freeze-spacer />
       </Scrollbar>
       {shouldShowScrollToBottomButton && (
         <ScrollToBottomButton

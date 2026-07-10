@@ -84,9 +84,8 @@ function RuntimeDomProbe({
       ref={(element) => {
         runtime.scrollerRef.current = element
       }}>
-      <div ref={runtime.contentRef}>
-        <div ref={runtime.freezeSpacerRef} />
-      </div>
+      <div ref={runtime.contentRef} />
+      <div ref={runtime.freezeSpacerRef} />
     </div>
   )
 }
@@ -1541,7 +1540,7 @@ describe('useChatVirtualizerRuntime', () => {
         return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
       })
       setElementMetric(content, 'scrollHeight', () => {
-        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+        return naturalContentHeight + getAnchorSpacerHeight()
       })
       runtime!.vlistHandleRef.current = createHandle({
         findItemIndex: vi.fn(() => 0),
@@ -1657,6 +1656,85 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('keeps the pinned preparation spacer when the user takes over before the bootstrap spacer tightens', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 0
+      let naturalContentHeight = 1300
+      const view = render(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const getAnchorSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const getFreezeSpacerHeight = () => Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+      const scroller = runtime!.scrollerRef.current!
+      const content = runtime!.contentRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+      })
+      setElementMetric(content, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight()
+      })
+      runtime!.vlistHandleRef.current = createHandle({
+        findItemIndex: vi.fn(() => 0),
+        getItemOffset: vi.fn((index) => (index === 1 ? 1000 : 0))
+      })
+      raf.tick(60)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          preserveScrollAnchor
+          scrollToTopKey="current-user-message"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(getAnchorSpacerHeight()).toBe(400)
+
+      scrollTop = 1000
+      act(() => runtime!.scrollerProps.onScroll(1000))
+      // A tiny upward wheel: takes over reading control but stays within the
+      // pin's release tolerance, so the pin keeps holding under a user driver.
+      scrollTop = 990
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(990)
+      })
+      expect(getAnchorSpacerHeight()).toBe(400)
+
+      // Measurement settle: the bootstrap spacer tightens (400 -> 100) and the
+      // freeze compensates the range with its own slack.
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
+      expect(getAnchorSpacerHeight()).toBe(100)
+
+      // Next streaming growth: the freeze slack must not inflate the anchor's
+      // natural-size math — that made `needed` hit 0 and instantly wiped the
+      // preparation spacer (and the pin) mid-stream.
+      naturalContentHeight = 1350
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
+      expect(getAnchorSpacerHeight()).toBe(100)
+      expect(scrollTop).toBe(1000)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it.each([
     ['was already at the real bottom when streaming ended', true],
     ['returned to the real bottom after streaming ended', false]
@@ -1691,7 +1769,7 @@ describe('useChatVirtualizerRuntime', () => {
         return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
       })
       setElementMetric(content, 'scrollHeight', () => {
-        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+        return naturalContentHeight + getAnchorSpacerHeight()
       })
       runtime!.vlistHandleRef.current = createHandle({
         findItemIndex: vi.fn(() => 0),
@@ -1785,7 +1863,7 @@ describe('useChatVirtualizerRuntime', () => {
         return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
       })
       setElementMetric(content, 'scrollHeight', () => {
-        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+        return naturalContentHeight + getAnchorSpacerHeight()
       })
       runtime!.vlistHandleRef.current = createHandle({
         findItemIndex: vi.fn(() => 0),
