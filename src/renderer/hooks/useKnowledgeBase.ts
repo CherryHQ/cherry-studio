@@ -21,7 +21,10 @@ const normalizeError = (error: unknown): Error => {
   return new Error(String(error))
 }
 
-export type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+export type CreateKnowledgeBaseInput = Pick<
+  CreateKnowledgeBaseDto,
+  'name' | 'groupId' | 'embeddingModelId' | 'dimensions'
+>
 export type RestoreKnowledgeBaseInput = Pick<
   RestoreKnowledgeBaseDto,
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
@@ -58,17 +61,27 @@ export const useCreateKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      // The embedding model is optional: a base created without one is BM25-only
-      // and gets its model later from the RAG settings. Configure it there, not here.
+      // A base is BM25-only by default and gets its embedding model later from the
+      // RAG settings. The one exception is creation-time backfill: the create dialog
+      // passes the local embedding model (paired with its dimensions) when it is
+      // already downloaded, so the base starts as a vector base. Keep the pair intact
+      // — the create schema rejects one without the other.
       const body: {
         name: string
         groupId?: string
+        embeddingModelId?: string
+        dimensions?: number
       } = {
         name
       }
 
       if (groupId) {
         body.groupId = groupId
+      }
+
+      if (input.embeddingModelId && input.dimensions) {
+        body.embeddingModelId = input.embeddingModelId
+        body.dimensions = input.dimensions
       }
 
       setIsCreating(true)
