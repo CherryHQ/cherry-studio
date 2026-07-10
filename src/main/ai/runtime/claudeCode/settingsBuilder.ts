@@ -29,7 +29,11 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import {
+  isProvisioned,
+  loadBuiltinAgentDefinition,
+  provisionBuiltinAgent
+} from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
@@ -51,6 +55,7 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
+import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -74,6 +79,8 @@ import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
+const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
+  'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
 const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
@@ -180,20 +187,6 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
   )
 }
 
-export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
-  const stripUserinfo = (value: string) => value.replace(/^(([a-z][a-z\d+.-]*:\/\/)?)[^/@\s]+@/i, '$1')
-  try {
-    const url = new URL(proxyUrl)
-    if (!url.username && !url.password) return stripUserinfo(proxyUrl)
-    // Drop proxy userinfo before this value enters the assistant system prompt.
-    url.username = ''
-    url.password = ''
-    return url.toString()
-  } catch {
-    return stripUserinfo(proxyUrl)
-  }
-}
-
 /**
  * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
  * Injected into system prompt so the agent knows the user's setup immediately.
@@ -201,7 +194,7 @@ export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
 async function buildAssistantContext(): Promise<string> {
   const appVersion = app.getVersion()
   const platform = `${os.platform()} ${os.release()}`
-  const language = application.get('PreferenceService').get('app.language')
+  const language = getAppLanguage()
   const theme = application.get('PreferenceService').get('ui.theme_mode')
   const proxy = application.get('PreferenceService').get('app.proxy.url')
   const providers = providerService.list({})
@@ -224,7 +217,7 @@ async function buildAssistantContext(): Promise<string> {
     `- App: Cherry Studio v${appVersion}`,
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
-    proxy ? `- Proxy: ${redactProxyUrlForAssistantContext(proxy)}` : '- Proxy: none',
+    proxy ? `- Proxy: ${redactUrlToOrigin(proxy)}` : '- Proxy: none',
     `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
     `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
     '',
@@ -928,13 +921,24 @@ export async function buildSystemPrompt(
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
 
-  // Provision builtin agent workspace
+  // Builtin contract: empty DB instructions means the bundle owns the definition,
+  // so app upgrades and language changes apply at session build time. A non-empty
+  // user edit is user-owned and is never overwritten. Clearing the field returns
+  // to bundled behavior; blocking that edge case belongs in future UI validation.
   let instructions = agent.instructions
-  if (builtinRole && cwd && !isProvisioned(cwd)) {
-    const provisioned = await provisionBuiltinAgent(cwd, builtinRole)
-    if (provisioned?.instructions && !instructions) {
-      instructions = provisioned.instructions
+  if (builtinRole && !instructions) {
+    const definition = loadBuiltinAgentDefinition(builtinRole)
+    if (definition?.instructions) {
+      instructions = definition.instructions
+    } else if (isAssistant) {
+      logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
+      instructions = MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS
     }
+  }
+
+  // Provision builtin agent workspace resources independently from prompt resolution.
+  if (builtinRole && cwd && !isProvisioned(cwd)) {
+    await provisionBuiltinAgent(cwd, builtinRole)
   }
 
   // Channel security (still scoped per session — channels link to a session)
@@ -947,12 +951,12 @@ export async function buildSystemPrompt(
   if (isAssistant) {
     try {
       const context = await buildAssistantContext()
-      return instructions ? `${instructions}\n\n${context}` : context
+      return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
       // entire assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return instructions
+      return `${instructions}${channelSecurityBlock}`
     }
   }
 

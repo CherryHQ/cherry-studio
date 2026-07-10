@@ -79,6 +79,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn()
 }))
 
@@ -158,23 +159,7 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, redactProxyUrlForAssistantContext } = await import(
-  '../settingsBuilder'
-)
-
-describe('redactProxyUrlForAssistantContext', () => {
-  it('redacts proxy credentials while keeping the host and port visible', () => {
-    expect(redactProxyUrlForAssistantContext('http://user:pass@proxy.example:8080')).toBe('http://proxy.example:8080/')
-  })
-
-  it('leaves plain proxy URLs unchanged', () => {
-    expect(redactProxyUrlForAssistantContext('http://proxy.example:8080')).toBe('http://proxy.example:8080')
-  })
-
-  it('redacts scheme-less proxy credentials', () => {
-    expect(redactProxyUrlForAssistantContext('user:pass@proxy.example:8080')).toBe('proxy.example:8080')
-  })
-})
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
@@ -733,9 +718,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('redacts proxy credentials in the assembled assistant context', async () => {
+  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
     const preferenceGet = vi.fn((key: string) => {
-      if (key === 'app.proxy.url') return 'user:pass@proxy.example:8080'
+      if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
     })
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -760,8 +745,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt).toContain('- Proxy: proxy.example:8080')
-    expect(settings.systemPrompt).not.toContain('pass')
+    expect(typeof settings.systemPrompt).toBe('string')
+    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
+    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
+    expect(proxyLine).not.toContain('user')
+    expect(proxyLine).not.toContain('pass')
+    expect(proxyLine).not.toContain('token=secret')
+    expect(proxyLine).not.toContain('/path')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

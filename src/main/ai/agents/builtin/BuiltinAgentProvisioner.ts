@@ -10,6 +10,7 @@
  */
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
 import fs from 'fs'
 import path from 'path'
 
@@ -21,7 +22,7 @@ function resolveLocalizedField(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
 
   const map = value as Record<string, string>
-  const lang = application.get('PreferenceService').get('app.language') ?? 'en-US'
+  const lang = getAppLanguage()
   const prefix = lang.split('-')[0]
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 
@@ -31,6 +32,16 @@ function resolveLocalizedField(value: unknown): string | undefined {
 const ROLE_TO_TEMPLATE: Record<string, string> = {
   assistant: 'cherry-assistant',
   'skill-creator': 'skill-creator'
+}
+
+function getTemplateDir(builtinRole: string): string | undefined {
+  const templateName = ROLE_TO_TEMPLATE[builtinRole]
+  if (!templateName) {
+    logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
+    return undefined
+  }
+
+  return path.join(application.getPath('feature.agents.builtin'), templateName)
 }
 
 /**
@@ -56,6 +67,34 @@ export interface BuiltinAgentConfig {
   configuration?: Record<string, unknown>
 }
 
+export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentConfig | undefined {
+  const templateDir = getTemplateDir(builtinRole)
+  if (!templateDir) return undefined
+
+  const agentJsonPath = path.join(templateDir, 'agent.json')
+  if (!fs.existsSync(agentJsonPath)) {
+    logger.error('Builtin agent definition not found', { agentJsonPath, builtinRole })
+    return undefined
+  }
+
+  try {
+    const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
+    return {
+      name: agentConfig.name,
+      description: resolveLocalizedField(agentConfig.description),
+      instructions: resolveLocalizedField(agentConfig.instructions),
+      configuration: agentConfig.configuration
+    } as BuiltinAgentConfig
+  } catch (error) {
+    logger.error('Failed to load builtin agent definition', {
+      builtinRole,
+      agentJsonPath,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return undefined
+  }
+}
+
 /**
  * Provision a built-in agent's workspace with template files.
  *
@@ -70,14 +109,8 @@ export async function provisionBuiltinAgent(
   workspacePath: string,
   builtinRole: string
 ): Promise<BuiltinAgentConfig | undefined> {
-  const templateName = ROLE_TO_TEMPLATE[builtinRole]
-  if (!templateName) {
-    logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
-    return undefined
-  }
-
-  const resourceBase = application.getPath('feature.agents.builtin')
-  const templateDir = path.join(resourceBase, templateName)
+  const templateDir = getTemplateDir(builtinRole)
+  if (!templateDir) return undefined
 
   if (!fs.existsSync(templateDir)) {
     logger.error('Builtin agent template not found', { templateDir, builtinRole })
@@ -98,19 +131,7 @@ export async function provisionBuiltinAgent(
       })
     }
 
-    // Read agent.json to extract full config
-    const agentJsonPath = path.join(templateDir, 'agent.json')
-    if (fs.existsSync(agentJsonPath)) {
-      const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-      return {
-        name: agentConfig.name,
-        description: resolveLocalizedField(agentConfig.description),
-        instructions: resolveLocalizedField(agentConfig.instructions),
-        configuration: agentConfig.configuration
-      } as BuiltinAgentConfig
-    }
-
-    return undefined
+    return loadBuiltinAgentDefinition(builtinRole)
   } catch (error) {
     logger.error('Failed to provision builtin agent workspace', {
       builtinRole,

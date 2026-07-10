@@ -6,6 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -58,19 +59,19 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
 // Allowed route prefixes to prevent arbitrary navigation
 const ALLOWED_ROUTES = [
   '/settings',
-  '/agents',
-  '/knowledge',
-  '/paintings',
-  '/translate',
-  '/files',
-  '/notes',
-  '/apps',
-  '/code',
-  '/launchpad'
+  '/app/agents',
+  '/app/knowledge',
+  '/app/paintings',
+  '/app/translate',
+  '/app/files',
+  '/app/notes',
+  '/app/mini-app',
+  '/app/code',
+  '/app/launchpad',
+  '/app/chat'
 ]
 
 export function isAllowedAssistantNavigationPath(path: string): boolean {
-  if (path === '/') return true
   return ALLOWED_ROUTES.some((route) => path === route || path.startsWith(`${route}/`))
 }
 
@@ -557,7 +558,7 @@ class AssistantServer {
         type: s.type ?? 'stdio',
         isActive: s.isActive,
         command: s.command,
-        baseUrl: s.baseUrl
+        baseUrl: s.baseUrl ? redactUrlToOrigin(s.baseUrl) : undefined
       }))
 
       return {
@@ -596,10 +597,11 @@ class AssistantServer {
     try {
       const preferenceService = application.get('PreferenceService')
 
+      const proxy = preferenceService.get('app.proxy.url')
       const settings = {
         language: preferenceService.get('app.language'),
         theme: preferenceService.get('ui.theme_mode'),
-        proxy: preferenceService.get('app.proxy.url'),
+        proxy: proxy ? redactUrlToOrigin(proxy) : proxy,
         zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
         topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),

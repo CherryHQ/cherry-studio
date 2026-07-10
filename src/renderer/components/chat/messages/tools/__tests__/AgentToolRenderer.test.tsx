@@ -693,18 +693,18 @@ describe('AgentToolRenderer', () => {
         },
         status: 'done',
         arguments: {
-          path: '/settings/provider',
-          query: { id: 'openai' }
+          path: '/app/agents',
+          query: { sessionId: 'session-1' }
         },
-        response: 'Navigated to /settings/provider'
+        response: 'Navigated to /app/agents'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
       fireEvent.click(screen.getByRole('button'))
 
       expect(navigateToRoute).toHaveBeenCalledWith({
-        path: '/settings/provider',
-        query: { id: 'openai' }
+        path: '/app/agents',
+        query: { sessionId: 'session-1' }
       })
     })
   })
