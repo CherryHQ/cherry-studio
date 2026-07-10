@@ -125,6 +125,7 @@ interface MockBrowserWindow extends EventEmitter {
   focus: ReturnType<typeof vi.fn>
   restore: ReturnType<typeof vi.fn>
   maximize: ReturnType<typeof vi.fn>
+  setWindowButtonVisibility: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
@@ -142,6 +143,7 @@ function createMockWindow(): MockBrowserWindow {
   win.focus = vi.fn()
   win.restore = vi.fn()
   win.maximize = vi.fn()
+  win.setWindowButtonVisibility = vi.fn()
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
@@ -498,6 +500,23 @@ describe('MainWindowService', () => {
 
       expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
       expect(win.maximize).not.toHaveBeenCalled()
+    })
+
+    it('hides the native traffic lights when macOS uses renderer-drawn controls', () => {
+      platformState.isMac = true
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(win.setWindowButtonVisibility).toHaveBeenCalledWith(false)
+    })
+
+    it('does not change native window-button visibility on Windows or Linux', () => {
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(win.setWindowButtonVisibility).not.toHaveBeenCalled()
     })
   })
 })

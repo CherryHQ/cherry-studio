@@ -339,7 +339,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
-  'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
+  'ui.sidebar.width': 65, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
   'ui.chat.last_used_assistant_id': null,

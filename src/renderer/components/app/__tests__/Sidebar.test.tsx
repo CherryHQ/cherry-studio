@@ -42,7 +42,8 @@ const mocks = vi.hoisted(() => ({
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
-  sidebarWidth: 50,
+  isMac: false,
+  sidebarWidth: 65,
   tabs: [] as FakeTab[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
@@ -50,6 +51,12 @@ const mocks = vi.hoisted(() => ({
   visibleMiniApps: null as FakeMiniApp[] | null,
   pinnedMiniApps: [] as FakeMiniApp[],
   onEntriesReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
+}))
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return mocks.isMac
+  }
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -139,6 +146,10 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
   SidebarShellActions: ({ layout, onSettingsClick }: { layout: string; onSettingsClick: () => void }) => (
     <button type="button" data-testid={`sidebar-shell-actions-${layout}`} onClick={onSettingsClick} />
   )
+}))
+
+vi.mock('../../WindowControls', () => ({
+  MacWindowControls: () => <div data-testid="mac-window-controls" />
 }))
 
 type MockSidebarEntry = {
@@ -305,12 +316,23 @@ afterEach(() => {
   mocks.allApps = []
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
-  mocks.sidebarWidth = 50
+  mocks.sidebarWidth = 65
+  mocks.isMac = false
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
 
 describe('app Sidebar', () => {
+  it('keeps a 65px macOS window-control rail when the sidebar is hidden', () => {
+    mocks.isMac = true
+    mocks.sidebarWidth = 0
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('mac-window-controls')).toBeInTheDocument()
+    expect(document.getElementById('app-sidebar')).toHaveStyle({ minWidth: '65px' })
+  })
+
   it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
     render(<Sidebar />)
 
@@ -717,31 +739,31 @@ describe('app Sidebar', () => {
 
     const { rerender } = render(<Sidebar />)
 
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(65)
     expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
 
     rerender(<Sidebar />)
 
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(65)
     expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
   })
 
   it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
     render(<Sidebar />)
 
-    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '65')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('65px')
 
     fireEvent.click(screen.getByTestId('preview-80'))
 
     expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
     expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(65)
     expect(mocks.setSidebarWidth).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('preview-null'))
 
-    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '65')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('65px')
   })
 })

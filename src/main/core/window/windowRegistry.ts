@@ -69,7 +69,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 16 },
           // WCO height; consumed by renderer's env(titlebar-area-height)
           titleBarOverlay: { height: 42 }
         },

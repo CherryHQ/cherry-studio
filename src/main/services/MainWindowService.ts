@@ -201,6 +201,10 @@ export class MainWindowService extends BaseService {
   }
 
   private setupMainWindow(mainWindow: BrowserWindow) {
+    if (isMac) {
+      mainWindow.setWindowButtonVisibility(false)
+    }
+
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).

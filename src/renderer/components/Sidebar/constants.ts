@@ -1,6 +1,6 @@
 import type { SidebarLayout } from './types'
 
-export const SIDEBAR_ICON_WIDTH = 50
+export const SIDEBAR_ICON_WIDTH = 65
 export const SIDEBAR_MAX_WIDTH = 280
 
 export const SIDEBAR_HIDDEN_THRESHOLD = 20
@@ -19,9 +19,9 @@ export function isIntermediateSidebarWidth(width: number): boolean {
   return width > SIDEBAR_ICON_WIDTH && width < SIDEBAR_FULL_THRESHOLD
 }
 
-// Persist-time: collapses intermediate widths to the icon width.
+// Persist-time: collapses legacy and transient icon-layout widths to the canonical width.
 export function normalizeSidebarWidth(width: number): number {
-  if (isIntermediateSidebarWidth(width)) return SIDEBAR_ICON_WIDTH
+  if (getSidebarLayout(width) === 'icon') return SIDEBAR_ICON_WIDTH
   return width
 }
 

@@ -250,7 +250,7 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
-  it('can remove the platform left inset when aligned inside a content column', () => {
+  it('starts the first tab at the content column edge on every platform', () => {
     const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
 
     render(
@@ -263,7 +263,6 @@ describe('AppShellTabBar', () => {
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
         openTab={vi.fn()}
-        leftInset="none"
       />
     )
 
@@ -272,6 +271,7 @@ describe('AppShellTabBar', () => {
 
     expect(header).toHaveClass('pl-0')
     expect(header).not.toHaveClass('pl-3')
+    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
     expect(tabStrip).toHaveClass('pr-1')
     expect(tabStrip).not.toHaveClass('px-1')
     expect(tabStrip).not.toHaveClass('pl-1')

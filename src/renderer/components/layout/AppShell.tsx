@@ -2,7 +2,6 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useMainSettingsTab, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
@@ -85,7 +84,6 @@ export const AppShell = () => {
       unpinTab={unpinTab}
       detachTab={detachTab}
       openTab={openTab}
-      leftInset={isMac ? 'platform' : 'none'}
     />
   )
 
@@ -110,37 +108,15 @@ export const AppShell = () => {
     </div>
   )
 
-  if (!isMac) {
-    return (
-      <div
-        className={cn(
-          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
-          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
-        )}>
-        <Sidebar />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {tabBar}
-          {contentArea}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       className={cn(
-        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        'flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Zone 1: Tab Bar (spans full width) */}
-      {tabBar}
-
-      {/* Zone 2: Main Area (Sidebar + Content) */}
-      <div className="flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden">
-        {/* Zone 2a: Sidebar */}
-        <Sidebar />
-
-        {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
+      <Sidebar />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {tabBar}
         {contentArea}
       </div>
     </div>
