@@ -82,7 +82,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   )
 
   const allModels = useMemo(
-    () => uniqueById([...catalogModels, ...fetchedModels, ...models]),
+    () => uniqueById([...fetchedModels, ...catalogModels, ...models]),
     [catalogModels, fetchedModels, models]
   )
   const remoteModelIds = useMemo(

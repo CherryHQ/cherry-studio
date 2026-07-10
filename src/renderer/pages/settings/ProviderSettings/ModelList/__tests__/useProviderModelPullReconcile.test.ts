@@ -1,5 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -123,12 +124,46 @@ describe('useProviderModelPullReconcile', () => {
 
     expect(result.current.pullReconcileDrawerOpen).toBe(true)
     await waitFor(() => {
-      expect(result.current.allModels).toEqual([catalogModel, fetchedModel, localModel])
+      expect(result.current.allModels).toEqual([fetchedModel, catalogModel, localModel])
     })
     expect(result.current.staleModelCount).toBe(1)
     expect(result.current.staleModelIds).toEqual(['openai::local-model'])
     expect(fetchProviderCatalogModelsMock).toHaveBeenCalledWith('openai')
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+  })
+
+  it('prefers fetched model data when catalog and upstream model ids overlap', async () => {
+    const catalogOverlap = {
+      ...catalogModel,
+      id: 'openai::overlap-model',
+      apiModelId: 'overlap-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    }
+    const fetchedOverlap = {
+      ...fetchedModel,
+      id: 'openai::overlap-model',
+      apiModelId: 'overlap-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    }
+    fetchProviderCatalogModelsMock.mockResolvedValueOnce([catalogOverlap])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([fetchedOverlap])
+    resolveCreateModelEndpointTypesMock.mockReturnValueOnce([ENDPOINT_TYPE.OPENAI_RESPONSES])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.allModels).toEqual([fetchedOverlap, localModel])
+    })
+
+    await act(async () => {
+      await result.current.addModels(result.current.allModels as any)
+    })
+
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)
+    expect(toCreateModelDtoMock).toHaveBeenCalledWith('openai', fetchedOverlap, [ENDPOINT_TYPE.OPENAI_RESPONSES])
   })
 
   it('does not mark custom local models as stale when they are missing remotely', async () => {
@@ -398,7 +433,7 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.reloadModels()
     })
 
-    expect(result.current.allModels).toEqual([newCatalog, newFetched, localModel])
+    expect(result.current.allModels).toEqual([newFetched, newCatalog, localModel])
 
     await act(async () => {
       oldCatalogLoad.resolve([oldCatalog])
@@ -407,6 +442,6 @@ describe('useProviderModelPullReconcile', () => {
       await oldFetchedLoad.promise
     })
 
-    expect(result.current.allModels).toEqual([newCatalog, newFetched, localModel])
+    expect(result.current.allModels).toEqual([newFetched, newCatalog, localModel])
   })
 })

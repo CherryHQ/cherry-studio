@@ -108,7 +108,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
-  const autoSavePendingItemRef = useRef<AutoSaveQueueItem | null>(null)
+  const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
@@ -139,7 +139,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
-    autoSavePendingItemRef.current = null
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -220,9 +219,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     autoSaveRunningRef.current = true
     try {
-      while (autoSavePendingItemRef.current) {
-        const item = autoSavePendingItemRef.current
-        autoSavePendingItemRef.current = null
+      while (autoSavePendingItemsRef.current.size > 0) {
+        const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
+        autoSavePendingItemsRef.current.delete(key)
 
         try {
           await handleUpdateModel(item)
@@ -242,11 +241,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
-      autoSavePendingItemRef.current = {
+      const item = {
         providerId: model.providerId ?? providerId,
         modelId,
         patch: buildPatch(overrides)
       }
+      autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
       void processAutoSaveQueue()
     },
     [buildPatch, model, processAutoSaveQueue, providerId]

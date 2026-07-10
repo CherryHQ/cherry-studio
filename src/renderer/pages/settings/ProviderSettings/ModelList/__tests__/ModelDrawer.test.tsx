@@ -477,6 +477,94 @@ describe('Model drawers', () => {
     ])
   })
 
+  it('preserves pending auto-saves for the previous model when switching models', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+    const firstSave = deferred<void>()
+    updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
+
+    const { rerender } = render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::model-a',
+            providerId: 'openai',
+            name: 'Model A',
+            group: 'Group A',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      const inputPrice = screen.getByLabelText('models.price.input')
+      fireEvent.change(inputPrice, {
+        target: { value: '1.5' }
+      })
+      fireEvent.blur(inputPrice)
+    })
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      const outputPrice = screen.getByLabelText('models.price.output')
+      fireEvent.change(outputPrice, {
+        target: { value: '2.5' }
+      })
+      fireEvent.blur(outputPrice)
+    })
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::model-b',
+            providerId: 'openai',
+            name: 'Model B',
+            group: 'Group B',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      firstSave.resolve()
+      await firstSave.promise
+      await Promise.resolve()
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(2)
+    expect(updateModelMock.mock.calls[1]).toEqual([
+      'openai',
+      'model-a',
+      expect.objectContaining({
+        pricing: expect.objectContaining({
+          input: expect.objectContaining({ perMillionTokens: 1.5 }),
+          output: expect.objectContaining({ perMillionTokens: 2.5 })
+        })
+      })
+    ])
+  })
+
   it('auto-saves cherryin endpoint type changes from the edit drawer', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
