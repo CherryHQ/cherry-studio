@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Επεξεργασία Εικόνας (OpenAI)",
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
@@ -6531,7 +6532,8 @@
         },
         "model_id": {
           "label": "ID μοντέλου",
-          "placeholder": "Απαραίτητο για παράδειγμα gpt-3.5-turbo",
+          "placeholder": "Για παράδειγμα gpt-5.5",
+          "required": "Εισαγάγετε το ID μοντέλου",
           "select": {
             "placeholder": "Επιλέξτε μοντέλο"
           },
@@ -6539,7 +6541,7 @@
         },
         "model_name": {
           "label": "Όνομα μοντέλου",
-          "placeholder": "Για παράδειγμα GPT-3.5",
+          "placeholder": "Για παράδειγμα GPT-5.5",
           "tooltip": "Για παράδειγμα GPT-4"
         },
         "supported_text_delta": {
@@ -6608,14 +6610,17 @@
       },
       "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
-      "list_title": "Model list",
+      "list_title": "Μοντέλα",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
-          "label": "Προσθήκη μοντέλων από τη λίστα"
+          "label": "Προσθήκη όλων των μοντέλων"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
+        "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
+        "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
+        "default_model_cannot_remove": "Το προεπιλεγμένο μοντέλο δεν μπορεί να διαγραφεί.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6637,11 +6642,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
+        "remove_listed": "Αφαίρεση όλων των μοντέλων",
         "remove_model": "Αφαίρεση Μοντέλου",
+        "remove_skipped_default_in_use": "Παραλείφθηκαν {{count}} προεπιλεγμένα μοντέλα",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Μη έγκυρο",
+        "stale_filter": "Μη έγκυρο",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6701,7 +6709,7 @@
         "custom_add": "Προσαρμοσμένο",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Προσθήκη"
+        "pull_short": "Λήψη λίστας μοντέλων"
       },
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
@@ -6793,6 +6801,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Προσθήκη παρόχου",
         "name": {
           "label": "Όνομα παρόχου",
           "placeholder": "π.χ. OpenAI",

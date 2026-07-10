@@ -9,6 +9,7 @@ import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { localModelHandlers } from './localModel'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
@@ -35,6 +36,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...localModelHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
   ...openclawHandlers,

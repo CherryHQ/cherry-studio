@@ -1,6 +1,5 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -35,6 +34,7 @@ import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
 import { BACKUP_V2_READY, BackupUnavailableGate } from './BackupUnavailableGate'
+import NutstorePathPopup from './NutstorePathPopup'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()

@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Editare imagine (OpenAI)",
     "image-generation": "Generare imagini (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6518,7 +6519,7 @@
         },
         "group_name": {
           "label": "Nume grup",
-          "placeholder": "Opțional de ex. ChatGPT",
+          "placeholder": "De ex. ChatGPT",
           "tooltip": "Opțional de ex. ChatGPT"
         },
         "max_input_tokens": {
@@ -6531,7 +6532,8 @@
         },
         "model_id": {
           "label": "ID model",
-          "placeholder": "Obligatoriu de ex. gpt-3.5-turbo",
+          "placeholder": "De ex. gpt-5.5",
+          "required": "Introduceți ID-ul modelului",
           "select": {
             "placeholder": "Selectează model"
           },
@@ -6539,7 +6541,7 @@
         },
         "model_name": {
           "label": "Nume model",
-          "placeholder": "Opțional de ex. GPT-4",
+          "placeholder": "De ex. GPT-5.5",
           "tooltip": "Opțional de ex. GPT-4"
         },
         "supported_text_delta": {
@@ -6608,14 +6610,17 @@
       },
       "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",
-      "list_title": "Model list",
+      "list_title": "Modele",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Ești sigur că vrei să adaugi toate modelele la listă?",
-          "label": "Adaugă modele la listă"
+          "label": "Adaugă toate modelele"
         },
         "add_whole_group": "Adaugă întregul grup",
+        "clean_stale_models": "Curăță modelele expirate",
+        "clean_stale_success": "Au fost curățate {{count}} modele expirate",
+        "default_model_cannot_remove": "Modelul implicit nu poate fi șters.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6637,11 +6642,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Reîmprospătează lista modelelor",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Elimină modelele din listă",
+        "remove_listed": "Elimină toate modelele",
         "remove_model": "Elimină modelul",
+        "remove_skipped_default_in_use": "Au fost omise {{count}} modele implicite",
         "remove_whole_group": "Elimină întregul grup",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Expirat",
+        "stale_filter": "Expirat",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6701,7 +6709,7 @@
         "custom_add": "Personalizat",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Adăugare"
+        "pull_short": "Obține lista de modele"
       },
       "topic_naming": {
         "auto": "Numire automată subiect",
@@ -6793,6 +6801,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Adaugă furnizor",
         "name": {
           "label": "Nume furnizor",
           "placeholder": "Exemplu: OpenAI",

@@ -121,15 +121,15 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Popups/ObsidianExportPopup', () => ({
+vi.mock('@renderer/components/ObsidianExportPopup', () => ({
   default: { show: vi.fn() }
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: { show: hookMocks.promptShow }
 }))
 
-vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
+vi.mock('@renderer/components/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
 
@@ -141,7 +141,7 @@ const { confirmActionShow } = vi.hoisted(() => ({
     return true
   })
 }))
-vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),

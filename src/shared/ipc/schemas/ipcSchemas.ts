@@ -7,6 +7,7 @@ import { codeCliRequestSchemas } from './codeCli'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
@@ -31,6 +32,7 @@ export const ipcRequestSchemas = {
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...localModelRequestSchemas,
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
@@ -51,6 +53,7 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
+  LocalModelEventSchemas &
   OAuthEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas

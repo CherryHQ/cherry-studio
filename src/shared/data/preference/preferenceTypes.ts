@@ -331,6 +331,7 @@ export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
   'paddleocr',
+  'local-paddleocr',
   'ovocr',
   'mineru',
   'doc2x',

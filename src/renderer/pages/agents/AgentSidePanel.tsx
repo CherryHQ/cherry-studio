@@ -2,20 +2,24 @@ import type {
   ConversationResourceMenuItem,
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 import Sessions from './components/Sessions'
-import type { DraftAgentSessionDefaults } from './types'
+import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
+  agentSessionsSource: AgentSessionsSource
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
-  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
-  onStartMissingAgentDraft?: () => void | Promise<void>
+  onCreateSession?: (
+    defaults: CreateAgentSessionDefaults
+  ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
+  onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -24,12 +28,13 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({
   activeSessionId,
+  agentSessionsSource,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
   onSetPanePosition,
-  onStartDraftSession,
-  onStartMissingAgentDraft,
+  onCreateSession,
+  onShowMissingAgentSelection,
   panePosition,
   revealRequest,
   resourceMenuItems,
@@ -44,6 +49,7 @@ const AgentSidePanel = ({
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
+          agentSessionsSource={agentSessionsSource}
           activeSessionId={activeSessionId}
           setActiveSessionId={setActiveSessionId}
           onActiveAgentDeleted={onActiveAgentDeleted}
@@ -53,8 +59,8 @@ const AgentSidePanel = ({
           panePosition={panePosition}
           revealRequest={revealRequest}
           resourceMenuItems={resourceMenuItems}
-          onStartDraftSession={onStartDraftSession}
-          onStartMissingAgentDraft={onStartMissingAgentDraft}
+          onCreateSession={onCreateSession}
+          onShowMissingAgentSelection={onShowMissingAgentSelection}
         />
       </div>
     </div>
