@@ -26,7 +26,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   const { t } = useTranslation()
   if (isBusy) {
     return (
-      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-muted-foreground/60 text-xs">
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/60">
         <Loader2 className="size-2.5 motion-safe:animate-spin" />
         {t('code.installing')}
       </span>
@@ -35,12 +35,12 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   if (!status) return null
   if (!status.installed) {
     return (
-      <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 text-xs">{t('code.not_installed')}</span>
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
     )
   }
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <span className="truncate font-mono text-primary text-xs">
+      <span className="truncate font-mono text-[11px] text-primary">
         v{status.canUpgrade && status.latest ? status.latest : status.current}
       </span>
       {status.canUpgrade && <ArrowUpCircle size={12} className="shrink-0 text-warning" />}
@@ -82,7 +82,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                   <CLIIcon id={tool.value} size={28} className="size-7 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      <div className="min-w-0 flex-1 truncate text-foreground text-sm">{meta.label}</div>
+                      <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
                       <SidebarStatusTag
                         status={statuses[tool.value]}
                         isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}

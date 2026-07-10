@@ -13,7 +13,12 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: (p: Provider) => p.name
 }))
 vi.mock('@renderer/pages/code/cliConfig', () => ({
-  hasClaudeDetailedModels: () => false
+  hasClaudeDetailedModels: (config: Record<string, unknown>) =>
+    Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
+  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+    const model = (config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL
+    return model ? `${providerId}::${model}` : undefined
+  }
 }))
 
 const anthropicEndpoint = { endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } } }
@@ -42,5 +47,26 @@ describe('useConfigMetadata.filterProviders', () => {
     const filtered = result.current.filterProviders([oauthProvider, apiKeyProvider])
 
     expect(filtered).toEqual([apiKeyProvider])
+  })
+})
+
+describe('useConfigMetadata.resolveProviderMeta', () => {
+  it('surfaces the primary detailed Claude model as the model name', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+
+    const meta = result.current.resolveProviderMeta(apiKeyProvider, {
+      modelId: '',
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5' } }
+    })
+
+    expect(meta.modelName).toBe('claude-fable-5')
+  })
+
+  it('resolves the plain configured model for non-detailed configs', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+
+    const meta = result.current.resolveProviderMeta(apiKeyProvider, { modelId: 'anthropic::claude-old' })
+
+    expect(meta.modelName).toBe('claude-old')
   })
 })

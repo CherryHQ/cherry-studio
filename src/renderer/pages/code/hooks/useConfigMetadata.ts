@@ -1,6 +1,6 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import { hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
+import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -46,11 +46,15 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
 
   const resolveProviderMetaForTool = useCallback(
     (toolId: CodeCli, provider: Provider, providerConfig?: CliProviderConfig) => {
-      const modelId = providerConfig?.modelId
+      const config = providerConfig?.config ?? {}
+      // Detailed Claude configs carry no top-level modelId; surface the primary
+      // (fable-role) detailed model instead of hiding the model entirely.
+      const modelId =
+        toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)
+          ? getClaudeContextModelId(provider.id, config)
+          : providerConfig?.modelId
       let modelName: string | undefined
-      if (toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(providerConfig?.config ?? {})) {
-        modelName = undefined
-      } else if (modelId && isUniqueModelId(modelId)) {
+      if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
         const { modelId: rawId } = parseUniqueModelId(modelId)
         modelName = model?.name || rawId
