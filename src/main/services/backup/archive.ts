@@ -17,7 +17,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { link, stat, unlink } from 'node:fs/promises'
+import { link, rename, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -118,17 +118,26 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
       archive.finalize().catch(reject)
     })
 
-    // Atomic no-clobber publish: hard-link tmp → outPath. link() fails EEXIST if a file
-    // appeared between BackupService.validateOutputPath (entry) and here — TOCTOU-safe,
-    // unlike rename() which silently overwrites on POSIX. Then unlink the tmp name
-    // (outPath holds the archive via its own directory entry; refcount 2 → 1).
+    // Atomic no-clobber publish. Prefer hard-link (EEXIST = no-clobber, atomic, no data
+    // copy). Fallback to rename only on filesystems that reject hard-links (exFAT / some
+    // network volumes → ENOTSUP / EOPNOTSUPP / ENOSYS): rename is atomic but can overwrite,
+    // so it relies on the entry validateOutputPath + the stat no-clobber above (TOCTOU
+    // window = the export duration, bounded by preflightDisk).
     try {
       await link(tmpPath, outPath)
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
-      throw e
+      const code = (e as NodeJS.ErrnoException).code
+      if (code === 'EEXIST') throw new OutputPathExistsError(outPath)
+      if (code !== 'ENOTSUP' && code !== 'EOPNOTSUPP' && code !== 'ENOSYS') throw e
+      // Hard-link unsupported on this volume — fallback to rename (commit point; the
+      // entry + stat no-clobber checks above guard the overwrite window).
+      await rename(tmpPath, outPath)
     }
-    await unlink(tmpPath)
+    // Commit point reached (link or rename succeeded) — outPath holds the archive. tmp
+    // cleanup is best-effort: a cleanup failure must NOT turn a successful export into a
+    // reported failure (the outer catch would otherwise rethrow, and a retry would then
+    // hit BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
+    await unlink(tmpPath).catch(() => {})
   } catch (e) {
     // Abort the archiver + destroy the write stream BEFORE unlinking the temp
     // file — without this, a warning-triggered reject leaves the archive piping
