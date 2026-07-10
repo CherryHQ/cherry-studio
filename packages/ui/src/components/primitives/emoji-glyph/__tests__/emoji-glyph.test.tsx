@@ -27,6 +27,13 @@ describe('EmojiGlyph', () => {
     expect(container.textContent).toContain('🤖')
   })
 
+  it('hides the mapped glyph wrapper when decorative', () => {
+    const { container } = render(<EmojiGlyph emoji="🤖" decorative aria-label="robot" />)
+
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.sr-only')).not.toBeInTheDocument()
+  })
+
   it('falls back to Unicode text when Fluent artwork is unavailable', () => {
     const emoji = '👨‍👩‍👧‍👦'
     const { container } = render(<EmojiGlyph emoji={emoji} />)

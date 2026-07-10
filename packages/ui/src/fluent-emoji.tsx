@@ -19,16 +19,6 @@ export const DEFAULT_FLUENT_EMOJI = '😀' as const
 const fluentEmojiData = fluentEmojiDataJson as unknown as FluentEmojiDataset
 const codepointToIconName = fluentEmojiData.codepointToIconName
 const fluentEmojiIcons = fluentEmojiData.icons
-const EMOJI_PART_PATTERN = String.raw`(?:\p{Emoji}\uFE0F|\p{Emoji_Presentation})(?:\p{Emoji_Modifier})?`
-const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
-const REGIONAL_FLAG_EMOJI_PATTERN = String.raw`(?:\p{Regional_Indicator}{2})`
-const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
-const EMOJI_CLUSTER_PATTERN = String.raw`(?:${KEYCAP_EMOJI_PATTERN}|${REGIONAL_FLAG_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})`
-const EMOJI_REGEX = new RegExp(`^(?:${EMOJI_CLUSTER_PATTERN})+$`, 'u')
-
-function isEmoji(value: string): boolean {
-  return EMOJI_REGEX.test(value)
-}
 
 function toCodepointKeys(emoji: string): string[] {
   const codepoints = Array.from(emoji.trim()).map((char) => char.codePointAt(0)?.toString(16) ?? '')
@@ -62,13 +52,7 @@ export function getFluentEmojiOrFallback(
   emoji: string | null | undefined,
   fallbackEmoji: string = DEFAULT_FLUENT_EMOJI
 ): string {
-  const normalizedEmoji = emoji?.trim() ?? ''
-  if (!normalizedEmoji) return DEFAULT_FLUENT_EMOJI
-  if (normalizedEmoji && hasFluentEmojiIcon(normalizedEmoji)) return normalizedEmoji
-  if (!isEmoji(normalizedEmoji)) return normalizedEmoji
-  if (fallbackEmoji !== DEFAULT_FLUENT_EMOJI && hasFluentEmojiIcon(fallbackEmoji)) return fallbackEmoji
-
-  return DEFAULT_FLUENT_EMOJI
+  return emoji?.trim() || fallbackEmoji
 }
 
 function escapeRegExp(value: string): string {
@@ -117,7 +101,10 @@ const EmojiGlyph = ({ emoji, decorative = false, className, ...props }: EmojiGly
   }
 
   return (
-    <span className={cn('inline-flex items-center justify-center leading-none', className)} {...props}>
+    <span
+      className={cn('inline-flex items-center justify-center leading-none', className)}
+      {...props}
+      aria-hidden={decorative ? true : props['aria-hidden']}>
       <svg
         aria-hidden="true"
         className="h-[1em] w-[1em] shrink-0"
