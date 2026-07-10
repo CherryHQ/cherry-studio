@@ -101,7 +101,7 @@ export type InsertMessageRow = typeof messageTable.$inferInsert
 
 /**
  * Custom SQL statements that Drizzle cannot manage
- * These are executed after every migration via DbService.runCustomMigrations()
+ * These are executed after every migration via applyMigrations()
  *
  * All statements should be idempotent (IF NOT EXISTS / DROP IF EXISTS / rebuild-safe).
  */

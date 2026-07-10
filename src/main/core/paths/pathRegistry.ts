@@ -130,6 +130,12 @@ export function buildPathRegistry() {
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
+    // Backup restore promotion — the journal sidecar is owned by
+    // src/main/data/db/restore/ (see its README.md); the staging tree's
+    // content is owned by BackupService.
+    'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
+    'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
