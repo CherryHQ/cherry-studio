@@ -45,8 +45,9 @@ interface PromotionContext {
  * Every exit converges to one of two states — old DB intact and live, or new
  * DB complete and live — and any terminal outcome deletes the staging tree.
  * This function may throw only on truly unexpected failures; the shell
- * (backupRestoreGate.ts) swallows those, because a preboot exception would
- * dead-loop the "Unable to Start" fail-fast path.
+ * (backupRestoreGate.ts) swallows those — unless recovery left no live DB at
+ * all (see isLiveDbStranded) — because a preboot exception would dead-loop
+ * the "Unable to Start" fail-fast path.
  */
 export async function runRestorePromotion(): Promise<void> {
   const read = readRestoreJournal()
@@ -74,13 +75,18 @@ export async function runRestorePromotion(): Promise<void> {
 /**
  * Last-resort net for a crash that ESCAPED runRestorePromotion — called only
  * by the gate shell's catch. Escaped throws are precisely the cases in-band
- * recovery could not handle, so before freezing the journal to a terminal
- * `failed` this restores the cardinal invariant: if the live slot is empty
- * but the aside still holds the old DB, put it back — otherwise the next
- * boot would silently create a fresh EMPTY database while the user's data
- * sits stranded in the aside. Then applies the standard terminal cleanup
- * (journal write + staging tree removal). Must never throw beyond what the
- * shell already guards.
+ * recovery could not handle. Two-way triage on the commit boundary:
+ *
+ * - Commit already landed (commitLanded): the new DB is live — freezing that
+ *   to failed would strand a half-promoted DB and delete the staging tree the
+ *   resume still needs. Leave the promoting journal for the next boot.
+ * - Otherwise, restore the cardinal invariant first: if the live slot is
+ *   empty but the aside still holds the old DB, put it back — else the next
+ *   boot would silently create a fresh EMPTY database while the user's data
+ *   sits stranded in the aside. Then apply the standard terminal cleanup
+ *   (journal write + staging tree removal).
+ *
+ * Must never throw beyond what the shell already guards.
  */
 export function markRestoreFailedAfterCrash(): void {
   const read = readRestoreJournal()
@@ -92,8 +98,57 @@ export function markRestoreFailedAfterCrash(): void {
     return
   }
   const ctx = buildContext(journal)
+  if (journal.state === 'promoting' && commitLanded(ctx, journal)) {
+    // The commit rename is durably on disk: the new DB is live with the old
+    // DB parked aside. Freezing THAT to failed would strand a half-promoted
+    // DB as the live one and delete the staging tree the resume still needs
+    // — the forbidden third state. Leave the promoting journal untouched;
+    // the next boot's recoverPromoting resumes it idempotently.
+    logger.warn('Escaped crash left a committed promotion — keeping it resumable for the next boot', {
+      restoreId: journal.restoreId
+    })
+    return
+  }
   restoreLiveFromAside(ctx)
   finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
+}
+
+/**
+ * Whether the commit rename has durably landed AND the committed state is
+ * still intact, judged by the journal marker plus filesystem reality (markers
+ * are write-behind, so the FS wins ties). Both branches require the new DB
+ * live AND the old DB still aside — a revert that already re-installed the
+ * old DB clears the aside and correctly re-enables freezing. Below the
+ * commit marker only the probe pattern (marker lagging one step behind the
+ * landed rename) proves the commit; the same aside requirement keeps an
+ * interrupted revert from matching it (see recoverPromoting).
+ */
+function commitLanded(ctx: PromotionContext, journal: PromotingJournal): boolean {
+  if (!fs.existsSync(ctx.livePath) || !fs.existsSync(ctx.asidePath)) {
+    return false
+  }
+  if (PROMOTION_STEP_ORDER.indexOf(journal.step) >= PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)) {
+    return true
+  }
+  return journal.step === 'live-aside' && !fs.existsSync(ctx.workPath)
+}
+
+/**
+ * Whether the user's database is stranded: the live slot is empty while this
+ * machinery's aside still holds the previous database. The shell checks this
+ * after an escaped crash — booting on from here would CREATE a fresh empty
+ * database on first open, with the user's data invisible in the aside. A
+ * missing live DB with no journal (or a corrupt one) is not this machinery's
+ * doing and stays out of scope.
+ */
+export function isLiveDbStranded(): boolean {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok') {
+    return false
+  }
+  const livePath = application.getPath('app.database.file')
+  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
@@ -113,6 +168,7 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
   const ctx = buildContext(journal)
 
   try {
+    assertNoAddConflicts(ctx)
     sealWorkSidecars(ctx.workPath)
     if (!(await fingerprintMatches(ctx.livePath, journal.db.fingerprint))) {
       return expire(
@@ -130,6 +186,23 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
   logger.info('Restore admission gate passed, promoting', { restoreId: journal.restoreId })
   const promoting = markStep({ ...journal, state: 'promoting', step: 'gate-passed' }, 'gate-passed')
   await executeForward(ctx, promoting)
+}
+
+/**
+ * Admission preflight: add targets must not pre-exist (the writer contract
+ * moveIdempotent also enforces per move). Refusing up front turns what would
+ * be a mid-apply conflict throw + rollback into a clean expire that provably
+ * touched nothing.
+ */
+function assertNoAddConflicts(ctx: PromotionContext): void {
+  for (const entry of ctx.journal.fileResources) {
+    if (entry.kind === 'blob-add' || entry.kind === 'dir-add' || entry.kind === 'note-add') {
+      const live = resolveEntry(ctx, entry.livePath)
+      if (fs.existsSync(live)) {
+        throw new Error(`add target already exists: ${entry.livePath} (${entry.kind})`)
+      }
+    }
+  }
 }
 
 /**
@@ -205,15 +278,36 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
     // its own journal marker when the crash lands between the two writes.
     // Markers lag their action by at most one step, and in every legitimate
     // pre-commit state the work file still exists — so "work gone ∧ live
-    // present" at step live-aside proves the commit rename already landed.
-    // Rolling back here would delete the additive files the now-live new DB
-    // references while the aside guard leaves the new DB in place — the
-    // forbidden third state. Resume instead.
-    if (journal.step === 'live-aside' && !fs.existsSync(ctx.workPath) && fs.existsSync(ctx.livePath)) {
+    // present ∧ aside present" at step live-aside proves the commit rename
+    // landed AND no revert has re-installed the old DB (a finished aside
+    // restore is the only thing that clears the aside slot). Rolling back
+    // here would delete the additive files the now-live new DB references
+    // while the aside guard leaves the new DB in place — the forbidden third
+    // state. Resume instead. Without the aside check an interrupted revert
+    // (old DB already back, marker still stuck at live-aside) would match
+    // this pattern and mis-resume forward; with it, that state falls through
+    // to the rollback below, which correctly finishes undoing the manifest
+    // on the already-restored old DB.
+    if (
+      journal.step === 'live-aside' &&
+      !fs.existsSync(ctx.workPath) &&
+      fs.existsSync(ctx.livePath) &&
+      fs.existsSync(ctx.asidePath)
+    ) {
       logger.warn('Commit rename landed but its marker lagged — resuming promotion', {
         restoreId: journal.restoreId
       })
-      await executeForward(ctx, markStep(journal, COMMIT_STEP))
+      let resumed: PromotingJournal
+      try {
+        resumed = markStep(journal, COMMIT_STEP)
+      } catch (error) {
+        // The journal is unwritable, but the FS already proves the commit —
+        // and re-proves it to the probe on any later crash. Resume in memory
+        // rather than escape to the shell, which cannot roll a commit back.
+        logger.error('Probe-detected commit marker could not be persisted — resuming in memory', error as Error)
+        resumed = { ...journal, step: COMMIT_STEP }
+      }
+      await executeForward(ctx, resumed)
       return
     }
     logger.warn('Crash before the commit point — rolling back to the old DB', {
@@ -221,6 +315,19 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       step: journal.step
     })
     rollbackPreCommit(ctx)
+    return
+  }
+  // Forward resume is legitimate only while the committed state is intact:
+  // new DB live AND old DB parked aside. A cleared aside means an interrupted
+  // revert already re-installed the old DB — resuming forward would
+  // integrity-check the (valid) old DB and misreport the restore as
+  // completed. Finish the revert instead (idempotent by its aside guards).
+  if (!fs.existsSync(ctx.asidePath)) {
+    logger.warn('Crash inside an interrupted post-commit revert — finishing the revert', {
+      restoreId: journal.restoreId,
+      step: journal.step
+    })
+    revertPostCommit(ctx)
     return
   }
   logger.warn('Crash at/after the commit point — resuming promotion', {
@@ -237,6 +344,15 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
  * journal (write-ahead file write, idempotent operations) so a crash lands in
  * recoverPromoting with an accurate marker. A step failure before the commit
  * point rolls back; at/after it, reverts to the old DB (aside) in full.
+ *
+ * Marker writes can fail too (disk full, EACCES) — the action they record has
+ * already succeeded, so the response depends on which side of the commit
+ * point the step sits: before it, the write-ahead contract is broken (a later
+ * crash could lag more steps than the FS probe covers) and the old DB still
+ * exists, so roll back; at/past it the commit rename is durable and the
+ * marker is only a recovery hint, so continue in memory — if the terminal
+ * write fails as well, the on-disk journal lags at most one step (or sits at
+ * live-aside, where the FS probe fires) and the next boot resumes.
  */
 async function executeForward(ctx: PromotionContext, journal: PromotingJournal): Promise<void> {
   let current = journal
@@ -254,7 +370,17 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
       }
       return
     }
-    current = markStep(current, step)
+    try {
+      current = markStep(current, step)
+    } catch (error) {
+      if (i < commitIndex) {
+        logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error as Error)
+        rollbackPreCommit(ctx)
+        return
+      }
+      logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
+      current = { ...current, step }
+    }
   }
   logger.info('Restore promoted — new DB is live', { restoreId: ctx.journal.restoreId })
   finalize(ctx, 'completed', current.step)
@@ -362,9 +488,14 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  * but unacceptable. Park it for forensics, restore the aside, and undo ALL
  * file operations — entries were applied by now, so reverting only the DB
  * would leave an "old DB + new files" inconsistent state.
+ *
+ * Idempotent under re-entry (a crash mid-revert routes back here next boot):
+ * the park guard requires the aside to still exist — once the aside restore
+ * has run, the live slot holds the OLD DB and parking it would destroy the
+ * very database the revert is protecting.
  */
 function revertPostCommit(ctx: PromotionContext): void {
-  if (fs.existsSync(ctx.livePath)) {
+  if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
     const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
@@ -383,7 +514,8 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
 
 /**
  * Undo every manifest operation that (may) have happened, in reverse of the
- * apply direction. Idempotent by construction: adds are deleted if present,
+ * apply direction. Idempotent by construction: adds are renamed back to
+ * their staging source (only when this promotion provably moved them in),
  * overwrites are restored only while their aside exists. Best-effort per
  * entry: one stuck entry must not abort the rest of the inverse — the aside
  * restore of the live DB and the terminal bookkeeping still have to follow.
@@ -403,11 +535,18 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
   switch (entry.kind) {
     case 'blob-add':
     case 'note-add':
-      fs.rmSync(live, { force: true })
+    case 'dir-add': {
+      // Rename-back, never delete: "staging source gone" is the only proof
+      // this promotion moved the target in. On a conflicted entry the source
+      // still sits in staging and the live target belongs to someone else —
+      // deleting it would be unrecoverable loss of data the old DB may
+      // reference. The returned copy is discarded with the staging tree.
+      const source = resolveEntry(ctx, entry.stagingPath)
+      if (!fs.existsSync(source) && fs.existsSync(live)) {
+        renameDurable(live, source)
+      }
       return
-    case 'dir-add':
-      fs.rmSync(live, { recursive: true, force: true })
-      return
+    }
     case 'note-overwrite':
     case 'overwrite': {
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined

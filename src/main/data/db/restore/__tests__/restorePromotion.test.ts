@@ -15,9 +15,10 @@ import { dirname, join } from 'node:path'
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { hashDbFile } from '@data/db/restore/hashDbFile'
+import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
-import { markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
+import { isLiveDbStranded, markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
 import { appStateTable } from '@data/db/schemas/appState'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
@@ -35,6 +36,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 let userData = ''
+
+/**
+ * Journal-write fault injection: the module is passed through untouched except
+ * writeRestoreJournal, which throws when the predicate matches the journal
+ * being written. Lets cases fail exactly one marker write (e.g. the commit
+ * step's) while every other write — fixtures included — stays real.
+ */
+const markerFailure = vi.hoisted(() => ({
+  shouldFail: null as ((journal: { state: string; step?: string }) => boolean) | null
+}))
+
+vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
+  const actual = await importOriginal<typeof RestoreJournalModule>()
+  return {
+    ...actual,
+    writeRestoreJournal: (journal: RestoreJournal) => {
+      if (markerFailure.shouldFail?.(journal)) {
+        throw new Error('injected journal write failure')
+      }
+      actual.writeRestoreJournal(journal)
+    }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -197,6 +221,7 @@ function journalState(): string {
 describe('runRestorePromotion', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
+    markerFailure.shouldFail = null
   })
 
   afterEach(() => {
@@ -491,6 +516,68 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
+  it('finishes an interrupted revert instead of resuming forward (old DB already re-installed)', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    // Power loss inside revertPostCommit AFTER the aside restore: the failed
+    // candidate is parked as work-failed-*, the OLD DB is back in the live
+    // slot, the aside is gone — but the manifest entries are still applied
+    // and the journal marker still reads entries-applied. A forward resume
+    // would integrity-check the (valid) old DB and misreport 'completed'.
+    arrangeAdditiveMoved()
+    mkdirSync(dirname(noteAside()), { recursive: true })
+    renameSync(liveNote(), noteAside())
+    renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
+    renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
+    renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' } as RestoreJournal)
+
+    await runRestorePromotion()
+
+    // The revert is finished, never misreported: old DB live, every file
+    // operation undone, the parked candidate kept for forensics.
+    expect(journalState()).toBe('failed')
+    expect(readMarker(livePath())).toBe('old')
+    expect(readMarker(join(userData, `work-failed-${RID}.sqlite`))).toBe('new')
+    expect(existsSync(liveBlob())).toBe(false)
+    expect(existsSync(liveKbDir())).toBe(false)
+    expect(existsSync(liveAddedNote())).toBe(false)
+    expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+    expect(existsSync(noteAside())).toBe(false)
+    expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it('does not misfire the commit probe on an interrupted revert (marker stuck at live-aside)', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    // Deeper variant: the commit marker itself had failed (marker stuck at
+    // live-aside), the promotion continued in memory, integrity failed, the
+    // revert re-installed the old DB — then power loss. The probe pattern
+    // "work gone ∧ live present" now matches the REVERTED state; only the
+    // cleared aside tells it apart from a freshly-landed commit.
+    arrangeAdditiveMoved()
+    mkdirSync(dirname(noteAside()), { recursive: true })
+    renameSync(liveNote(), noteAside())
+    renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
+    renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
+    renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('failed')
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(liveBlob())).toBe(false)
+    expect(existsSync(liveKbDir())).toBe(false)
+    expect(existsSync(liveAddedNote())).toBe(false)
+    expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+    expect(existsSync(stagingDir())).toBe(false)
+  })
+
   it('quarantines a corrupt journal and clears the staging root', async () => {
     makeDb(livePath(), 'old')
     mkdirSync(stagingDir(), { recursive: true })
@@ -517,6 +604,151 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  describe('marker write failures (action succeeded, journal write threw — NOT a crash)', () => {
+    it('completes in memory when the commit-step marker write fails', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+      // The work→live rename lands, then its own marker write throws. The
+      // rename is durable — rolling back or freezing here would strand a
+      // half-promoted DB. The promotion must finish in memory.
+      markerFailure.shouldFail = (j) => j.state === 'promoting' && j.step === 'work-promoted'
+
+      await runRestorePromotion()
+
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+      expect(readFileSync(liveBlob(), 'utf8')).toBe('BLOB-NEW')
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEW')
+      expect(readFileSync(liveAddedNote(), 'utf8')).toBe('NOTE-ADDED')
+      expect(journalState()).toBe('completed')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('rolls back when a pre-commit marker write fails (write-ahead contract unrecoverable)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+      // Before the commit point a lost marker means later crash recovery
+      // could lag more than the one step the FS probe covers — the only safe
+      // direction is a full rollback while the old DB still exists.
+      markerFailure.shouldFail = (j) => j.state === 'promoting' && j.step === 'additive-moved'
+
+      await runRestorePromotion()
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(asidePath())).toBe(false)
+      expect(existsSync(liveBlob())).toBe(false)
+      expect(existsSync(liveKbDir())).toBe(false)
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+      expect(journalState()).toBe('failed')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('resumes in memory when the probe-detected commit marker cannot be persisted', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      const journal = await buildJournal({ fileResources: standardManifest() })
+      // Same arrangement as the marker-lag probe case, plus: the journal is
+      // still unwritable when the probe fires. Recovery must proceed in
+      // memory rather than escape to the shell (which would freeze a
+      // committed promotion to failed and delete the staging tree).
+      arrangeAdditiveMoved()
+      renameSync(livePath(), asidePath())
+      renameSync(workPath(), livePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      markerFailure.shouldFail = (j) => j.state === 'promoting' && j.step === 'work-promoted'
+
+      await runRestorePromotion()
+
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+      expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEW')
+      expect(journalState()).toBe('completed')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('escapes a terminal finalize write failure, then converges on the next boot', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+      markerFailure.shouldFail = (j) => j.state === 'completed'
+
+      // The FS reached the fully-promoted state; only the terminal journal
+      // write failed. The escape must NOT have deleted the staging tree —
+      // it is the resume's raw material.
+      await expect(runRestorePromotion()).rejects.toThrow('injected journal write failure')
+      expect(readMarker(livePath())).toBe('new')
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+
+      // Next boot, disk healthy again: the promoting journal resumes
+      // idempotently and the terminal write goes through.
+      markerFailure.shouldFail = null
+      await runRestorePromotion()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+  })
+
+  describe('add-target conflicts (target pre-exists — never clobber, never mis-delete)', () => {
+    it('expires at admission when an add target already exists (preflight, nothing touched)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      writeFileSync(liveAddedNote(), 'USER-DATA')
+      writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+
+      await runRestorePromotion()
+
+      expect(journalState()).toBe('expired')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(liveAddedNote(), 'utf8')).toBe('USER-DATA')
+      expect(existsSync(liveBlob())).toBe(false)
+      expect(existsSync(asidePath())).toBe(false)
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('rollback leaves conflicted targets intact and only returns adds this promotion moved in', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      const journal = await buildJournal({ fileResources: standardManifest() })
+      // Provenance split: the blob WAS moved in by this promotion (staging
+      // source gone); the KB dir and the added note were NOT — their staging
+      // sources remain and their live targets are pre-existing user data.
+      // (Defense-in-depth: admission preflight normally expires such a
+      // journal before it ever reaches promoting — this pins the inverse's
+      // own provenance guard should a conflict slip past it.)
+      renameSync(join(stagingDir(), 'files', 'blob-1'), liveBlob())
+      mkdirSync(liveKbDir(), { recursive: true })
+      writeFileSync(join(liveKbDir(), 'user.txt'), 'USER-KB')
+      writeFileSync(liveAddedNote(), 'USER-DATA')
+      renameSync(livePath(), asidePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+      await runRestorePromotion()
+
+      // Old DB restored; the user's pre-existing file and directory survived
+      // the inverse — deleting them would be unrecoverable data loss.
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(liveAddedNote(), 'utf8')).toBe('USER-DATA')
+      expect(readFileSync(join(liveKbDir(), 'user.txt'), 'utf8')).toBe('USER-KB')
+      // The blob this promotion DID move in was returned to staging and
+      // discarded with it.
+      expect(existsSync(liveBlob())).toBe(false)
+      expect(journalState()).toBe('failed')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
   })
 
   describe("markRestoreFailedAfterCrash (the gate shell's last-resort net)", () => {
@@ -556,6 +788,9 @@ describe('runRestorePromotion', () => {
       // it back. Freezing to failed without restoring it would strand the
       // user on a fresh empty database next boot.
       renameSync(livePath(), asidePath())
+      // The work slot must be empty too — mid-revert the candidate DB was
+      // already parked as work-failed-*, so nothing here reads as resumable.
+      rmSync(workPath())
       writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
 
       markRestoreFailedAfterCrash()
@@ -564,6 +799,78 @@ describe('runRestorePromotion', () => {
       expect(existsSync(asidePath())).toBe(false)
       expect(journalState()).toBe('failed')
       expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('leaves a resumable post-commit state untouched (new DB live, old DB aside)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      const journal = await buildJournal({ fileResources: standardManifest() })
+      // Escape AFTER the commit rename: the new DB is live, the old DB is
+      // parked aside. Freezing to failed would strand a half-promoted DB and
+      // delete the staging tree the next boot's resume still needs.
+      arrangeAdditiveMoved()
+      renameSync(livePath(), asidePath())
+      renameSync(workPath(), livePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+
+      markRestoreFailedAfterCrash()
+
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+
+    it('leaves the probe-detected commit state untouched (marker lagged at live-aside)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedManifestFixtures()
+      const journal = await buildJournal({ fileResources: standardManifest() })
+      // The commit rename landed but its marker never did (the same window
+      // recoverPromoting's FS probe covers) — then the resume escaped. The
+      // net must recognize the committed state and leave it resumable.
+      arrangeAdditiveMoved()
+      renameSync(livePath(), asidePath())
+      renameSync(workPath(), livePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+      markRestoreFailedAfterCrash()
+
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+  })
+
+  describe('isLiveDbStranded (the shell boot-refusal predicate)', () => {
+    it('is true when the live DB is missing and the aside still holds the old DB', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const journal = await buildJournal()
+      renameSync(livePath(), asidePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+      expect(isLiveDbStranded()).toBe(true)
+    })
+
+    it('is false while the live DB exists', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      writeRestoreJournal(await buildJournal())
+
+      expect(isLiveDbStranded()).toBe(false)
+    })
+
+    it('is false with no journal (missing live is not this machinery)', () => {
+      expect(isLiveDbStranded()).toBe(false)
+    })
+
+    it('is false on a corrupt journal (no aside path to check)', () => {
+      writeFileSync(journalPath(), '{ definitely not a journal')
+
+      expect(isLiveDbStranded()).toBe(false)
     })
   })
 })

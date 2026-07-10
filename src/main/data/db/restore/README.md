@@ -22,7 +22,8 @@ The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM
 ```
 staged ──gate passed──▶ promoting ──▶ completed (work promoted, integrity ok)
    │                        └───────▶ failed    (crash rollback / integrity failure)
-   └──gate refused─▶ expired  (fingerprint/chain mismatch, work sidecar unsealable)
+   └──gate refused─▶ expired  (fingerprint/chain mismatch, work sidecar unsealable,
+                               add-target conflict)
 ```
 
 - `staged` — written by the backup staging pipeline after offline merge + verification.
@@ -46,3 +47,4 @@ Before writing a `staged` journal:
 
 1. **Seal `work.sqlite`**: `checkpointTruncateAssert` + close ALL connections + assert no `-wal`/`-shm` remains. A dirty exit leaves committed restore data in the WAL; the gate renames only the main file, so unsealed WAL content would be silently lost (the gate re-seals defensively, but sealing is the writer's contract).
 2. **`chain` MUST come from `readAppliedChain(work)`** — never from the app's bundled migration list: drizzle's `migrate()` silently no-ops on an ahead-of-code DB, so the bundled list can be a strict subset of what the DB actually applied.
+3. **Add targets (`blob-add` / `dir-add` / `note-add` livePath) must not pre-exist**: the gate preflights this at admission and expires the restore on any conflict; a conflicted target is never clobbered by apply nor deleted by rollback.
