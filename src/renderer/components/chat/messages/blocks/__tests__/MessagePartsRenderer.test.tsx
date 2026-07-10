@@ -457,6 +457,112 @@ describe('MessagePartsRenderer', () => {
     blocks.forEach((b) => expect(b.getAttribute('data-single')).toBe('false'))
   })
 
+  it('hides the duplicate user image when its composer file token is visible', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Look ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-image',
+                    kind: 'file',
+                    label: 'photo.png',
+                    index: 0,
+                    textOffset: 5
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+  })
+
+  it('hides duplicate user images with the same filename by composer file token identity', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Compare ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-image-1',
+                    kind: 'file',
+                    label: 'photo.png',
+                    index: 0,
+                    textOffset: 8
+                  },
+                  {
+                    id: 'file:source-image-2',
+                    kind: 'file',
+                    label: 'photo.png',
+                    index: 1,
+                    textOffset: 8
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/first/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-image-1' } }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/second/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-image-2' } }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
+    expect(screen.queryByTestId('mock-image-block')).toBeNull()
+  })
+
+  it('keeps a user image when no composer file token is visible', () => {
+    renderParts(
+      [
+        { type: 'text', text: 'Look at this' } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///tmp/photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+  })
+
   it('skips image parts without url', () => {
     renderParts([{ type: 'file', mediaType: 'image/png' } as unknown as CherryMessagePart])
     expect(screen.queryByTestId('mock-image-block')).toBeNull()

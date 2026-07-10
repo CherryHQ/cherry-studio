@@ -1650,8 +1650,8 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    // The FileEntry is created at send time: the file part carries fileEntryId + a file:// url
-    // + a real MIME, not the raw path / literal extension.
+    // The FileEntry is created at send time: the file part carries both file identities,
+    // a file:// URL, and a real MIME instead of the raw path / literal extension.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
     expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
@@ -1689,7 +1689,8 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
-                  fileEntryId: 'fe-1'
+                  fileEntryId: 'fe-1',
+                  fileTokenSourceId: 'source-file-1'
                 }
               }
             }
