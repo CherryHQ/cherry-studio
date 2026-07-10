@@ -5,6 +5,7 @@ export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'
+export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
 export { default as IndicatorLight } from './primitives/indicator-light'
@@ -37,6 +38,7 @@ export {
   type DateTimePickerProps
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
+export { default as EmojiAvatar } from './composites/emoji-avatar'
 export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/empty-state'
 export {
   type EntityItemBase,
