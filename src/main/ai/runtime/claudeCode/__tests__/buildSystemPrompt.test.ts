@@ -6,6 +6,7 @@
 
 import type * as NodeFs from 'node:fs'
 
+import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,6 +89,7 @@ beforeEach(() => {
     vi.fn(async () => ({ ok: true }))
   )
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
 })
 
@@ -101,7 +103,7 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 
 describe('buildSystemPrompt — report_artifacts prompt', () => {
   beforeEach(() => {
-    mockFindBySessionId.mockResolvedValue(null)
+    mockFindBySessionId.mockReturnValue(null)
   })
 
   it('appends the report_artifacts prompt with user instructions (raw-string path)', async () => {
@@ -132,7 +134,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
 
 describe('buildSystemPrompt — bundled-runtime guidance', () => {
   beforeEach(() => {
-    mockFindBySessionId.mockResolvedValue(null)
+    mockFindBySessionId.mockReturnValue(null)
   })
 
   it('steers the agent to bun/uv with user instructions', async () => {
@@ -160,7 +162,7 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
 
 describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   beforeEach(() => {
-    mockFindBySessionId.mockResolvedValue(null)
+    mockFindBySessionId.mockReturnValue(null)
   })
 
   it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
@@ -198,5 +200,28 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
     expect(result as string).toContain('You are Cherry Assistant, the built-in helper for Cherry Studio')
+  })
+
+  it('applies the external channel security policy for linked assistant sessions', async () => {
+    mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain(CHANNEL_SECURITY_PROMPT)
+  })
+
+  it('does not apply the external channel security policy for unlinked assistant sessions', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).not.toContain(CHANNEL_SECURITY_PROMPT)
   })
 })

@@ -997,12 +997,12 @@ export async function buildSystemPrompt(
   if (isAssistant) {
     try {
       const context = await buildAssistantContext()
-      return instructions ? `${instructions}\n\n${context}` : context
+      return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
       // entire assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return instructions
+      return `${instructions}${channelSecurityBlock}`
     }
   }
 
