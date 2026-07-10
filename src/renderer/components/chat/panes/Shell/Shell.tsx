@@ -462,7 +462,7 @@ function ShellTabList({
       ) : (
         <div
           data-testid="shell-tab-title"
-          className="min-w-0 flex-1 truncate px-1 font-medium text-foreground text-sm [-webkit-app-region:no-drag]">
+          className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
           {title}
         </div>
       )}

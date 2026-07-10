@@ -716,6 +716,31 @@ describe('Shell.TabList', () => {
     expect(tabList).toHaveClass('[-webkit-app-region:drag]')
     expect(tabList).not.toHaveClass('[-webkit-app-region:no-drag]')
   })
+
+  it('keeps the title area draggable when title mode is maximized inside a sub-window', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <Shell defaultTab="files" defaultOpen>
+          <Shell.Tabs>
+            <Shell.TabList title="Files" showTabs={false}>
+              <Shell.Tab value="files">Files</Shell.Tab>
+            </Shell.TabList>
+          </Shell.Tabs>
+        </Shell>
+      </WindowFrameProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    const tabList = screen.getByTestId('shell-tab-list')
+    const title = screen.getByTestId('shell-tab-title')
+    const controls = title.nextElementSibling
+
+    expect(tabList).toHaveClass('[-webkit-app-region:drag]')
+    expect(title).toHaveClass('flex-1', 'select-none')
+    expect(title).not.toHaveClass('[-webkit-app-region:no-drag]')
+    expect(controls).toHaveClass('[-webkit-app-region:no-drag]')
+  })
 })
 
 describe('Shell.MaximizedOverlay', () => {
