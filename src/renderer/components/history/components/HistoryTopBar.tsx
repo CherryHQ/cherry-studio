@@ -98,6 +98,17 @@ const HistoryTopBar = ({
       <div className="flex h-11 shrink-0 items-center gap-2 bg-card px-2">
         {toolbarLeading ? <div className="flex shrink-0 items-center">{toolbarLeading}</div> : null}
 
+        <div className="w-[220px] max-w-[38vw] [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group]]:h-8">
+          <SearchInput
+            value={searchText}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            onChange={(event) => onSearchTextChange(event.target.value)}
+            onClear={() => onSearchTextChange('')}
+            clearLabel={t('history.records.clearSearch')}
+          />
+        </div>
+
         {renderSourceFilter(selectedSourceId === ALL_SOURCE_ID ? null : selectedSourceId, (id) =>
           onSourceSelect(id ?? ALL_SOURCE_ID)
         )}
@@ -177,17 +188,6 @@ const HistoryTopBar = ({
             {bulkDeleteCount > 0 ? ` (${bulkDeleteCount})` : ''}
           </span>
         </Button>
-
-        <div className="w-[220px] max-w-[38vw] [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group]]:h-8">
-          <SearchInput
-            value={searchText}
-            placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
-            onChange={(event) => onSearchTextChange(event.target.value)}
-            onClear={() => onSearchTextChange('')}
-            clearLabel={t('history.records.clearSearch')}
-          />
-        </div>
       </div>
 
       <ConfirmDialog

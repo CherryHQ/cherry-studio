@@ -14,7 +14,7 @@ interface HistoryRecordsContentProps<T> {
   toolbarLeading?: ReactNode
 }
 
-/** ToB list surface: one top bar (toggle · filter · search) above a virtualized table. */
+/** ToB list surface: one top bar (toggle · search · filters · bulk actions) above a virtualized table. */
 export function HistoryRecordsContent<T>({
   descriptor,
   controller,

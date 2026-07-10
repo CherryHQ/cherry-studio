@@ -459,6 +459,19 @@ describe('HistoryRecordsView agent mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('orders search, filters, and bulk actions across the toolbar', () => {
+    setupAgentHistory()
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
+    const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
+    const statusFilter = screen.getByRole('button', { name: 'Status' })
+    const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Delete' })
+
+    expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(statusFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
   it('filters sessions by selected agent source', () => {
     setupAgentHistory()
 
