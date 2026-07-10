@@ -19,7 +19,7 @@
 //
 // Preset: full + lite (chat history is a core migrate scenario).
 
-import type { BackupContributor } from '@main/data/db/backup/contributor-types'
+import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
