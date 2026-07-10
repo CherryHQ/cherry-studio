@@ -12,6 +12,7 @@ import { ConfigEditPanel } from '../ConfigEditPanel'
 const {
   extractConfigFromCliConfigDraftMock,
   extractConnectionFromCliConfigDraftMock,
+  openSettingsTabMock,
   readCliConfigDraftMock,
   readCliConfigFilesMock,
   updateCliConfigDraftConfigMock,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   extractConfigFromCliConfigDraftMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
+  openSettingsTabMock: vi.fn(),
   readCliConfigDraftMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
   updateCliConfigDraftConfigMock: vi.fn(),
@@ -108,6 +110,10 @@ vi.mock('@renderer/components/ProviderAvatar', () => ({
   ProviderAvatarPrimitive: ({ providerName }: { providerName: string }) => (
     <span aria-hidden data-testid={`provider-avatar-${providerName}`} />
   )
+}))
+
+vi.mock('@renderer/services/settingsNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => openSettingsTabMock(...args)
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -248,9 +254,10 @@ function renderPanel(
   })
   extractConfigFromCliConfigDraftMock.mockReturnValue({})
 
+  const onClose = vi.fn()
   render(
     <ConfigEditPanel
-      onClose={vi.fn()}
+      onClose={onClose}
       cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
       provider={provider}
       providerConfig={
@@ -264,7 +271,7 @@ function renderPanel(
     />
   )
 
-  return { onSubmit }
+  return { onSubmit, onClose }
 }
 
 function expectBefore(first: HTMLElement, second: HTMLElement) {
@@ -475,6 +482,17 @@ describe('ConfigEditPanel', () => {
     expect(title).toContainElement(avatar)
     expect(title).toHaveTextContent('Anthropic')
     expect(screen.queryByText('code.configuring_provider')).not.toBeInTheDocument()
+  })
+
+  it('closes the dialog and opens the provider settings tab from the dialog title', async () => {
+    const { onClose } = renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'code.open_provider_settings' }))
+
+    expect(onClose).toHaveBeenCalled()
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider?id=anthropic')
   })
 
   it('renders parameter settings above advanced settings', async () => {

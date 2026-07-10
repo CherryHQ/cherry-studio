@@ -12,8 +12,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   Scrollbar: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
-  ),
-  SearchInput: ({ placeholder }: { placeholder: string }) => <input aria-label={placeholder} />
+  )
 }))
 
 vi.mock('../CLIIcon', () => ({

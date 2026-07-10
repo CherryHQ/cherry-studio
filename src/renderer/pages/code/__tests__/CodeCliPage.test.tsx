@@ -485,6 +485,25 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
+  it('auto-sorts a provider to the first position after it is enabled', async () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: {
+          modelId: '',
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+        }
+      }
+    })
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+
+    await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
+    await waitFor(() => expect(reorderProvidersMock).toHaveBeenCalled())
+    const orderedIds = reorderProvidersMock.mock.calls.at(-1)?.[0]
+    expect(orderedIds?.[0]).toBe('anthropic')
+  })
+
   it('shows a provider selection hint when launch needs a current provider', () => {
     render(<CodeCliPage />)
 

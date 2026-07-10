@@ -118,11 +118,17 @@ describe('ProviderCard', () => {
     expect(enableButton).toHaveClass('text-destructive')
   })
 
-  it('uses the same muted selection background as provider settings', () => {
+  it('uses a subtle primary tint as the selection background', () => {
     const { cardShell } = renderCard({ isCurrent: true })
 
-    expect(cardShell).toHaveClass('bg-muted')
-    expect(cardShell).not.toHaveClass('bg-success/[0.04]')
+    expect(cardShell).toHaveClass('bg-primary/5')
+    expect(cardShell).not.toHaveClass('bg-muted')
+  })
+
+  it('marks the enabled provider with a primary border', () => {
+    const { cardShell } = renderCard({ isCurrent: true })
+
+    expect(cardShell).toHaveClass('border-primary')
   })
 
   it('renders the provider icon before the provider name', () => {

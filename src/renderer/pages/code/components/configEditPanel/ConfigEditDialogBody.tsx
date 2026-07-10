@@ -10,7 +10,9 @@ import {
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import type { Provider } from '@shared/data/types/provider'
+import { ExternalLink } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -84,6 +86,19 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
             />
             <span className="min-w-0 truncate">{providerName}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+              aria-label={t('code.open_provider_settings')}
+              title={t('code.open_provider_settings')}
+              onClick={() => {
+                onClose()
+                openSettingsTab(`/settings/provider?id=${provider.id}`)
+              }}>
+              <ExternalLink className="size-3.5" />
+            </Button>
           </DialogTitle>
         </DialogHeader>
 

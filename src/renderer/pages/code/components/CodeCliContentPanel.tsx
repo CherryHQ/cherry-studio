@@ -3,8 +3,8 @@ import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink } from 'lucide-react'
-import type { FC } from 'react'
+import { CircleAlert, ExternalLink, Search } from 'lucide-react'
+import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
@@ -81,6 +81,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   onReorder
 }) => {
   const { t } = useTranslation()
+  const [providerSearch, setProviderSearch] = useState('')
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -118,18 +119,41 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
           </div>
         ) : (
           <>
-            <ConfigList
-              selectedCliTool={selectedCliTool}
-              toolName={activeMeta.label}
-              providers={supportedProviders}
-              providerConfigs={providerConfigs}
-              currentProviderId={currentProviderId}
-              currentProviderModelName={currentProviderModelName}
-              resolveMeta={resolveProviderMeta}
-              onConfigure={onConfigure}
-              onToggleCurrent={onToggleCurrent}
-              onReorder={onReorder}
-            />
+            <div className="space-y-3">
+              {supportedProviders.length > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-medium text-foreground text-sm">{t('code.model_providers')}</h2>
+                  <div className="flex h-7 w-52 shrink-0 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pr-1 pl-2.5">
+                    <Search className="size-3.5 shrink-0 text-muted-foreground/60" />
+                    <input
+                      value={providerSearch}
+                      placeholder={t('code.search_provider_placeholder')}
+                      onChange={(event) => setProviderSearch(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.stopPropagation()
+                          setProviderSearch('')
+                        }
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-foreground/80 text-sm leading-none outline-none placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+                </div>
+              )}
+              <ConfigList
+                selectedCliTool={selectedCliTool}
+                toolName={activeMeta.label}
+                providers={supportedProviders}
+                providerConfigs={providerConfigs}
+                currentProviderId={currentProviderId}
+                currentProviderModelName={currentProviderModelName}
+                resolveMeta={resolveProviderMeta}
+                onConfigure={onConfigure}
+                onToggleCurrent={onToggleCurrent}
+                onReorder={onReorder}
+                searchTerm={providerSearch}
+              />
+            </div>
 
             <Button
               type="button"

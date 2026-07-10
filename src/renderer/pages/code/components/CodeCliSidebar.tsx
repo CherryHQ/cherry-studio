@@ -1,7 +1,7 @@
-import { Scrollbar, SearchInput } from '@cherrystudio/ui'
+import { Scrollbar } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
 import { ArrowUpCircle, Loader2 } from 'lucide-react'
-import { type FC, useMemo, useState } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
@@ -56,38 +56,15 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   upgradingTools
 }) => {
   const { t } = useTranslation()
-  const [searchTerm, setSearchTerm] = useState('')
-
-  const displayedTools = useMemo(
-    () =>
-      tools.filter(
-        (tool) =>
-          t(tool.label).toLowerCase().includes(searchTerm.toLowerCase()) ||
-          tool.value.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    [tools, searchTerm, t]
-  )
 
   return (
     <div className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border/15 border-r">
-      <div className="p-2.5 pb-0">
-        <SearchInput
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          onClear={() => setSearchTerm('')}
-          clearLabel={t('common.clear')}
-          placeholder={t('code.search_cli_placeholder')}
-        />
-      </div>
-
-      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2">
-        {displayedTools.length === 0 ? (
-          <div className="py-8 text-center text-muted-foreground/50 text-xs">
-            {searchTerm ? t('code.no_matching_tools') : t('code.no_tools')}
-          </div>
+      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2.5">
+        {tools.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground/50 text-xs">{t('code.no_tools')}</div>
         ) : (
           <div className="space-y-2">
-            {displayedTools.map((tool) => {
+            {tools.map((tool) => {
               const meta = toMeta(tool)
               const isSelected = selectedCliTool === tool.value
               return (

@@ -3,7 +3,7 @@ import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
-import type { FC } from 'react'
+import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ProviderCard } from './ConfigCard'
@@ -20,6 +20,8 @@ export interface ConfigListProps {
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
   onReorder: (nextProviders: Provider[]) => void | Promise<void>
+  /** Filter the list by provider display name (case-insensitive). */
+  searchTerm?: string
 }
 
 /** Enabled-provider list for a tool. Drag a row to reorder (persisted via
@@ -34,9 +36,22 @@ export const ConfigList: FC<ConfigListProps> = ({
   resolveMeta,
   onConfigure,
   onToggleCurrent,
-  onReorder
+  onReorder,
+  searchTerm
 }) => {
   const { t } = useTranslation()
+
+  const normalizedSearch = searchTerm?.trim().toLowerCase() ?? ''
+  const displayedProviders = useMemo(() => {
+    if (!normalizedSearch) return providers
+    return providers.filter((provider) => {
+      const name =
+        provider.id === CLI_OWN_LOGIN_PROVIDER_ID
+          ? t('code.own_login.title', { toolName })
+          : resolveMeta(provider, providerConfigs[provider.id]).providerName
+      return name.toLowerCase().includes(normalizedSearch)
+    })
+  }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
 
   if (providers.length === 0) {
     return (
@@ -48,9 +63,13 @@ export const ConfigList: FC<ConfigListProps> = ({
     )
   }
 
+  if (displayedProviders.length === 0) {
+    return <div className="py-8 text-center text-muted-foreground/50 text-xs">{t('code.no_matching_providers')}</div>
+  }
+
   return (
     <ReorderableList
-      items={providers}
+      items={displayedProviders}
       getId={(p) => p.id}
       onReorder={onReorder}
       gap="0.5rem"

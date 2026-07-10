@@ -38,8 +38,8 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
         dragging
           ? 'border-primary/40 opacity-50'
           : selected
-            ? 'border-border/40 bg-muted'
-            : 'border-border/40 hover:border-border hover:bg-muted'
+            ? 'border-primary bg-primary/5'
+            : 'border-border/40 hover:border-border hover:bg-primary/5'
       }`}>
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
