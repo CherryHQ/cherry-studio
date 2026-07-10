@@ -94,6 +94,8 @@ export interface MessageVirtualListProps<T> {
   forceScrollToBottomKey?: string
   /** Keep the top anchor stable while the response below it is still streaming. */
   preserveScrollAnchor?: boolean
+  /** Stable item keys to retain while their live local UI state is active. */
+  keepMountedKeys?: readonly string[]
   /** Whether to render the floating scroll-to-bottom affordance when the runtime is far from bottom. */
   showScrollToBottomButton?: boolean
   /** Distance from the scroll viewport bottom to place the floating scroll-to-bottom affordance. */
@@ -121,6 +123,7 @@ export function MessageVirtualList<T>({
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   forceScrollToBottomKey,
   preserveScrollAnchor,
+  keepMountedKeys,
   showScrollToBottomButton = false,
   scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
   topicId
@@ -138,7 +141,8 @@ export function MessageVirtualList<T>({
     scrollToTopKey: forceScrollToBottomKey,
     topicId,
     bottomPadding,
-    preserveScrollAnchor
+    preserveScrollAnchor,
+    keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { scrollToBottom, markUserInput, takeUserControl } = runtime
@@ -227,7 +231,7 @@ export function MessageVirtualList<T>({
         className={className}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
-          <ScrollOwnershipProvider>
+          <ScrollOwnershipProvider requestFollowRecovery={runtime.releaseUserControlIfAtBottomAfterLayout}>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}

@@ -83,6 +83,8 @@ export interface ChatVirtualizerRuntimeOptions<T> {
   bottomPadding: number
   /** Keep the top-pinned user message stable while an assistant response is still growing. */
   preserveScrollAnchor?: boolean
+  /** Stable item keys that must survive virtualization while they own live UI state. */
+  keepMountedKeys?: readonly string[]
 }
 
 interface ScrollerEventHandlers {
@@ -143,6 +145,8 @@ export interface ChatVirtualizerRuntime<T> {
    * an explicit scroll-to-bottom runs, or a new turn begins.
    */
   takeUserControl(preferredAnchor?: Element | null): void
+  /** Recover runtime ownership after a local disclosure collapses at the real bottom. */
+  releaseUserControlIfAtBottomAfterLayout(): void
   scrollToBottom(behavior?: ScrollBehavior): void
   /**
    * Mark that a real user scroll input just happened. Wheel is wired through
@@ -183,7 +187,8 @@ export function useChatVirtualizerRuntime<T>({
   scrollToTopKey,
   topicId,
   bottomPadding,
-  preserveScrollAnchor = false
+  preserveScrollAnchor = false,
+  keepMountedKeys = []
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -455,6 +460,27 @@ export function useChatVirtualizerRuntime<T>({
     scrollDriverRef.current = 'runtime'
     clearFreeze()
   }, [clearFreeze])
+
+  const releaseUserControlIfAtBottomAfterLayout = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scrollerRef.current
+        if (!el || scrollDriverRef.current !== 'user') return
+        if (preserveScrollAnchorRef.current && anchor.spacerHeight > FREEZE_REASSERT_TOLERANCE_PX) return
+        const realBottom = getRealBottom(el, bottomFollowInsetRef.current)
+        // Freeze slack can hold scrollTop below the natural content edge after
+        // a disclosure shrinks. That still represents the live bottom; only a
+        // viewport genuinely above it must retain user ownership.
+        if (realBottom - el.scrollTop > FREEZE_REASSERT_TOLERANCE_PX) return
+
+        turnHandedOffRef.current = true
+        handBackToRuntime()
+        el.scrollTop = realBottom
+        atBottom.notifyProgrammaticStick()
+        hideScrollToBottomButton()
+      })
+    })
+  }, [anchor.spacerHeight, atBottom, handBackToRuntime, hideScrollToBottomButton])
 
   const stickToEffectiveBottom = useCallback(() => {
     const el = scrollerRef.current
@@ -960,10 +986,15 @@ export function useChatVirtualizerRuntime<T>({
     return () => document.removeEventListener('selectionchange', handler)
   }, [])
 
-  const keepMounted = useMemo<readonly number[]>(
-    () => (selectionIndex == null ? [] : [selectionIndex]),
-    [selectionIndex]
-  )
+  const keepMounted = useMemo<readonly number[]>(() => {
+    const indices = new Set<number>()
+    if (selectionIndex != null) indices.add(selectionIndex)
+    for (const key of keepMountedKeys) {
+      const index = items.findIndex((item, itemIndex) => getItemKey(item, itemIndex) === key)
+      if (index >= 0) indices.add(index)
+    }
+    return [...indices]
+  }, [getItemKey, items, keepMountedKeys, selectionIndex])
 
   // ---- imperative API -------------------------------------------------
 
@@ -1095,6 +1126,7 @@ export function useChatVirtualizerRuntime<T>({
     scrollerProps,
     isScrollToBottomButtonVisible,
     takeUserControl,
+    releaseUserControlIfAtBottomAfterLayout,
     scrollToBottom,
     markUserInput
   }

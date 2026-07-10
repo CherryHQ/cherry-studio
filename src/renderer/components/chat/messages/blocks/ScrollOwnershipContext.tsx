@@ -14,15 +14,32 @@
  * provider) the standalone anchor behavior is preserved.
  */
 
-import { createContext, type ReactNode, use } from 'react'
+import { createContext, type ReactNode, use, useMemo } from 'react'
 
-const ScrollOwnershipContext = createContext(false)
+interface ScrollOwnership {
+  requestFollowRecovery: () => void
+}
 
-export const ScrollOwnershipProvider = ({ children }: { children: ReactNode }) => {
-  return <ScrollOwnershipContext value={true}>{children}</ScrollOwnershipContext>
+const ScrollOwnershipContext = createContext<ScrollOwnership | null>(null)
+const NOOP = () => {}
+
+export const ScrollOwnershipProvider = ({
+  children,
+  requestFollowRecovery = NOOP
+}: {
+  children: ReactNode
+  requestFollowRecovery?: () => void
+}) => {
+  const value = useMemo(() => ({ requestFollowRecovery }), [requestFollowRecovery])
+  return <ScrollOwnershipContext value={value}>{children}</ScrollOwnershipContext>
 }
 
 /** True when the message-list runtime owns scroll stability for this subtree. */
 export function useIsScrollRuntimeManaged(): boolean {
-  return use(ScrollOwnershipContext)
+  return use(ScrollOwnershipContext) !== null
+}
+
+/** Ask the list runtime to resume following after a local disclosure settles at the real bottom. */
+export function useRequestScrollFollowRecovery(): () => void {
+  return use(ScrollOwnershipContext)?.requestFollowRecovery ?? NOOP
 }

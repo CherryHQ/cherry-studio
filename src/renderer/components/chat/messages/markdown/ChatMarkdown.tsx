@@ -5,7 +5,7 @@ import { useMessageRenderConfig } from '@renderer/components/chat/messages/Messa
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'es-toolkit/compat'
-import { type FC, useMemo } from 'react'
+import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
@@ -25,6 +25,8 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
+  const hasStreamedRef = useRef(isStreaming)
+  if (isStreaming) hasStreamedRef.current = true
 
   const plugins = useMemo(() => withChatPlugins({ singleDollarMath: mathEnableSingleDollar }), [mathEnableSingleDollar])
 
@@ -46,7 +48,9 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
 
   const footnoteLabel = t('common.footnotes')
 
-  if (isStreaming) {
+  // Keep the renderer type stable when an active text tail is sealed by a
+  // later process part. Historical markdown still mounts the static renderer.
+  if (hasStreamedRef.current) {
     return (
       <StreamingMarkdown id={block.id} plugins={plugins} components={mergedComponents} footnoteLabel={footnoteLabel}>
         {content}
