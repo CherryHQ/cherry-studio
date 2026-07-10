@@ -41,9 +41,10 @@ export function useProviderConnectionCheck(providerId: string) {
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
   const requiresApiKey = !isNoApiKeyProvider(provider)
+  const checkableApiKeySignature = JSON.stringify(checkableApiKeys)
 
   // AbortController + runId pair guards against stale callbacks landing on the
-  // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
+  // new mount/credentials. When provider/apiHost/effective API keys change mid-flight
   // we abort the in-flight request and bump runId so any late then/catch from
   // the aborted run is dropped before touching state.
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -200,7 +201,7 @@ export function useProviderConnectionCheck(providerId: string) {
     abortInFlightCheck()
     setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(false)
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, inputApiKey, provider?.id])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, checkableApiKeySignature, provider?.id])
 
   useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 

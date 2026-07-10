@@ -234,6 +234,43 @@ describe('useProviderConnectionCheck', () => {
     expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(updateProviderMock.mock.invocationCallOrder[0])
   })
 
+  it('aborts an in-flight check when escaped-comma credentials change to separate keys', async () => {
+    inputApiKey = 'sk-a\\,sk-b'
+    let resolveCheck: (() => void) | undefined
+    let checkSignal: AbortSignal | undefined
+    checkApiMock.mockImplementationOnce((_: string, options: { signal: AbortSignal }) => {
+      checkSignal = options.signal
+      return new Promise<void>((resolve) => {
+        resolveCheck = resolve
+      })
+    })
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    act(() => {
+      void result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a,sk-b'
+      })
+    })
+
+    await vi.waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(1))
+
+    // Both forms previously produced the same comma-joined signature even
+    // though they represent one key versus two distinct keys.
+    inputApiKey = 'sk-a,sk-b'
+    rerender()
+
+    expect(checkSignal?.aborted).toBe(true)
+
+    await act(async () => {
+      resolveCheck?.()
+      await Promise.resolve()
+    })
+
+    expect(enableProviderMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('does not run the check or enable the provider when saving the pending API key fails', async () => {
     const saveError = new Error('save failed')
     commitInputApiKeyNowMock.mockRejectedValueOnce(saveError)
