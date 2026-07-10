@@ -1,6 +1,6 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { ArrowUpCircle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,8 +38,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
       <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
     )
   }
-  if (!status.canUpgrade) return null
-  return <ArrowUpCircle size={12} className="shrink-0 text-warning" />
+  return null
 }
 
 export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
