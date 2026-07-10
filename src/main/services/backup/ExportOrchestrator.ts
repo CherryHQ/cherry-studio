@@ -29,9 +29,9 @@
 import { rm, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { loggerService } from '@logger'
-import { BackupReadonlyDb, type FileResourceContext } from '@main/data/db/backup/contexts'
-import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
+import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
+import type { FileResourceContext, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
+import { type DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
 import type { BackupProgressUpdate } from '@shared/types/backup'

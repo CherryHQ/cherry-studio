@@ -19,6 +19,7 @@
 //
 // Preset: full + lite (chat history is a core migrate scenario).
 
+import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'

@@ -19,6 +19,7 @@
 //
 // Preset: full only (lite-excluded — knowledge bases are large).
 
+import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'

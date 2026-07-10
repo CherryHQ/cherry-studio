@@ -18,6 +18,7 @@
 //
 // Preset: full only (lite-excluded — files are large blobs).
 
+import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'

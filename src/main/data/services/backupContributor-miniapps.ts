@@ -10,7 +10,7 @@
 // Preset: full + lite (lite includes miniapps — small config rows).
 
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
-import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
+import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
 /**

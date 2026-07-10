@@ -14,7 +14,6 @@
 // refuses to start, preserving the startup-time validation semantics.
 
 import type { BackupContributor, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
-import { BACKUP_REFS_META } from '@main/data/db/backup/dbSchemaRefs'
 
 import { CONTRIBUTORS } from './CONTRIBUTORS'
 import { finalize } from './finalize'
