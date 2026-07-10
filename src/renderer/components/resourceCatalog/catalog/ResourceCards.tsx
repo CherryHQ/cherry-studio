@@ -1,6 +1,9 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { EmojiGlyph, getFluentEmojiOrFallback } from '@cherrystudio/ui/fluent-emoji'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { isEmoji } from '@renderer/utils/naming'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +35,22 @@ function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
+function getResourceDefaultAvatar(resource: ResourceItem) {
+  if (resource.type === 'skill') return '⚡'
+  if (resource.type === 'prompt') return 'Aa'
+
+  return DEFAULT_ASSISTANT_EMOJI
+}
+
+function renderResourceAvatar(resource: ResourceItem) {
+  if (!isEmoji(resource.avatar)) return resource.avatar
+
+  const fallbackAvatar = getResourceDefaultAvatar(resource)
+  if (!isEmoji(fallbackAvatar)) return fallbackAvatar
+
+  return <EmojiGlyph emoji={getFluentEmojiOrFallback(resource.avatar, fallbackAvatar)} />
+}
+
 export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -56,7 +75,7 @@ export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, 
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base ${
               useTypedAvatarBg ? cfg.color : 'bg-secondary'
             }`}>
-            {r.avatar}
+            {renderResourceAvatar(r)}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>

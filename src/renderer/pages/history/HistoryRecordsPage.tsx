@@ -32,7 +32,7 @@ import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { Bot, ChevronLeft } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -52,7 +52,8 @@ import {
   findAdjacentHistoryRecordAfterBulkDelete,
   getAgentHistoryStatus,
   getSessionAgentSourceId,
-  getTopicSourceId
+  getTopicSourceId,
+  renderAssistantEmojiIcon
 } from './historyRecordsHelpers'
 import type { HistoryRecordsMode } from './historyRecordsTypes'
 
@@ -218,7 +219,7 @@ const AssistantHistoryRecordsContent = ({
       assistants.map((assistant) => ({
         id: assistant.id,
         label: assistant.name || t('common.unnamed'),
-        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={14} />
+        icon: renderAssistantEmojiIcon(assistant.emoji, 14)
       })),
     [assistants, t]
   )

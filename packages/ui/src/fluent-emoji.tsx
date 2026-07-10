@@ -15,9 +15,20 @@ interface FluentEmojiDataset {
 }
 
 const VARIATION_SELECTOR_16 = 'fe0f'
+export const DEFAULT_FLUENT_EMOJI = '😀' as const
 const fluentEmojiData = fluentEmojiDataJson as unknown as FluentEmojiDataset
 const codepointToIconName = fluentEmojiData.codepointToIconName
 const fluentEmojiIcons = fluentEmojiData.icons
+const EMOJI_PART_PATTERN = String.raw`(?:\p{Emoji}\uFE0F|\p{Emoji_Presentation})(?:\p{Emoji_Modifier})?`
+const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
+const REGIONAL_FLAG_EMOJI_PATTERN = String.raw`(?:\p{Regional_Indicator}{2})`
+const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
+const EMOJI_CLUSTER_PATTERN = String.raw`(?:${KEYCAP_EMOJI_PATTERN}|${REGIONAL_FLAG_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})`
+const EMOJI_REGEX = new RegExp(`^(?:${EMOJI_CLUSTER_PATTERN})+$`, 'u')
+
+function isEmoji(value: string): boolean {
+  return EMOJI_REGEX.test(value)
+}
 
 function toCodepointKeys(emoji: string): string[] {
   const codepoints = Array.from(emoji.trim()).map((char) => char.codePointAt(0)?.toString(16) ?? '')
@@ -45,6 +56,19 @@ function getFluentEmojiIcon(emoji: string): FluentEmojiIconData | null {
 
 export function hasFluentEmojiIcon(emoji: string): boolean {
   return getFluentEmojiIcon(emoji) !== null
+}
+
+export function getFluentEmojiOrFallback(
+  emoji: string | null | undefined,
+  fallbackEmoji: string = DEFAULT_FLUENT_EMOJI
+): string {
+  const normalizedEmoji = emoji?.trim() ?? ''
+  if (!normalizedEmoji) return DEFAULT_FLUENT_EMOJI
+  if (normalizedEmoji && hasFluentEmojiIcon(normalizedEmoji)) return normalizedEmoji
+  if (!isEmoji(normalizedEmoji)) return normalizedEmoji
+  if (fallbackEmoji !== DEFAULT_FLUENT_EMOJI && hasFluentEmojiIcon(fallbackEmoji)) return fallbackEmoji
+
+  return DEFAULT_FLUENT_EMOJI
 }
 
 function escapeRegExp(value: string): string {
@@ -114,6 +138,7 @@ const MemoizedEmojiGlyph = memo(EmojiGlyph)
 export interface EmojiIconProps {
   emoji: string
   className?: string
+  fallbackEmoji?: string
   /** Fixed-mode side length in px. Ignored when `fluid` is true. */
   size?: number
   /** Foreground emoji font size in px. */
@@ -122,7 +147,15 @@ export interface EmojiIconProps {
   fluid?: boolean
 }
 
-const EmojiIcon = ({ emoji, className = '', size = 26, fontSize = 15, fluid = false }: EmojiIconProps) => {
+const EmojiIcon = ({
+  emoji,
+  className = '',
+  fallbackEmoji,
+  size = 26,
+  fontSize = 15,
+  fluid = false
+}: EmojiIconProps) => {
+  const displayEmoji = emoji ? getFluentEmojiOrFallback(emoji, fallbackEmoji) : ''
   const wrapperStyle: CSSProperties = fluid
     ? { fontSize: `${fontSize}px` }
     : {
@@ -147,9 +180,9 @@ const EmojiIcon = ({ emoji, className = '', size = 26, fontSize = 15, fluid = fa
           fontSize: '200%',
           transform: 'scale(1.5)'
         }}>
-        <MemoizedEmojiGlyph emoji={emoji || '⭐️'} decorative />
+        <MemoizedEmojiGlyph emoji={displayEmoji || '⭐️'} decorative />
       </div>
-      {emoji ? <MemoizedEmojiGlyph emoji={emoji} /> : null}
+      {displayEmoji ? <MemoizedEmojiGlyph emoji={displayEmoji} /> : null}
     </div>
   )
 }
@@ -158,6 +191,7 @@ EmojiIcon.displayName = 'EmojiIcon'
 
 export interface EmojiAvatarProps {
   children: string
+  fallbackEmoji?: string
   size?: number
   fontSize?: number
   onClick?: MouseEventHandler<HTMLDivElement>
@@ -165,26 +199,30 @@ export interface EmojiAvatarProps {
   style?: CSSProperties
 }
 
-const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className, style }: EmojiAvatarProps) => (
-  <div
-    onClick={onClick}
-    className={cn(
-      'flex items-center justify-center',
-      'bg-background-soft border-border',
-      'rounded-[20%] cursor-pointer',
-      'transition-opacity hover:opacity-80',
-      'border-[0.5px]',
-      className
-    )}
-    style={{
-      width: size,
-      height: size,
-      fontSize: fontSize ?? size * 0.5,
-      ...style
-    }}>
-    <MemoizedEmojiGlyph emoji={children} />
-  </div>
-)
+const EmojiAvatar = ({ children, fallbackEmoji, size = 31, fontSize, onClick, className, style }: EmojiAvatarProps) => {
+  const displayEmoji = getFluentEmojiOrFallback(children, fallbackEmoji)
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'flex items-center justify-center',
+        'bg-background-soft border-border',
+        'rounded-[20%] cursor-pointer',
+        'transition-opacity hover:opacity-80',
+        'border-[0.5px]',
+        className
+      )}
+      style={{
+        width: size,
+        height: size,
+        fontSize: fontSize ?? size * 0.5,
+        ...style
+      }}>
+      <MemoizedEmojiGlyph emoji={displayEmoji} />
+    </div>
+  )
+}
 
 EmojiAvatar.displayName = 'EmojiAvatar'
 

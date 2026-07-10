@@ -562,6 +562,16 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('beta')).not.toBeInTheDocument()
     expect(screen.queryByText('+2')).not.toBeInTheDocument()
   })
+
+  it('renders unsupported assistant emoji avatars with the default Fluent fallback', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(
+      <ResourceCard resource={createAssistantResource({ avatar: unsupportedEmoji })} {...getResourceCardProps()} />
+    )
+
+    expect(container.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
+    expect(screen.queryByText(unsupportedEmoji)).not.toBeInTheDocument()
+  })
 })
 
 describe('Assistant preset preview dialog actions', () => {

@@ -29,7 +29,7 @@ vi.mock('@cherrystudio/ui', () => {
 vi.mock('@cherrystudio/ui/fluent-emoji', () => {
   const React = require('react')
   const EmojiGlyph = ({ emoji }: { emoji: string }) => React.createElement('span', null, emoji)
-  return { EmojiGlyph }
+  return { EmojiGlyph, hasFluentEmojiIcon: () => true }
 })
 
 afterEach(async () => {

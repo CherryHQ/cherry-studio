@@ -185,6 +185,27 @@ describe('ResourceSelectorShell', () => {
       expect(row.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
     })
 
+    it('falls back to the default assistant emoji when an item emoji has no Fluent artwork', () => {
+      const unsupportedEmoji = '👨‍👩‍👧‍👦'
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[{ id: 'unsupported', name: 'Unsupported assistant', emoji: unsupportedEmoji }]}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      const row = screen.getByRole('option', { name: /Unsupported assistant/ })
+      expect(row.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
+      expect(row).not.toHaveTextContent(unsupportedEmoji)
+    })
+
     it('fills the unified popover content height when available space is unconstrained', async () => {
       render(
         <ResourceSelectorShell

@@ -8,11 +8,12 @@ import type {
 import { cn } from '@renderer/utils/style'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
-import { Bot, MessageSquareText } from 'lucide-react'
+import { MessageSquareText } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { renderAssistantEmojiIcon } from '../historyRecordsHelpers'
 import {
   formatHistoryTime,
   HistoryActionContextMenu,
@@ -274,7 +275,7 @@ const HistoryTopicRow = ({
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 items-center gap-2">
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
-          {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
+          {renderAssistantEmojiIcon(assistant?.emoji, 14)}
         </span>
         <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
       </RowFlex>

@@ -37,12 +37,22 @@ describe('EmojiIcon', () => {
     expect(svg).toHaveAttribute('viewBox', '0 0 32 32')
   })
 
-  it('should handle special emojis correctly', () => {
-    const specialEmojis = ['👨‍💻', '🏃‍♀️', '👨‍👩‍👧‍👦', '🇨🇳']
+  it('should handle mapped special emojis correctly', () => {
+    const specialEmojis = ['👨‍💻', '🏃‍♀️']
 
     specialEmojis.forEach((emoji) => {
       const { container } = render(<EmojiIcon emoji={emoji} />)
       expect(container.textContent).toContain(emoji)
+    })
+  })
+
+  it('should render the stable default when a special emoji has no Fluent artwork', () => {
+    const unsupportedEmojis = ['👨‍👩‍👧‍👦', '🇨🇳']
+
+    unsupportedEmojis.forEach((emoji) => {
+      const { container } = render(<EmojiIcon emoji={emoji} />)
+      expect(container.querySelectorAll('svg[data-fluent-emoji="😀"]')).toHaveLength(2)
+      expect(container.textContent).not.toContain(emoji)
     })
   })
 

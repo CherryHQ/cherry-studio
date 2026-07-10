@@ -32,4 +32,13 @@ describe('UserAvatar', () => {
     expect(container.querySelector('.from-blue-400')).not.toBeInTheDocument()
     expect(screen.queryByText('U')).not.toBeInTheDocument()
   })
+
+  it('falls back to the user initial when an emoji avatar has no Fluent artwork', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(<UserAvatar user={{ name: 'User', avatar: unsupportedEmoji }} />)
+
+    expect(screen.getByText('U')).toBeInTheDocument()
+    expect(container.querySelector('svg[data-fluent-emoji]')).not.toBeInTheDocument()
+    expect(screen.queryByText(unsupportedEmoji)).not.toBeInTheDocument()
+  })
 })

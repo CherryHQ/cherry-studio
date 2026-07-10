@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { EmojiGlyph, getFluentEmojiOrFallback } from '@cherrystudio/ui/fluent-emoji'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { useTranslation } from 'react-i18next'
 
 export interface AssistantPresetPreviewDialogPreset {
@@ -26,6 +28,10 @@ interface Props {
   onOpenChange: (open: boolean) => void
   onAdd: () => Promise<void> | void
   onOpenChat: (assistantId: string) => void
+}
+
+function renderPresetEmoji(emoji?: string) {
+  return <EmojiGlyph emoji={getFluentEmojiOrFallback(emoji, DEFAULT_ASSISTANT_EMOJI)} decorative />
 }
 
 export function AssistantPresetPreviewDialog({
@@ -58,7 +64,7 @@ export function AssistantPresetPreviewDialog({
         <DialogHeader className="shrink-0 border-border-muted border-b px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
-              {preset.emoji || '🤖'}
+              {renderPresetEmoji(preset.emoji)}
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{preset.name}</DialogTitle>

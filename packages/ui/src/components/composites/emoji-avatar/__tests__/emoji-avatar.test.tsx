@@ -16,4 +16,27 @@ describe('EmojiAvatar', () => {
     expect(container.querySelector('svg[data-fluent-emoji="🌈"]')).toBeInTheDocument()
     expect(container.textContent).toContain('🌈')
   })
+
+  it('uses a stable Fluent fallback when children have no artwork', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(<EmojiAvatar>{unsupportedEmoji}</EmojiAvatar>)
+
+    expect(container.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
+    expect(container.textContent).not.toContain(unsupportedEmoji)
+  })
+
+  it('uses the provided Fluent fallback for unsupported children', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(<EmojiAvatar fallbackEmoji="🤖">{unsupportedEmoji}</EmojiAvatar>)
+
+    expect(container.querySelector('svg[data-fluent-emoji="🤖"]')).toBeInTheDocument()
+    expect(container.textContent).not.toContain(unsupportedEmoji)
+  })
+
+  it('preserves non-emoji text avatars', () => {
+    const { container } = render(<EmojiAvatar>A</EmojiAvatar>)
+
+    expect(container.querySelector('svg[data-fluent-emoji="😀"]')).not.toBeInTheDocument()
+    expect(container).toHaveTextContent('A')
+  })
 })

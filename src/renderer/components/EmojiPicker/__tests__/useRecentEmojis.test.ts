@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MockUseCacheUtils } from '../../../../../tests/__mocks__/renderer/useCache'
@@ -26,6 +26,28 @@ describe('useRecentEmojis', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['📚', '🧠', '📁'])
   })
 
+  it('filters unsupported persisted emojis and cleans the cache', async () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', unsupportedEmoji, '📁'])
+
+    const { result } = renderHook(() => useRecentEmojis())
+
+    expect(result.current.recent).toEqual(['🧠', '📁'])
+    await waitFor(() => expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['🧠', '📁']))
+  })
+
+  it('ignores unsupported emojis when pushing recent entries', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠'])
+
+    const { result } = renderHook(() => useRecentEmojis())
+    act(() => {
+      result.current.pushRecent(unsupportedEmoji)
+    })
+
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')).toEqual(['🧠'])
+  })
+
   it('promotes a repeated emoji without duplicating it', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁', '📚'])
 
@@ -37,18 +59,51 @@ describe('useRecentEmojis', () => {
   })
 
   it('caps the list at 32 entries', () => {
-    const seed = Array.from({ length: 32 }, (_, index) => `emoji-${index}`)
+    const seed = [
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😆',
+      '😅',
+      '😂',
+      '🙂',
+      '🙃',
+      '😉',
+      '😊',
+      '😇',
+      '🥰',
+      '😍',
+      '🤩',
+      '😘',
+      '😗',
+      '😚',
+      '😋',
+      '😛',
+      '😜',
+      '🤪',
+      '🤨',
+      '🧐',
+      '🤓',
+      '😎',
+      '🥳',
+      '😏',
+      '😒',
+      '😞',
+      '😔',
+      '😟'
+    ]
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', seed)
 
     const { result } = renderHook(() => useRecentEmojis())
     act(() => {
-      result.current.pushRecent('new-emoji')
+      result.current.pushRecent('🚀')
     })
 
     const next = MockUseCacheUtils.getPersistCacheValue('ui.emoji.recently_used')
     expect(next).toHaveLength(32)
-    expect(next[0]).toBe('new-emoji')
-    expect(next).not.toContain('emoji-31')
+    expect(next[0]).toBe('🚀')
+    expect(next).not.toContain('😟')
   })
 
   it('clears the list', () => {

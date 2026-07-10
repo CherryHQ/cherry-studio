@@ -1,7 +1,9 @@
+import { EmojiGlyph, getFluentEmojiOrFallback } from '@cherrystudio/ui/fluent-emoji'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
@@ -15,6 +17,18 @@ const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
+
+export function renderAssistantEmojiIcon(emoji?: string, botSize = 15) {
+  if (!emoji) return <Bot size={botSize} />
+
+  return (
+    <EmojiGlyph
+      emoji={getFluentEmojiOrFallback(emoji, DEFAULT_ASSISTANT_EMOJI)}
+      decorative
+      className="text-sm leading-none"
+    />
+  )
+}
 
 export function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
   if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
@@ -133,7 +147,7 @@ export function buildAssistantSources(
         id: assistant.id,
         label: assistant.name,
         count: counts.get(assistant.id) ?? 0,
-        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
+        icon: renderAssistantEmojiIcon(assistant.emoji)
       })),
     ...(unlinkedCount > 0
       ? [

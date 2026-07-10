@@ -1,5 +1,5 @@
 import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
-import { EmojiGlyph } from '@cherrystudio/ui/fluent-emoji'
+import { EmojiGlyph, getFluentEmojiOrFallback } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
@@ -13,6 +13,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -599,7 +600,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
     const leading = item.emoji ? (
       <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">
-        <EmojiGlyph emoji={item.emoji} />
+        <EmojiGlyph emoji={getFluentEmojiOrFallback(item.emoji, DEFAULT_ASSISTANT_EMOJI)} />
       </span>
     ) : fallbackIcon ? (
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>

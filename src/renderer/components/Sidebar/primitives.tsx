@@ -1,4 +1,4 @@
-import { EmojiIcon } from '@cherrystudio/ui/fluent-emoji'
+import { EmojiIcon, hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -64,7 +64,7 @@ function isTextAvatar(str?: string): boolean {
 }
 
 function getUserAvatarFallback(user?: SidebarUser) {
-  if (user?.avatar && isTextAvatar(user.avatar)) return user.avatar
+  if (user?.avatar && isTextAvatar(user.avatar) && !isEmoji(user.avatar)) return user.avatar
   return user?.name ? user.name.slice(0, 1).toUpperCase() : ''
 }
 
@@ -77,7 +77,7 @@ export function UserAvatar({
   className?: string
   ring?: boolean
 }) {
-  const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
+  const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) && hasFluentEmojiIcon(user.avatar) : false
 
   return (
     <div className={`overflow-hidden rounded-full ${ring ? 'ring-1 ring-border' : ''} ${className ?? ''}`}>

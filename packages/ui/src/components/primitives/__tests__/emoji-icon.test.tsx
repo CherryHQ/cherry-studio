@@ -28,6 +28,29 @@ describe('EmojiIcon', () => {
     expect(container.firstElementChild).toHaveTextContent('')
   })
 
+  it('uses a stable Fluent fallback when the requested emoji has no artwork', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(<EmojiIcon emoji={unsupportedEmoji} />)
+
+    expect(container.querySelectorAll('svg[data-fluent-emoji="😀"]')).toHaveLength(2)
+    expect(container.textContent).not.toContain(unsupportedEmoji)
+  })
+
+  it('uses the provided Fluent fallback for unsupported emoji', () => {
+    const unsupportedEmoji = '👨‍👩‍👧‍👦'
+    const { container } = render(<EmojiIcon emoji={unsupportedEmoji} fallbackEmoji="🤖" />)
+
+    expect(container.querySelectorAll('svg[data-fluent-emoji="🤖"]')).toHaveLength(2)
+    expect(container.textContent).not.toContain(unsupportedEmoji)
+  })
+
+  it('preserves non-emoji text avatars', () => {
+    const { container } = render(<EmojiIcon emoji="A" />)
+
+    expect(container.querySelector('svg[data-fluent-emoji="😀"]')).not.toBeInTheDocument()
+    expect(container.textContent).toContain('A')
+  })
+
   it('applies fixed sizing by default with the right margin', () => {
     const { container } = render(<EmojiIcon emoji="🌟" size={40} fontSize={24} />)
     const wrapper = container.firstChild as HTMLElement
