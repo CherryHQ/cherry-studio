@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -17,7 +18,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
+import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,6 +27,7 @@ import {
   buildResolvedResourceEntityMenuAction,
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
+  ResourceList,
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
@@ -122,6 +124,10 @@ export function AssistantResourceList({
     topicsRef.current = topics
   }, [topics])
 
+  const handleCreateTopic = useCallback(
+    (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
+    [onCreateTopic]
+  )
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
     const hasDefaultAssistantTopics = topics.some((topic) => !topic.assistantId)
     const defaultAssistantEntity: ResourceEntityRailItem[] = hasDefaultAssistantTopics
@@ -137,6 +143,9 @@ export function AssistantResourceList({
               defaultModelId
             ),
             reorderable: false
+            // No "new topic" action: the default group is only a display bucket for legacy
+            // assistant-less topics. A null-assistant create can't reuse an empty placeholder
+            // (findReusableEmptyTopic bails without an assistantId), so it would stack blanks.
           }
         ]
       : []
@@ -159,12 +168,24 @@ export function AssistantResourceList({
           orderKey: assistant.orderKey,
           pinned: assistantPinnedIdSet.has(assistant.id),
           tag: assistant.tags?.[0]?.name,
-          icon
+          icon,
+          trailingAction: (
+            <Tooltip title={t('chat.conversation.new')} delay={500}>
+              <ResourceList.GroupHeaderActionButton
+                type="button"
+                aria-label={t('chat.conversation.new')}
+                onClick={() => {
+                  void handleCreateTopic(assistant.id)
+                }}>
+                <SquarePen className="block" />
+              </ResourceList.GroupHeaderActionButton>
+            </Tooltip>
+          )
         }
       }),
       ...defaultAssistantEntity
     ]
-  }, [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, t, topics])
+  }, [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, handleCreateTopic, t, topics])
 
   const sortTopicsForEntity = useCallback(
     (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
@@ -188,10 +209,6 @@ export function AssistantResourceList({
     [t]
   )
 
-  const handleCreateTopic = useCallback(
-    (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
-    [onCreateTopic]
-  )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: topics,

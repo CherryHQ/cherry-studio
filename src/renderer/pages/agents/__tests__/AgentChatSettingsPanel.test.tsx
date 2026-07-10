@@ -253,7 +253,7 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
         data-testid="agent-composer"
         data-show-workspace={String(Boolean(props.showWorkspaceSelector))}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
-        data-can-change-model={String(Boolean(props.canChangeModel))}>
+        data-can-change-model={String(props.canChangeModel !== false)}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
           change composer workspace
         </button>
@@ -369,7 +369,7 @@ describe('AgentChat settings panel', () => {
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('keeps the model selector read-only while the empty session is pending', () => {
+  it('keeps the workspace control read-only while the empty session is pending', () => {
     topicStreamStatusMock.isPending = true
 
     renderAgentChat({
@@ -383,7 +383,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('keeps the workspace control read-only after messages are present', () => {
@@ -403,7 +403,27 @@ describe('AgentChat settings panel', () => {
 
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-show-workspace', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
+  })
+
+  it('keeps the model selector editable after messages are present when the agent has no model', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = { id: 'agent-1', model: null }
+
+    renderAgentChat({
+      activeSession: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspaceId: 'workspace-1',
+        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+      } as any,
+      onSessionWorkspaceChange: vi.fn()
+    })
+
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
@@ -467,7 +487,7 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
   })
@@ -572,7 +592,7 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()

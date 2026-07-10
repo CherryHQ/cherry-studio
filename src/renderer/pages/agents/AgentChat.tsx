@@ -208,14 +208,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          center={
-            <ConversationStageCenter
-              placement="home"
-              main={null}
-              composer={composer}
-              homeWelcomeText={t('agent.home.welcome_title')}
-            />
-          }
+          center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
@@ -381,7 +374,6 @@ const AgentChatSessionFrame = ({
   const isEmptyConversation =
     !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
-  const canChangeModel = isEmptyConversation
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -436,7 +428,6 @@ const AgentChatSessionFrame = ({
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
       showWorkspaceSelector={showWorkspaceSelector}
-      canChangeModel={canChangeModel}
       composerContext={runtime.composerContext}
     />
   )
