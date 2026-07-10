@@ -236,8 +236,12 @@ describe('ChatAppShell', () => {
     const titlebar = screen.getByTestId('window-titlebar').parentElement
     const content = document.getElementById('conversation-content')
 
-    expect(pane?.style.paddingTop).toBe('')
-    expect(titlebar?.compareDocumentPosition(content!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    if (!pane || !titlebar || !content) {
+      throw new Error('Expected resource pane, window title bar, and conversation content')
+    }
+
+    expect(pane.style.paddingTop).toBe('')
+    expect(titlebar.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {
