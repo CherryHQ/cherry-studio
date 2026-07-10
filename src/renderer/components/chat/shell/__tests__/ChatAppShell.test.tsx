@@ -1,5 +1,4 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -220,16 +219,25 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('insets the left resource pane below the title bar in window mode', () => {
+  it('places the window title bar above the left resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
-        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+        <ChatAppShell
+          contentId="conversation-content"
+          topBar={<header data-testid="window-titlebar" />}
+          pane={<aside>topics</aside>}
+          paneOpen
+          main={<div />}
+        />
       </WindowFrameProvider>
     )
 
-    expect(container.querySelector('[data-resource-list-pane]')).toHaveStyle({
-      paddingTop: TITLE_BAR_HEIGHT_PX
-    })
+    const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
+    const titlebar = screen.getByTestId('window-titlebar').parentElement
+    const content = document.getElementById('conversation-content')
+
+    expect(pane?.style.paddingTop).toBe('')
+    expect(titlebar?.compareDocumentPosition(content!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {

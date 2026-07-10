@@ -200,7 +200,7 @@ describe('ConversationShell', () => {
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
   })
 
-  it('uses normal title-bar padding when the left pane is open in window mode', () => {
+  it('keeps the traffic-light inset when the left pane is open in window mode', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
         <ConversationShell
@@ -214,7 +214,7 @@ describe('ConversationShell', () => {
     )
 
     const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
-    expect(topBarWrapper).toHaveClass('pl-2')
-    expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(topBarWrapper).toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(topBarWrapper).not.toHaveClass('pl-2')
   })
 })

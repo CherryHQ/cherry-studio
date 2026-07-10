@@ -54,7 +54,6 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
-  const leftPaneOpen = Boolean(paneOpen && (panePosition ?? 'left') === 'left')
 
   // In window mode the page navbar IS the window title bar, so wrap it even without a
   // right tool to pick up the drag region and traffic-light inset. Conversation navbars
@@ -65,7 +64,6 @@ export default function ConversationShell({
     topRightTool || isWindow ? (
       <ConversationShellTopBar
         isWindow={isWindow}
-        leftPaneOpen={leftPaneOpen}
         leading={fallbackLeading}
         trailing={chrome?.titleTrailing}
         topRightTool={topRightTool}>
@@ -109,36 +107,28 @@ export default function ConversationShell({
 
 type TopBarProps = {
   isWindow: boolean
-  leftPaneOpen: boolean
   leading?: ReactNode
   trailing?: ReactNode
   topRightTool?: ReactNode
   children?: ReactNode
 }
 
-const ConversationShellTopBar = ({
-  isWindow,
-  leftPaneOpen,
-  leading,
-  trailing,
-  topRightTool,
-  children
-}: TopBarProps) => {
+const ConversationShellTopBar = ({ isWindow, leading, trailing, topRightTool, children }: TopBarProps) => {
   const shellState = useOptionalShellState()
   const maximized = shellState?.maximized ?? false
   const open = shellState?.open ?? false
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
-  const shouldReserveTrafficLightInset = isWindow && isMac && !leftPaneOpen
-  const shouldShowTopRightTool = !open && !maximized && Boolean(trailing || topRightTool)
-  const shouldReserveRightInset = !open && !maximized && (isWindow || shouldShowTopRightTool)
+  const shouldReserveTrafficLightInset = isWindow && isMac
+  const shouldShowTopRightTool = Boolean(trailing || topRightTool) && (isWindow || (!open && !maximized))
+  const shouldReserveRightInset = isWindow || (!open && !maximized && shouldShowTopRightTool)
   return (
     <div
       data-conversation-shell-topbar
       style={windowNavbarHeightStyle}
       className={cn(
         'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]',
-        // Window mode: the navbar is the window title bar. Only reserve the macOS traffic-light
-        // inset when the left pane is closed; an open pane already owns that area.
+        // Window mode: the navbar spans above every pane, so it always owns the macOS
+        // traffic-light inset regardless of whether the conversation list is open.
         isWindow && [
           TITLE_BAR_HEIGHT_CLASS,
           '[-webkit-app-region:drag]',

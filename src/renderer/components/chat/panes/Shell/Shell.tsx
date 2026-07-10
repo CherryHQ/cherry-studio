@@ -3,8 +3,6 @@ import { CommandTooltip } from '@renderer/components/command'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
@@ -384,28 +382,19 @@ function ShellTabs({ children }: { children: ReactNode }) {
 }
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
-// `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
-// pane is open; ConversationShell hides its closed-state topbar cluster in that state so the
-// cluster doesn't sit on top of this header.
+// `extraTrailing` hosts page-level pane controls when an embedded pane is open.
 function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
-  const { mode } = useWindowFrame()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
-  // When the pane is maximized inside a sub-window, this header becomes the window's top edge
-  // — clear the macOS traffic lights and let the user drag the window from the tab strip,
-  // matching ConversationShellTopBar.
-  const isWindowTopBar = state.maximized && mode === 'window'
   return (
     <div
       data-testid="shell-tab-list"
       className={cn(
         // Match ConversationShell's edge inset so the closed-state expand button and
         // opened-state close button keep the same distance from the nearest edge.
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
-        isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))] pl-2 [-webkit-app-region:no-drag]'
       )}>
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
         <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>

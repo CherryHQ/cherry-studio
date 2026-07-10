@@ -579,7 +579,7 @@ function AgentRightPaneSurface() {
   const { state, actions, meta } = useAgentRightPane()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const { mode, chrome } = useWindowFrame()
+  const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
@@ -588,14 +588,9 @@ function AgentRightPaneSurface() {
   const hasStatus = meta.statusEnabled !== false
   const hasTrace = enableDeveloperMode && !!traceTopicId
 
-  // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
-  // (sub-window controls + pane toggle) so they don't overlap this header.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}
-    </>
-  )
+  // Embedded pages move the pane toggle into the pane header while it is open. Detached windows
+  // keep their full-width title bar visible above the pane, so its right-side controls stay there.
+  const tabListTrailing = <>{!isWindow && (resourcePane || hasFiles) ? <AgentRightPaneFilesToggle /> : null}</>
 
   return (
     <Shell.Tabs>

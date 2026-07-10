@@ -3,6 +3,7 @@ import type {
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -42,12 +43,14 @@ const AgentSidePanel = ({
   resourceMenuItems,
   setActiveSessionId
 }: AgentSidePanelProps) => {
+  const isWindowFrame = useWindowFrame().mode === 'window'
+
   return (
     <div
       className="flex flex-col overflow-hidden"
       style={{
         width: 'var(--assistants-width)',
-        height: 'calc(100vh - var(--navbar-height))'
+        height: isWindowFrame ? '100%' : 'calc(100vh - var(--navbar-height))'
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions

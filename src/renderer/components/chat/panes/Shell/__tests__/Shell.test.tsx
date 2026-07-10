@@ -644,7 +644,7 @@ describe('Shell.TabList', () => {
     expect(maximize.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('promotes the header to a drag region when maximized inside a sub-window', () => {
+  it('keeps the pane header below the detached-window title bar when maximized', () => {
     render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files">
@@ -659,13 +659,12 @@ describe('Shell.TabList', () => {
 
     const tabList = screen.getByTestId('shell-tab-list')
 
-    // docked (pane open but not maximized) still gates drag off — chat navbar owns the drag region.
     expect(tabList).toHaveClass('[-webkit-app-region:no-drag]')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(tabList).toHaveClass('[-webkit-app-region:drag]')
-    expect(tabList).not.toHaveClass('[-webkit-app-region:no-drag]')
+    expect(tabList).toHaveClass('[-webkit-app-region:no-drag]', 'pl-2')
+    expect(tabList).not.toHaveClass('[-webkit-app-region:drag]', 'pl-[env(titlebar-area-x)]')
   })
 })
 

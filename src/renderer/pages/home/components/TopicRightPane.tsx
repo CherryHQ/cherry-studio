@@ -140,7 +140,7 @@ function TopicRightPaneSurface({
   const resourcePane = useResourcePane()
   const hasBranchPanel = !!topicId
   const branchLiveState = useTopicBranchLiveState(topicId ?? '')
-  const { mode, chrome } = useWindowFrame()
+  const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
   const canvasFocusKey = `${topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
@@ -151,15 +151,9 @@ function TopicRightPaneSurface({
     [onLocateMessage]
   )
 
-  // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
-  // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}
-    </>
-  )
+  // Embedded pages move the pane toggle into the pane header while it is open. Detached windows
+  // keep their full-width title bar visible above the pane, so its right-side controls stay there.
+  const tabListTrailing = <>{!isWindow && (resourcePane || hasBranchPanel) ? <TopicRightPaneToggle /> : null}</>
 
   return (
     <Shell.Tabs>
