@@ -17,7 +17,7 @@
 //
 // Preset: full only (lite-excluded — painting images are large file blobs).
 
-import type { BackupContributor } from '@main/data/db/backup/contributor-types'
+import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
