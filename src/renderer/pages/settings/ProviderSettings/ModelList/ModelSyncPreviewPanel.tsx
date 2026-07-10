@@ -152,7 +152,7 @@ export default function ModelSyncPreviewPanel({
   const entries = useMemo(() => Object.entries(modelGroups).filter(([, models]) => models.length > 0), [modelGroups])
   const virtualRows = useMemo<ManageVirtualRow[]>(() => {
     return entries.flatMap(([groupName, models]) => {
-      const collapsed = collapsedGroups.has(groupName)
+      const collapsed = !searchActive && collapsedGroups.has(groupName)
       const groupLabel = getModelGroupLabel(groupName, t)
       const groupRow: ManageVirtualRow = {
         key: `group:${groupName}`,
@@ -178,7 +178,7 @@ export default function ModelSyncPreviewPanel({
         )
       ]
     })
-  }, [collapsedGroups, entries, t])
+  }, [collapsedGroups, entries, searchActive, t])
 
   const toggleGroup = useCallback((groupName: string) => {
     setCollapsedGroups((current) => {

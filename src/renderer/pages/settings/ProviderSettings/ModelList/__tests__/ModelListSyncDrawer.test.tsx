@@ -183,6 +183,21 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
   })
 
+  it('shows search matches inside collapsed groups and restores the collapsed state after search', () => {
+    renderDrawer()
+
+    fireEvent.click(screen.getByText('legacy').closest('button')!)
+    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'legacy' }
+    })
+    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+  })
+
   it('clears model search', () => {
     renderDrawer()
 

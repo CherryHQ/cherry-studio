@@ -217,6 +217,20 @@ describe('ModelService.update', () => {
     expect(row.userOverrides).toContain('name')
   })
 
+  it('records model group edits as user overrides', async () => {
+    await seedExistingModel()
+
+    modelService.update('openai', 'gpt-4o', { group: 'My Models' })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.group).toBe('My Models')
+    expect(row.userOverrides).toContain('group')
+  })
+
   it('does not add non-enrichable fields to userOverrides', async () => {
     await seedExistingModel()
 
@@ -905,9 +919,10 @@ describe('ModelService.batchUpsert', () => {
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o-legacy',
         name: 'My Custom Name',
+        group: 'My Models',
         capabilities: ['function-call'],
         contextWindow: 32_000,
-        userOverrides: ['name', 'contextWindow']
+        userOverrides: ['name', 'group', 'contextWindow']
       })
     )
 
@@ -915,6 +930,7 @@ describe('ModelService.batchUpsert', () => {
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o',
         name: 'Registry Name',
+        group: 'Registry Group',
         capabilities: ['reasoning'],
         contextWindow: 128_000,
         maxOutputTokens: 8192
@@ -928,10 +944,11 @@ describe('ModelService.batchUpsert', () => {
 
     expect(row.presetModelId).toBe('gpt-4o')
     expect(row.name).toBe('My Custom Name')
+    expect(row.group).toBe('My Models')
     expect(row.contextWindow).toBe(32_000)
     expect(row.capabilities).toEqual(['reasoning'])
     expect(row.maxOutputTokens).toBe(8192)
-    expect(row.userOverrides).toEqual(['name', 'contextWindow'])
+    expect(row.userOverrides).toEqual(['name', 'group', 'contextWindow'])
   })
 
   it('rejects batch upsert for the managed CherryAI default model', async () => {
@@ -1409,6 +1426,20 @@ describe('ModelService.bulkDelete', () => {
 
 describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
+
+  it('records model group edits as user overrides', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o'))
+
+    modelService.bulkUpdate([{ providerId: 'openai', modelId: 'gpt-4o', patch: { group: 'My Models' } }])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+    expect(row.group).toBe('My Models')
+    expect(row.userOverrides).toContain('group')
+  })
 
   it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {
     const [cherryAiOrderKey, openAiOrderKey] = generateOrderKeySequence(2)
