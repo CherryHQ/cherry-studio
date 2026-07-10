@@ -40,7 +40,9 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { callCherryBuiltinTool, listCherryBuiltinTools } = await import('../cherryBuiltinTools')
+const { callCherryBuiltinTool, listCherryBuiltinTools, CherryBuiltinToolsServer } = await import(
+  '../cherryBuiltinTools'
+)
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 const signal = new AbortController().signal
@@ -437,5 +439,23 @@ describe('cherryBuiltinTools', () => {
     const result = await callCherryBuiltinTool('nope', {}, signal)
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Unknown tool')
+  })
+})
+
+// The server hosts the stateless builtin tools plus the autonomy tools acting on the session's agent.
+describe('CherryBuiltinToolsServer autonomy tool registration', () => {
+  const agentContext = {
+    agentId: 'agent_1',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace'
+  }
+
+  it('exposes the stateless tools plus cron/notify/config', async () => {
+    const server = new CherryBuiltinToolsServer(agentContext)
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const names = result.tools.map((t: any) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
   })
 })

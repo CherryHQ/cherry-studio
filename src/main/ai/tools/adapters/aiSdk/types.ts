@@ -14,6 +14,10 @@ export interface ToolApplyScope {
   readonly hasFileAttachments?: boolean
   /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */
   readonly hasAnyKnowledgeBase?: boolean
+  /**
+   * Effective knowledge base scope for this request; see `resolveKnowledgeBaseIds`. Defaults to empty.
+   */
+  readonly knowledgeBaseIds?: readonly string[]
 }
 
 /**

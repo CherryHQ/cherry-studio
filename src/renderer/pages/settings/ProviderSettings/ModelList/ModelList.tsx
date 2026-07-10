@@ -11,9 +11,16 @@ import ProviderModelPullReconcile from './ProviderModelPullReconcile'
 
 interface ModelListProps {
   providerId: string
+  modelPullGuideVersion?: number
 }
 
-function ModelListContent({ providerId }: { providerId: string }) {
+function ModelListContent({
+  providerId,
+  modelPullGuideVersion = 0
+}: {
+  providerId: string
+  modelPullGuideVersion?: number
+}) {
   const health = useModelListHealth()
   const disabled = health.isHealthChecking
 
@@ -24,7 +31,11 @@ function ModelListContent({ providerId }: { providerId: string }) {
         disabled={disabled}
         actions={({ disabled: toolbarDisabled }) => (
           <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
-            <ProviderModelPullReconcile providerId={providerId} disabled={toolbarDisabled} />
+            <ProviderModelPullReconcile
+              providerId={providerId}
+              disabled={toolbarDisabled}
+              guideVersion={modelPullGuideVersion}
+            />
             {providerId === 'ovms' ? (
               <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
             ) : (
@@ -38,11 +49,11 @@ function ModelListContent({ providerId }: { providerId: string }) {
   )
 }
 
-const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
+const ModelList: React.FC<ModelListProps> = ({ providerId, modelPullGuideVersion = 0 }) => {
   return (
     <div className={modelListClasses.cqRoot}>
       <section data-testid="provider-model-list" className={modelListClasses.section}>
-        <ModelListContent providerId={providerId} />
+        <ModelListContent providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
       </section>
     </div>
   )

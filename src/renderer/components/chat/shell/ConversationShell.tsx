@@ -29,6 +29,7 @@ export interface ConversationShellProps {
   centerRef?: Ref<HTMLDivElement>
   centerClassName?: string
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
 }
 
 export default function ConversationShell({
@@ -48,7 +49,8 @@ export default function ConversationShell({
   centerId,
   centerRef,
   centerClassName,
-  onPaneCollapse
+  onPaneCollapse,
+  onPaneAutoCollapseChange
 }: ConversationShellProps) {
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -93,6 +95,7 @@ export default function ConversationShell({
             centerRef={centerRef}
             centerClassName={centerClassName}
             onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           />
         </QuickPanelProvider>
         {rightPane}

@@ -134,6 +134,11 @@ export const DeleteAssistantQuerySchema = z.strictObject({
 })
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
+export interface DeleteAssistantResult {
+  deleted: boolean
+  deletedTopicIds?: string[]
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -182,7 +187,7 @@ export type AssistantSchemas = {
     DELETE: {
       params: { id: string }
       query?: DeleteAssistantQueryParams
-      response: void
+      response: DeleteAssistantResult
     }
   }
 } & OrderEndpoints<'/assistants'>

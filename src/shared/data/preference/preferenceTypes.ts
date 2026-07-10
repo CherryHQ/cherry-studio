@@ -84,6 +84,8 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
+export type TopicTabPosition = 'left' | 'right'
+
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
 export const SIDEBAR_FAVORITES = [
@@ -132,9 +134,6 @@ export enum UpgradeChannel {
 }
 
 export type ChatMessageStyle = 'plain' | 'bubble'
-
-/** Chat resource-list layout: 'classic' = entity rail + right resource panel, 'modern' = single sidebar. */
-export type ChatLayoutMode = 'classic' | 'modern'
 
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
@@ -314,6 +313,7 @@ export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
   'paddleocr',
+  'local-paddleocr',
   'ovocr',
   'mineru',
   'doc2x',

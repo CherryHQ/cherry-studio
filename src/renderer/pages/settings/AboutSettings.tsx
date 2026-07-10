@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import {
   SettingGroup,
   SettingRow,
@@ -11,11 +10,13 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
@@ -54,7 +55,7 @@ const AboutSettings: FC = () => {
         await ipcApi.request('app.updater.check_for_update')
       } catch {
         updateAppUpdateState({ manualCheck: false })
-        window.toast.error(t('settings.about.updateError'))
+        toast.error(t('settings.about.updateError'))
       }
 
       updateAppUpdateState({ checking: false })
@@ -102,7 +103,7 @@ const AboutSettings: FC = () => {
 
   const handleTestChannelChange = async (value: UpgradeChannel) => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
-      window.toast.warning(t('settings.general.test_plan.version_channel_not_match'))
+      toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
     void setTestChannel(value)
     updateAppUpdateState({

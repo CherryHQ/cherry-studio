@@ -138,7 +138,7 @@ export function resolveUserDataLocation(): void {
   // Step 2: BootConfig as single source of truth.
   const exe = getNormalizedExecutablePath()
   const resolved = bootConfigService.get('app.user_data_path')?.[exe]
-  if (resolved && isValidDataDir(resolved)) {
+  if (resolved && isUsableDataDir(resolved)) {
     app.setPath('userData', resolved)
     logger.info('userData set from BootConfig', { exe, resolved })
     return
@@ -158,6 +158,37 @@ export function resolveUserDataLocation(): void {
 
 function resolveDevUserDataSuffix(): string {
   return process.env.CS_DEV_USER_DATA_SUFFIX?.trim() || DEFAULT_DEV_USER_DATA_SUFFIX
+}
+
+/**
+ * Synchronous check that a path is a *usable* data directory: it is a
+ * directory AND the current process can read, write, and enter it.
+ *
+ * Shared by preboot userData resolution (above) and the v1→v2 migration path
+ * selection (`MigrationPaths.ts`, which imports this) so that "the app is
+ * allowed to run here" and "we are allowed to migrate v1 data into here" use
+ * one identical bar — there is no second, drifting validator.
+ *
+ * Why each part:
+ *   - `isDirectory()` — a plain file at the path must NOT qualify; the old
+ *     `existsSync` check accepted files.
+ *   - `R_OK` — migration reads v1 data (version.log, config.json, IndexedDB…).
+ *   - `W_OK` — migration writes cherrystudio.sqlite here.
+ *   - `X_OK` — POSIX "search" permission, required to stat/open children of
+ *     the directory (version.log, the DB file, …). Without it we cannot probe
+ *     the directory's contents at all. On Windows `X_OK` is effectively a
+ *     no-op, so requiring it is cross-platform safe.
+ *
+ * Never throws — any fs error (missing path, permission) resolves to false.
+ */
+export function isUsableDataDir(p: string): boolean {
+  try {
+    if (!fs.statSync(p).isDirectory()) return false
+    fs.accessSync(p, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -267,20 +298,5 @@ function executePendingRelocation(pending: PendingRelocation): void {
     // to Step 2 and fall back to the existing app.user_data_path. The
     // failure record is now visible to future renderer code that wants
     // to show a recovery dialog (out of scope for this PR).
-  }
-}
-
-/**
- * Synchronous validation: directory exists and is writable.
- * Intentionally inline — we cannot use the async hasWritePermission from
- * src/main/utils/file.ts during the synchronous preboot chain.
- */
-function isValidDataDir(p: string): boolean {
-  try {
-    if (!fs.existsSync(p)) return false
-    fs.accessSync(p, fs.constants.W_OK)
-    return true
-  } catch {
-    return false
   }
 }

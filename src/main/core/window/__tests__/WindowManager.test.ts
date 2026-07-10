@@ -249,6 +249,15 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/default/index.html',
       windowOptions: {}
     },
+    // Consumer-loaded: empty htmlPath → WM skips loadWindowContent; the domain
+    // service loads content itself after open() (see "content loading" tests).
+    consumerLoaded: {
+      type: 'consumerLoaded',
+      lifecycle: 'default',
+      showMode: 'manual',
+      htmlPath: '',
+      windowOptions: {}
+    },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
@@ -400,6 +409,27 @@ describe('WindowManager', () => {
       wm.close(id)
 
       expect(win.destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ─── Content loading (htmlPath contract) ───────────────
+
+  describe('content loading (htmlPath)', () => {
+    it('loads the registry htmlPath on create (production path → loadFile)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      expect(win.loadFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips content loading when htmlPath is empty (consumer-loaded window)', () => {
+      const id = wm.open('consumerLoaded' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      // Empty htmlPath = domain service owns loading; WM must not loadFile/loadURL.
+      expect(win).toBeDefined()
+      expect(win.loadFile).not.toHaveBeenCalled()
+      expect(win.loadURL).not.toHaveBeenCalled()
     })
   })
 

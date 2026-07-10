@@ -1,6 +1,6 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +55,8 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
   ref?: Ref<HTMLDivElement>
   transition?: unknown
 }
+
+const getRequiredShellWidth = (paneWidth = RESOURCE_LIST_PANE_MIN_WIDTH) => paneWidth + CHAT_CENTER_MIN_USABLE_WIDTH
 
 vi.mock('motion/react', () => {
   return {
@@ -371,50 +373,204 @@ describe('ChatAppShell', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
   })
 
-  it('auto-collapses the open left pane when the shell width crosses below the 540px threshold', () => {
+  it('reports responsive auto-collapse when the shell width cannot fit the left pane and center area', () => {
     const onPaneCollapse = vi.fn()
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
 
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
 
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
 
-    expect(onPaneCollapse).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+    expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
-  it('auto-collapses the open left pane when the center drops below its minimum usable width', async () => {
+  it('reports responsive auto-collapse when the center drops below its minimum usable width', async () => {
     const onPaneCollapse = vi.fn()
+    const onPaneAutoCollapseChange = vi.fn()
 
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
 
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH)
     notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
 
     await waitFor(() => {
-      expect(onPaneCollapse).toHaveBeenCalledTimes(1)
+      expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
     })
+    expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
-  it('does not collapse from the initial shell width observation even when already below the 540px threshold', () => {
+  it('reports responsive auto-restore when the shell can fit the left pane and center area again', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
+    notifyObservedShellWidth(requiredShellWidth)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('clears a reported responsive auto-collapse when the shell unmounts', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
+
+    const { unmount } = render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
+    unmount()
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('uses the current left pane width when deciding whether the shell can restore it', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth(RESOURCE_LIST_PANE_MAX_WIDTH)
+    persistCacheMock.state.width = RESOURCE_LIST_PANE_MAX_WIDTH
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
+    notifyObservedShellWidth(getRequiredShellWidth())
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    notifyObservedShellWidth(requiredShellWidth)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('keeps the pane auto-collapsed until every responsive constraint has recovered', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
+    notifyObservedShellWidth(requiredShellWidth - 1)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    notifyObservedShellWidth(requiredShellWidth)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('does not auto-collapse from the first center width observation when the initial measurement is zero', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
+
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+  })
+
+  it('reports responsive auto-restore when the center widens back above its minimum usable width', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH + 1)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('does not collapse from the initial shell width observation even when already below the required width', () => {
     const onPaneCollapse = vi.fn()
 
     render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
 
-    notifyObservedShellWidth(539)
+    notifyObservedShellWidth(getRequiredShellWidth() - 1)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
-  it('allows manually opening the left pane while the shell is already below the 540px threshold', () => {
+  it('allows manually opening the left pane while the shell is already below the required width', () => {
     const onPaneCollapse = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
 
     const { rerender } = render(
       <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
     )
 
-    notifyObservedShellWidth(539)
+    notifyObservedShellWidth(requiredShellWidth - 1)
     notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
     rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
-    notifyObservedShellWidth(538)
+    notifyObservedShellWidth(requiredShellWidth - 2)
     notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 2)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
@@ -422,12 +578,13 @@ describe('ChatAppShell', () => {
 
   it('does not auto-collapse when the pane is closed or positioned on the right', () => {
     const onPaneCollapse = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
     const { rerender } = render(
       <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
     )
 
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
 
     rerender(
       <ChatAppShell
@@ -438,19 +595,20 @@ describe('ChatAppShell', () => {
         main={<div />}
       />
     )
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
   it('does not auto-collapse from window resize alone', () => {
     const onPaneCollapse = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
 
     render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
 
-    notifyObservedShellWidth(540)
-    window.innerWidth = 539
+    notifyObservedShellWidth(requiredShellWidth)
+    window.innerWidth = requiredShellWidth - 1
     fireEvent.resize(window)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
@@ -467,28 +625,32 @@ describe('ChatAppShell', () => {
 
 function notifyObservedShellWidth(width: number) {
   const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-root]')
-  instance.callback(
-    [
-      {
-        target,
-        contentRect: new DOMRect(0, 0, width, 0)
-      } as ResizeObserverEntry
-    ],
-    {} as ResizeObserver
-  )
+  act(() => {
+    instance.callback(
+      [
+        {
+          target,
+          contentRect: new DOMRect(0, 0, width, 0)
+        } as ResizeObserverEntry
+      ],
+      {} as ResizeObserver
+    )
+  })
 }
 
 function notifyObservedCenterWidth(width: number) {
   const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-center]')
-  instance.callback(
-    [
-      {
-        target,
-        contentRect: new DOMRect(0, 0, width, 0)
-      } as ResizeObserverEntry
-    ],
-    {} as ResizeObserver
-  )
+  act(() => {
+    instance.callback(
+      [
+        {
+          target,
+          contentRect: new DOMRect(0, 0, width, 0)
+        } as ResizeObserverEntry
+      ],
+      {} as ResizeObserver
+    )
+  })
 }
 
 function findResizeObserverTarget(selector: string) {

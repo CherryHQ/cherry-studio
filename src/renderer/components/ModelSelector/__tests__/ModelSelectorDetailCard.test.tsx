@@ -1,16 +1,25 @@
 import type * as ModelModule from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import type { ReactNode, Ref } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'
 
-const { mockGetModelSupportedReasoningEffortOptions } = vi.hoisted(() => ({
-  mockGetModelSupportedReasoningEffortOptions: vi.fn()
-}))
+const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, mockHoverCardOpenChange } = vi.hoisted(
+  () => ({
+    mockGetModelSupportedReasoningEffortOptions: vi.fn(),
+    mockHoverCardContentProps: [] as Array<{
+      className?: string
+      side?: string
+      align?: string
+      collisionPadding?: number
+    }>,
+    mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
+  })
+)
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
@@ -46,9 +55,29 @@ vi.mock('@renderer/components/tags/Model', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
-  HoverCardContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
+  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => {
+    mockHoverCardOpenChange.current = onOpenChange
+    return <>{children}</>
+  },
+  HoverCardContent: ({
+    children,
+    className,
+    side,
+    align,
+    collisionPadding
+  }: {
+    children: ReactNode
+    className?: string
+    side?: string
+    align?: string
+    collisionPadding?: number
+  }) => {
+    mockHoverCardContentProps.push({ className, side, align, collisionPadding })
+    return <div className={className}>{children}</div>
+  },
+  HoverCardTrigger: ({ children, ref }: { children: ReactNode; ref?: Ref<HTMLSpanElement> }) => (
+    <span ref={ref}>{children}</span>
+  )
 }))
 
 const provider: Provider = {
@@ -60,6 +89,20 @@ const provider: Provider = {
   settings: {} as Provider['settings'],
   isEnabled: true
 } as Provider
+
+function makeModel(overrides: Partial<Model> = {}): Model {
+  return {
+    id: 'openai::gpt-4o-mini' as UniqueModelId,
+    providerId: provider.id,
+    apiModelId: 'gpt-4o-mini',
+    name: 'GPT-4o mini',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    ...overrides
+  } as Model
+}
 
 function makeItem(model: Model): ModelSelectorModelItem {
   return {
@@ -75,21 +118,18 @@ function makeItem(model: Model): ModelSelectorModelItem {
 }
 
 describe('ModelSelectorDetailCard', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     mockGetModelSupportedReasoningEffortOptions.mockReturnValue([])
+    mockHoverCardContentProps.length = 0
+    mockHoverCardOpenChange.current = undefined
   })
 
   it('renders provider and model id as separate detail rows', () => {
-    const model: Model = {
-      id: 'openai::gpt-4o-mini' as UniqueModelId,
-      providerId: provider.id,
-      apiModelId: 'gpt-4o-mini',
-      name: 'GPT-4o mini',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    } as Model
+    const model = makeModel()
 
     render(
       <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
@@ -104,21 +144,64 @@ describe('ModelSelectorDetailCard', () => {
     expect(screen.queryByText('/')).not.toBeInTheDocument()
   })
 
+  it('constrains the hover card to Radix available space', () => {
+    const model = makeModel()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
+      side: 'right',
+      align: 'start',
+      collisionPadding: 12
+    })
+    expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
+  })
+
+  it('places the hover card below the row when neither horizontal side fits', () => {
+    const model = makeModel()
+
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(280)
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(700)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 36,
+      top: 100,
+      right: 200,
+      bottom: 136,
+      left: 100,
+      toJSON: () => {}
+    })
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    act(() => mockHoverCardOpenChange.current?.(true))
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
+      side: 'bottom',
+      align: 'center'
+    })
+  })
+
   it('renders reasoning options from getModelSupportedReasoningEffortOptions', () => {
-    const model: Model = {
+    const model = makeModel({
       id: 'openai::gpt-5-codex-max' as UniqueModelId,
-      providerId: provider.id,
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
-      capabilities: [],
-      supportsStreaming: true,
       reasoning: {
         type: 'openai-responses',
         supportedEfforts: ['max']
-      },
-      isEnabled: true,
-      isHidden: false
-    } as Model
+      }
+    })
 
     mockGetModelSupportedReasoningEffortOptions.mockReturnValue(['default', 'xhigh'])
 

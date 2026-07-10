@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { WebviewKeyEvent } from '@shared/types/webview'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -99,13 +100,6 @@ afterAll(() => {
 })
 
 describe('WebviewSearch', () => {
-  const toastMock = {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-    info: vi.fn(),
-    addToast: vi.fn()
-  }
   let removeFindShortcutListenerMock: ReturnType<typeof vi.fn>
   let onFindShortcutMock: ReturnType<typeof vi.fn>
   const invokeLatestShortcut = (payload: WebviewKeyEvent) => {
@@ -128,7 +122,6 @@ describe('WebviewSearch', () => {
         }
       }
     })
-    Object.assign(window, { toast: toastMock })
   })
 
   afterEach(() => {
@@ -364,7 +357,7 @@ describe('WebviewSearch', () => {
     await user.type(input, 'Cherry')
 
     await waitFor(() => {
-      expect(toastMock.error).toHaveBeenCalledWith('Error')
+      expect(toast.error).toHaveBeenCalledWith('Error')
     })
   })
 

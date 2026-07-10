@@ -95,7 +95,7 @@ describe('AgentConversationPickerDialog', () => {
           planModel: 'p::m',
           smallModel: 'p::m',
           description: 'desc',
-          configuration: { avatar: '🤖', permission_mode: 'bypassPermissions', soul_enabled: true }
+          configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
         }
       })
     )

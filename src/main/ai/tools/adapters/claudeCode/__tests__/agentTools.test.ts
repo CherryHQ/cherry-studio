@@ -78,6 +78,15 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('Bash')).toBe(true)
   })
 
+  it('honors disabledTools for notify and config autonomy tools', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(
+      makeAgent(['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'])
+    )
+    expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__config')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
@@ -153,6 +162,19 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
     // A sibling read tool under the same prefix is still auto-approved.
     expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
   })
+
+  it('auto-approves the merged autonomy tools while kb_manage still prompts', async () => {
+    // The former standalone `cherry` server's cron/notify/config now live under cherry-tools and
+    // must stay auto-approved; the mutating kb_manage carve-out must survive the merge.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+    })
+    expect(snapshot.resolve('mcp__cherry-tools__cron')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__notify')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__config')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+  })
 })
 
 describe('createClaudeAgentToolPolicySnapshot — production approval-gate wiring', () => {
@@ -171,7 +193,8 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   // these fail the moment the real gate stops carving the mutating tools out.
   const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
   const productionOptions = {
-    autoAllowRuntimeNamePrefixes: [PREFIX],
+    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNamePrefixes: [],
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   }
 
@@ -187,7 +210,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
   })
 
-  it('prompts for every approval-required tool and auto-approves every read tool under the real wiring', async () => {
+  it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
     for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
@@ -196,5 +219,11 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
       expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
     }
+  })
+
+  it('does not auto-approve future cherry-tools by prefix under the real wiring', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
+
+    expect(snapshot.resolve('mcp__cherry-tools__future_mutator')).toBeUndefined()
   })
 })

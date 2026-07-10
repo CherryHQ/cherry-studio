@@ -7,10 +7,16 @@ export type ConversationStageCenterProps = ComponentProps<typeof ConversationCom
 
 export default function ConversationStageCenter(props: ConversationStageCenterProps) {
   const shellState = useOptionalShellState()
+  const mainVisible = props.mainVisible ?? props.placement === 'docked'
+  const paneMaximized = shellState?.maximized ?? false
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col justify-between">
-      <ConversationComposerStage {...props} composerElevated={props.composerElevated || shellState?.maximized} />
+      <ConversationComposerStage
+        {...props}
+        mainVisible={mainVisible && !paneMaximized}
+        composerElevated={props.composerElevated || paneMaximized}
+      />
     </div>
   )
 }

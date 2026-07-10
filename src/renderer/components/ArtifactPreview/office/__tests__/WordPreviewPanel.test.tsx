@@ -211,6 +211,7 @@ describe('WordPreviewPanel', () => {
     render(<WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />)
 
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    await waitFor(() => expect(mocks.intersectionObserverInstances.at(-1)).toBeDefined())
 
     const observer = mocks.intersectionObserverInstances.at(-1)
     expect(observer).toBeDefined()

@@ -3,12 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { BaseNavigatorSectionTriggerProps } from './types'
 
-const BaseNavigatorSectionTrigger = ({
-  label,
-  itemCount,
-  leadingSlot,
-  actionSlot
-}: BaseNavigatorSectionTriggerProps) => {
+const BaseNavigatorSectionTrigger = ({ label, leadingSlot, actionSlot }: BaseNavigatorSectionTriggerProps) => {
   return (
     <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-colors hover:bg-accent/60">
       <div className="min-w-0 flex-1">
@@ -22,7 +17,6 @@ const BaseNavigatorSectionTrigger = ({
           <div className="flex min-w-0 items-center gap-1.5">
             {leadingSlot}
             <span className="min-w-0 truncate">{label}</span>
-            <span className="shrink-0 text-foreground-muted tabular-nums leading-none">{itemCount}</span>
           </div>
         </AccordionTrigger>
       </div>

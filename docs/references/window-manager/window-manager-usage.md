@@ -12,7 +12,7 @@ In `types.ts`:
 export enum WindowType {
   Main = 'main',
   // ... existing types
-  Settings = 'settings',  // <-- add your new type
+  MyWindow = 'myWindow',  // <-- add your new type
 }
 ```
 
@@ -21,11 +21,11 @@ export enum WindowType {
 In `windowRegistry.ts`:
 
 ```typescript
-WINDOW_TYPE_REGISTRY[WindowType.Settings] = {
-  type: WindowType.Settings,
+WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
+  type: WindowType.MyWindow,
   lifecycle: 'singleton',
-  htmlPath: 'settings.html',
-  // preload omitted → defaults to 'preload.js'
+  htmlPath: 'windows/myWindow/index.html',
+  // preload omitted → defaults to 'index.js'
   // showMode omitted → defaults to 'auto'
   windowOptions: {
     ...DEFAULT_WINDOW_CONFIG,
@@ -46,7 +46,7 @@ import { WindowType } from '@main/core/window/types'
 const wm = application.get('WindowManager')
 
 // open() is lifecycle-aware — handles singleton reuse, pool recycle, etc.
-const windowId = wm.open(WindowType.Settings)
+const windowId = wm.open(WindowType.MyWindow)
 ```
 
 ### 4. Inject domain behavior via `onWindowCreatedByType`
@@ -54,13 +54,13 @@ const windowId = wm.open(WindowType.Settings)
 ```typescript
 // In your domain service's onInit():
 const wm = application.get('WindowManager')
-wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
+wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
   // Store the windowId for later use
-  this.settingsWindowId = id
+  this.myWindowId = id
 
   // Attach event listeners BEFORE content loads
   window.on('closed', () => {
-    this.settingsWindowId = undefined
+    this.myWindowId = undefined
   })
 })
 ```
@@ -68,9 +68,9 @@ wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
 The example above uses **destructuring**. An equivalent using the `mw` shorthand (useful when the callback body is long or accesses many fields):
 
 ```typescript
-wm.onWindowCreatedByType(WindowType.Settings, (mw) => {
-  this.settingsWindowId = mw.id
-  mw.window.on('closed', () => { this.settingsWindowId = undefined })
+wm.onWindowCreatedByType(WindowType.MyWindow, (mw) => {
+  this.myWindowId = mw.id
+  mw.window.on('closed', () => { this.myWindowId = undefined })
 })
 ```
 
@@ -83,30 +83,30 @@ The `onWindowCreated` event is the canonical hook for domain services to inject 
 ### The Pattern
 
 ```typescript
-@Injectable('SettingsService')
+@Injectable('MyWindowService')
 @ServicePhase(Phase.WhenReady)
-export class SettingsService extends BaseService {
-  private settingsWindowId: string | undefined
+export class MyWindowService extends BaseService {
+  private myWindowId: string | undefined
 
   protected override onInit(): void {
     const wm = application.get('WindowManager')
 
-    wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
+    wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
       // 1. Store the windowId
-      this.settingsWindowId = id
+      this.myWindowId = id
 
       // 2. Attach listeners BEFORE content loads
       window.once('ready-to-show', () => {
-        this.sendInitialConfig(window)
+        this.sendInitialData(window)
       })
 
       window.on('closed', () => {
-        this.settingsWindowId = undefined
+        this.myWindowId = undefined
       })
     })
 
-    wm.onWindowDestroyedByType(WindowType.Settings, () => {
-      this.settingsWindowId = undefined
+    wm.onWindowDestroyedByType(WindowType.MyWindow, () => {
+      this.myWindowId = undefined
     })
   }
 }
@@ -130,7 +130,7 @@ For subscriptions that only care about a single window type (the typical consume
 It's tempting to attach listeners inline after `wm.open()` returns, since the ID is right there:
 
 ```typescript
-const id = wm.open(WindowType.Settings)
+const id = wm.open(WindowType.MyWindow)
 const window = wm.getWindow(id)!
 window.on('blur', this.hideIfUnpinned)
 window.once('closed', () => { this.windowId = null })
@@ -151,9 +151,9 @@ The `onWindowCreatedByType` / `onWindowDestroyedByType` listeners receive a `Man
 **Destructuring (recommended default, short callback):**
 
 ```typescript
-wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
-  this.settingsWindowId = id
-  window.on('closed', () => { this.settingsWindowId = undefined })
+wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
+  this.myWindowId = id
+  window.on('closed', () => { this.myWindowId = undefined })
 })
 ```
 
@@ -198,6 +198,19 @@ WindowManager exposes four lifecycle methods, arranged in two layers:
 | "My service's local `windowId` must match WindowManager's" | Subscribe to `onWindowDestroyedByType` to clear local state in sync with WM's `'closed'` tracking |
 
 **Why `destroy()` is not a consumer API.** On non-pooled windows (default and singleton) `close()` falls through to the same `destroyWindow()` call — there is no behavioral difference. On pooled windows, `destroy()` bypasses the pool, which is almost never what a consumer actually wants; the correct API for "stop the whole pool" is `suspendPool(type)`, which destroys idle windows and prevents further recycling without touching in-use windows.
+
+### Consumer-loaded windows (`htmlPath: ''`)
+
+A registry entry with `htmlPath: ''` is **consumer-loaded**: WM wires the window (preload, behavior, bounds, lifecycle) but loads no content — the domain service loads it after `open()`. For hidden, one-shot surfaces rendering *generated* content (print / PDF, offscreen render).
+
+```typescript
+const id = wm.open(WindowType.MyPrintSurface)          // WM wires; loads nothing
+const win = wm.getWindow(id)                           // the sanctioned handle to load into
+await win?.webContents.loadURL(generatedHtmlDataUrl)   // consumer owns content + show + close()
+// ... await 'did-finish-load', e.g. webContents.printToPDF(), then wm.close(id)
+```
+
+`getWindow(id)` is the one exception to "consumers only call `open()` / `close()`" — use it only for `webContents` loading (payload encoding is the consumer's call). Main-initiated `loadURL` / `loadFile` is not blocked by WM's navigation guards (those only intercept renderer-initiated navigation).
 
 ### Domain-Key-to-WindowId Mapping
 

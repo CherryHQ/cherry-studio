@@ -8,6 +8,20 @@ vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
 }))
 
+// Let initialize() run without opening a real SQLite file: a bare fake DB whose
+// migration-status read returns no row (so needsMigration hits the fresh-install
+// branch we want to exercise).
+vi.mock('../MigrationDbService', () => ({
+  MigrationDbService: {
+    create: () => ({
+      getDb: () => ({
+        select: () => ({ from: () => ({ where: () => ({ get: () => undefined }) }) })
+      }),
+      close: () => {}
+    })
+  }
+}))
+
 const mockPaths: MigrationPaths = {
   userData: '/tmp/test-userdata',
   cherryHome: '/tmp/test-cherryhome',
@@ -190,6 +204,29 @@ describe('MigrationEngine', () => {
 
     expect(result.success).toBe(true)
     expect((engine as any).markFailed).not.toHaveBeenCalled()
+  })
+
+  describe('needsMigration — legacyDataConfirmed flag', () => {
+    it('returns true without markCompleted when legacyDataConfirmed is true (no status row)', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, true)
+      // Isolate the flag: without the OR, an empty electron-store would markCompleted+false.
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(true)
+      expect(markSpy).not.toHaveBeenCalled()
+    })
+
+    it('markCompleted + returns false when not legacyDataConfirmed and no legacy data', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, false)
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(false)
+      expect(markSpy).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('clears new architecture tables inside one transaction', async () => {

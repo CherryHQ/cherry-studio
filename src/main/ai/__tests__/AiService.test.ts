@@ -14,11 +14,33 @@ const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
+const mockInstallBuiltinSkills = vi.fn()
+const mockReconcileSkills = vi.fn()
+const mockRegisterBuiltinTools = vi.fn()
+const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 
 vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
   }
+}))
+
+vi.mock('@main/utils/builtinSkills', () => ({
+  installBuiltinSkills: (...args: unknown[]) => mockInstallBuiltinSkills(...args)
+}))
+
+vi.mock('../skills/SkillService', () => ({
+  skillService: {
+    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args)
+  }
+}))
+
+vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
+  registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
+}))
+
+vi.mock('../utils/customFetch', () => ({
+  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -251,6 +273,41 @@ describe('AiService', () => {
 
     const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
     expect(callOptions).not.toHaveProperty('size')
+  })
+})
+
+describe('AiService.onInit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'JobManager' ? { registerHandler: vi.fn() } : undefined
+    )
+    mockReconcileSkills.mockResolvedValue(undefined)
+  })
+
+  it('installs built-in skills before reconciling skills, without blocking init', async () => {
+    const calls: string[] = []
+    mockInstallBuiltinSkills.mockImplementation(async () => {
+      calls.push('installBuiltinSkills')
+    })
+    mockReconcileSkills.mockImplementation(async () => {
+      calls.push('reconcileSkills')
+    })
+    const service = createService()
+
+    // Fire-and-forget: _doInit resolves without waiting on this chain.
+    await service._doInit()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
+
+    expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
+  })
+
+  it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
+    mockInstallBuiltinSkills.mockRejectedValue(new Error('disk full'))
+    const service = createService()
+
+    await expect(service._doInit()).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
   })
 })
 
@@ -673,6 +730,34 @@ describe('AiService tool approval', () => {
     )
     expect(embedSpy).not.toHaveBeenCalled()
     expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('passes the selected API key override into text health checks', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-model',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyOverride: 'sk-selected',
+        system: 'test',
+        prompt: 'hi'
+      })
+    )
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {

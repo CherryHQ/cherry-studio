@@ -1,10 +1,24 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { StopCondition, ToolSet } from 'ai'
-import { describe, expect, it } from 'vitest'
+import type { StopCondition, Tool, ToolSet } from 'ai'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { makeModel } from '../../../../__tests__/fixtures'
+import { makeAssistant, makeModel } from '../../../../__tests__/fixtures'
+import { registry } from '../../../../tools/adapters/aiSdk/registry'
+import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
-import { applyCallOverrides, composeStopWhen } from '../buildAgentParams'
+
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'KnowledgeService') return { hasAnyBase: () => true }
+      throw new Error(`unexpected service: ${name}`)
+    }
+  }
+}))
+
+const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveTools } = await import(
+  '../buildAgentParams'
+)
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -97,5 +111,64 @@ describe('composeStopWhen', () => {
     // The injected fallback caps the tool loop at the SDK default of 20 steps.
     expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
     expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
+  })
+})
+
+describe('resolveKnowledgeBaseIds', () => {
+  it('falls back to the assistant-bound bases when the request selects none', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+  })
+
+  it('trusts the request-selected bases when the assistant has no static binding', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
+    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+  })
+
+  it('drops request-selected bases outside the assistant scope instead of expanding it', () => {
+    // An assistant statically bound to `kb-public` must not become searchable for `kb-private`
+    // just because the renderer/IPC request asked for it — the assistant's own binding is the
+    // trust boundary, not whatever the composer UI happened to let the user pick.
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-public'] }), ['kb-private'])).toEqual([
+      'kb-public'
+    ])
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual(['kb-1'])
+  })
+
+  it('returns an empty array when neither source selects a base', () => {
+    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
+  })
+})
+
+describe('resolveTools knowledge-base wiring', () => {
+  const KB_GATED_TOOL_NAME = 'test-kb-gated-tool'
+
+  const kbGatedEntry: ToolEntry = {
+    name: KB_GATED_TOOL_NAME,
+    namespace: 'test',
+    description: 'test-only tool gated on knowledgeBaseIds',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => (scope.knowledgeBaseIds?.length ?? 0) > 0
+  }
+
+  afterEach(() => {
+    registry.deregister(KB_GATED_TOOL_NAME)
+  })
+
+  it('exposes a kb-gated tool when the effective knowledgeBaseIds is non-empty', async () => {
+    registry.register(kbGatedEntry)
+
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, ['kb-1'])
+
+    expect(tools?.[KB_GATED_TOOL_NAME]).toBeDefined()
+  })
+
+  it('hides a kb-gated tool when the effective knowledgeBaseIds is empty', async () => {
+    registry.register(kbGatedEntry)
+
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [])
+
+    expect(tools?.[KB_GATED_TOOL_NAME]).toBeUndefined()
   })
 })

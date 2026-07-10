@@ -1,5 +1,7 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
 import type { AgentConfiguration } from '@shared/data/types/agent'
+import type { ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
@@ -9,6 +11,19 @@ export function getAgentAvatar(avatar?: unknown) {
 
 export function getAgentAvatarFromConfiguration(configuration?: Pick<AgentConfiguration, 'avatar'> | null) {
   return getAgentAvatar(configuration?.avatar)
+}
+
+export function getAgentModelFallbackSnapshot(agent?: {
+  model?: string | null
+  modelName?: string | null
+}): ModelSnapshot | undefined {
+  const modelString = agent?.model
+  if (!isUniqueModelId(modelString)) return undefined
+
+  const { providerId, modelId } = parseUniqueModelId(modelString)
+  if (!providerId || !modelId) return undefined
+
+  return { id: modelId, name: agent?.modelName ?? modelId, provider: providerId }
 }
 
 export const permissionModeCards: PermissionModeCard[] = [

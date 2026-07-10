@@ -138,7 +138,7 @@ export const useMiniAppPopup = () => {
   // Pinned AppShell tabs are exempt from keep-alive eviction. The user pins a
   // tab to say "keep this state alive across switches"; honoring that here
   // prevents the cap from quietly throwing away webviews behind a pinned tab.
-  // Detached settings windows can open mini-app content without AppShell tabs;
+  // Isolated renderer surfaces can open mini-app content without AppShell tabs;
   // in that case skip eviction because pin state is not observable there.
   const tabsContext = useOptionalTabsContext()
   const tabs = tabsContext?.tabs ?? []

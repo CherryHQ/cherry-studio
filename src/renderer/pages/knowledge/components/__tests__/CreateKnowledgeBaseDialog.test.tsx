@@ -1,3 +1,4 @@
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -5,6 +6,14 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CreateKnowledgeBaseDialog from '../CreateKnowledgeBaseDialog'
+
+const mockIpcRequest = vi.fn()
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mockIpcRequest(...args)
+  }
+}))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
@@ -113,12 +122,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'bm25',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -137,6 +143,9 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 describe('CreateKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: the local embedding model is not downloaded, so submit creates a
+    // BM25-only base. Tests that assert vector backfill override this per case.
+    mockIpcRequest.mockResolvedValue({ status: 'not_downloaded' })
   })
 
   it('does not submit when the name is empty', async () => {
@@ -360,5 +369,75 @@ describe('CreateKnowledgeBaseDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base', groupId: 'group-2' }))
+  })
+
+  it('backfills the local embedding model when it is already downloaded', async () => {
+    mockIpcRequest.mockResolvedValue({ status: 'ready' })
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+        dimensions: LOCAL_EMBEDDING_DIMENSIONS
+      })
+    )
+    expect(mockIpcRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' })
+  })
+
+  it('creates a BM25-only base when the local embedding model is not downloaded', async () => {
+    mockIpcRequest.mockResolvedValue({ status: 'not_downloaded' })
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))
+  })
+
+  it('falls back to BM25-only creation when the local model status probe fails', async () => {
+    mockIpcRequest.mockRejectedValue(new Error('probe failed'))
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))
   })
 })

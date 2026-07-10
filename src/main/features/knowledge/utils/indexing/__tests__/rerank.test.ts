@@ -57,10 +57,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    threshold: undefined,
     documentCount: 2,
-    searchMode: 'hybrid',
-    hybridAlpha: undefined,
     createdAt: now,
     updatedAt: now,
     ...overrides

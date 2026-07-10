@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -12,20 +11,18 @@ import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
+import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-
-const logger = loggerService.withContext('useAgentChatRuntimeState')
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -183,13 +180,10 @@ export function useAgentChatRuntimeState({
     [chat, deleteSessionMessage]
   )
 
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
+  const fallbackSnapshot = useMemo(
+    () => getAgentModelFallbackSnapshot({ model: activeAgent?.model, modelName: activeAgent?.modelName }),
+    [activeAgent?.model, activeAgent?.modelName]
+  )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
@@ -199,34 +193,14 @@ export function useAgentChatRuntimeState({
     return next
   }, [uiMessages])
 
-  const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
   const {
     overlay,
     liveAssistants,
-    disposeOverlay,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
-    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
-  })
+  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
-
-  const handleExecutionFinish = useCallback(
-    (_executionId: string, { message }: ExecutionFinishEvent) => {
-      void (async () => {
-        try {
-          await refresh()
-        } catch (error) {
-          logger.warn('Failed to refresh agent messages after execution finish', { sessionId, error })
-        } finally {
-          if (message.id) disposeOverlay(message.id)
-        }
-      })()
-    },
-    [disposeOverlay, refresh, sessionId]
-  )
-  finishRef.current = handleExecutionFinish
 
   // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
   // the execution leaves `activeExecutions` at terminal, so a torn-down turn's

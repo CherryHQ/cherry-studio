@@ -26,7 +26,7 @@
    - Missing or dangling embedding model references are preserved as recoverable failed bases with `embeddingModelId = null`, `status = failed`, and `error = missing_embedding_model`.
    - `error = missing_embedding_model` is the current shared `KnowledgeBaseErrorCode` member for recoverable base-level embedding model loss.
    - Missing or dangling rerank references are cleared with warnings.
-   - Migrated base `searchMode` is set to `hybrid`.
+   - Retrieval mode is not migrated; runtime uses hybrid retrieval when an embedding model is present and BM25 otherwise.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
    - Invalid runtime tuning fields are normalized to schema-safe defaults/nulls instead of causing the whole base to be skipped.
 
@@ -78,7 +78,6 @@
 | `chunkOverlap` | `chunkOverlap` | Copied when non-negative integer and smaller than `chunkSize`; otherwise normalized to the default overlap for the resolved chunk size |
 | `threshold` | `threshold` | Copied when within `[0, 1]`; otherwise cleared |
 | `documentCount` | `documentCount` | Copied when positive; otherwise cleared |
-| _constant_ | `searchMode` | Always `hybrid` during v1 migration |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
 

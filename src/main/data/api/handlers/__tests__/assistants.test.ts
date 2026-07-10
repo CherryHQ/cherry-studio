@@ -189,24 +189,24 @@ describe('assistantHandlers', () => {
     })
 
     it('should forward DELETE with historical topic preservation by default', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce({ deleted: true })
 
       await expect(
         assistantHandlers['/assistants/:id'].DELETE({ params: { id: ASSISTANT_ID } } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedTopicIds: undefined })
 
       expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false })
     })
 
     it('should forward DELETE with topic cleanup when requested', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
 
       await expect(
         assistantHandlers['/assistants/:id'].DELETE({
           params: { id: ASSISTANT_ID },
           query: { deleteTopics: true }
         } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedTopicIds: ['topic-1'] })
 
       expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true })
     })

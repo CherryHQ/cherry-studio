@@ -1,8 +1,9 @@
+import { toast } from '@renderer/services/toast'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcChatTransport } from '../IpcChatTransport'
 
@@ -121,19 +122,12 @@ function createMockAiApi() {
 describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
   let mock: ReturnType<typeof createMockAiApi>
-  let originalToast: unknown
 
   beforeEach(() => {
     mock = createMockAiApi()
     ipcMock.request = mock.request
     ipcMock.on = mock.on
-    originalToast = (window as unknown as { toast: unknown }).toast
-    ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
     transport = new IpcChatTransport()
-  })
-
-  afterEach(() => {
-    ;(window as unknown as { toast: unknown }).toast = originalToast
   })
 
   const topicId = 'topic-1'
@@ -224,7 +218,7 @@ describe('IpcChatTransport', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ done: true })
-    expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+    expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
   it('calls streamAbort on abort signal', async () => {

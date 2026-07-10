@@ -5,6 +5,8 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
@@ -105,7 +107,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           setOauthTokenOverride(true)
           void refreshHasToken()
           await fetchData()
-          window.toast.success(t('auth.get_key_success'))
+          toast.success(t('auth.get_key_success'))
         },
         {
           oauthServer: CHERRYIN_OAUTH_SERVER
@@ -113,43 +115,43 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       )
     } catch (error) {
       logger.error('OAuth error:', error as Error)
-      window.toast.error(t('settings.provider.oauth.error'))
+      toast.error(t('settings.provider.oauth.error'))
     }
   }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
 
-  const handleLogout = useCallback(() => {
-    window.modal.confirm({
+  const handleLogout = useCallback(async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
-      centered: true,
-      onOk: async () => {
-        setIsLoggingOut(true)
-
-        try {
-          await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
-          setOauthTokenOverride(false)
-          setBalanceInfo(null)
-
-          void refreshHasToken()
-
-          const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
-          const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
-          const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
-          if (rejectedDeletes.length > 0) {
-            logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
-            window.toast.warning(t('settings.provider.oauth.logout_warning'))
-            return
-          }
-
-          window.toast.success(t('settings.provider.oauth.logout_success'))
-        } catch (error) {
-          logger.error('Logout error:', error as Error)
-          window.toast.warning(t('settings.provider.oauth.logout_warning'))
-        } finally {
-          setIsLoggingOut(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setIsLoggingOut(true)
+
+    try {
+      await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
+      setOauthTokenOverride(false)
+      setBalanceInfo(null)
+
+      void refreshHasToken()
+
+      const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
+      const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
+      const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
+      if (rejectedDeletes.length > 0) {
+        logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
+        toast.warning(t('settings.provider.oauth.logout_warning'))
+        return
+      }
+
+      toast.success(t('settings.provider.oauth.logout_success'))
+    } catch (error) {
+      logger.error('Logout error:', error as Error)
+      toast.warning(t('settings.provider.oauth.logout_warning'))
+    } finally {
+      setIsLoggingOut(false)
+    }
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {

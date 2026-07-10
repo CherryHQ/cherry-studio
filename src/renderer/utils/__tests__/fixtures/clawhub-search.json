@@ -6,7 +6,8 @@
       "displayName": "Code Reviewer Pro",
       "summary": "Advanced code review with security analysis",
       "version": "2.1.0",
-      "updatedAt": 1719849600
+      "updatedAt": 1719849600,
+      "ownerHandle": "devmaster"
     },
     {
       "score": 0.82,
@@ -14,7 +15,8 @@
       "displayName": "Test Suite Generator",
       "summary": "Automatically generate comprehensive test suites",
       "version": null,
-      "updatedAt": 1718640000
+      "updatedAt": 1718640000,
+      "ownerHandle": "testdev"
     }
   ]
 }

@@ -1,24 +1,17 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
+import ToastHost from '@renderer/components/ToastHost'
 import { useEffect } from 'react'
 
 import HomeWindow from './home/HomeWindow'
 
-// Initialise toast utilities once at module import (advanced-init-once). The
-// selection-toolbar window follows the same pattern — consistent across
-// detached windows that don't have a dedicated entry-point bootstrap line.
-window.toast = getToastUtilities()
-
+// The <ToastHost/> below renders the toast viewport this window previously lacked
+// (the toast black hole), so translate/copy toasts are finally visible.
 function QuickAssistantContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
-  const toast = useToasts()
-
-  useEffect(() => {
-    window.toast = toast
-  }, [toast])
 
   useEffect(() => {
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
@@ -53,6 +46,8 @@ function QuickAssistantApp(): React.ReactElement {
       <CodeStyleProvider>
         <ErrorBoundary>
           <QuickAssistantContent />
+          <PopupHost />
+          <ToastHost />
         </ErrorBoundary>
       </CodeStyleProvider>
     </ThemeProvider>

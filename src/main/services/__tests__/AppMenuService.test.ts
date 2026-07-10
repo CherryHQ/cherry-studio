@@ -7,28 +7,25 @@ const {
   shellMock,
   appMock,
   preferenceServiceMock,
-  settingsWindowServiceMock,
+  openSettingsInMainWindowMock,
   commandServiceMock
 } = vi.hoisted(() => {
   const preferenceServiceMock = {
     get: vi.fn(),
     subscribeChange: vi.fn(() => ({ dispose: vi.fn() }))
   }
-  const settingsWindowServiceMock = {
-    open: vi.fn()
-  }
+  const openSettingsInMainWindowMock = vi.fn()
   const commandServiceMock = {
     execute: vi.fn()
   }
 
   return {
     preferenceServiceMock,
-    settingsWindowServiceMock,
+    openSettingsInMainWindowMock,
     commandServiceMock,
     applicationMock: {
       get: vi.fn((name: string) => {
         if (name === 'PreferenceService') return preferenceServiceMock
-        if (name === 'SettingsWindowService') return settingsWindowServiceMock
         if (name === 'CommandService') return commandServiceMock
         if (name === 'WindowManager') {
           return { getWindowsByType: vi.fn(() => []) }
@@ -80,6 +77,10 @@ vi.mock('electron', () => ({
   shell: shellMock
 }))
 
+vi.mock('@main/services/settingsNavigation', () => ({
+  openSettingsInMainWindow: openSettingsInMainWindowMock
+}))
+
 import { AppMenuService } from '../AppMenuService'
 
 const latestTemplate = () => menuMock.buildFromTemplate.mock.calls.at(-1)?.[0] as MenuItemConstructorOptions[]
@@ -116,7 +117,7 @@ describe('AppMenuService', () => {
 
     aboutItem?.click?.(undefined as never, undefined as never, undefined as never)
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/about')
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/about')
   })
 
   it('uses default zoom accelerators and wires them to zoom handling', async () => {

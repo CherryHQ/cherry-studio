@@ -14,8 +14,7 @@ interface AgentComposerSlotProps {
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
-  onNewSessionDraft?: () => void | Promise<void>
-  onCreateEmptySession?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
@@ -33,7 +32,6 @@ export default function AgentComposerSlot({
   stop,
   isStreaming,
   sendDisabled,
-  onNewSessionDraft,
   onCreateEmptySession,
   workspaceId,
   onWorkspaceChange,
@@ -52,7 +50,6 @@ export default function AgentComposerSlot({
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         workspaceId={workspaceId}
         onWorkspaceChange={onWorkspaceChange}

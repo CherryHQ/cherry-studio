@@ -2,6 +2,7 @@ import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
@@ -216,18 +217,19 @@ export function HistoryActionContextMenu<TContext = unknown>({
   onAction
 }: HistoryActionContextMenuProps<TContext>) {
   const runAction = useCallback(
-    (action: ResolvedAction<TContext>) => {
+    async (action: ResolvedAction<TContext>) => {
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        void window.modal.confirm({
+        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
+        // surfaces failures (toast + retry), so a rejected action is never silent.
+        await ConfirmActionPopup.show({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
-          centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined,
-          onOk: () => onAction(action)
+          danger: confirm.destructive,
+          action: () => onAction(action)
         })
         return
       }

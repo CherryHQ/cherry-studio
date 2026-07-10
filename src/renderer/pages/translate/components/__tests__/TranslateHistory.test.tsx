@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -152,14 +153,6 @@ describe('TranslateHistory', () => {
       }
     })
 
-    ;(window as any).toast = {
-      error: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn(),
-      success: vi.fn()
-    }
-
     translateHistoryMock.useTranslateHistory.mockReturnValue({
       clear: clearMock,
       update: updateMock,
@@ -235,7 +228,7 @@ describe('TranslateHistory', () => {
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))
-    expect((window as any).toast.success).toHaveBeenCalledWith('translate.copied')
+    expect(toast.success).toHaveBeenCalledWith('translate.copied')
   })
 
   it('shows copy failure toast when clipboard write rejects', async () => {
@@ -245,7 +238,7 @@ describe('TranslateHistory', () => {
     fireEvent.click(screen.getByText('hello'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.copy_target' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('common.copy_failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.copy_failed'))
   })
 
   it('invokes delete mutation from detail confirm dialog flow', async () => {

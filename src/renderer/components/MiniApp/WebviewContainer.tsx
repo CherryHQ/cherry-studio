@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +34,8 @@ const WebviewContainer = memo(
       (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
         if (element) {
+          // React omits unknown boolean attributes; Electron enables popups by attribute presence.
+          element.setAttribute('allowpopups', 'true')
           webviewRef.current = element
         } else {
           webviewRef.current = null
@@ -129,7 +132,7 @@ const WebviewContainer = memo(
             logger.info(`Printing webview ${appid} to PDF`)
             const filePath = await window.api.webview.printToPDF(webviewId)
             if (filePath) {
-              window.toast?.success?.(t('miniApp.shortcut.pdf_saved', { path: filePath }))
+              toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
               logger.info(`PDF saved to: ${filePath}`)
             }
           } else if (key === 's') {
@@ -137,13 +140,13 @@ const WebviewContainer = memo(
             logger.info(`Saving webview ${appid} as HTML`)
             const filePath = await window.api.webview.saveAsHTML(webviewId)
             if (filePath) {
-              window.toast?.success?.(t('miniApp.shortcut.html_saved', { path: filePath }))
+              toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
               logger.info(`HTML saved to: ${filePath}`)
             }
           }
         } catch (error) {
           logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
-          window.toast?.error?.(t('miniApp.shortcut.failed', { message: (error as Error).message }))
+          toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
         }
       })
 
@@ -181,7 +184,6 @@ const WebviewContainer = memo(
         ref={handleRef}
         data-mini-app-id={appid}
         style={WebviewStyle}
-        allowpopups={true}
         partition="persist:webview"
         useragent={
           appid === 'google'

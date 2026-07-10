@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -114,9 +115,6 @@ describe('ProviderEditorDrawer', () => {
     mocks.imageStorageGet.mockResolvedValue('data:image/png;base64,stored')
     mocks.imageStorageRemove.mockResolvedValue(undefined)
     mocks.imageStorageSet.mockResolvedValue(undefined)
-    window.toast = {
-      error: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('encodes an uploaded logo via fileToAvatarDataUrl and previews the result', async () => {
@@ -166,7 +164,7 @@ describe('ProviderEditorDrawer', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.provider.logo_upload_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.provider.logo_upload_failed')
     })
   })
 

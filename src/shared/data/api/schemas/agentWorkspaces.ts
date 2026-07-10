@@ -43,6 +43,10 @@ export type CreateAgentWorkspaceDto = z.infer<typeof CreateAgentWorkspaceSchema>
 export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
 export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
 
+export interface DeleteAgentWorkspaceResult {
+  deletedIds: string[]
+}
+
 export type AgentWorkspaceSchemas = {
   '/agent-workspaces': {
     GET: {
@@ -73,7 +77,7 @@ export type AgentWorkspaceSchemas = {
      */
     DELETE: {
       params: { workspaceId: string }
-      response: void
+      response: DeleteAgentWorkspaceResult
     }
   }
 } & OrderEndpoints<'/agent-workspaces'>

@@ -1,5 +1,5 @@
 import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
-import { Copy, FileText, MonitorSpeaker, Settings, Type } from 'lucide-react'
+import { Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export interface MenuItem {
@@ -13,6 +13,8 @@ export interface MenuItem {
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
   exportToWordAction?: boolean
+  exportToPdfAction?: boolean
+  printAction?: boolean
   showSettingsPopup?: boolean
 }
 
@@ -28,6 +30,18 @@ export const menuItems: MenuItem[] = [
     labelKey: 'notes.exportToWord',
     icon: FileText,
     exportToWordAction: true
+  },
+  {
+    key: 'export-to-pdf',
+    labelKey: 'notes.exportToPDF',
+    icon: FileDown,
+    exportToPdfAction: true
+  },
+  {
+    key: 'print',
+    labelKey: 'notes.print',
+    icon: Printer,
+    printAction: true
   },
   {
     key: 'divider0',

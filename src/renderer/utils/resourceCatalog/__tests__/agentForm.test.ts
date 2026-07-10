@@ -50,12 +50,17 @@ describe('buildInitialAgentFormState', () => {
     })
   })
 
+  it('uses the provided enabled skill ids as form state', () => {
+    const state = buildInitialAgentFormState(createAgent(), ['skill-1', 'skill-2'])
+
+    expect(state.skillIds).toEqual(['skill-1', 'skill-2'])
+  })
+
   it('lifts configuration sub-keys onto the flat form object', () => {
     const agent = createAgent({
       configuration: {
         avatar: '🚀',
         permission_mode: 'bypassPermissions',
-        soul_enabled: true,
         heartbeat_enabled: true,
         heartbeat_interval: 15,
         env_vars: {
@@ -67,7 +72,6 @@ describe('buildInitialAgentFormState', () => {
     const state = buildInitialAgentFormState(agent)
     expect(state.avatar).toBe('🚀')
     expect(state.permissionMode).toBe('bypassPermissions')
-    expect(state.soulEnabled).toBe(true)
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(15)
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
@@ -82,40 +86,21 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
-  it('switching permission mode does not enable soul mode', () => {
+  it('normalizes the patched permission mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
 
     expect(next.permissionMode).toBe('acceptEdits')
-    expect(next.soulEnabled).toBe(false)
   })
 
-  it('switching to bypass permissions does not enable soul mode', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { permissionMode: 'bypassPermissions' })
-
-    expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.soulEnabled).toBe(false)
-  })
-
-  it('enabling soul mode switches to bypass permissions', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { soulEnabled: true })
-
-    expect(next.soulEnabled).toBe(true)
-    expect(next.permissionMode).toBe('bypassPermissions')
-  })
-
-  it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
+  it('keeps other fields untouched when patching permission mode', () => {
     const draft = buildInitialAgentFormState(
-      createAgent({
-        configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
-      })
+      createAgent({ configuration: { permission_mode: 'bypassPermissions', avatar: '🚀' } })
     )
     const next = applyAgentFormPatch(draft, { permissionMode: 'default' })
 
     expect(next.permissionMode).toBe('default')
-    expect(next.soulEnabled).toBe(false)
+    expect(next.avatar).toBe('🚀')
   })
 })
 
@@ -149,6 +134,29 @@ describe('diffAgentUpdate', () => {
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('includes skillUpdates when the enabled skill set changes', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1'])
+    const next = { ...baseline, skillIds: ['skill-2'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toEqual({
+      skillUpdates: [
+        { skillId: 'skill-1', isEnabled: false },
+        { skillId: 'skill-2', isEnabled: true }
+      ]
+    })
+  })
+
+  it('does not emit skillUpdates when the enabled skill set is only reordered', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
+    const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {

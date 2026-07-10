@@ -56,4 +56,17 @@ describe('ConversationComposerStage', () => {
     expect(frameProps.current?.mainVisible).toBe(true)
     expect(screen.getByTestId('stage-home-header')).toBeEmptyDOMElement()
   })
+
+  it('allows callers to hide main content in docked placement', () => {
+    render(
+      <ConversationComposerStage
+        placement="docked"
+        main={<div>messages</div>}
+        composer={<div>composer</div>}
+        mainVisible={false}
+      />
+    )
+
+    expect(frameProps.current?.mainVisible).toBe(false)
+  })
 })

@@ -4,11 +4,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import {
-  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE
-} from '@shared/data/types/knowledge'
+import { DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,9 +57,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
       fileProcessorId: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      threshold: null,
-      documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+      documentCount: null
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {

@@ -1452,8 +1452,7 @@ export class JobManager extends BaseService {
     const scheduler = application.get('SchedulerService')
     const retryId = `retry:${jobId}:${nextAttempt}`
     scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, () => {
-      jobService.promoteDelayedDue(Date.now())
-      void this.dispatch(queue)
+      this.promoteDueAtFire(retryId, jobId, queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
   }
@@ -1530,9 +1529,49 @@ export class JobManager extends BaseService {
     const jobKey = `job:${snapshot.id}`
     const scheduledMs = Date.parse(snapshot.scheduledAt)
     scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, () => {
-      jobService.promoteDelayedDue(Date.now())
-      void this.dispatch(snapshot.queue)
+      this.promoteDueAtFire(jobKey, snapshot.id, snapshot.queue)
     })
+  }
+
+  /**
+   * Fire-time body of the delayed-promotion `once` schedules (armDelayedJob /
+   * scheduleRetry): promote due rows, then dispatch — or re-arm if the fire
+   * landed before the wall clock reached the job's scheduledAt.
+   *
+   * The re-arm exists because of a clock-domain mismatch: the once-timer
+   * elapses on the monotonic (libuv) clock while `promoteDelayedDue` compares
+   * `scheduledAt <= Date.now()` on the wall clock. Both round to whole ms
+   * independently, so a fire can observe `Date.now() === scheduledAt - 1`
+   * (~0.4% of fires, measured). `scheduleOnce` self-cleans before invoking its
+   * callback, so a missed promotion would otherwise strand the job in
+   * `delayed` until the DELAYED_PROMOTION_INTERVAL_MS tick — up to 5 minutes
+   * late in production, a permanent hang in tests (which never arm that tick).
+   *
+   * Cautions for future edits:
+   *   - Do NOT close the gap by inflating the promotion cursor (e.g.
+   *     `promoteDelayedDue(Math.max(Date.now(), scheduledMs))`): a row
+   *     promoted before the wall clock reaches its scheduledAt is invisible
+   *     to the dispatch claim query (also `scheduledAt <= Date.now()`) and
+   *     would strand as `pending` instead — same hang, one state later.
+   *   - Re-arm at the row's CURRENT scheduledAt, not the original fire time:
+   *     the next delay is the exact wall-clock remainder, so the loop
+   *     converges (strictly smaller remainder each round) and cannot spin.
+   *   - Re-registering the same schedule id is safe by design:
+   *     `registerSchedule` replaces an existing id, and `scheduleOnce`
+   *     removed this id from its map before invoking the callback.
+   */
+  private promoteDueAtFire(scheduleId: string, jobId: string, queue: string): void {
+    jobService.promoteDelayedDue(Date.now())
+    const row = jobService.getById(jobId)
+    if (row?.status === 'delayed' && !this._isShuttingDown) {
+      logger.debug('once-fire preceded wall-clock scheduledAt — re-arming', { jobId, scheduleId })
+      const scheduler = application.get('SchedulerService')
+      scheduler.registerSchedule(scheduleId, { kind: 'once', at: Date.parse(row.scheduledAt) }, () => {
+        this.promoteDueAtFire(scheduleId, jobId, queue)
+      })
+      return
+    }
+    void this.dispatch(queue)
   }
 
   /**

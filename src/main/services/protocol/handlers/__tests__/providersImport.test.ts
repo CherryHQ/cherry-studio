@@ -1,28 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, loggerMock, settingsWindowServiceMock } = vi.hoisted(() => {
-  const settingsWindowServiceMock = {
-    open: vi.fn()
-  }
+const { loggerMock, openSettingsInMainWindowMock } = vi.hoisted(() => {
+  const openSettingsInMainWindowMock = vi.fn()
   const loggerMock = {
     debug: vi.fn(),
     error: vi.fn()
   }
-  const applicationMock = {
-    get: vi.fn((name: string) => {
-      if (name === 'SettingsWindowService') return settingsWindowServiceMock
-      throw new Error(`unexpected service: ${name}`)
-    })
-  }
-  return { applicationMock, loggerMock, settingsWindowServiceMock }
+  return { loggerMock, openSettingsInMainWindowMock }
 })
-
-vi.mock('@application', () => ({ application: applicationMock }))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMock
   }
+}))
+
+vi.mock('@main/services/settingsNavigation', () => ({
+  openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
 import { handleProvidersProtocolUrl, parseProvidersImportData } from '../providersImport'
@@ -47,7 +41,7 @@ describe('providersImport protocol handler', () => {
 
     await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith(
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith(
       `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
     )
   })
@@ -55,7 +49,7 @@ describe('providersImport protocol handler', () => {
   it('does not open settings when provider import data is invalid', async () => {
     await handleProvidersProtocolUrl(new URL('cherrystudio://providers/api-keys?v=1&data=not-json'))
 
-    expect(settingsWindowServiceMock.open).not.toHaveBeenCalled()
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
     expect(loggerMock.error).toHaveBeenCalled()
   })
 
@@ -68,7 +62,7 @@ describe('providersImport protocol handler', () => {
 
     await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith(
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith(
       `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
     )
   })

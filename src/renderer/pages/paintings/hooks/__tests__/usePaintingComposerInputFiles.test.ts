@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -142,8 +143,6 @@ describe('usePaintingComposerInputFiles', () => {
       async ({ path }: { path: string }) =>
         path.includes('bad') ? Promise.reject(new Error('promote failed')) : makeEntry('fe-ok')
     )
-    const toastError = vi.fn()
-    window.toast = { error: toastError } as unknown as typeof window.toast
     const setFiles = vi.fn()
     const onInputFilesChange = vi.fn()
 
@@ -174,7 +173,7 @@ describe('usePaintingComposerInputFiles', () => {
     expect(reported.map((entry) => entry.id)).toEqual(['fe-ok'])
 
     // The failing chip is reconciled away and the user is notified.
-    expect(toastError).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
     const remover = setFiles.mock.calls
       .map((call) => call[0])
       .find((arg): arg is (prev: ComposerAttachment[]) => ComposerAttachment[] => typeof arg === 'function')

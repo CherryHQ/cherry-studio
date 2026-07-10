@@ -18,6 +18,13 @@ export type Topic = {
   name: string
   createdAt: string
   updatedAt: string
+  /**
+   * Active node id in the message tree. `undefined` means no conversation has
+   * started (only the virtual root exists) — the authoritative "empty topic"
+   * signal. The first real message points this at a node; the virtual root can
+   * never be the active node.
+   */
+  activeNodeId?: string
   orderKey?: string
   traceId?: string
   messages: Message[]

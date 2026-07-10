@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getThemeModeLabelKey } from '@renderer/i18n/label'
@@ -36,7 +36,7 @@ export function ShellTabBarActions() {
   const { hasWindowControls } = useShellTabBarLayout()
 
   const handleSearchClick = () => {
-    void SearchPopup.show()
+    void GlobalSearchPopup.show()
   }
 
   return (

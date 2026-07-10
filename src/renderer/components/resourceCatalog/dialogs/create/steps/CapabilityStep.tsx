@@ -20,9 +20,14 @@ type CapabilityStepProps = {
 /**
  * Step 3 (agent): pick the skills this agent can use. Global skill library with
  * a search box and an "import from library" action that opens the shared
- * ImportSkillDialog. Selections are stored as the create-only `skillIds`; the
+ * ImportSkillDialog. Selections are stored as `skillIds`; the
  * wizard stays mounted while importing, so form data is preserved and the list
  * refreshes (via `/skills` cache invalidation) once a skill lands.
+ *
+ * Builtin skills are shown pre-checked and locked (not part of `skillIds`)
+ * since the server always enables them for new agents regardless of what's
+ * submitted here — this keeps the picker truthful about what will exist after
+ * creation instead of showing a togglable state that submit would ignore.
  */
 export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
   const { t } = useTranslation()
@@ -31,13 +36,26 @@ export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
 
   const skillIds = form.watch('skillIds')
   const { skills, loading, refresh } = useInstalledSkills()
+  const builtinSkillIds = useMemo(
+    () => skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id),
+    [skills]
+  )
   const skillCatalog = useMemo<CatalogItem[]>(() => {
     const q = query.trim().toLowerCase()
     return skills
       .filter((skill) => !q || skill.name.toLowerCase().includes(q))
-      .map((skill) => ({ id: skill.id, name: skill.name }))
-  }, [skills, query])
-  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
+      .map((skill) =>
+        skill.source === 'builtin'
+          ? {
+              id: skill.id,
+              name: skill.name,
+              disableToggle: true,
+              inactiveBadge: t('library.config.dialogs.create.capability.builtin_badge')
+            }
+          : { id: skill.id, name: skill.name }
+      )
+  }, [skills, query, t])
+  const enabledSkillIds = useMemo(() => new Set([...skillIds, ...builtinSkillIds]), [skillIds, builtinSkillIds])
   const toggleSkill = (id: string, enabled: boolean) =>
     form.setValue('skillIds', enabled ? [...skillIds, id] : skillIds.filter((s) => s !== id), { shouldDirty: true })
 

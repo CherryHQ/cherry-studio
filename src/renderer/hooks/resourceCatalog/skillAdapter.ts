@@ -59,9 +59,8 @@ function unwrapSkillResult<T>(
 }
 
 /**
- * Per-skill mutation hook. Only uninstall lives here today — toggle is
- * agent-scoped and stays with `useInstalledSkills(agentId)` in the agent
- * dialog, since the library list view has no agent context.
+ * Per-skill mutation hook. Only uninstall lives here today; agent-scoped
+ * enablement is edited through the agent form and saved via PATCH /agents.
  */
 export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()

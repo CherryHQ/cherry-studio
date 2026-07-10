@@ -1,5 +1,6 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -122,7 +123,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         target.findInPage(text, options)
       } catch (error) {
         logger.error('findInPage failed', { error })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [getUsableWebview, resetSearchState, stopSearch, t]

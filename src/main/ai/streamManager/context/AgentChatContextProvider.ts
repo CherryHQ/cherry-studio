@@ -111,7 +111,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
+      application
+        .get('AgentSessionRuntimeService')
+        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true })
 
       return {
         topicId: req.topicId,
@@ -184,6 +186,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
+      headless: req.headless === true,
       traceId
     })
 
@@ -204,7 +207,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             messageId: assistantMessageId,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
-          rootSpan: turnTrace.rootSpan
+          rootSpan: turnTrace.rootSpan,
+          abortController: runtime.abortController
         }
       ],
       userMessageId,

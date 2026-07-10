@@ -60,7 +60,7 @@ export function useSessionMenuPreset<TItem>({
 }
 
 export function useSessionMenuActions(actionContext: SessionActionContext) {
-  const menuActions = useMemo(() => getSessionMenuActions(actionContext), [actionContext])
+  const getActions = useCallback(() => getSessionMenuActions(actionContext), [actionContext])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<SessionActionContext>) => {
       await runSessionMenuAction(action, actionContext)
@@ -68,5 +68,5 @@ export function useSessionMenuActions(actionContext: SessionActionContext) {
     [actionContext]
   )
 
-  return { menuActions, handleMenuAction }
+  return { getActions, handleMenuAction }
 }

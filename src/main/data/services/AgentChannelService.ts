@@ -184,6 +184,12 @@ export class AgentChannelService {
     }
   }
 
+  clearTaskSubscriptionsForChannel(channelId: string): void {
+    const database = application.get('DbService').getDb()
+    database.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.channelId, channelId)).run()
+    logger.info('Channel task subscriptions cleared', { channelId })
+  }
+
   getSubscribedChannels(taskId: string): AgentChannelEntity[] {
     const database = application.get('DbService').getDb()
     const subs = database

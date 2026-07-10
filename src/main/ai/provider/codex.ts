@@ -14,16 +14,17 @@ export interface CodexCredentials {
 
 /**
  * Coerce the OpenAI Responses request body into the shape the ChatGPT codex
- * backend requires: server-side `store` is rejected, and with it off the
- * encrypted reasoning must be included so it round-trips across turns. Bodies
- * that are not JSON strings (shouldn't happen for responses) pass through
- * untouched.
+ * backend requires: server-side `store` is rejected, response length caps are
+ * not accepted, and with store off the encrypted reasoning must be included so
+ * it round-trips across turns. Bodies that are not JSON strings (shouldn't
+ * happen for responses) pass through untouched.
  */
 export function coerceCodexRequestBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
   try {
     const json = JSON.parse(body)
     json.store = false
+    delete json.max_output_tokens
     const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
     include.add(CODEX_REASONING_INCLUDE)
     json.include = [...include]

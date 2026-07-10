@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支援的服務商",
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "tooltip": "目前大多數聊天模型可供 Agent 使用，暫不支援 Gemini 服務商。",
         "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
@@ -31,262 +31,113 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "新增",
-        "bindAgent": "綁定代理",
-        "chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人發送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
-        "comingSoon": "即將推出",
+    "channels": {
+      "add": "新增",
+      "bindAgent": "綁定代理",
+      "chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人發送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
+      "comingSoon": "即將推出",
+      "connected": "已連線",
+      "connecting": "連接",
+      "createError": "建立頻道失敗",
+      "deleteConfirm": "確定刪除頻道「{{name}}」？",
+      "deleteError": "刪除頻道失敗",
+      "description": "將您的 Agent 連接到訊息平台。",
+      "disconnected": "已中斷連線",
+      "discord": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "輸入您的 Discord 機器人 Token",
+        "channelIds": "允許的頻道 ID",
+        "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允許所有。",
+        "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+        "description": "透過 Discord 機器人使用 WebSocket 閘道接收和回覆訊息。",
+        "title": "Discord",
+        "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得正確格式的頻道 ID。"
+      },
+      "error": "錯誤",
+      "feishu": {
+        "appId": "應用程式 ID",
+        "appIdPlaceholder": "輸入您的飛書應用程式 ID",
+        "appSecret": "應用程式密鑰",
+        "appSecretPlaceholder": "輸入你的飛書應用程式密鑰",
+        "chatIds": "允許的聊天 ID",
+        "chatIdsHint": "逗號分隔的聊天 ID。留空以允許所有聊天。",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "已連線",
-        "connecting": "連接",
-        "createError": "",
-        "deleteConfirm": "確定刪除頻道「{{name}}」？",
-        "deleteError": "",
-        "description": "將您的 Agent 連接到訊息平台。",
-        "disconnected": "已中斷連線",
-        "discord": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "輸入您的 Discord 機器人 Token",
-          "channelIds": "允許的頻道 ID",
-          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允許所有。",
-          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "透過 Discord 機器人使用 WebSocket 閘道接收和回覆訊息。",
-          "title": "Discord",
-          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得正確格式的頻道 ID。"
-        },
-        "error": "錯誤",
-        "feishu": {
-          "appId": "應用程式 ID",
-          "appIdPlaceholder": "輸入您的飛書應用程式 ID",
-          "appSecret": "應用程式密鑰",
-          "appSecretPlaceholder": "輸入你的飛書應用程式密鑰",
-          "chatIds": "允許的聊天 ID",
-          "chatIdsHint": "逗號分隔的聊天 ID。留空以允許所有聊天。",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "已連線",
-          "description": "透過 WebSocket 使用飛書/Lark 機器人接收並回覆訊息。",
-          "domain": "網域",
-          "domainFeishu": "飛書（中國）",
-          "domainLark": "Lark（國際版）",
-          "encryptKey": "加密金鑰",
-          "encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
-          "loginHint": "未設定憑證。啟用頻道以開始 QR 碼註冊，或手動輸入應用程式 ID 與應用程式密鑰。",
-          "qrExpired": "QR碼已過期，請切換頻道後重試。",
-          "qrHint": "等待掃描 QR 碼...",
-          "qrScanHint": "在手機上開啟飛書，掃描 QR Code 以建立機器人應用程式。",
-          "qrTitle": "飛書 QR 報名",
-          "title": "飛書",
-          "verificationToken": "驗證權杖",
-          "verificationTokenPlaceholder": "從您的 Feishu 應用程式輸入驗證碼"
-        },
-        "logs": "紀錄",
-        "noInstances": "尚無 {{type}} 頻道，點擊「+ 新增」建立。",
-        "noLogs": "尚無日誌",
-        "notifyReceiver": "接收任務通知",
-        "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
-          "chatIds": "允許的對話 ID",
-          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允許所有。",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
-          "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
-          "title": "QQ",
-          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
-        },
-        "security": {
-          "inheritFromAgent": "繼承智能體設定",
-          "permissionMode": "頻道權限模式",
-          "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
-        },
-        "selectAgent": "選擇要綁定的代理",
-        "slack": {
-          "appToken": "應用層級 Token",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "允許的頻道 ID",
-          "channelIdsHint": "Slack 頻道 ID。留空表示允許所有。",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "透過 Slack 機器人使用 Socket Mode 接收和回覆訊息。",
-          "title": "Slack",
-          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
-        },
-        "soulModeRequired": "此代理未啟用自主模式，頻道功能將無法運作。請在代理設定中啟用。",
-        "tab": "頻道",
-        "telegram": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "輸入您的 Telegram 機器人 Token",
-          "chatIds": "允許的對話 ID",
-          "chatIdsHint": "用逗號分隔。留空表示允許所有對話。",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "透過 Telegram 機器人使用長輪詢方式接收和回覆訊息。",
-          "title": "Telegram"
-        },
-        "title": "頻道",
-        "updateError": "",
-        "wechat": {
-          "addAccount": "新增微信帳號",
-          "chatIds": "允許的使用者 ID",
-          "chatIdsHint": "以逗號分隔。留空以允許所有使用者。",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "已連線",
-          "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
-          "disconnected": "已斷線",
-          "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
-          "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
-          "qrTitle": "微信 QR 碼登入",
-          "title": "微信",
-          "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
-        }
+        "description": "透過 WebSocket 使用飛書/Lark 機器人接收並回覆訊息。",
+        "domain": "網域",
+        "domainFeishu": "飛書（中國）",
+        "domainLark": "Lark（國際版）",
+        "encryptKey": "加密金鑰",
+        "encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
+        "loginHint": "未設定憑證。啟用頻道以開始 QR 碼註冊，或手動輸入應用程式 ID 與應用程式密鑰。",
+        "qrExpired": "QR碼已過期，請切換頻道後重試。",
+        "qrHint": "等待掃描 QR 碼...",
+        "qrScanHint": "在手機上開啟飛書，掃描 QR Code 以建立機器人應用程式。",
+        "qrTitle": "飛書 QR 報名",
+        "title": "飛書",
+        "verificationToken": "驗證權杖",
+        "verificationTokenPlaceholder": "從您的 Feishu 應用程式輸入驗證碼"
       },
-      "heartbeat": {
-        "enabled": "啟用心跳",
-        "enabledHelper": "啟用後，如果工作區存在 heartbeat.md 檔案，排程器會按設定的間隔讀取其內容並傳送到主對話。",
-        "interval": "間隔（分鐘）",
-        "intervalHelper": "心跳執行的頻率，單位為分鐘。"
+      "logs": "紀錄",
+      "noInstances": "尚無 {{type}} 頻道，點擊「+ 新增」建立。",
+      "noLogs": "尚無日誌",
+      "notifyReceiver": "接收任務通知",
+      "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
+        "chatIds": "允許的對話 ID",
+        "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允許所有。",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
+        "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
+        "title": "QQ",
+        "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
       },
-      "sandbox": {
-        "description": "使用作業系統級沙箱限制 Agent 的檔案系統和網路存取，僅限於工作區目錄。",
-        "helper": "將檔案系統和命令存取限制在工作區路徑內。",
-        "label": "沙箱模式"
+      "security": {
+        "inheritFromAgent": "繼承智能體設定",
+        "permissionMode": "頻道權限模式",
+        "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
       },
-      "scheduler": {
-        "cron": {
-          "helper": "標準 cron 表達式（例如 '*/30 * * * *' 表示每 30 分鐘）。",
-          "label": "Cron 表達式",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "排程器按計劃自動觸發 Agent 執行。",
-        "enabled": "啟用排程器",
-        "enabledHelper": "啟用後，Agent 將根據設定的計劃自動執行。",
-        "errors": {
-          "invalidCron": "無效的 cron 表達式",
-          "invalidDelay": "延遲必須是正數",
-          "invalidInterval": "間隔必須是正數"
-        },
-        "interval": {
-          "helper": "Agent 執行的頻率，單位為秒。",
-          "label": "間隔（秒）"
-        },
-        "lastRun": "上次執行",
-        "never": "從未",
-        "nextRun": "下次執行",
-        "oneTime": {
-          "helper": "Agent 執行前的一次性延遲，單位為秒。",
-          "label": "延遲（秒）"
-        },
-        "status": {
-          "running": "執行中",
-          "stopped": "已停止",
-          "tickInProgress": "執行中"
-        },
-        "tab": "排程器",
-        "title": "排程器設定",
-        "type": {
-          "cron": "Cron 表達式",
-          "interval": "固定間隔",
-          "label": "排程類型",
-          "one-time": "一次性延遲"
-        }
+      "selectAgent": "選擇要綁定的代理",
+      "slack": {
+        "appToken": "應用層級 Token",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "允許的頻道 ID",
+        "channelIdsHint": "Slack 頻道 ID。留空表示允許所有。",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "透過 Slack 機器人使用 Socket Mode 接收和回覆訊息。",
+        "title": "Slack",
+        "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
       },
-      "soul": {
-        "description": "靈魂定義了 Agent 的個性和基礎行為。它從工作區根目錄的 soul.md 檔案中讀取。",
-        "empty": "在工作區根目錄未找到 soul.md 檔案。建立一個來定義 Agent 的個性。",
-        "enabled": "啟用靈魂",
-        "enabledHelper": "啟用後，Agent 會從工作區根目錄讀取 soul.md 並將其添加到系統提示詞前面。",
-        "fileLabel": "soul.md",
-        "preview": "靈魂預覽",
-        "tab": "靈魂",
-        "title": "靈魂設定"
+      "tab": "頻道",
+      "telegram": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "輸入您的 Telegram 機器人 Token",
+        "chatIds": "允許的對話 ID",
+        "chatIdsHint": "用逗號分隔。留空表示允許所有對話。",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "透過 Telegram 機器人使用長輪詢方式接收和回覆訊息。",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "新增任務",
-        "cancel": "取消",
-        "channels": {
-          "label": "傳送至頻道",
-          "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人發送一則訊息。",
-          "placeholder": "選擇接收結果的頻道"
-        },
-        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
-        "delete": {
-          "confirm": "確定要刪除此任務嗎？",
-          "label": "刪除"
-        },
-        "edit": "編輯",
-        "empty": "暫無排程任務。新增一個開始吧。",
-        "error": {
-          "createFailed": "建立任務失敗",
-          "deleteFailed": "無法刪除任務",
-          "loadFailed": "",
-          "runFailed": "無法執行任務",
-          "updateFailed": "更新任務失敗"
-        },
-        "frequency": {
-          "everyPrefix": "間隔",
-          "everySuffix": "分鐘執行",
-          "label": "執行頻率"
-        },
-        "intervalPlaceholder": "至少1",
-        "intervalUnit": "分鐘",
-        "lastRun": "上次執行",
-        "logs": {
-          "cancelled": "已取消",
-          "completed": "已完成",
-          "duration": "耗時",
-          "empty": "暫無執行歷史。",
-          "failed": "失敗",
-          "justNow": "剛剛",
-          "label": "執行歷史",
-          "loadError": "",
-          "result": "結果",
-          "runAt": "執行時間",
-          "running": "執行中...",
-          "search": "搜尋執行記錄...",
-          "status": "狀態",
-          "viewSession": "查看會話"
-        },
-        "name": {
-          "label": "名稱",
-          "placeholder": "例如：每日程式碼審查"
-        },
-        "nextRun": "下次執行",
-        "oncePlaceholder": "選擇日期和時間",
-        "pause": "暫停",
-        "prompt": {
-          "expand": "展開編輯器",
-          "label": "提示詞",
-          "placeholder": "此任務執行時 Agent 應該做什麼？"
-        },
-        "resume": "恢復",
-        "run": "執行",
-        "runTriggered": "任務已觸發",
-        "save": "儲存",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "間隔",
-          "once": "一次性"
-        },
-        "status": {
-          "active": "活躍",
-          "completed": "已完成",
-          "paused": "已暫停"
-        },
-        "tab": "任務",
-        "time": {
-          "hoursAgo": "{{count}}小時前",
-          "minutesAgo": "{{count}}分鐘前"
-        },
-        "timeout": {
-          "label": "最長執行時間",
-          "placeholder": "無限制"
-        },
-        "title": "排程任務"
-      },
-      "warning": {
-        "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
+      "title": "頻道",
+      "updateError": "更新頻道失敗",
+      "wechat": {
+        "addAccount": "新增微信帳號",
+        "chatIds": "允許的使用者 ID",
+        "chatIdsHint": "以逗號分隔。留空以允許所有使用者。",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "已連線",
+        "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
+        "disconnected": "已斷線",
+        "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
+        "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
+        "qrTitle": "微信 QR 碼登入",
+        "title": "微信",
+        "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
       }
     },
     "delete": {
@@ -339,14 +190,19 @@
     "home": {
       "welcome_title": "今天我們該談些什麼？"
     },
+    "icon": {
+      "type": "智能體圖示"
+    },
     "input": {
-      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令",
-      "soul_placeholder": "幫我連接微信"
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令"
     },
     "list": {
       "error": {
         "failed": "無法列出 Agent。"
       }
+    },
+    "manage": {
+      "title": "管理智能體"
     },
     "pin": {
       "title": "圖釘代理"
@@ -499,6 +355,7 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "auto_rename": "產生任務名",
       "create": {
         "error": {
           "failed": "無法新增工作階段"
@@ -519,7 +376,7 @@
         "workdir": "工作目錄"
       },
       "edit": {
-        "title": "編輯工作階段"
+        "title": "編輯任務名"
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
@@ -712,12 +569,6 @@
         "tab": "技能",
         "title": "已安裝技能"
       },
-      "soulMode": {
-        "description": "啟用後，代理程式會使用來自工作區靈魂檔案的自訂系統提示，注入自主任務管理工具，並停用不適合自主操作的互動式工具。",
-        "disabledBadge": "被自主模式停用",
-        "disabledTooltip": "當自主模式啟用時，此工具會自動停用",
-        "title": "自主模式"
-      },
       "tooling": {
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
@@ -784,6 +635,94 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
+    "tasks": {
+      "add": "新增任務",
+      "cancel": "取消",
+      "channels": {
+        "label": "傳送至頻道",
+        "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人發送一則訊息。",
+        "placeholder": "選擇接收結果的頻道"
+      },
+      "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
+      "delete": {
+        "confirm": "確定要刪除此任務嗎？",
+        "label": "刪除"
+      },
+      "edit": "編輯",
+      "empty": "暫無排程任務。新增一個開始吧。",
+      "error": {
+        "createFailed": "建立任務失敗",
+        "deleteFailed": "無法刪除任務",
+        "loadFailed": "載入任務失敗",
+        "runFailed": "無法執行任務",
+        "updateFailed": "更新任務失敗"
+      },
+      "frequency": {
+        "everyPrefix": "間隔",
+        "everySuffix": "分鐘執行",
+        "label": "執行頻率"
+      },
+      "intervalPlaceholder": "至少1",
+      "intervalUnit": "分鐘",
+      "lastRun": "上次執行",
+      "logs": {
+        "cancelled": "已取消",
+        "completed": "已完成",
+        "duration": "耗時",
+        "empty": "暫無執行歷史。",
+        "failed": "失敗",
+        "justNow": "剛剛",
+        "label": "執行歷史",
+        "loadError": "載入執行歷史失敗",
+        "result": "結果",
+        "runAt": "執行時間",
+        "running": "執行中...",
+        "search": "搜尋執行記錄...",
+        "status": "狀態",
+        "viewSession": "查看會話"
+      },
+      "name": {
+        "label": "名稱",
+        "placeholder": "例如：每日程式碼審查"
+      },
+      "nextRun": "下次執行",
+      "oncePlaceholder": "選擇日期和時間",
+      "pause": "暫停",
+      "prompt": {
+        "expand": "展開編輯器",
+        "label": "提示詞",
+        "placeholder": "此任務執行時 Agent 應該做什麼？"
+      },
+      "resume": "恢復",
+      "run": "執行",
+      "runTriggered": "任務已觸發",
+      "save": "儲存",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "間隔",
+        "once": "一次性"
+      },
+      "status": {
+        "active": "活躍",
+        "completed": "已完成",
+        "paused": "已暫停"
+      },
+      "tab": "任務",
+      "time": {
+        "hoursAgo": "{{count}}小時前",
+        "minutesAgo": "{{count}}分鐘前"
+      },
+      "timeout": {
+        "label": "最長執行時間",
+        "placeholder": "無限制"
+      },
+      "title": "排程任務"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +874,14 @@
           "description": "在你的環境中執行 Shell 命令",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "檢查並管理此智能體設定和頻道",
+          "label": "智能體設定"
+        },
+        "CherryCron": {
+          "description": "管理應用內的定時排程",
+          "label": "定時任務"
+        },
         "CherryKbManage": {
           "description": "新增、刪除或重新整理知識庫中的文件",
           "label": "知識庫管理"
@@ -943,6 +890,10 @@
           "description": "搜尋你的知識庫",
           "label": "知識庫搜尋"
         },
+        "CherryNotify": {
+          "description": "透過已連接的頻道傳送通知",
+          "label": "通知"
+        },
         "CherryWebFetch": {
           "description": "擷取並讀取網頁",
           "label": "網頁擷取"
@@ -950,10 +901,6 @@
         "CherryWebSearch": {
           "description": "透過你設定的提供方搜尋網頁",
           "label": "網頁搜尋"
-        },
-        "ClawCron": {
-          "description": "管理應用內的定時排程",
-          "label": "定時任務"
         },
         "Edit": {
           "description": "對特定檔案進行精確編輯",
@@ -1085,8 +1032,9 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空對話會刪除助手下所有對話和檔案，確定要繼續嗎？",
-      "menu_title": "刪除助手下所有對話",
+      "content": "清空話題會刪除助手下所有話題，確定要繼續嗎？",
+      "menu_title": "清空話題",
+      "success_title": "已清空 {{count}} 個話題",
       "title": "清空對話"
     },
     "copy": {
@@ -1440,7 +1388,7 @@
         "pause": "暫停自動傳送",
         "remove": "移除",
         "resume": "恢復自動傳送",
-        "steer": "插入目前回合",
+        "steer": "插入訊息",
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
@@ -1460,6 +1408,7 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
           "agents": "智能體",
@@ -1478,16 +1427,16 @@
         },
         "title": "資源"
       },
+      "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
         "commands": {
-          "clear": "清空對話歷史",
-          "compact": "壓縮對話（可附帶聚焦指令）",
+          "clear": "開啟全新對話，清空上下文",
+          "compact": "透過總結目前對話來釋放上下文",
           "context": "以彩色網格視覺化目前上下文使用情況",
-          "cost": "顯示 token 用量統計（訂閱相關詳情見成本追蹤指南）",
-          "todos": "列出目前待辦事項"
+          "usage": "顯示工作階段成本、方案用量上限與活動統計"
         },
         "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"
@@ -1585,6 +1534,11 @@
       "new": {
         "branch": {
           "created": "新分支已建立",
+          "disabled": {
+            "active": "目前已定位到這個節點，繼續輸入即可從這裡延續。",
+            "latest": "目前已在最新分支末端，繼續輸入即可延續這個分支。",
+            "no_follow_up": "這則訊息後還沒有後續對話，切換到該節點後繼續輸入即可。"
+          },
           "label": "分支"
         },
         "context": "新上下文"
@@ -1706,6 +1660,7 @@
               "tip": "對話將以包含完整上下文的形式儲存到知識庫"
             }
           },
+          "source_fallback": "對話",
           "success": "對話已成功儲存到知識庫（{{count}} 項內容）",
           "title": "儲存對話到知識庫"
         }
@@ -2173,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "影像編輯（OpenAI）",
     "image-generation": "影像產生（OpenAI）",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -2783,6 +2739,8 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
+      "download_local_embedding": "下載本機模型",
+      "download_local_embedding_failed": "本機嵌入模型下載失敗",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
       "file_processing": "文件處理",
@@ -2793,15 +2751,11 @@
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
-        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
-        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
         "smart_chunking": "自動沿 Markdown 結構（標題、程式碼區塊、段落）分段，且不從程式碼區塊內部切開。關閉後僅按分隔符切分。",
-        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
-        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+        "threshold": "用於過濾低相關性重排片段的相似度閾值，數值越高召回越嚴格。"
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
@@ -2810,16 +2764,11 @@
       "retrieval": "Retrieval",
       "save_action": "儲存",
       "saved": "已儲存",
-      "search_mode": {
-        "bm25": "全文检索",
-        "hybrid": "混合检索（推荐）",
-        "title": "检索模式",
-        "vector": "向量檢索"
-      },
       "separator_rule": "分隔符规则",
       "smart_chunking": "智慧分段",
-      "threshold": "相似度阈值",
-      "tokens_unit": "tokens"
+      "threshold": "相似度閾值",
+      "tokens_unit": "tokens",
+      "use_local_embedding": "使用本機模型"
     },
     "recall": {
       "collapse": "收起片段",
@@ -2990,11 +2939,10 @@
             "placeholder": "給代理人取個名字"
           },
           "permission_mode": {
-            "help": "切換到 bypassPermissions 等同於啟用靈魂模式",
             "label": "權限模式",
             "option": {
               "acceptEdits": "接受編輯",
-              "bypassPermissions": "繞過權限（靈魂）",
+              "bypassPermissions": "繞過權限",
               "default": "預設",
               "plan": "計畫模式"
             }
@@ -3006,10 +2954,6 @@
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"
-          },
-          "soul_enabled": {
-            "help": "啟用後，將自動授予 bypassPermissions",
-            "label": "靈魂模式"
           }
         },
         "model_config": "模型配置",
@@ -3053,7 +2997,7 @@
             "skills_coming_soon": "Skill 綁定即將支援",
             "skills_require_save": "儲存後才能啟用技能",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "內建工具"
             },
@@ -3139,6 +3083,7 @@
           "avatar_aria": "選擇頭像",
           "back": "上一步",
           "capability": {
+            "builtin_badge": "預設啟用",
             "import": "匯入技能",
             "no_skills": "未安裝技能",
             "search": "搜尋技能"
@@ -3360,6 +3305,10 @@
       "tags": "標籤",
       "title": "圖書館"
     },
+    "skill_add": {
+      "local_import": "本機匯入",
+      "online_search": "線上搜尋"
+    },
     "skill_detail": {
       "created_at": "建立時間",
       "delete_description": "移除此技能及其所有配置,此操作無法復原",
@@ -3370,6 +3319,15 @@
       "no_description": "暫無描述",
       "source_files": "來源檔案",
       "updated_at": "最近更新"
+    },
+    "skill_marketplace": {
+      "empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
+      "empty_title": "搜尋技能",
+      "no_results_description": "請嘗試其他關鍵字,或本機匯入 ZIP 檔案/目錄。",
+      "no_results_title": "未找到技能",
+      "search_failed_description": "搜尋失敗,請稍後再試。",
+      "search_placeholder": "搜尋技能...",
+      "title": "線上搜尋技能"
     },
     "sort": {
       "created": "依建立時間",
@@ -3744,6 +3702,7 @@
       "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
+      "collapse": "收合",
       "completed": "已完成",
       "error": "發生錯誤",
       "groupHeader": "{{count}} 次工具呼叫",
@@ -3788,6 +3747,7 @@
         "usingTools": "正在處理任務"
       },
       "preview": "預覽",
+      "processed": "已處理",
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
       "runningHeader": "執行中…",
@@ -4039,10 +3999,13 @@
     "drop_markdown_hint": "拖曳 .md 檔案或資料夾到此處匯入",
     "empty": "暫無筆記",
     "expand": "展開",
+    "exportToPDF": "匯出為 PDF",
     "exportToWord": "匯出為 Word",
     "export_failed": "匯出至知識庫失敗",
     "export_knowledge": "匯出筆記至知識庫",
     "export_success": "成功匯出至知識庫",
+    "export_to_pdf_failed": "匯出為 PDF 失敗",
+    "export_to_pdf_success": "已匯出為 PDF",
     "export_to_word_failed": "匯出為 Word 失敗",
     "folder": "資料夾",
     "load_failed": "筆記載入失敗",
@@ -4059,6 +4022,8 @@
     "no_valid_files": "沒有上傳有效的檔案",
     "open_folder": "開啟外部資料夾",
     "open_outside": "從外部開啟",
+    "print": "列印",
+    "print_failed": "列印筆記失敗",
     "rename": "重新命名",
     "rename_changed": "基於安全性考量，檔名已從 {{original}} 變更為 {{final}}",
     "rename_failed": "重新命名筆記失敗",
@@ -4434,7 +4399,7 @@
     },
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
-    "generating": "生成中...",
+    "generating": "繪圖進行中，請不要離開頁面",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
@@ -4720,6 +4685,7 @@
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
     "mineru": "MinerU",
@@ -5322,6 +5288,16 @@
       "auto_switch_to_topics": "自動切換到對話",
       "title": "進階設定"
     },
+    "agent": {
+      "position": {
+        "label": "會話位置",
+        "left": "左側",
+        "right": "右側"
+      }
+    },
+    "appearance": {
+      "title": "外觀"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5373,7 +5349,8 @@
       },
       "backup": {
         "skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
-        "skip_file_data_title": "精簡備份"
+        "skip_file_data_title": "精簡備份",
+        "v2_unavailable": "V2 備份還原尚未上線，敬請期待"
       },
       "clear_cache": {
         "button": "清除快取",
@@ -5390,6 +5367,7 @@
         "cloud_storage": "雲備份設定",
         "export_settings": "匯出設定",
         "import_settings": "匯入設定",
+        "note_export": "筆記匯出",
         "third_party": "第三方連結"
       },
       "export_menu": {
@@ -5951,6 +5929,74 @@
         "token_placeholder": "請輸入語雀 Token"
       }
     },
+    "dependencies": {
+      "addTool": "新增工具",
+      "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "checkUpdates": "檢查更新",
+      "coreDepsMissing": "核心依賴未安裝",
+      "customTools": "自訂工具",
+      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
+      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "duplicateName": "已存在相同名稱的工具",
+      "fieldVersion": "版本（選填，預設為最新）",
+      "install": "安裝",
+      "installError": "工具安裝失敗",
+      "installing": "安裝中...",
+      "invalidTool": "工具名稱或識別碼無效",
+      "localModels": {
+        "cancel": "取消",
+        "description": "在本機執行的模型，下載後即可離線使用，無需 API Key。",
+        "download": "下載",
+        "embedding": {
+          "name": "本機嵌入模型",
+          "subtitle": "Qwen3 Embedding 0.6B · 約 614 MB"
+        },
+        "notice": {
+          "downloadFailed": "下載失敗，請檢查網路後重試。",
+          "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "removeFailed": "刪除失敗，請查看日誌。"
+        },
+        "ocr": {
+          "name": "本機 OCR 模型",
+          "subtitle": "PaddleOCR PP-OCRv6 · 約 140 MB"
+        },
+        "remove": "刪除",
+        "status": {
+          "downloading": "下載中…",
+          "ready": "已就緒"
+        },
+        "title": "本機模型"
+      },
+      "notInstalled": "未安裝",
+      "openBinariesDir": "開啟二進位檔案目錄",
+      "remove": "移除工具",
+      "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜尋失敗，請查看日誌",
+      "searchRegistry": "搜尋 mise 工具倉庫...",
+      "source": {
+        "bundled": "內建"
+      },
+      "title": "環境依賴",
+      "tools": {
+        "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
+        "claude": "Anthropic 的終端智慧編程工具。",
+        "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
+        "fd": "快速檔案搜尋工具，find 的替代方案。",
+        "gh": "GitHub CLI，用於倉庫和工作流程管理。",
+        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
+        "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
+        "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",
+        "opencode": "開源 AI 編程代理，支援 75+ 模型並整合 GitHub Actions 自動化工作流程。",
+        "pi": "AI 代理工具包，包含編程代理 CLI、統一 LLM API、TUI/Web UI 和 Slack 機器人。",
+        "rg": "快速文字搜尋工具（ripgrep），grep 的替代方案。",
+        "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
+        "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      },
+      "update": "更新到最新版本",
+      "updateCheckFailed": "檢查更新失敗"
+    },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
       "help": "啟用開發者模式後，可使用呼叫鏈功能檢視模型呼叫過程的資料流。更改將在重啟應用後生效。",
@@ -6011,7 +6057,7 @@
       },
       "title": "顯示",
       "topic": {
-        "title": "對話設定"
+        "title": "對話視圖設定"
       },
       "zoom": {
         "title": "縮放設定"
@@ -6217,6 +6263,9 @@
         "button": "取得伺服器",
         "success": "伺服器取得成功"
       },
+      "filter": {
+        "label": "篩選"
+      },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
       "headersTooltip": "HTTP 請求的自定義標頭",
@@ -6257,6 +6306,7 @@
       "noDescriptionAvailable": "描述不存在",
       "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
+      "notInstalled": "未安裝",
       "not_support": "不支援此模型",
       "npx_list": {
         "actions": "操作",
@@ -6286,6 +6336,7 @@
         "title": "執行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 供應商",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
       "providers": "供應商",
@@ -6332,13 +6383,6 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
-        "providerDescriptions": {
-          "302ai": "302.AI 平台 MCP 服務",
-          "bailian": "阿里雲百鍊平台 MCP 服務",
-          "lanyun": "藍雲科技雲平台 MCP 服務",
-          "mcprouter": "MCP 路由器平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務"
-        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -6384,7 +6428,7 @@
       },
       "type": "類型",
       "types": {
-        "inMemory": "記憶體內",
+        "inMemory": "內建",
         "sse": "SSE",
         "stdio": "STDIO",
         "streamableHttp": "串流 HTTP"
@@ -6395,10 +6439,11 @@
       "user": "使用者"
     },
     "menuGroups": {
-      "appSettings": "應用設定",
-      "integrations": "模型",
-      "productivity": "效率",
-      "services": "插件",
+      "automation": "自動化",
+      "capabilities": "能力與工具",
+      "models": "模型",
+      "personal": "個人",
+      "quickAccess": "快捷入口",
       "system": "系統"
     },
     "messages": {
@@ -6505,7 +6550,7 @@
         },
         "group_name": {
           "label": "群組名稱",
-          "placeholder": "選填，例如 ChatGPT",
+          "placeholder": "例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
         },
         "max_input_tokens": {
@@ -6518,7 +6563,8 @@
         },
         "model_id": {
           "label": "模型 ID",
-          "placeholder": "必填，例如 gpt-3.5-turbo",
+          "placeholder": "例如 gpt-5.5",
+          "required": "請輸入模型 ID",
           "select": {
             "placeholder": "選擇模型"
           },
@@ -6526,7 +6572,7 @@
         },
         "model_name": {
           "label": "模型名稱",
-          "placeholder": "選填，例如 GPT-4",
+          "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
@@ -6595,14 +6641,17 @@
       },
       "group_disable": "停用此分組",
       "group_enable": "開啟此分組",
-      "list_title": "模型列表",
+      "list_title": "模型",
       "manage": {
         "add_custom_model": "添加自訂模型",
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
-          "label": "新增列表中的模型"
+          "label": "新增全部模型"
         },
         "add_whole_group": "新增整個分組",
+        "clean_stale_models": "清理失效模型",
+        "clean_stale_success": "已清理 {{count}} 個失效模型",
+        "default_model_cannot_remove": "預設模型無法刪除",
         "drawer_title": "模型管理",
         "fetch_deselect_all_add": "取消全選",
         "fetch_deselect_all_remove": "取消全選",
@@ -6624,11 +6673,14 @@
         "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",
-        "remove_listed": "移除列表中的模型",
+        "remove_listed": "移除全部模型",
         "remove_model": "刪除模型",
+        "remove_skipped_default_in_use": "已跳過 {{count}} 個預設模型",
         "remove_whole_group": "刪除分組",
         "search_models_placeholder": "搜尋模型…",
         "select_none": "取消全選",
+        "stale_badge": "失效",
+        "stale_filter": "失效",
         "status_all": "全部",
         "status_disabled": "未啟用",
         "status_enabled": "已啟用",
@@ -6715,7 +6767,7 @@
       "assistant": "助手訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知設定"
+      "title": "通知"
     },
     "openai": {
       "service_tier": {
@@ -6751,48 +6803,6 @@
       }
     },
     "parameter_settings": "參數設定",
-    "plugins": {
-      "addTool": "新增工具",
-      "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
-      "coreDepsMissing": "核心依賴未安裝",
-      "customTools": "自訂工具",
-      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
-      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
-      "duplicateName": "已存在相同名稱的工具",
-      "fieldVersion": "版本（選填，預設為最新）",
-      "install": "安裝",
-      "installError": "工具安裝失敗",
-      "installing": "安裝中...",
-      "invalidTool": "工具名稱或識別碼無效",
-      "notInstalled": "未安裝",
-      "openBinariesDir": "開啟二進位檔案目錄",
-      "remove": "移除工具",
-      "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
-      "removeConfirmTitle": "移除工具",
-      "searchFailed": "搜尋失敗，請查看日誌",
-      "searchRegistry": "搜尋 mise 工具倉庫...",
-      "source": {
-        "bundled": "內建"
-      },
-      "title": "環境依賴",
-      "tools": {
-        "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
-        "claude": "Anthropic 的終端智慧編程工具。",
-        "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
-        "fd": "快速檔案搜尋工具，find 的替代方案。",
-        "gh": "GitHub CLI，用於倉庫和工作流程管理。",
-        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
-        "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
-        "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
-        "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",
-        "opencode": "開源 AI 編程代理，支援 75+ 模型並整合 GitHub Actions 自動化工作流程。",
-        "pi": "AI 代理工具包，包含編程代理 CLI、統一 LLM API、TUI/Web UI 和 Slack 機器人。",
-        "rg": "快速文字搜尋工具（ripgrep），grep 的替代方案。",
-        "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
-        "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
-      },
-      "update": "更新到最新版本"
-    },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
     },
@@ -6822,6 +6832,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "新增服務商",
         "name": {
           "label": "提供者名稱",
           "placeholder": "例如：OpenAI",
@@ -6963,11 +6974,11 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "agent_only_note": "Claude Code 提供者僅供代理程式使用 — 無法在聊天或助理中使用。",
         "description": "使用 Claude 訂閱登入",
         "description_detail": "此供應商複用 Claude Code CLI 的登入資訊（Claude Pro/Max），僅供 Agent 使用。請開啟終端機執行 `claude` 完成登入。",
         "launch_failed": "開啟終端機失敗，請手動執行 `claude` 登入。",
-        "legal_link": "[to be translated]:Legal & Compliance",
+        "legal_link": "法律與合規",
         "logged_in": "已登入 Claude Code",
         "logged_in_detail": "Agent 將使用你的 Claude Code CLI 訂閱憑證。",
         "open_terminal": "開啟終端機登入",
@@ -7217,7 +7228,7 @@
     },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
-      "noAgents": "排程任務需要開啟靈魂模式或無權限模式的代理才能執行。請先在代理設定中啟用。",
+      "noAgents": "沒有可用的代理。請先建立一個代理，再新增排程任務。",
       "noAgentsTip": "提示：你也可以直接在對話中讓代理建立排程任務。",
       "noTasks": "沒有排程任務。點擊「+ 新增」為代理程式建立一個。",
       "selectTask": "選擇一個任務來查看詳細資訊",
@@ -7230,6 +7241,7 @@
       "all_enable": "全部啟用",
       "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
       "categories": {
+        "all": "全部",
         "assistant": "AI 助手工具",
         "chat": "訊息互動",
         "general": "全域與視窗",
@@ -7245,6 +7257,7 @@
       "empty": "目前分組下沒有可顯示的快捷鍵",
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
+      "filter": "篩選",
       "label": "按鍵",
       "move_tab_to_first": "將分頁移至最前",
       "new_topic": "新增對話",
@@ -7252,6 +7265,7 @@
       "open_tab_in_new_window": "在新視窗中開啟分頁",
       "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
+      "print": "列印",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名對話",
       "reset": "重設",
@@ -7281,6 +7295,9 @@
     },
     "skills": {
       "author": "作者",
+      "batchInstallComplete": "已安裝 {{count}} 個技能",
+      "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
+      "batchInstallQueued": "等待安裝",
       "batchUninstallSuccess": "{{count}} 個技能已解除安裝",
       "builtin": "內建",
       "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",
@@ -7313,6 +7330,9 @@
       "uninstallSuccess": "技能已解除安裝：{{name}}",
       "viewSource": "查看原始碼",
       "zip": "ZIP"
+    },
+    "system": {
+      "title": "系統"
     },
     "theme": {
       "color_primary": "主題顏色",
@@ -7359,6 +7379,13 @@
           "doc2x": {
             "description": "高級檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "在本機行程內執行的 PaddleOCR（PP-OCRv6 中等模型），完全離線、無需 API Key，辨識在背景執行緒進行不阻塞介面。首次使用請先在「環境相依」中下載模型（約 140MB）。",
+            "name": "本機 PaddleOCR",
+            "status": {
+              "local": "完全本機離線執行"
+            }
           },
           "mineru": {
             "description": "OpenDataLab 開源的高品質 PDF 擷取工具。",
@@ -7576,6 +7603,7 @@
   },
   "title": {
     "apps": "小程式",
+    "chat": "對話",
     "code": "程式碼",
     "files": "檔案",
     "home": "首頁",

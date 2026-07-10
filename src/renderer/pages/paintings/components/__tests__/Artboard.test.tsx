@@ -5,7 +5,9 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { PaintingData } from '../../model/types/paintingData'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'paintings.generating' ? '绘图进行中，请不要离开页面' : key)
+  })
 }))
 
 vi.mock('@renderer/utils/image', () => ({
@@ -51,6 +53,31 @@ describe('Artboard', () => {
     HTMLElement.prototype.setPointerCapture ??= vi.fn()
     HTMLElement.prototype.releasePointerCapture ??= vi.fn()
     HTMLElement.prototype.hasPointerCapture ??= vi.fn(() => true)
+  })
+
+  it('renders an inline loading bar and cancel action while generating', () => {
+    const onCancel = vi.fn()
+
+    render(<Artboard painting={makePainting()} isLoading={true} onCancel={onCancel} />)
+
+    const loadingStatus = screen.getByRole('status')
+    expect(loadingStatus).toHaveTextContent('绘图进行中，请不要离开页面')
+    expect(loadingStatus.className).not.toContain('border')
+
+    const loadingBar = screen.getByRole('progressbar', { name: '绘图进行中，请不要离开页面' })
+    expect(loadingBar).toBeInTheDocument()
+    expect(loadingBar.firstElementChild).toHaveClass('animation-migration-backup-progress-indeterminate')
+    expect(loadingBar.firstElementChild).toHaveClass('bg-linear-to-r')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render the loading bar when idle', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('resets image transform when switching generated images', () => {

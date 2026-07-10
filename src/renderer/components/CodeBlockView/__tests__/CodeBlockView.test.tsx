@@ -102,7 +102,7 @@ describe('CodeBlockView', () => {
     )
   })
 
-  it('enables editor auto-scroll while a streaming code block is collapsed', () => {
+  it('renders a streaming editable code block with the viewer and highlighting disabled', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.collapsible': true
     })
@@ -113,12 +113,21 @@ describe('CodeBlockView', () => {
       </CodeBlockView>
     )
 
-    expect(mocks.CodeEditor).toHaveBeenCalledWith(
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
       expect.objectContaining({
         autoScrollToBottom: true,
-        expanded: false
+        expanded: false,
+        options: {
+          highlight: false
+        }
       }),
       undefined
+    )
+    expect(mocks.useSaveTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false
+      })
     )
   })
 
@@ -136,7 +145,10 @@ describe('CodeBlockView', () => {
     expect(mocks.CodeViewer).toHaveBeenCalledWith(
       expect.objectContaining({
         autoScrollToBottom: true,
-        expanded: false
+        expanded: false,
+        options: {
+          highlight: false
+        }
       }),
       undefined
     )
@@ -149,10 +161,14 @@ describe('CodeBlockView', () => {
       </CodeBlockView>
     )
 
-    expect(mocks.CodeEditor).toHaveBeenCalledWith(
+    expect(mocks.CodeEditor).not.toHaveBeenCalled()
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
       expect.objectContaining({
         autoScrollToBottom: false,
-        expanded: true
+        expanded: true,
+        options: {
+          highlight: false
+        }
       }),
       undefined
     )

@@ -8,8 +8,10 @@
  *     match's line, offsets, and snippet — for a precise lookup when semantic search is too fuzzy.
  *
  * The model passes a `conceptId` + `baseId` from a `kb_search` hit (or a `kb_list` outline).
- * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext and scopes which bases are
- * reachable. Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs
+ * The effective knowledge base scope (the assistant's static binding when non-empty, else the
+ * composer's per-turn selection — see `resolveKnowledgeBaseIds`) flows in via
+ * `RequestContext.knowledgeBaseIds` and scopes which bases are reachable. Both modes live in the
+ * shared `knowledgeLookup` core so the Claude Code MCP bridge runs
  * identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
@@ -39,7 +41,7 @@ const kbReadTool = tool({
   strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return readOrGrepConcept(input, request.assistant?.knowledgeBaseIds ?? [])
+    return readOrGrepConcept(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeReadModelOutput(output)
 })
@@ -51,7 +53,7 @@ export function createKbReadToolEntry(): ToolEntry {
     description: 'Read a knowledge base document by its Concept ID, or grep within it',
     defer: 'always',
     tool: kbReadTool,
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

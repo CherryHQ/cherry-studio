@@ -184,7 +184,11 @@ describe('Toast', () => {
     expect(screen.queryByText('Success')).not.toBeInTheDocument()
   })
 
-  it('isolates queues between ToastProvider instances', () => {
+  it('shares the single default store across ToastProvider instances', () => {
+    // ToastProvider no longer forks a per-instance store: every provider and its
+    // viewport read defaultToastStore, so utilities obtained from different
+    // providers observe one shared queue (fixes the command-entry-vs-viewport
+    // store split that black-holed window.toast in viewport-less windows).
     const providerToastA = vi.fn<(toastApi: ReturnType<typeof useToasts>) => void>()
     const providerToastB = vi.fn<(toastApi: ReturnType<typeof useToasts>) => void>()
 
@@ -212,12 +216,33 @@ describe('Toast', () => {
     expect(toastB).toBeDefined()
 
     act(() => {
-      toastA?.success('Only A')
+      toastA?.success('Shared')
     })
 
     expect(toastA?.getToastQueue().toasts).toHaveLength(1)
-    expect(toastB?.getToastQueue().toasts).toHaveLength(0)
-    expect(screen.getByText('Only A')).toBeInTheDocument()
+    expect(toastB?.getToastQueue().toasts).toHaveLength(1)
+  })
+
+  it('resolves a labels getter each time a toast fires', () => {
+    // A getter lets callers read i18n lazily: each fire re-invokes it, so a
+    // language switch between two toasts is reflected without re-creating the
+    // utilities object.
+    let currentLoading = 'Loading EN'
+    const labelsGetter = (): Partial<ToastLabels> => ({ loading: currentLoading })
+    const localizedToast = getToastUtilities(labelsGetter)
+
+    render(<ToastViewport labels={labelsGetter} />)
+
+    act(() => {
+      localizedToast.loading({ key: 'getter-a', promise: new Promise<void>(() => {}) })
+    })
+    expect(screen.getByText('Loading EN')).toBeInTheDocument()
+
+    currentLoading = 'Loading ZH'
+    act(() => {
+      localizedToast.loading({ key: 'getter-b', promise: new Promise<void>(() => {}) })
+    })
+    expect(screen.getByText('Loading ZH')).toBeInTheDocument()
   })
 
   it('closeAll removes every toast and invokes each onClose', () => {

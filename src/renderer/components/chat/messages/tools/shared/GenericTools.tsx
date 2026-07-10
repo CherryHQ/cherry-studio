@@ -4,7 +4,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { McpToolResponseStatus } from '@renderer/types/mcpTool'
 import { formatFileSize } from '@renderer/utils/file'
-import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
+import { Ellipsis, TriangleAlert } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -156,7 +156,6 @@ export function ToolStatusIndicator({
       case 'cancelled':
         return {
           label: t('message.tools.cancelled'),
-          icon: <X size={13} className="lucide-custom" />,
           color: 'error'
         }
       case 'done':
@@ -168,7 +167,6 @@ export function ToolStatusIndicator({
             }
           : {
               label: t('message.tools.completed'),
-              icon: <Check size={13} className="lucide-custom" />,
               color: 'success'
             }
       case 'error':
@@ -187,8 +185,8 @@ export function ToolStatusIndicator({
 
   const indicator = (
     <StatusIndicatorContainer $color={info.color}>
-      {info.label}
       {info.icon}
+      {info.label}
     </StatusIndicatorContainer>
   )
 

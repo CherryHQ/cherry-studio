@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   getOrderedVisibleSidebarFavoriteItems,
@@ -37,7 +38,7 @@ export function useSidebarFavorites() {
   const persist = useCallback(
     (next: SidebarFavoriteItem[]) => {
       void setFavorites(next).catch(() => {
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [setFavorites, t]
@@ -48,7 +49,13 @@ export function useSidebarFavorites() {
     [favorites, persist]
   )
   const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favorites, id)), [favorites, persist])
-  const removeMiniApp = useCallback((id: string) => persist(removeSidebarMiniApp(favorites, id)), [favorites, persist])
+  const removeMiniApp = useCallback(
+    (id: string) => {
+      if (!miniAppFavoriteIds.includes(id)) return
+      persist(removeSidebarMiniApp(favorites, id))
+    },
+    [favorites, miniAppFavoriteIds, persist]
+  )
   const reorderFavorites = useCallback(
     (orderedItems: readonly SidebarFavoriteItem[]) => persist(reorderSidebarFavorites(favorites, orderedItems)),
     [favorites, persist]

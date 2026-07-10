@@ -2,6 +2,7 @@ import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   createTimeGroupResolver,
@@ -12,6 +13,7 @@ import {
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
+  sortRankedResourceItems,
   withResourceListGroupIdPrefix
 } from '@renderer/components/chat/resourceList/base'
 import type { Topic } from '@renderer/types/topic'
@@ -69,6 +71,7 @@ export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
+const TOPIC_DEFAULT_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER - 1
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 export function moveTopicAfterDrop<T extends { id: string }>(
@@ -180,6 +183,14 @@ export function getAssistantIdFromTopicGroupId(groupId: string): string | undefi
   return groupId.slice(TOPIC_ASSISTANT_GROUP_ID_PREFIX.length)
 }
 
+export function getTopicAssistantGroupId(assistantId: string): string {
+  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
+}
+
+export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | null }): string {
+  return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+}
+
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
   defaultAssistant,
@@ -237,58 +248,35 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
     return assistantRank + 1
   }
 
+  if (!topic.assistantId) {
+    return TOPIC_DEFAULT_ASSISTANT_RANK
+  }
+
   return TOPIC_UNLINKED_ASSISTANT_RANK
+}
+
+function readOptionalOrderKey<T extends object>(item: T): string | undefined {
+  return 'orderKey' in item && typeof item.orderKey === 'string' ? item.orderKey : undefined
 }
 
 export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>(
   topics: readonly T[],
   options: TopicDisplaySortOptions
 ): T[] {
+  const isPinned = (topic: T) => topic.pinned === true
+
   if (options.mode === 'assistant') {
-    return topics
-      .map((topic, index) => ({
-        topic,
-        index,
-        rank: getAssistantGroupRank(topic, options.assistantRankById),
-        orderKey: 'orderKey' in topic && typeof topic.orderKey === 'string' ? topic.orderKey : undefined
-      }))
-      .sort((a, b) => {
-        const groupDelta = a.rank - b.rank
-        if (groupDelta !== 0) return groupDelta
-
-        if (a.topic.pinned === true || b.topic.pinned === true) {
-          return a.index - b.index
-        }
-
-        const orderDelta = compareResourceOrderKey(a.orderKey, b.orderKey)
-        if (orderDelta !== 0) return orderDelta
-
-        return a.index - b.index
-      })
-      .map(({ topic }) => topic)
+    return sortRankedResourceItems(topics, {
+      getRank: (topic) => getAssistantGroupRank(topic, options.assistantRankById),
+      isPinned,
+      compareWithinGroup: (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
+    })
   }
 
-  return topics
-    .map((topic, index) => ({
-      topic,
-      index,
-      rank: topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
-      updatedAtMs: Date.parse(topic.updatedAt)
-    }))
-    .sort((a, b) => {
-      const groupDelta = a.rank - b.rank
-      if (groupDelta !== 0) return groupDelta
-
-      if (a.topic.pinned === true || b.topic.pinned === true) {
-        return a.index - b.index
-      }
-
-      if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
-        const updatedAtDelta = b.updatedAtMs - a.updatedAtMs
-        if (updatedAtDelta !== 0) return updatedAtDelta
-      }
-
-      return a.index - b.index
-    })
-    .map(({ topic }) => topic)
+  return sortRankedResourceItems(topics, {
+    getRank: (topic) =>
+      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
+    isPinned,
+    compareWithinGroup: compareResourceRecency((topic) => topic.updatedAt)
+  })
 }

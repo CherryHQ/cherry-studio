@@ -4,7 +4,7 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
 } from '@renderer/utils/agent/permissionMode'
-import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -29,6 +29,7 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
 
@@ -37,7 +38,6 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
-  soulEnabled: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -48,10 +48,6 @@ function asString(value: unknown): string {
 
 function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function asBoolean(value: unknown): boolean {
-  return value === true
 }
 
 /**
@@ -94,7 +90,7 @@ function envVarsFromText(text: string): Record<string, string> {
   return Object.fromEntries(entries)
 }
 
-export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFormState {
+export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
   return {
     name: agent?.name ?? '',
@@ -104,11 +100,11 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
-    soulEnabled: asBoolean(cfg.soul_enabled),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
   }
@@ -118,19 +114,7 @@ export function applyAgentFormPatch(current: AgentFormState, patch: Partial<Agen
   const next: AgentFormState = { ...current, ...patch }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
-    const nextMode = normalizePermissionMode(patch.permissionMode)
-    next.permissionMode = nextMode
-    if (
-      nextMode !== 'bypassPermissions' &&
-      current.soulEnabled &&
-      !Object.prototype.hasOwnProperty.call(patch, 'soulEnabled')
-    ) {
-      next.soulEnabled = false
-    }
-  }
-
-  if (patch.soulEnabled === true && !current.soulEnabled) {
-    next.permissionMode = 'bypassPermissions'
+    next.permissionMode = normalizePermissionMode(patch.permissionMode)
   }
 
   return next
@@ -186,6 +170,11 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
+  const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
+  if (skillUpdates.length > 0) {
+    dto.skillUpdates = skillUpdates
+    dirty = true
+  }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
     dto.disabledTools = next.disabledTools
     dirty = true
@@ -204,10 +193,6 @@ export function diffAgentUpdate(
   }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
-    cfgDirty = true
-  }
-  if (baseline.soulEnabled !== next.soulEnabled) {
-    cfgPatch.soul_enabled = next.soulEnabled
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {
@@ -242,6 +227,21 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
+  const baselineSet = new Set(baselineSkillIds)
+  const nextSet = new Set(nextSkillIds)
+  const updates: AgentSkillUpdateDto[] = []
+
+  for (const skillId of baselineSkillIds) {
+    if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
+  }
+  for (const skillId of nextSkillIds) {
+    if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
+  }
+
+  return updates
 }
 
 // ---------------------------------------------------------------------------

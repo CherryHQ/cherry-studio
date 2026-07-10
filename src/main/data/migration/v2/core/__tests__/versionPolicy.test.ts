@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { VersionCheckInput, VersionCheckResult } from '../versionPolicy'
-import { checkUpgradePathCompatibility, readPreviousVersion } from '../versionPolicy'
+import { checkUpgradePathCompatibility, evaluateCandidateVersion, readPreviousVersion } from '../versionPolicy'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
@@ -22,7 +22,7 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'no_version_log',
-      details: { requiredVersion: '1.9.0' }
+      details: { requiredVersion: '1.9.12' }
     })
   })
 
@@ -31,7 +31,7 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v1_too_old',
-      details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+      details: { previousVersion: '1.5.0', requiredVersion: '1.9.12' }
     })
   })
 
@@ -40,35 +40,35 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v1_too_old',
-      details: { previousVersion: '1.8.0', requiredVersion: '1.9.0' }
+      details: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
     })
   })
 
-  it('#4 passes when previous version is exactly at V1_REQUIRED (1.9.0)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.0' })
+  it('#4 passes when previous version is exactly at V1_REQUIRED (1.9.12)', () => {
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
   it('#5 passes when current version is a pre-release coerced to 2.0.0', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.0-alpha' })
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.0-alpha' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#6 blocks when v2 gateway is skipped (1.9.0 -> 2.1.0)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.1.0' })
+  it('#6 blocks when v2 gateway is skipped (1.9.12 -> 2.1.0)', () => {
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.1.0' })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.0', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '1.9.12', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
     })
   })
 
   it('#7 blocks when current is v2.0.1 (strict v2.0.0 requirement)', () => {
-    const result = check({ previousVersion: '1.9.0', versionLogExists: true, currentAppVersion: '2.0.1' })
+    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.1' })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.0', currentVersion: '2.0.1', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '1.9.12', currentVersion: '2.0.1', gatewayVersion: '2.0.0' }
     })
   })
 
@@ -91,8 +91,8 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#11 passes when previous version is above V1_REQUIRED (1.9.5)', () => {
-    const result = check({ previousVersion: '1.9.5', versionLogExists: true, currentAppVersion: '2.0.0' })
+  it('#11 passes when previous version is above V1_REQUIRED (1.9.13)', () => {
+    const result = check({ previousVersion: '1.9.13', versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 })
@@ -157,5 +157,59 @@ describe('readPreviousVersion', () => {
     })
 
     expect(readPreviousVersion('/tmp/nonexistent.log', '2.0.0')).toBeNull()
+  })
+})
+
+// ── evaluateCandidateVersion ───────────────────────────────────────
+
+describe('evaluateCandidateVersion', () => {
+  const mockedExistsSync = vi.mocked(fs.existsSync)
+  const mockedReadFileSync = vi.mocked(fs.readFileSync)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('blocks with no_version_log when the directory has no version.log', () => {
+    mockedExistsSync.mockReturnValue(false)
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({
+      outcome: 'block',
+      reason: 'no_version_log',
+      details: { requiredVersion: '1.9.12' }
+    })
+    // Intermediates are surfaced for the gate's diagnostic log.
+    expect(result.versionLogExists).toBe(false)
+    expect(result.previousVersion).toBeNull()
+    // version.log path is derived from the candidate directory.
+    expect(mockedExistsSync).toHaveBeenCalledWith('/data/dir/version.log')
+  })
+
+  it('passes when version.log records a previous version at or above the required v1', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue('1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z')
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({ outcome: 'pass' })
+    expect(result.previousVersion).toBe('1.9.12')
+    expect(result.versionLogExists).toBe(true)
+  })
+
+  it('blocks with v1_too_old when the recorded previous version is below the required v1', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue('1.8.0|darwin|production|true|normal|2025-01-01T00:00:00Z')
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({
+      outcome: 'block',
+      reason: 'v1_too_old',
+      details: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
+    })
+    expect(result.previousVersion).toBe('1.8.0')
+    expect(result.versionLogExists).toBe(true)
   })
 })

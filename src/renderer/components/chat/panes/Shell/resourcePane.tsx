@@ -5,7 +5,7 @@ import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
 import { Shell, useShellActions } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
-// In classic-layout mode (`topic.layout`/`agent.layout === 'classic'`) the topic/session list moves into the
+// In classic-layout mode the topic/session list moves into the
 // chat's right pane as an extra tab. The list node + its label are provided once at
 // the page level via context, so the Chat/AgentChat tree and the pane surfaces don't prop-thread
 // them through every layer. The tab/panel/toggle below derive everything from this context, and

@@ -165,7 +165,7 @@ Current persisted `knowledge_base` columns include:
 
 - `groupId`: nullable group assignment; `null` means ungrouped.
 - `embeddingModelId`: the embedding model; `null` for BM25-only bases.
-- `dimensions`: positive embedding vector width for vector-capable bases; `null` for BM25-only completed bases (no embedding model) and for failed migrated bases with unknown dimensions. On a completed base it is paired with `embeddingModelId` — both set, or both `null` with `searchMode` forced to `bm25` (enforced by the DB CHECK and the entity schema).
+- `dimensions`: positive embedding vector width for vector-capable bases; `null` for BM25-only completed bases (no embedding model) and for failed migrated bases with unknown dimensions. On a completed base it is paired with `embeddingModelId` — both set, or both `null` for BM25-only retrieval (enforced by the DB CHECK and the entity schema).
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
 - `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
 
@@ -260,11 +260,12 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 
 1. Reject failed bases.
 2. Reject queries without searchable tokens.
-3. Resolve the base's `searchMode` (`vector` / `bm25` / `hybrid`) and embed the query — skipped for `bm25`, which is lexical only.
-4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens), the brute-force vector lane, or fuses both with RRF (`hybridAlpha`).
+3. Derive the retrieval mode from the base config and embed the query only for embedding-backed bases. Bases without an embedding model search BM25 only; embedding-backed bases use hybrid retrieval.
+4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens) or fuses BM25 and brute-force vector results with RRF.
 5. Filter results whose source items are missing, outside the base, or `deleting`, then trim to `documentCount ?? 10`.
 6. Rerank when `base.rerankModelId` is configured.
-7. Apply relevance threshold (a no-op for `ranking`-kind scores) and assign ranks.
+7. Apply `threshold` only to results whose `scoreKind` is `relevance`; BM25/hybrid `ranking` scores pass through.
+8. Assign ranks.
 
 Current `KnowledgeSearchResult` includes:
 

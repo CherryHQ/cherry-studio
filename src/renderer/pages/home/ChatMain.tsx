@@ -12,9 +12,11 @@ interface ChatMainProps {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   isInitialLoading?: boolean
+  isMessagesStale?: boolean
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  onStartBranchDraft?: MessageListActions['startMessageBranch']
 }
 
 const ChatMain: FC<ChatMainProps> = ({
@@ -22,18 +24,22 @@ const ChatMain: FC<ChatMainProps> = ({
   messages,
   partsByMessageId,
   isInitialLoading,
+  isMessagesStale,
   loadOlder,
   hasOlder,
-  openCitationsPanel
+  openCitationsPanel,
+  onStartBranchDraft
 }) => {
   const value = useHomeMessageListProviderValue({
     topic,
     messages,
     partsByMessageId,
     isInitialLoading,
+    isMessagesStale,
     loadOlder,
     hasOlder,
-    openCitationsPanel
+    openCitationsPanel,
+    onStartBranchDraft
   })
   return (
     <MessageListProvider value={value}>

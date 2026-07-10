@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import type { WebSearchProviderMenuEntry } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -11,8 +12,6 @@ import { WebSearchProviderSetting } from '../components/WebSearchProviderSetting
 
 const navigateMock = vi.fn()
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const toastErrorMock = vi.fn()
-const toastSuccessMock = vi.fn()
 const showApiKeyListMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -103,13 +102,6 @@ function createProps(entry = createEntry()) {
 describe('WebSearchProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        error: toastErrorMock,
-        success: toastSuccessMock
-      }
-    })
     ipcRequestMock.mockResolvedValue({ results: [] })
     showApiKeyListMock.mockResolvedValue(undefined)
   })
@@ -292,7 +284,7 @@ describe('WebSearchProviderSetting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
     })
     expect(ipcRequestMock).not.toHaveBeenCalled()
   })

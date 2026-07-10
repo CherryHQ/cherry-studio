@@ -2,6 +2,7 @@ import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
@@ -108,7 +109,7 @@ const KnowledgeItemRow = ({
         icon: <BookOpen className="size-3.5" />,
         onSelect: () => {
           void Promise.resolve(onPreviewSource()).catch((error) => {
-            window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
           })
         }
       }
@@ -132,7 +133,7 @@ const KnowledgeItemRow = ({
         icon: <RefreshCw className="size-3.5" />,
         onSelect: () => {
           void Promise.resolve(onReindex()).catch((error) => {
-            window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
           })
         }
       })
@@ -147,7 +148,7 @@ const KnowledgeItemRow = ({
       destructive: true,
       onSelect: () => {
         void Promise.resolve(onDelete()).catch((error) => {
-          window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+          toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
         })
       }
     })

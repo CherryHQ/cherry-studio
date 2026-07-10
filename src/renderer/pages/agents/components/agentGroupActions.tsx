@@ -1,13 +1,22 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import {
+  buildIconTypeActionDescriptors,
+  buildResourceEntityIconTypeActionDescriptor,
+  buildResourceEntityMenuActionDescriptor,
+  RESOURCE_ICON_TYPE_OPTIONS
+} from '@renderer/components/chat/resourceList/base'
+import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
-import { Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
+import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 export interface AgentGroupActionContext {
   agentId: string
-  deleteSessionsDisabled?: boolean
+  assistantIconType: AssistantIconType
+  deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
-  onDeleteSessions: (agentId: string) => void | Promise<void>
+  onDeleteAgent: (agentId: string) => void | Promise<void>
+  onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   pinDisabled?: boolean
   pinned: boolean
@@ -31,40 +40,60 @@ agentGroupActionRegistry.registerCommand({
   run: ({ agentId, onTogglePin }) => onTogglePin(agentId)
 })
 
+for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
+  agentGroupActionRegistry.registerCommand({
+    id: `agent-group.set-icon-type.${type}`,
+    run: ({ onSetAgentIconType }) => onSetAgentIconType(type)
+  })
+}
+
 agentGroupActionRegistry.registerCommand({
-  id: 'agent-group.delete-sessions',
-  availability: ({ deleteSessionsDisabled }) => ({ enabled: !deleteSessionsDisabled }),
-  run: ({ agentId, onDeleteSessions }) => onDeleteSessions(agentId)
+  id: 'agent-group.delete-agent',
+  availability: ({ deleteAgentDisabled }) => ({ enabled: !deleteAgentDisabled }),
+  run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
 })
 
-agentGroupActionRegistry.registerAction({
-  id: 'agent-group.edit',
-  commandId: 'agent-group.edit',
-  label: ({ t }) => t('agent.edit.title'),
-  icon: () => <SquarePen size={14} />,
-  order: 10,
-  surface: 'menu'
-})
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.edit',
+    commandId: 'agent-group.edit',
+    label: ({ t }) => t('agent.edit.title'),
+    icon: () => <SquarePen size={14} />,
+    order: 10
+  })
+)
 
-agentGroupActionRegistry.registerAction({
-  id: 'agent-group.toggle-pin',
-  commandId: 'agent-group.toggle-pin',
-  label: ({ pinned, t }) => (pinned ? t('agent.unpin.title') : t('agent.pin.title')),
-  icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
-  order: 20,
-  surface: 'menu'
-})
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.toggle-pin',
+    commandId: 'agent-group.toggle-pin',
+    label: ({ pinned, t }) => (pinned ? t('agent.unpin.title') : t('agent.pin.title')),
+    icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
+    order: 20
+  })
+)
 
-agentGroupActionRegistry.registerAction({
-  id: 'agent-group.delete-sessions',
-  commandId: 'agent-group.delete-sessions',
-  label: ({ t }) => t('agent.session.agent.delete.trigger'),
-  icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
-  group: 'danger',
-  order: 30,
-  surface: 'menu',
-  danger: true
-})
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityIconTypeActionDescriptor({
+    id: 'agent-group.icon-type',
+    label: ({ t }) => t('agent.icon.type'),
+    icon: () => <Smile size={14} />,
+    order: 30,
+    children: buildIconTypeActionDescriptors<AgentGroupActionContext>('agent-group.set-icon-type')
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.delete-agent',
+    commandId: 'agent-group.delete-agent',
+    label: ({ t }) => t('agent.delete.title'),
+    icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
+    group: 'danger',
+    order: 40,
+    danger: true
+  })
+)
 
 export function resolveAgentGroupActions(context: AgentGroupActionContext): AgentGroupAction[] {
   return agentGroupActionRegistry.resolve(context, 'menu')

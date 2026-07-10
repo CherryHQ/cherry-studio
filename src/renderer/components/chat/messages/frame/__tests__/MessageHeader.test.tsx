@@ -1,8 +1,13 @@
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '../MessageHeader'
+
+const providerState = vi.hoisted(() => ({
+  actions: {} as { selectMessage?: (messageId: string, selected: boolean) => void },
+  selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -12,7 +17,21 @@ vi.mock('@cherrystudio/ui', () => ({
     <div className={className}>{children}</div>
   ),
   AvatarImage: ({ className }: { className?: string }) => <div className={className} />,
-  Checkbox: ({ className }: { className?: string }) => <div className={className} role="checkbox" />,
+  Checkbox: ({
+    className,
+    ...props
+  }: {
+    className?: string
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+    [key: string]: unknown
+  }) => {
+    const domProps = { ...props }
+    delete domProps.checked
+    delete domProps.onCheckedChange
+
+    return <div className={className} role="checkbox" {...domProps} />
+  },
   EmojiAvatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
   ),
@@ -34,12 +53,12 @@ vi.mock('@renderer/utils/naming', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageListActions: () => ({}),
+  useMessageListActions: () => providerState.actions,
   useMessageListMeta: () => ({
     assistantProfile: undefined,
     userProfile: undefined
   }),
-  useMessageListSelection: () => undefined,
+  useMessageListSelection: () => providerState.selection,
   useMessageRenderConfig: () => ({
     userName: 'User',
     messageStyle: 'plain'
@@ -59,6 +78,11 @@ const createMessage = (role: 'assistant' | 'user' = 'assistant') =>
   }) as Parameters<typeof MessageHeader>[0]['message']
 
 describe('MessageHeader', () => {
+  beforeEach(() => {
+    providerState.actions = {}
+    providerState.selection = undefined
+  })
+
   it('keeps content and footer in the body column with footer pinned to the bottom', () => {
     const { container } = render(
       <MessageHeader
@@ -88,5 +112,14 @@ describe('MessageHeader', () => {
 
     expect(header).toHaveClass('mb-2', 'items-center')
     expect(container.querySelector('.message-body-column')).toBeNull()
+  })
+
+  it('marks the real message selection checkbox for drag selection lookup', () => {
+    providerState.actions = { selectMessage: vi.fn() }
+    providerState.selection = { isMultiSelectMode: true, selectedMessageIds: [] }
+
+    const { container } = render(<MessageHeader message={createMessage()} />)
+
+    expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
   })
 })

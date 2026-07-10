@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
@@ -9,8 +10,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
 }))
 
-const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
-
 const languagesFixture = [
   { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
   { langCode: 'zh-cn', value: '中文', emoji: '🇨🇳' }
@@ -19,7 +18,6 @@ const languagesFixture = [
 describe('useTranslateLanguages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
   it('loads languages and exposes label helpers', () => {

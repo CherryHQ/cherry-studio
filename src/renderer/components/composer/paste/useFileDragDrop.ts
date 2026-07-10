@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
+import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
@@ -72,7 +73,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
 
         // 如果有不支持的文件，显示提示
         if (droppedFiles.length > 0 && supportedFiles.length !== droppedFiles.length) {
-          window.toast.info(
+          toast.info(
             options.t('chat.input.file_not_supported_count', {
               count: droppedFiles.length - supportedFiles.length
             })

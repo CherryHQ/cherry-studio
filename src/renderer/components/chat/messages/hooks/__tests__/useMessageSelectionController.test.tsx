@@ -130,4 +130,21 @@ describe('useMessageSelectionController', () => {
     expect(copyRichContent).not.toHaveBeenCalled()
     expect(writeText).toHaveBeenCalledWith('plain')
   })
+
+  it('clears multi-select state when the message list unmounts', () => {
+    const { unmount } = renderHook(() =>
+      useMessageSelectionController({
+        topicId: 'topic-1',
+        messages: [message('a')],
+        partsByMessageId: { a: [{ type: 'text', text: 'plain' }] as any }
+      })
+    )
+
+    setCacheValue.mockClear()
+
+    unmount()
+
+    expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)
+    expect(setCacheValue).toHaveBeenCalledWith('chat.selected_message_ids', [])
+  })
 })

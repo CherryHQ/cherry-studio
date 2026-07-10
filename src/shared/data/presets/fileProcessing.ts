@@ -205,6 +205,10 @@ export const FILE_PROCESSOR_PRESET_MAP = {
       }
     ]
   },
+  'local-paddleocr': {
+    type: 'builtin',
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+  },
   ovocr: {
     type: 'builtin',
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]

@@ -25,6 +25,11 @@ const isProd = process.env.NODE_ENV === 'production'
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
 const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
+
+export const isMainExternalModule = (id: string) => {
+  return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
+}
 
 export default defineConfig({
   main: {
@@ -51,7 +56,7 @@ export default defineConfig({
     build: {
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies],
+        external: isMainExternalModule,
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
@@ -145,7 +150,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
-          settings: resolve(__dirname, 'src/renderer/windows/settings/index.html'),
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),

@@ -159,7 +159,8 @@ vi.mock('@renderer/components/composer/ComposerDockTransitionFrame', () => ({
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: () => <div />,
-  AgentHomeComposer: () => <div />
+  AgentHomeComposer: () => <div />,
+  MissingAgentHomeComposer: () => <div />
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -459,20 +460,15 @@ describe('AgentChat locate pending message', () => {
     expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
-  it('keeps the classic-layout resource pane open across the draft → persistent session handoff', async () => {
+  it('keeps the classic-layout resource pane open across missing-agent selection → persistent session handoff', async () => {
     const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
-    const draftConversation = {
-      agentId: 'agent-1',
-      workspaceSource: { type: 'system' as const },
-      workspace: { type: 'system' as const, path: '/tmp/workspace' }
-    }
 
     const { rerender } = render(
       <AgentChat
         activeSession={undefined}
         activeSessionLoading={false}
         activeSessionSource="none"
-        draftConversation={draftConversation}
+        missingAgentSelection={true}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"
@@ -482,7 +478,7 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    // The draft branch seeds the pane open from the persisted sessionPaneOpen.
+    // The missing-agent selection branch seeds the pane open from the persisted sessionPaneOpen.
     expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
 
     // Hand off to the persisted session: the AgentRightPane/Shell remounts under a different
@@ -490,7 +486,6 @@ describe('AgentChat locate pending message', () => {
     rerender(
       <AgentChat
         {...activeSessionProps()}
-        draftConversation={null}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"

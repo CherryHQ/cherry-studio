@@ -1,4 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import {
   normalizePaintingGenerateError,
   PaintingGenerateError,
@@ -55,14 +57,14 @@ export function presentPaintingGenerateError(error: unknown) {
 
   if (normalized instanceof PaintingGenerateError && normalized.presentation === 'toast') {
     if (normalized.severity === 'warning') {
-      window.toast.warning(message)
+      toast.warning(message)
     } else {
-      window.toast.error(message)
+      toast.error(message)
     }
     return
   }
 
-  window.modal.error({
+  void popup.error({
     content: message,
     centered: true
   })

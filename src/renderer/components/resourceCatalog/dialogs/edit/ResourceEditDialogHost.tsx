@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +44,7 @@ function AssistantEditDialogHost({
     if (!error) return
 
     logger.error('Failed to load assistant for edit dialog', error, { id: target.id })
-    window.toast?.error(t('common.error'))
+    toast.error(t('common.error'))
   }, [error, t, target.id])
 
   const handleSaved = useCallback(async () => {
@@ -52,7 +53,7 @@ function AssistantEditDialogHost({
       await onSaved?.(target)
     } catch (error) {
       logger.warn('Failed to refresh assistant after edit dialog save', { error, id: target.id })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [onSaved, refetch, t, target])
 
@@ -80,7 +81,7 @@ function AgentEditDialogHost({
     if (!error) return
 
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
-    window.toast?.error(t('common.error'))
+    toast.error(t('common.error'))
   }, [error, t, target.id])
 
   const handleSaved = useCallback(async () => {
@@ -89,7 +90,7 @@ function AgentEditDialogHost({
       await onSaved?.(target)
     } catch (error) {
       logger.warn('Failed to refresh agent after edit dialog save', { error, id: target.id })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [onSaved, revalidate, t, target])
 

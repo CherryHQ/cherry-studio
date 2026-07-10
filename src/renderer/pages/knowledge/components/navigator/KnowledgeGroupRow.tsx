@@ -8,13 +8,7 @@ import { useTranslation } from 'react-i18next'
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import type { KnowledgeGroupRowProps } from './types'
 
-const KnowledgeGroupRow = ({
-  group,
-  itemCount,
-  onRenameGroup,
-  onCreateBase,
-  onDeleteGroup
-}: KnowledgeGroupRowProps) => {
+const KnowledgeGroupRow = ({ group, onRenameGroup, onCreateBase, onDeleteGroup }: KnowledgeGroupRowProps) => {
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
@@ -70,7 +64,6 @@ const KnowledgeGroupRow = ({
         <div className="w-full">
           <BaseNavigatorSectionTrigger
             label={group.name}
-            itemCount={itemCount}
             actionSlot={
               <CommandPopupMenu
                 location="webcontents.context"

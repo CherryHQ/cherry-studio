@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -86,7 +87,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// window.toast — used in success/error paths
 beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
@@ -95,11 +95,6 @@ beforeEach(() => {
   mocks.convertToBase64.mockReset()
   mocks.compressImage.mockImplementation(async (file: File) => file)
   mocks.convertToBase64.mockResolvedValue('data:image/png;base64,compressed')
-  ;(window as unknown as { toast: { success: () => void; error: () => void; info: () => void } }).toast = {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn()
-  }
 })
 
 describe('NewMiniAppPanel', () => {
@@ -170,7 +165,7 @@ describe('NewMiniAppPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
-    expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.url_invalid')
+    expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.url_invalid')
     expect(mocks.createCustomMiniApp).not.toHaveBeenCalled()
   })
 
@@ -285,7 +280,7 @@ describe('NewMiniAppPanel', () => {
         'data-logo',
         'data:image/png;base64,compressed'
       )
-      expect(window.toast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 
@@ -348,7 +343,7 @@ describe('NewMiniAppPanel', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
+      expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
     })
     expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'application-icon')
   })
@@ -433,7 +428,7 @@ describe('NewMiniAppPanel', () => {
       rejectLogo(new Error('upload failed'))
     })
 
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('cancel calls onClose', () => {

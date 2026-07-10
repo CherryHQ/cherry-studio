@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { Message } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,11 +24,6 @@ vi.mock('i18next', () => ({
 // Mock navigator.clipboard
 const mockClipboard = {
   writeText: vi.fn()
-}
-
-// Mock window.toast
-const mockedToast = {
-  success: vi.fn()
 }
 
 // 创建测试数据辅助函数
@@ -65,11 +61,6 @@ describe('copy', () => {
       writable: true
     })
 
-    Object.defineProperty(global.window, 'toast', {
-      value: mockedToast,
-      writable: true
-    })
-
     // 清理所有 mock 调用
     vi.clearAllMocks()
   })
@@ -90,7 +81,7 @@ describe('copy', () => {
       // 验证结果
       expect(topicToMarkdown).toHaveBeenCalledWith(topic)
       expect(mockClipboard.writeText).toHaveBeenCalledWith(markdownContent)
-      expect(mockedToast.success).toHaveBeenCalledWith('message.copy.success')
+      expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
     it('should handle export function errors', async () => {
@@ -101,7 +92,7 @@ describe('copy', () => {
 
       await expect(copyTopicAsMarkdown(topic)).rejects.toThrow('Export error')
       expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(mockedToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
 
     it('should handle clipboard write errors', async () => {
@@ -114,7 +105,7 @@ describe('copy', () => {
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'))
 
       await expect(copyTopicAsMarkdown(topic)).rejects.toThrow('Clipboard error')
-      expect(mockedToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 
@@ -132,7 +123,7 @@ describe('copy', () => {
 
       expect(topicToPlainText).toHaveBeenCalledWith(topic)
       expect(mockClipboard.writeText).toHaveBeenCalledWith(plainTextContent)
-      expect(mockedToast.success).toHaveBeenCalledWith('message.copy.success')
+      expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
     it('should handle export function errors', async () => {
@@ -143,7 +134,7 @@ describe('copy', () => {
 
       await expect(copyTopicAsPlainText(topic)).rejects.toThrow('Export error')
       expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(mockedToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 
@@ -161,7 +152,7 @@ describe('copy', () => {
 
       expect(messageToPlainText).toHaveBeenCalledWith(message)
       expect(mockClipboard.writeText).toHaveBeenCalledWith(plainTextContent)
-      expect(mockedToast.success).toHaveBeenCalledWith('message.copy.success')
+      expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
     it('should handle messageToPlainText errors', async () => {
@@ -174,7 +165,7 @@ describe('copy', () => {
 
       await expect(copyMessageAsPlainText(message)).rejects.toThrow('Message conversion error')
       expect(mockClipboard.writeText).not.toHaveBeenCalled()
-      expect(mockedToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 

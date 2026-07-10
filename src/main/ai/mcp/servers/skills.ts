@@ -76,7 +76,7 @@ const SKILLS_TOOL: Tool = {
 }
 
 /**
- * MCP server exposing skill management to any agent (not gated on Soul Mode).
+ * MCP server exposing skill management to any agent.
  *
  * Skills are a generally useful capability — searching the marketplace,
  * installing, listing, and authoring skills via init/register applies to

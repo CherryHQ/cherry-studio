@@ -89,7 +89,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
   }
 
   // Proxy / SSL certificate errors
@@ -100,7 +100,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
   }
 
   // Stream interrupted

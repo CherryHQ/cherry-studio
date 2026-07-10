@@ -38,11 +38,17 @@ export function ModelCapabilityToggles({
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
         </div>
-        {hasUserModified && (
-          <Button variant="ghost" size="icon-sm" onClick={onReset}>
+        <div className="flex size-7 shrink-0 items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={!hasUserModified ? 'invisible' : undefined}
+            aria-hidden={!hasUserModified}
+            tabIndex={hasUserModified ? undefined : -1}
+            onClick={onReset}>
             <RotateCcw size={14} />
           </Button>
-        )}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5" aria-label={t('models.type.select')}>
         <VisionTag

@@ -21,13 +21,18 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/ipc/useIpcOn', () => ({
+  useIpcOn: vi.fn()
+}))
+
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
 }))
 
 vi.mock('../../../hooks/tab', () => ({
+  useMainSettingsTab: vi.fn(),
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),

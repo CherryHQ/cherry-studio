@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -207,10 +208,10 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       const e = toDataApiError(err)
       if (isDataApiError(e)) {
         logger.error('togglePin failed', { code: e.code, message: e.message })
-        window.toast?.error?.(e.message || t(fallbackKey))
+        toast.error(e.message || t(fallbackKey))
       } else {
         logger.error('togglePin failed', err as Error)
-        window.toast?.error?.(t(fallbackKey))
+        toast.error(t(fallbackKey))
       }
     })
   }, [app.appId, isPinned, updateAppStatus, t])

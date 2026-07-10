@@ -1,15 +1,14 @@
-import { PDFParse } from 'pdf-parse'
+import type { LoadParameters } from 'pdf-parse'
 
 /**
  * Extract text content from PDF data.
- * Works in both Node.js and browser environments (pdf-parse 2.x).
  *
  * @param data - PDF content as Uint8Array, ArrayBuffer, base64-encoded string, or URL
  * @returns Extracted text content
  */
 export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | URL): Promise<string> {
   if (data instanceof URL) {
-    const parser = new PDFParse({ url: data.href })
+    const parser = await createPdfParser({ url: data.href })
     try {
       const result = await parser.getText()
       return result.text
@@ -29,11 +28,19 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
     buffer = data
   }
 
-  const parser = new PDFParse({ data: buffer })
+  const parser = await createPdfParser({ data: buffer })
   try {
     const result = await parser.getText()
     return result.text
   } finally {
     await parser.destroy()
   }
+}
+
+async function createPdfParser(options: LoadParameters) {
+  // Loads @napi-rs/canvas DOM globals that pdf-parse expects in Electron main.
+  const { CanvasFactory } = await import('pdf-parse/worker')
+  const { PDFParse } = await import('pdf-parse')
+
+  return new PDFParse({ ...options, CanvasFactory })
 }

@@ -7,6 +7,7 @@ import {
   oauthWithPPIO,
   oauthWithSiliconFlow
 } from '@renderer/services/oauth'
+import { toast } from '@renderer/services/toast'
 import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +42,7 @@ const OauthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
     const handleSuccess = (key: string) => {
       if (key.trim()) {
         onSuccess?.(key)
-        window.toast.success(t('auth.get_key_success'))
+        toast.success(t('auth.get_key_success'))
       }
     }
 

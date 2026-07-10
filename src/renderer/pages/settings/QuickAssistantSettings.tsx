@@ -27,6 +27,7 @@ import {
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
@@ -67,7 +68,7 @@ const QuickAssistantSettings: FC = () => {
     void (!enable && window.api.quickAssistant.close())
 
     if (enable && !clickTrayToShowQuickAssistant) {
-      window.toast.info({
+      toast.info({
         title: t('settings.quickAssistant.use_shortcut_to_show'),
         timeout: 4000,
         icon: <Info size={16} />

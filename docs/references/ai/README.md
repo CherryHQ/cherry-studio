@@ -50,7 +50,7 @@ src/main/ai/
 │   └── claudeCode/               ← Claude Code driver, warm query, SDK adapter
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
-├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, builtin/, cherryclaw/
+├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat, builtin/
 ├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
 ├── streamManager/                ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts        ← registers the stream IPC (Open/Attach/Detach/Abort)

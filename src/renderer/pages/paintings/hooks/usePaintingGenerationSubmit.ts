@@ -41,7 +41,7 @@ export function usePaintingGenerationSubmit({
     try {
       const guardResult = await validateBeforeGenerate()
       if (!guardResult.ok) {
-        presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
+        void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
         return
       }
       await generate()

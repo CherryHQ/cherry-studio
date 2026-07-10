@@ -41,7 +41,7 @@ export type ComposerUnifiedPanelResourceProvider = (
 
 export interface ComposerUnifiedPanelControl {
   available: boolean
-  open: () => void
+  open: (options?: { launcherId?: string; searchText?: string }) => void
 }
 
 export type ComposerUnifiedPanelSelectHandler = (
@@ -142,20 +142,29 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
 
 function getUnifiedQuickPanelMatchText(item: QuickPanelListItem) {
   // `filterText`, when set, is the authoritative search field for the item
-  // (e.g. skills set it to their name only). Otherwise fall back to the visible
-  // label + description so items without an explicit search field stay searchable.
-  if (item.filterText) return item.filterText
+  // (e.g. skills set it to their name only). Hidden aliases may still expand search.
+  if (item.filterText) {
+    return item.searchAliases ? `${item.filterText} ${item.searchAliases.join(' ')}` : item.filterText
+  }
 
   const parts: string[] = []
   if (typeof item.label === 'string') parts.push(item.label)
   if (typeof item.description === 'string') parts.push(item.description)
+  if (item.searchAliases) parts.push(...item.searchAliases)
   return parts.join(' ')
 }
 
+function getPinyinSearchText(matchText: string) {
+  const pinyinWords = tinyPinyin.convertToPinyin(matchText, ' ', true).toLowerCase().split(/\s+/).filter(Boolean)
+  const pinyinText = pinyinWords.join('')
+  const pinyinInitials = pinyinWords.map((word) => word[0] ?? '').join('')
+  return `${pinyinText} ${pinyinInitials}`
+}
+
 /**
- * Root panel filter: substring match, plus pinyin substring for Chinese text.
- * Intentionally avoids the default loose fuzzy subsequence matching so unrelated
- * rows (e.g. Quick Phrases) don't surface for a query typed for another item.
+ * Root panel filter: substring match, plus pinyin and pinyin-initial substring
+ * matching for Chinese text. Intentionally avoids loose fuzzy subsequence matching
+ * so unrelated rows (e.g. Quick Phrases) don't surface for another item's query.
  */
 const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuzzyRegex, pinyinCache) => {
   if (!searchText) return true
@@ -169,7 +178,7 @@ const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuz
   if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(matchText)) {
     let pinyinText = pinyinCache.get(item)
     if (pinyinText === undefined) {
-      pinyinText = tinyPinyin.convertToPinyin(matchText, '', true).toLowerCase()
+      pinyinText = getPinyinSearchText(matchText)
       pinyinCache.set(item, pinyinText)
     }
     return pinyinText.includes(query)
@@ -247,10 +256,12 @@ function createUnifiedPanelListItem(
   const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
 
   return {
+    id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
     icon: launcher.icon,
     suffix: launcher.suffix,
+    searchAliases: launcher.searchAliases,
     isSelected: launcher.active,
     isMenu: launcher.kind === 'panel' || launcher.kind === 'group' || children.length > 0,
     disabled: launcher.disabled,
@@ -401,6 +412,7 @@ export function createUnifiedQuickPanelOpenOptions(
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
+    initialSearchText?: string
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
@@ -452,6 +464,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: true,
+    initialSearchText: options.initialSearchText,
     filterFn: filterUnifiedQuickPanelItems,
     sortFn: sortUnifiedQuickPanelItems
   }

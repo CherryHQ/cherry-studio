@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import { KNOWLEDGE_BASES_MAX_LIMIT, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   getKnowledgeItemDisplayTitle,
@@ -360,14 +360,6 @@ export class KnowledgeService extends BaseService {
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
-    // Restore always supplies an embedding model (RestoreKnowledgeBaseSchema requires
-    // it). A BM25-only source's searchMode is pinned to 'bm25' by the no-model
-    // invariant, so carrying it over would leave the restored base's semantic search
-    // silently disabled despite it now paying for the full embedding backfill. Drop
-    // it (and the always-null hybridAlpha) so create() applies its own hybrid
-    // default; a source that already had a model keeps its existing preference.
-    const gainsEmbeddings = sourceBase.embeddingModelId === null
-
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
       dimensions: dto.dimensions,
@@ -378,8 +370,6 @@ export class KnowledgeService extends BaseService {
       chunkOverlap: sourceBase.chunkOverlap,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
-      searchMode: gainsEmbeddings ? undefined : sourceBase.searchMode,
-      hybridAlpha: gainsEmbeddings ? undefined : sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
@@ -475,6 +465,36 @@ export class KnowledgeService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
+  async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+    const rootItemIds = rootItems.map((item) => item.id)
+
+    if (rootItemIds.length > 0) {
+      this.assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    }
+
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+
+    if (rootItemIds.length > 0) {
+      await this.reindexItems(baseId, rootItemIds)
+    }
+
+    return updatedBase
+  }
+
   listBases(): KnowledgeBase[] {
     const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
     return items
@@ -502,10 +522,10 @@ export class KnowledgeService extends BaseService {
     }
 
     const base = knowledgeBaseService.getById(baseId)
-    // Stored search mode and the index store's mode are the same enum now, so no mapping.
-    // Vector/hybrid retrieval needs an embedding model; a base without one is BM25-only
-    // regardless of its stored preference.
-    const mode = isCompletedVectorKnowledgeBase(base) ? base.searchMode : 'bm25'
+    // Vector/hybrid retrieval needs an embedding model; a base without one is
+    // BM25-only. This is a fixed runtime policy, not a stored preference — mode is
+    // computed fresh every call, so it can never drift out of sync with the base.
+    const mode = isCompletedVectorKnowledgeBase(base) ? 'hybrid' : 'bm25'
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
@@ -519,21 +539,23 @@ export class KnowledgeService extends BaseService {
         queryText: query,
         queryEmbedding,
         mode,
-        topK: candidateLimit,
-        alpha: base.hybridAlpha
+        topK: candidateLimit
       })
     )
 
-    const scoreKind = getInitialSearchScoreKind(base)
+    const scoreKind = getInitialSearchScoreKind(mode)
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
-    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
-      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
+      const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
+    } else {
+      // If we don't need to rerank, we can just trim the results right here.
+      const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
     }
-
-    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {

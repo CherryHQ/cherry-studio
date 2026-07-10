@@ -1,28 +1,11 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentSessionWorkspaceSource, AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
-export type DraftAgentWorkspacePreview = Pick<AgentWorkspaceEntity, 'type'> &
-  Partial<Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path'>>
-
-export type DraftAgentSessionDefaults = {
+export type CreateAgentSessionDefaults = {
   agentId?: string | null
   workspace?: AgentSessionWorkspaceSource
   workspaceId?: string
   workspaceMode?: 'system'
+  // Id of a session being replaced (post-delete): excluded from empty-session reuse so a stale
+  // candidate list can't reactivate the just-deleted session instead of creating a fresh one.
+  excludeReuseSessionId?: string
 }
-
-export type DraftAgentSession = {
-  agentId: string
-  workspaceSource: AgentSessionWorkspaceSource
-  workspace?: DraftAgentWorkspacePreview
-}
-
-export type PersistentAgentSessionConversation = {
-  sessionId: string
-  topicId: string
-  agentId: string
-  name: string
-  session: AgentSessionEntity
-}
-
-export type EnsurePersistentSession = (initialName?: string) => Promise<PersistentAgentSessionConversation | null>

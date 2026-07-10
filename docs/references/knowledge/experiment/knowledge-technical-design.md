@@ -157,9 +157,7 @@ A vector base's `knowledge_base.embeddingModelId` / `dimensions` must be valid t
 
 ### 6.1 search() wiring and retrieval tuning
 
-`searchMode` / `hybridAlpha` / `documentCount` / `threshold` are all **base-level configuration** (`knowledge_base` columns) for now; `search()` reads them from the base row (result cap `documentCount ?? 10`).
-
-> **Decision note (2026-06-10)**: `hybridAlpha` describes whether a base's corpus leans lexical or semantic — a stable property of the base, not something the model should guess per call — so it stays a base column with the RagConfig slider (configurable only in hybrid mode; cleared when `searchMode` moves away). `threshold` only applies to relevance-scored hits (vector mode, or after rerank) and is a no-op for BM25/RRF ranking scores (`applyRelevanceThreshold` in `utils/search.ts`). Researched and decided, but **deferred to a later PR**: `topK` / `threshold` become per-call knobs (`KnowledgeSearchOptions`, exposed through `kb__search` arguments and REST `top_k`), and the `documentCount` column is removed with them. That refactor was implemented during PR A's development and then deliberately carved out to keep PR A reviewable; it will be re-done on top of the merged PR A in the per-call-tuning PR — the paragraph above records the agreed design so nothing depends on any developer-local state.
+`documentCount` and `threshold` are the base-level retrieval tuning columns left; `search()` reads `documentCount` from the base row as the result cap (`documentCount ?? 10`) and applies `threshold` as a relevance cutoff on scored hits (`applyRelevanceThreshold` in `utils/search.ts` — it filters vector-mode or post-rerank relevance scores and is a no-op for BM25/RRF ranking scores). Retrieval mode is derived at runtime: bases with a completed vector config use hybrid retrieval, and bases without an embedding model fall back to BM25.
 
 ### 6.2 Legacy result shape mapping
 
@@ -185,5 +183,5 @@ A vector base's `knowledge_base.embeddingModelId` / `dimensions` must be valid t
   - Startup-recovery cross-cancellation: a crash-recovered delete-subtree job and the `recoverDeletingItems` re-enqueue get different idempotency keys and cancel each other via roots-intersection (`jobTouchesSubtree`); cancel only jobs whose roots are fully covered by the current job's roots.
   - Hybrid search runs its two lanes as independent read snapshots; a rebuild committing between them can transiently return both copies of a chunk — close with a shared read transaction or a second dedupe by material id + unit index.
   - The per-base index driver's `close()` no longer needs to take a write mutex: better-sqlite3 uses one synchronous, persistent connection and per-base writes are serialized by `KnowledgeLockManager.withBaseMutationLock(baseId)`, so there is no driver-level async write mutex to race — shutdown safety rests on JobManager draining before the store service stops.
-  - Retrieval-surface follow-ups (PR C): the `searchMode` `default`→`vector` rename is externally visible through the gateway's pass-through base entity, and a permanent open failure (legacy layout) currently maps to a retryable 503.
+  - Retrieval-surface follow-ups (PR C): permanent open failure for a legacy layout currently maps to a retryable 503.
 - PR A's full test matrix and risk notes live in this repo's test suites (`src/main/features/knowledge/**/__tests__`) and the PR #15973 description.

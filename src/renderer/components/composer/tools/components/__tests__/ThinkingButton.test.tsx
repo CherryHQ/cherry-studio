@@ -1,4 +1,5 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
@@ -14,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   isGPT5SeriesReasoningModel: vi.fn(),
   isOpenAIWebSearchModel: vi.fn(),
   isReasoningModel: vi.fn(),
-  toastWarning: vi.fn(),
   useAssistant: vi.fn()
 }))
 
@@ -163,7 +163,6 @@ const renderRuntime = (
 describe('ThinkingToolRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = { warning: mocks.toastWarning }
   })
 
   it('registers only the runtime launcher for the plus menu', async () => {
@@ -251,7 +250,7 @@ describe('ThinkingToolRuntime', () => {
         source: 'popover'
       })
 
-    expect(mocks.toastWarning).toHaveBeenCalledWith('Cannot use minimal reasoning with web search')
+    expect(toast.warning).toHaveBeenCalledWith('Cannot use minimal reasoning with web search')
     expect(updateAssistantSettings).not.toHaveBeenCalled()
   })
 })

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 import { ResourceGrid } from './ResourceGrid'
+import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
 
 type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
@@ -88,6 +89,11 @@ export function ResourceCatalogView({
       <ImportSkillDialog
         open={dialogs.skillImportOpen}
         onOpenChange={dialogs.setSkillImportOpen}
+        onInstalled={refetch}
+      />
+      <SkillMarketplaceDialog
+        open={dialogs.skillMarketplaceOpen}
+        onOpenChange={dialogs.setSkillMarketplaceOpen}
         onInstalled={refetch}
       />
       <ResourceCreateWizard

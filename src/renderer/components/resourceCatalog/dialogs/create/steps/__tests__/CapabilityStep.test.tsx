@@ -15,8 +15,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: [
-      { id: 'skill-a', name: 'Alpha Skill' },
-      { id: 'skill-b', name: 'Beta Skill' }
+      { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local' },
+      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
     ],
     loading: false,
     refresh: refreshMock
@@ -61,5 +62,21 @@ describe('CapabilityStep', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
+  })
+
+  it('shows builtin skills pre-checked and locked, and never adds them to skillIds', async () => {
+    const user = userEvent.setup()
+    render(<CapabilityStepHarness />)
+
+    const builtinCheckbox = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    expect(builtinCheckbox).toBeChecked()
+    expect(builtinCheckbox).toBeDisabled()
+
+    await user.click(builtinCheckbox)
+    expect(builtinCheckbox).toBeChecked()
+    expect(screen.getByTestId('skill-ids').textContent).toBe('')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    expect(screen.getByTestId('skill-ids').textContent).toBe('skill-a')
   })
 })

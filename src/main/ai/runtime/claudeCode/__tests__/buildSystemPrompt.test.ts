@@ -54,7 +54,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
-vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
+vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
 }))
 
@@ -76,18 +76,20 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     mockFindBySessionId.mockResolvedValue(null)
   })
 
-  it('appends the report_artifacts prompt in standard mode with user instructions', async () => {
+  it('appends the report_artifacts prompt with user instructions (raw-string path)', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
-    const append = (result as { append: string }).append
-    expect(append).toContain('Do the task.')
-    expect(append).toContain(ARTIFACTS_MARKER)
+    // Every agent returns a raw string (not a `{ type: 'preset', append }` object) that carries the
+    // soul prompt + user instructions + the artifacts block.
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('SOUL_PROMPT')
+    expect(result as string).toContain('Do the task.')
+    expect(result as string).toContain(ARTIFACTS_MARKER)
   })
 
-  it('appends the report_artifacts prompt in standard mode without user instructions', async () => {
+  it('appends the report_artifacts prompt without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(ARTIFACTS_MARKER)
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain(ARTIFACTS_MARKER)
   })
 
   it('does not append it for the Cherry Assistant (parity with feat/chat-page)', async () => {
@@ -98,17 +100,6 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(ARTIFACTS_MARKER)
   })
-
-  it('appends the report_artifacts prompt in soul mode (raw-string path)', async () => {
-    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    // Soul mode returns a raw string (not the standard `{ type: 'preset', append }` object), so it's a
-    // distinct path that must still carry the soul prompt + user instructions + the artifacts block.
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('SOUL_PROMPT')
-    expect(result as string).toContain('Soul task.')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
-  })
 })
 
 describe('buildSystemPrompt — bundled-runtime guidance', () => {
@@ -116,24 +107,16 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     mockFindBySessionId.mockResolvedValue(null)
   })
 
-  it('steers the agent to bun/uv in standard mode with user instructions', async () => {
+  it('steers the agent to bun/uv with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(RUNTIME_MARKER)
+    expect(result as string).toContain(RUNTIME_MARKER)
     // The model is told to use bun / uv explicitly, not node/npm/pip.
-    expect(append).toContain('bun')
-    expect(append).toContain('uv run python')
+    expect(result as string).toContain('bun')
+    expect(result as string).toContain('uv run python')
   })
 
-  it('steers the agent to bun/uv in standard mode without user instructions', async () => {
+  it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(RUNTIME_MARKER)
-  })
-
-  it('steers the agent to bun/uv in soul mode', async () => {
-    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(result as string).toContain(RUNTIME_MARKER)
   })
 

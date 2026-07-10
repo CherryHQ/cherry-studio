@@ -5,7 +5,7 @@ import {
   type ChatTokenView
 } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
-import { GripVertical, Pause, Pencil, Play, X, Zap } from 'lucide-react'
+import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { FollowupQueueItem } from './useFollowupQueue'
@@ -82,7 +82,7 @@ function QueuedFollowupRow({
             className="size-7 shadow-none"
             aria-label={t('chat.input.followup_queue.steer')}
             onClick={() => onSteer(item.id)}>
-            <Zap className="size-4" />
+            <ArrowUp className="size-4" />
           </Button>
         </Tooltip>
         <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>

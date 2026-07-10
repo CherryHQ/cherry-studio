@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { isTranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -25,7 +26,7 @@ export const useTranslateLanguages = (options?: {
     if (error && !toastedRef.current) {
       toastedRef.current = true
       logger.error('Failed to load translate languages', error)
-      window.toast?.error(t('translate.error.languages_load_failed'))
+      toast.error(t('translate.error.languages_load_failed'))
     }
   }, [error, t])
 

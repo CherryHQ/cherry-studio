@@ -63,7 +63,8 @@ export const zhCN = {
           title: '安全且可重试',
           description: '旧版数据会保留在磁盘中，迁移失败后可重新尝试。'
         }
-      }
+      },
+      data_location: '数据迁移目录：{{path}}'
     },
     skip_dialog: {
       title: '跳过数据迁移',
@@ -190,7 +191,8 @@ export const enUS = {
           title: 'Safe and Retryable',
           description: 'Your legacy data stays on disk, so you can retry if a migration fails.'
         }
-      }
+      },
+      data_location: 'Data migration directory: {{path}}'
     },
     skip_dialog: {
       title: 'Skip Data Migration',

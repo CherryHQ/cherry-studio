@@ -415,8 +415,17 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage }) =>
-    !!actions.startMessageBranch && isAssistantMessage && !isLastMessage
+  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+    if (!actions.startMessageBranch || !isAssistantMessage) return false
+    if (isLastMessage) {
+      return {
+        visible: true,
+        enabled: false,
+        reason: t('chat.message.new.branch.disabled.latest')
+      }
+    }
+    return true
+  }
 })
 
 registerAction({

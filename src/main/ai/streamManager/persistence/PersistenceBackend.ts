@@ -93,6 +93,12 @@ export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
 
+  /**
+   * True for backends that finalize a pre-created placeholder row. They must
+   * still write terminal status when a stream is paused before producing chunks.
+   */
+  readonly canPersistEmptyTerminal?: boolean
+
   persistAssistant(input: PersistAssistantInput): void
 
   /**

@@ -72,6 +72,10 @@ const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.1
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
+// `mise latest` for github: backends hits the rate-limited GitHub releases API,
+// so lookups stay off the boot path and run with a small concurrency bound.
+const LATEST_VERSIONS_CONCURRENCY = 4
+
 // Single source of truth for tools shipped inside the app and extracted at
 // boot. `internal` marks infrastructure (mise) excluded from the UI probe.
 // Binary names are base names; .exe is appended on Windows at use sites.
@@ -107,6 +111,7 @@ export class BinaryManager extends BaseService {
   // Serializes state read-modify-write across reconcile/install/remove so
   // concurrent callers can't clobber state.json or each other's mise mutations.
   private readonly stateMutex = new Mutex()
+  private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
   protected async onInit() {
     await this.extractBundledBinaries()
@@ -471,6 +476,7 @@ export class BinaryManager extends BaseService {
     const tmp = statePath + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
+    application.get('CacheService').deleteShared('feature.binary.latest_versions')
     application.get('IpcApiService').broadcast('binary.state_changed', state)
   }
 
@@ -599,6 +605,79 @@ export class BinaryManager extends BaseService {
     }
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
+  }
+
+  /**
+   * Latest available registry version for each mise-managed tool (name → version).
+   * On demand only — never during boot or reconcile — because `mise latest` for
+   * github: backends hits the rate-limited GitHub releases API. Runs with a
+   * small worker pool; tools whose lookup fails are omitted.
+   *
+   * Stored in shared CacheService state for the current app session. A non-force
+   * read is cache-only; only force=true runs `mise latest`.
+   */
+  async getLatestVersions(force = false): Promise<Record<string, string>> {
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.getShared('feature.binary.latest_versions')
+    if (!force) {
+      return cached || {}
+    }
+    if (this.latestVersionsPromise) {
+      return this.latestVersionsPromise
+    }
+    this.latestVersionsPromise = this.fetchLatestVersions().finally(() => {
+      this.latestVersionsPromise = null
+    })
+    return this.latestVersionsPromise
+  }
+
+  private async fetchLatestVersions(): Promise<Record<string, string>> {
+    const state = this.loadState()
+    const result: Record<string, string> = {}
+    if (!this.miseBin) {
+      return result
+    }
+
+    // Drop the result if the managed set drifted mid-batch.
+    const snapshot = Object.entries(state.tools)
+      .map(([name, { tool }]) => `${name}@${tool}`)
+      .join('|')
+    let cursor = 0
+    const entries = Object.entries(state.tools)
+    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, entries.length) }, async () => {
+      while (cursor < entries.length) {
+        const [name, { tool }] = entries[cursor++]
+        try {
+          const { stdout } = await this.runMise(['latest', tool])
+          const version = stdout.trim().split(/\r?\n/)[0]?.trim()
+          if (version) result[name] = version
+        } catch (err) {
+          logger.warn('Failed to query latest version', {
+            name,
+            tool,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+    })
+    await Promise.all(workers)
+
+    // Every lookup failed (offline, rate-limited, …) — surface the failure so the
+    // caller can distinguish "nothing newer" from "couldn't check at all".
+    if (entries.length > 0 && Object.keys(result).length === 0) {
+      throw new Error('Failed to query latest versions for all managed tools')
+    }
+
+    return this.stateMutex.runExclusive(async () => {
+      const current = Object.entries(this.loadState().tools)
+        .map(([name, { tool }]) => `${name}@${tool}`)
+        .join('|')
+      if (current !== snapshot) {
+        return {}
+      }
+      application.get('CacheService').setShared('feature.binary.latest_versions', result)
+      return result
+    })
   }
 
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {

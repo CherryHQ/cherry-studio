@@ -521,13 +521,14 @@ export class AssistantDataService {
    * Tag bindings are intentionally removed during delete, so restoring a
    * soft-deleted assistant does not restore its previous tags.
    */
-  delete(id: string, options: { deleteTopics?: boolean } = {}): void {
+  delete(id: string, options: { deleteTopics?: boolean } = {}): { deleted: boolean; deletedTopicIds?: string[] } {
+    let deletedTopicIds: string[] | undefined
     const deleted = application.get('DbService').withWriteTx((tx) => {
       const didDelete = this.deleteTx(tx, id)
       if (!didDelete) return false
 
       if (options.deleteTopics === true) {
-        topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+        deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
       }
 
       return true
@@ -538,6 +539,7 @@ export class AssistantDataService {
     }
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    return { deleted, deletedTopicIds }
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {

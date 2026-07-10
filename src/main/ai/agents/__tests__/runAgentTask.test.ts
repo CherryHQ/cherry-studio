@@ -58,7 +58,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: { getById: vi.fn() }
 }))
-vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
+vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
 }))
 
@@ -68,7 +68,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 
 import { runAgentTask } from '../runAgentTask'
@@ -225,6 +225,21 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
+  it('skips assistant heartbeat WITHOUT creating a session', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(
+      makeAgent({ builtin_role: 'assistant', heartbeat_enabled: true })
+    )
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (assistant role)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
+    expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
   it('skips an enabled heartbeat with system workspace WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
@@ -303,6 +318,9 @@ describe('runAgentTask', () => {
       name: 'heartbeat',
       workspace: { type: 'user', workspaceId: 'ws-1' }
     })
+    // Scheduled runs have no interactive responder — the dispatch must be headless so AskUserQuestion
+    // stays disallowed and the run can't stall on an approval prompt.
+    expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ headless: true }))
   })
 
   // Regular tasks carry the workspace bound at creation time (system by
@@ -349,6 +367,37 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ sessionId: 'sess-new', result: 'Hello world' })
   })
 
+  it('builds listeners only for subscribed channels owned by the task agent', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch-match', agentId: 'a1' },
+      { id: 'ch-foreign', agentId: 'a2' }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch-match',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => true)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
+
+    expect(mockGetAdapter).toHaveBeenCalledTimes(1)
+    expect(mockGetAdapter).toHaveBeenCalledWith('ch-match')
+    expect(captured.listeners).toHaveLength(2)
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
@@ -357,7 +406,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([{ id: 'ch1' }] as never)
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([{ id: 'ch1', agentId: 'a1' }] as never)
 
     const adapter = {
       channelId: 'ch1',

@@ -6,8 +6,10 @@ import { useProviderModelSync } from '../useProviderModelSync'
 
 const dataApiGetMock = vi.fn()
 const useModelsMock = vi.fn()
+const useProviderMock = vi.fn()
 const createModelsMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
+const resolveCreateModelEndpointTypesMock = vi.fn()
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -23,12 +25,18 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: (...args: any[]) => useProviderMock(...args)
+}))
+
 vi.mock('../../utils/modelSync', () => ({
   fetchResolvedProviderModels: (...args: any[]) => fetchResolvedProviderModelsMock(...args),
-  toCreateModelDto: (_providerId: string, model: any) => ({
+  resolveCreateModelEndpointTypes: (...args: any[]) => resolveCreateModelEndpointTypesMock(...args),
+  toCreateModelDto: (_providerId: string, model: any, endpointTypes: any) => ({
     providerId: model.providerId,
     modelId: model.id.split(':')[1],
-    name: model.name
+    name: model.name,
+    endpointTypes
   })
 }))
 
@@ -36,8 +44,10 @@ describe('useProviderModelSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useModelsMock.mockReturnValue({ models: [] })
+    useProviderMock.mockReturnValue({ provider: { id: 'openai' } })
     createModelsMock.mockResolvedValue([])
     dataApiGetMock.mockResolvedValue([])
+    resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
   })
 
   it('disables fallback model fetching when existing models are supplied', async () => {
@@ -96,5 +106,30 @@ describe('useProviderModelSync', () => {
     })
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
     expect(createModelsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves endpoint types with the current provider before creating models', async () => {
+    const provider = { id: 'new-api', defaultChatEndpoint: 'openai-chat-completions' }
+    const model = { id: 'new-api:model-alpha', providerId: 'new-api', name: 'Alpha' }
+    useProviderMock.mockReturnValue({ provider })
+    fetchResolvedProviderModelsMock.mockResolvedValue([model])
+    resolveCreateModelEndpointTypesMock.mockReturnValue(['openai-chat-completions'])
+    createModelsMock.mockResolvedValue([{ id: 'new-api:model-alpha' }])
+
+    const { result } = renderHook(() => useProviderModelSync('new-api', { existingModels: [] }))
+
+    await act(async () => {
+      await result.current.syncProviderModels()
+    })
+
+    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith(provider, model)
+    expect(createModelsMock).toHaveBeenCalledWith([
+      {
+        providerId: 'new-api',
+        modelId: 'model-alpha',
+        name: 'Alpha',
+        endpointTypes: ['openai-chat-completions']
+      }
+    ])
   })
 })

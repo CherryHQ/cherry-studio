@@ -6,6 +6,7 @@ interface ProviderSettingsDrawerProps {
   open: boolean
   onClose: () => void
   title: ReactNode
+  titleActions?: ReactNode
   description?: ReactNode
   footer?: ReactNode
   children?: ReactNode
@@ -23,6 +24,7 @@ export default function ProviderSettingsDrawer({
   open,
   onClose,
   title,
+  titleActions,
   description,
   footer,
   children,
@@ -34,12 +36,16 @@ export default function ProviderSettingsDrawer({
 }: ProviderSettingsDrawerProps) {
   const { t } = useTranslation()
 
-  const header = description ? (
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="font-semibold text-base text-foreground">{title}</span>
-      <span className="text-foreground-muted text-xs leading-tight">{description}</span>
-    </div>
-  ) : undefined
+  const header =
+    description || titleActions ? (
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="font-semibold text-base text-foreground">{title}</span>
+          {description ? <span className="text-foreground-muted text-xs leading-tight">{description}</span> : null}
+        </div>
+        {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
+      </div>
+    ) : undefined
 
   return (
     <PageSidePanel

@@ -81,15 +81,6 @@
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
-### CherryClaw (Autonomous Agent)
-
-| Document | Description |
-|----------|-------------|
-| [CherryClaw Overview](./references/cherryclaw/overview.md) | Architecture, memory system, API |
-| [Channel System](./references/cherryclaw/channels.md) | IM integration (Telegram, etc.) |
-| [Claw MCP Server](./references/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
-| [Scheduler](./references/cherryclaw/scheduler.md) | Task-based polling scheduler |
-
 ### Components
 
 | Document | Description |

@@ -131,17 +131,7 @@ export class WebviewService extends BaseService {
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) => {
-      const webview = webContents.fromId(webviewId)
-      if (!webview) return
-
-      webview.setWindowOpenHandler(({ url }) => {
-        if (isExternal) {
-          void shell.openExternal(url)
-          return { action: 'deny' as const }
-        } else {
-          return { action: 'allow' as const }
-        }
-      })
+      setOpenLinkExternal(webviewId, isExternal)
     })
 
     this.ipcHandle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {

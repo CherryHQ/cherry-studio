@@ -552,14 +552,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     [editor, onShowTableActionMenu]
   )
 
-  useEffect(() => {
-    return () => {
-      if (editor && !editor.isDestroyed) {
-        editor.destroy()
-      }
-    }
-  }, [editor])
-
   const formattingState = useEditorState({
     editor,
     selector: ({ editor }) => {

@@ -17,16 +17,18 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCard } from './ResourceCards'
+import { ResourceCatalogSearchInput } from './ResourceCatalogSearchInput'
 
 const logger = loggerService.withContext('ResourceGrid')
 
@@ -47,6 +49,7 @@ interface Props {
   onImportAssistant: () => void
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
+  onOpenSkillMarketplace: () => void
   tags: TagItem[]
   activeTag: string | null
   onTagFilter: (tagName: string | null) => void
@@ -125,6 +128,28 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
   )
 }
 
+interface SkillAddActionsProps {
+  onSearchMarketplace: () => void
+  onImportLocal: () => void
+}
+
+function SkillAddActions({ onSearchMarketplace, onImportLocal }: SkillAddActionsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <Button variant="default" size="sm" onClick={onSearchMarketplace} className="shrink-0">
+        <Search size={12} className="lucide-custom" />
+        <span>{t('library.skill_add.online_search')}</span>
+      </Button>
+      <Button variant="outline" size="sm" onClick={onImportLocal} className="shrink-0">
+        <Upload size={12} />
+        <span>{t('library.skill_add.local_import')}</span>
+      </Button>
+    </>
+  )
+}
+
 export const ResourceGrid: FC<Props> = ({
   resources,
   isLoading = false,
@@ -138,6 +163,7 @@ export const ResourceGrid: FC<Props> = ({
   onCreate,
   onImportAssistant,
   onOpenAssistantLibrary,
+  onOpenSkillMarketplace,
   tags,
   activeTag,
   onTagFilter,
@@ -189,7 +215,7 @@ export const ResourceGrid: FC<Props> = ({
       setShowAddTag(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to create tag', error instanceof Error ? error : new Error(String(error)), {
         name: trimmed
       })
@@ -220,7 +246,7 @@ export const ResourceGrid: FC<Props> = ({
       setRenamingTag(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to rename tag', error instanceof Error ? error : new Error(String(error)), {
         id: tag.id,
         name: tag.name,
@@ -242,7 +268,7 @@ export const ResourceGrid: FC<Props> = ({
       setDeletingTag(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to delete tag', error instanceof Error ? error : new Error(String(error)), {
         id: tag.id,
         name: tag.name
@@ -257,25 +283,12 @@ export const ResourceGrid: FC<Props> = ({
       <div className="flex shrink-0 flex-col border-border-muted border-b">
         <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 px-2">
           {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
-          <div className="relative max-w-64 flex-1">
-            <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
-            <Input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={t('library.toolbar.search_placeholder')}
-              className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
-            />
-            {search && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.clear')}
-                onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
-                <X size={12} />
-              </Button>
-            )}
-          </div>
+          <ResourceCatalogSearchInput
+            value={search}
+            onValueChange={onSearchChange}
+            placeholder={t('library.toolbar.search_placeholder')}
+            className="max-w-64 flex-1"
+          />
 
           <div className="flex-1" />
 
@@ -287,10 +300,7 @@ export const ResourceGrid: FC<Props> = ({
                 onOpenLibrary={onOpenAssistantLibrary}
               />
             ) : activeResourceType === 'skill' ? (
-              <Button variant="default" size="sm" onClick={() => onCreate('skill')} className="shrink-0">
-                <Upload size={12} className="lucide-custom" />
-                <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
-              </Button>
+              <SkillAddActions onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
             ) : (
               <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
                 <Plus size={12} className="lucide-custom" />

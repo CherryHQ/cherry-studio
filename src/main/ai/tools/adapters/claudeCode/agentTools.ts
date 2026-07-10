@@ -139,8 +139,9 @@ export interface ClaudeAgentToolPolicySnapshot {
 export async function createClaudeAgentToolPolicySnapshot(
   agent: AgentEntity,
   options: {
+    autoAllowRuntimeNames?: readonly string[]
     autoAllowRuntimeNamePrefixes?: readonly string[]
-    // Runtime names that match an auto-allow prefix but must still require per-call approval
+    // Runtime names that match an auto-allow list/prefix but must still require per-call approval
     // (e.g. mutating cherry-tools like kb_manage). Checked against the full runtime name.
     autoAllowRuntimeNameExceptions?: readonly string[]
     conditionContext?: ClaudeToolContext
@@ -183,12 +184,13 @@ export async function createClaudeAgentToolPolicySnapshot(
 
   return {
     resolve(runtimeName, input) {
-      if (options.autoAllowRuntimeNamePrefixes?.some((prefix) => runtimeName.startsWith(prefix))) {
-        // A mutating injected tool (e.g. kb_manage) matches the prefix but is excepted from
-        // auto-approval — resolve it as prompt-required so canUseTool emits an approval request.
-        if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
-          return injectedRuntimeToolRequiringApproval(runtimeName)
-        }
+      if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
+        return injectedRuntimeToolRequiringApproval(runtimeName)
+      }
+      if (
+        options.autoAllowRuntimeNames?.includes(runtimeName) ||
+        options.autoAllowRuntimeNamePrefixes?.some((prefix) => runtimeName.startsWith(prefix))
+      ) {
         return injectedRuntimeTool(runtimeName)
       }
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)

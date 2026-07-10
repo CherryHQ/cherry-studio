@@ -38,7 +38,7 @@ describe('PlaceholderBlock', () => {
     expect(screen.getByTestId('message-status-placeholder')).toBeInTheDocument()
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Preparing response')
     expect(screen.getByTestId('message-status-text')).toHaveClass('animation-shimmer')
-    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent(/0\.\d seconds/)
+    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent('0 seconds')
     expect(container.querySelector('svg')).toBeNull()
   })
 
@@ -54,7 +54,7 @@ describe('PlaceholderBlock', () => {
 
     render(<PlaceholderBlock isProcessing createdAt="2026-01-01T00:00:09.300Z" />)
 
-    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent('1.2 seconds')
+    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent('1 seconds')
   })
 
   it('formats elapsed time across seconds, minutes, hours, and days', () => {
@@ -67,10 +67,10 @@ describe('PlaceholderBlock', () => {
       )
     }
 
-    expect(formatPlaceholderElapsed(9_123, t)).toBe('9.1 seconds')
-    expect(formatPlaceholderElapsed(65_456, t)).toBe('1 minutes 5.4 seconds')
-    expect(formatPlaceholderElapsed(3_665_789, t)).toBe('1 hours 1 minutes 5.7 seconds')
-    expect(formatPlaceholderElapsed(90_065_987, t)).toBe('1 days 1 hours 1 minutes 5.9 seconds')
+    expect(formatPlaceholderElapsed(9_123, t)).toBe('9 seconds')
+    expect(formatPlaceholderElapsed(65_456, t)).toBe('1 minutes 5 seconds')
+    expect(formatPlaceholderElapsed(3_665_789, t)).toBe('1 hours 1 minutes 6 seconds')
+    expect(formatPlaceholderElapsed(90_065_987, t)).toBe('1 days 1 hours 1 minutes 6 seconds')
   })
 
   it('renders nothing when the message is not processing', () => {

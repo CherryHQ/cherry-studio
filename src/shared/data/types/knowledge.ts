@@ -62,11 +62,6 @@ export const KNOWLEDGE_ITEM_STATUSES = [
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_SEARCH_MODES = ['vector', 'bm25', 'hybrid'] as const
-export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
-export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
-export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
-
 export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
 export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
 export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
@@ -112,7 +107,6 @@ export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema
 export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
-export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
@@ -146,8 +140,6 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   chunkSeparator: KnowledgeChunkSeparatorSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema,
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -171,16 +163,6 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
         message: 'Embedding model and dimensions must be set together'
       })
     }
-
-    // Vector and hybrid retrieval both need an embedding model. A BM25-only base
-    // (no embedding model) can only search lexically.
-    if (value.embeddingModelId === null && value.searchMode !== 'bm25') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['searchMode'],
-        message: 'A knowledge base without an embedding model must use bm25 search mode'
-      })
-    }
   }
 
   if (value.status === 'failed' && value.error === null) {
@@ -196,14 +178,6 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       code: 'custom',
       path: ['chunkOverlap'],
       message: 'Chunk overlap must be smaller than chunk size'
-    })
-  }
-
-  if (value.hybridAlpha != null && value.searchMode !== 'hybrid') {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['hybridAlpha'],
-      message: 'Hybrid alpha requires hybrid search mode'
     })
   }
 })
@@ -567,9 +541,7 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   chunkStrategy: KnowledgeChunkStrategySchema.optional(),
   chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
-  documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
+  documentCount: KnowledgeDocumentCountSchema.optional()
 })
 
 const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
@@ -580,16 +552,6 @@ const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSch
       code: 'custom',
       path: ['dimensions'],
       message: 'Embedding model and dimensions must be provided together'
-    })
-  }
-
-  // A non-bm25 mode requested without an embedding model is invalid: vector and
-  // hybrid retrieval both need embeddings, so a BM25-only base must search lexically.
-  if (value.embeddingModelId == null && value.searchMode != null && value.searchMode !== 'bm25') {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['searchMode'],
-      message: 'A knowledge base without an embedding model must use bm25 search mode'
     })
   }
 

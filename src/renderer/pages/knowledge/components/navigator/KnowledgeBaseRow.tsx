@@ -2,7 +2,7 @@ import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
-import { ArrowRightLeft, PencilLine, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +15,7 @@ const KnowledgeBaseRow = ({
   onSelectBase,
   onMoveBase,
   onRenameBase,
+  onCreateGroup,
   onDeleteBase
 }: KnowledgeBaseRowProps) => {
   const { t } = useTranslation()
@@ -33,6 +34,10 @@ const KnowledgeBaseRow = ({
   const handleRenameBase = useCallback(() => {
     onRenameBase({ id: base.id, name: base.name })
   }, [base.id, base.name, onRenameBase])
+
+  const handleCreateGroup = useCallback(() => {
+    onCreateGroup(base.id)
+  }, [base.id, onCreateGroup])
 
   const handleRequestDelete = useCallback(() => {
     setIsDeleteDialogOpen(true)
@@ -75,8 +80,27 @@ const KnowledgeBaseRow = ({
             id: `move-to-${group.id}`,
             label: group.name,
             onSelect: () => void handleMoveBase(group.id)
-          }))
+          })),
+          { type: 'separator' as const },
+          // Creating a group from here also moves this base into it (see
+          // KnowledgePageProvider.submitCreateGroup), same as the top-level entry below.
+          {
+            type: 'item' as const,
+            id: 'create-group',
+            label: t('knowledge.groups.add'),
+            onSelect: handleCreateGroup
+          }
         ]
+      })
+    } else {
+      // No group exists and the base is ungrouped — no move targets to offer, so
+      // surface group creation directly (the sole entry point for the first group).
+      items.push({
+        type: 'item',
+        id: 'create-group',
+        label: t('knowledge.groups.add'),
+        icon: <FolderPlus className="size-3.5" />,
+        onSelect: handleCreateGroup
       })
     }
 
@@ -91,7 +115,7 @@ const KnowledgeBaseRow = ({
     })
 
     return items
-  }, [availableGroups, canMoveToUngrouped, handleMoveBase, handleRenameBase, handleRequestDelete, t])
+  }, [availableGroups, canMoveToUngrouped, handleCreateGroup, handleMoveBase, handleRenameBase, handleRequestDelete, t])
 
   return (
     <>

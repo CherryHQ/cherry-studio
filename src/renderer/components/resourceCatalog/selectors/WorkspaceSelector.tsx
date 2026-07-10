@@ -9,6 +9,7 @@ import {
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -120,7 +121,7 @@ export function WorkspaceSelector({
       folderPath = await window.api.file.selectFolder({ properties: ['openDirectory', 'createDirectory'] })
     } catch (error) {
       logger.error('Failed to select workspace folder', error as Error)
-      window.toast?.error(t('agent.session.workspace_selector.select_failed'))
+      toast.error(t('agent.session.workspace_selector.select_failed'))
       return
     }
 
@@ -132,7 +133,7 @@ export function WorkspaceSelector({
       await onChange(workspace.id)
     } catch (error) {
       logger.error('Failed to create workspace from folder', error as Error, { folderPath })
-      window.toast?.error(t('agent.session.workspace_selector.create_failed'))
+      toast.error(t('agent.session.workspace_selector.create_failed'))
     }
   }, [createWorkspace, handleOpenChange, onChange, refetch, t])
 

@@ -26,7 +26,7 @@ vi.mock('node:fs', async () => {
   }
 })
 
-import { buildPollResult } from '../document-to-markdown/handler'
+import { buildPollResult } from '../documentToMarkdown/handler'
 import { createUploadTask, uploadFile } from '../utils'
 
 describe('mineru utils', () => {

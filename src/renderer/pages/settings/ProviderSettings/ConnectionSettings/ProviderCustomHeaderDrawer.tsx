@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -216,7 +217,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const applyJsonToRowsOrToast = useCallback((): boolean => {
     const parsed = parseHeadersJsonDraft(jsonDraft)
     if (!parsed.ok) {
-      window.toast.error(t('settings.provider.copilot.invalid_json'))
+      toast.error(t('settings.provider.copilot.invalid_json'))
       return false
     }
     setRows(headersObjectToRows(parsed.headers))
@@ -243,14 +244,14 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const primaryDraft = trim(endpointDrafts[primaryEndpoint] ?? '')
     const isVertex = provider.authType === 'iam-gcp'
     if (!isVertex && (!primaryDraft || !validateApiHost(primaryDraft))) {
-      window.toast.error(t('settings.provider.api_host_no_valid'))
+      toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
     // Secondary endpoints are optional, but a non-empty one must still be a
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
     if (findInvalidSecondaryEndpointUrl(endpointDrafts, primaryEndpoint)) {
-      window.toast.error(t('settings.provider.api_host_no_valid'))
+      toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
@@ -261,7 +262,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     if (headersUiMode === 'json') {
       const parsed = parseHeadersJsonDraft(jsonDraft)
       if (!parsed.ok) {
-        window.toast.error(t('settings.provider.copilot.invalid_json'))
+        toast.error(t('settings.provider.copilot.invalid_json'))
         return
       }
       parsedHeaders = parsed.headers
@@ -278,7 +279,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       // Surface the failure and keep the drawer open so the user can retry
       // instead of silently losing their edits.
       logger.error('Failed to save provider request config', error as Error, { providerId })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
       return
     }
 
@@ -288,7 +289,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       })
     }
 
-    window.toast.success(t('message.save.success.title'))
+    toast.success(t('message.save.success.title'))
     onClose()
   }, [
     endpointDrafts,

@@ -20,6 +20,7 @@ import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
@@ -29,6 +30,10 @@ import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix
 import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
+import {
+  createLocalEmbeddingProvider,
+  type LocalEmbeddingProviderSettings
+} from './custom/localEmbedding/localEmbeddingProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
@@ -252,6 +257,20 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
+/**
+ * Local Embedding Extension - optional in-process text embeddings via
+ * transformers.js + onnxruntime-node (no auth, no network). Embedding-only.
+ */
+export const LocalEmbeddingExtension = ProviderExtension.create({
+  name: LOCAL_EMBEDDING_PROVIDER_ID,
+  supportsImageGeneration: false,
+  create: createLocalEmbeddingProvider
+} as const satisfies ProviderExtensionConfig<
+  LocalEmbeddingProviderSettings,
+  ProviderV3,
+  typeof LOCAL_EMBEDDING_PROVIDER_ID
+>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -274,5 +293,6 @@ export const extensions = [
   DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  LocalEmbeddingExtension
 ] as const

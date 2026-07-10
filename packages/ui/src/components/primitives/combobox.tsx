@@ -21,7 +21,7 @@ import * as React from 'react'
 const comboboxTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-zinc-50 dark:bg-zinc-900',
+    'bg-muted/20',
     'text-foreground'
   ),
   {
@@ -418,7 +418,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onKeyDown={handleTriggerInputKeyDown}
               style={triggerStyle}
               className={cn(
-                'w-full rounded-md border-1 bg-zinc-50 pr-8 shadow-none transition-colors dark:bg-zinc-900',
+                'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
                 'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
                 error && 'border-destructive! focus-visible:ring-red-600/20',
                 disabled && 'cursor-not-allowed opacity-50',

@@ -39,9 +39,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
     <Trans
       i18nKey="settings.provider.oauth.description"
       components={{
-        website: (
-          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
-        )
+        website: <a className="text-inherit" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
       }}
       values={{ provider: providerWebsite }}
     />

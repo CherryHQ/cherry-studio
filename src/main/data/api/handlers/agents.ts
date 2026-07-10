@@ -72,11 +72,11 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     DELETE: async ({ params, query }) => {
       const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const deleted = agentService.deleteAgent(params.agentId, {
+      const result = agentService.deleteAgent(params.agentId, {
         deleteSessions: parsed.data.deleteSessions === true
       })
-      if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
-      return undefined
+      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return result
     }
   },
 

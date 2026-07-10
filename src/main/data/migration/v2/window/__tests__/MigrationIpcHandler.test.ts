@@ -35,6 +35,7 @@ vi.mock('../MigrationWindowManager', () => ({
 import {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  setDataLocationNotice,
   unregisterMigrationIpcHandlers
 } from '../MigrationIpcHandler'
 
@@ -238,6 +239,28 @@ describe('MigrationIpcHandler', () => {
       expect(progress.error).toBe('Dexie export failed')
       expect(progress.currentMessage).toBe('Dexie export failed')
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
+    })
+  })
+
+  describe('data-location notice', () => {
+    it('retains the recovered data location across Retry so it does not vanish after a failed run', async () => {
+      setDataLocationNotice('/Volumes/Data/CherryStudio')
+
+      await invoke(MigrationIpcChannels.Retry)
+
+      expect(lastProgress()).toMatchObject({
+        stage: 'introduction',
+        dataLocation: '/Volumes/Data/CherryStudio'
+      })
+    })
+
+    it('drops the notice after resetMigrationData so a later Retry carries no stale location', async () => {
+      setDataLocationNotice('/Volumes/Data/CherryStudio')
+      resetMigrationData()
+
+      await invoke(MigrationIpcChannels.Retry)
+
+      expect(lastProgress().dataLocation).toBeUndefined()
     })
   })
 

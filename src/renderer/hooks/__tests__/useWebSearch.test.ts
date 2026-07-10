@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -15,17 +16,9 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('useWebSearch', () => {
-  const toastErrorMock = vi.fn()
-
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        error: toastErrorMock
-      }
-    })
   })
 
   it('updates one provider API keys while preserving other provider overrides', async () => {
@@ -121,7 +114,7 @@ describe('useWebSearch', () => {
     })
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.zhipu_sync_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.zhipu_sync_failed')
     })
   })
 

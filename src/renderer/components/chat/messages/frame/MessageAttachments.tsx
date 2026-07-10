@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { Paperclip } from 'lucide-react'
@@ -29,7 +30,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   const handleOpen = () => {
     if (!openFile) return
     void Promise.resolve(openFile(file)).catch(() => {
-      window.modal.error({ content: t('files.preview.error'), centered: true })
+      void popup.error({ content: t('files.preview.error'), centered: true })
     })
   }
 

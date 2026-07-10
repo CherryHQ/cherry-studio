@@ -6,6 +6,7 @@ import {
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
+import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -36,6 +37,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onDialogCloseAutoFocus?: () => void
   autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
@@ -78,7 +80,17 @@ export type AssistantSelectorProps =
   | AssistantSelectorMultiItemProps
 
 export function AssistantSelector(props: AssistantSelectorProps) {
-  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
+  const {
+    trigger,
+    open,
+    onOpenChange,
+    onDialogCloseAutoFocus,
+    autoSelectOnCreate,
+    side,
+    align,
+    sideOffset,
+    mountStrategy
+  } = props
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -144,7 +156,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         await togglePin(id)
       } catch (error) {
         logger.error('Failed to toggle assistant pin', error as Error, { id })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isPinActionDisabled, togglePin, t]
@@ -161,12 +173,26 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [data?.items]
   )
 
-  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
-    setEditDialogOpen(nextOpen)
-    if (!nextOpen) {
-      setEditingAssistant(null)
-    }
-  }, [])
+  const handleEditDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setEditDialogOpen(nextOpen)
+      if (!nextOpen) {
+        setEditingAssistant(null)
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
+
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen) {
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
@@ -188,11 +214,12 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       }
 
       setCreateDialogOpen(false)
+      onDialogCloseAutoFocus?.()
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
-        window.toast?.error(t('selector.create_dialog.refresh_failed'))
+        toast.error(t('selector.create_dialog.refresh_failed'))
       }
       if (autoSelectOnCreate && props.multi !== true) {
         if (props.selectionType === 'item') {
@@ -211,7 +238,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, props, refetch, t]
+    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
   const handleEditSaved = useCallback(async () => {
@@ -221,7 +248,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       await refetch()
     } catch (error) {
       logger.warn('Failed to refresh assistants after selector edit', { error })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [refetch, t])
 
@@ -230,7 +257,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       kind="assistant"
       open={createDialogOpen}
       isSubmitting={isCreatingAssistant}
-      onOpenChange={setCreateDialogOpen}
+      onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
       modelFilter={isSelectableAssistantModel}
     />

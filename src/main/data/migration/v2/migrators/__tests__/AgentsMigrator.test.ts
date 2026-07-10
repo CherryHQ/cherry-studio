@@ -389,7 +389,8 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-b' },
         { agentId: 'agent-2', oldMcpId: 'mcp-a' }
       ])
-      const valuesFn = vi.fn().mockResolvedValue(undefined)
+      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+      const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([
         ['mcp-a', 'new-a'],
@@ -411,6 +412,7 @@ describe('AgentsMigrator', () => {
           expect.objectContaining({ agentId: 'agent-2', mcpServerId: 'new-a' })
         ])
       )
+      expect(onConflictDoNothing).toHaveBeenCalledTimes(1)
     })
 
     it('drops legacy refs whose id is missing from the mapping', async () => {
@@ -418,7 +420,8 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-a' },
         { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
       ])
-      const valuesFn = vi.fn().mockResolvedValue(undefined)
+      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+      const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([['mcp-a', 'new-a']])
 
@@ -428,6 +431,7 @@ describe('AgentsMigrator', () => {
       const valuesCall = valuesFn.mock.calls[0][0]
       expect(valuesCall).toHaveLength(1)
       expect(valuesCall[0]).toEqual(expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-a' }))
+      expect(onConflictDoNothing).toHaveBeenCalledTimes(1)
     })
 
     it('skips insert when no rows match the query', async () => {

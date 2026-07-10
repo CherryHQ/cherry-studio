@@ -48,6 +48,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     }
   },
 
+  '/agent-sessions/latest': {
+    GET: async () => {
+      return { session: agentSessionService.getLatestUpdated() }
+    }
+  },
+
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
       return agentSessionService.getById(params.sessionId)

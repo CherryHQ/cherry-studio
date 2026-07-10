@@ -11,6 +11,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
@@ -371,14 +372,15 @@ export class ChannelMessageHandler {
         }
         case 'help': {
           const agent = agentService.getAgent(agentId)
-          const name = agent?.name ?? 'CherryClaw'
+          const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
             '',
             'Available commands:',
-            ...SLASH_COMMANDS.map((cmd) => `/${cmd.name} - ${cmd.description}`)
+            ...commands.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)
             .join('\n')
@@ -391,7 +393,7 @@ export class ChannelMessageHandler {
             [
               `Current chat ID: \`${command.chatId}\``,
               '',
-              'Add this value to `allow_ids` in settings to receive notifications.'
+              'Add this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.'
             ].join('\n'),
             replyOpts
           )
@@ -476,6 +478,61 @@ export class ChannelMessageHandler {
    */
   private abortSessionStream(sessionId: string, reason: string): void {
     application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
+  }
+
+  /**
+   * The command list shown by `/help`: the channel control commands merged with the bound session's
+   * live SDK catalog (custom commands included). Control commands win on name collision and come
+   * first; session-only commands follow. Read-only — never creates a session, so `/help` on a fresh
+   * chat just lists the control commands.
+   */
+  private async helpCommandsForChat(
+    agentId: string,
+    channelId: string,
+    chatId: string
+  ): Promise<Array<{ name: string; description: string }>> {
+    const merged: Array<{ name: string; description: string }> = SLASH_COMMANDS.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description
+    }))
+    const sessionId = this.peekSessionId(agentId, channelId, chatId)
+    if (!sessionId) return merged
+
+    const sessionCommands =
+      application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+    const controlNames = new Set(merged.map((cmd) => cmd.name))
+    for (const cmd of sessionCommands) {
+      if (controlNames.has(cmd.name)) continue
+      merged.push({ name: cmd.name, description: cmd.description })
+    }
+    return merged
+  }
+
+  /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
+   *  channel row. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
+   *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
+   *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
+  private peekSessionId(agentId: string, channelId: string, chatId: string): string | null {
+    const lookup = (sessionId: string) => {
+      try {
+        return agentSessionService.getById(sessionId)
+      } catch {
+        return null
+      }
+    }
+
+    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+    if (trackedId) {
+      const session = lookup(trackedId)
+      if (session?.agentId === agentId) return session.id
+    }
+
+    const channelRow = channelService.getChannel(channelId)
+    if (channelRow?.sessionId) {
+      const session = lookup(channelRow.sessionId)
+      if (session?.agentId === agentId) return session.id
+    }
+    return null
   }
 
   private async resolveSession(
@@ -613,7 +670,8 @@ export class ChannelMessageHandler {
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: content }],
-      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)]
+      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+      headless: true
     })
 
     return executionDone

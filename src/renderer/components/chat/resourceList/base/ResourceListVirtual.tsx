@@ -153,7 +153,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
-    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0 pr-2 [scrollbar-gutter:stable]',
+    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [scrollbar-gutter:stable]',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],

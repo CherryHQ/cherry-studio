@@ -118,8 +118,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
-        window.toast.error(i18n.t('message.error.dimension_too_large'))
-        return Promise.reject()
+        // utils must not toast (it would import the renderer services layer); reject
+        // with the message so the calling component surfaces it.
+        return Promise.reject(new Error(i18n.t('message.error.dimension_too_large')))
       }
 
       const filterHiddenElements = (node: Node) => {
@@ -511,6 +512,39 @@ export const svgToPngBlob = (svgElement: SVGElement, scale = 3): Promise<Blob> =
 export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   const svgData = new XMLSerializer().serializeToString(svgElement)
   return new Blob([svgData], { type: 'image/svg+xml' })
+}
+
+export type ImageInput = SVGElement | HTMLImageElement | string | Blob
+
+export interface ImagePreviewOptions {
+  format?: 'svg' | 'png' | 'jpeg'
+  scale?: number
+  quality?: number
+}
+
+/**
+ * Resolve any supported image input to a previewable URL. SVG elements and blobs
+ * produce an object URL the caller must revoke (test with `url.startsWith('blob:')`).
+ */
+export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
+  if (input instanceof SVGElement) {
+    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    return URL.createObjectURL(blob)
+  }
+
+  if (input instanceof HTMLImageElement) {
+    return input.src
+  }
+
+  if (typeof input === 'string') {
+    return input
+  }
+
+  if (input instanceof Blob) {
+    return URL.createObjectURL(input)
+  }
+
+  throw new Error('Unsupported input type')
 }
 
 /**

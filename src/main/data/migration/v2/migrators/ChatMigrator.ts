@@ -55,7 +55,7 @@
  *
  * - Uses streaming JSON reader for large data sets (potentially millions of messages)
  * - Processes topics in batches to control memory usage
- * - Pre-loads all blocks into memory map for O(1) lookup (blocks table is smaller)
+ * - Streams message blocks into a file-backed temporary SQLite index, then resolves only the blocks each topic needs
  * - Uses database transactions for atomicity and performance
  *
  * @since v2.0.0
@@ -67,6 +67,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -78,7 +79,6 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
-  buildBlockLookup,
   buildMessageTree,
   type ChatMappingDeps,
   findActiveNodeId,
@@ -111,6 +111,8 @@ const MESSAGE_INSERT_BATCH_SIZE = 100
 const FILE_REF_INSERT_BATCH_SIZE = 100
 const SKIP_WARNING_SAMPLE_LIMIT = 10
 const INARRAY_CHUNK = 500
+const BLOCK_INDEX_BATCH_SIZE = 1000
+const TEMP_BLOCK_INDEX_TABLE = 'migration_chat_blocks'
 
 /**
  * Yield each FileEntryId referenced by file parts in a message's parts array.
@@ -180,6 +182,8 @@ export class ChatMigrator extends BaseMigrator {
   // Prepared data for execution
   private topicCount = 0
   private messageCount = 0
+  private blocksExist = false
+  private blockIndexDb: DbType | null = null
   private blockLookup: Map<string, OldBlock> = new Map()
   private assistantLookup: Map<string, OldAssistant> = new Map()
   // Topic metadata from Redux (name, pinned, etc.) - Dexie only has messages
@@ -210,6 +214,8 @@ export class ChatMigrator extends BaseMigrator {
   override reset(): void {
     this.topicCount = 0
     this.messageCount = 0
+    this.blocksExist = false
+    this.blockIndexDb = null
     this.blockLookup = new Map()
     this.assistantLookup = new Map()
     this.topicMetaLookup = new Map()
@@ -275,21 +281,12 @@ export class ChatMigrator extends BaseMigrator {
         }
       }
 
-      const blocksExist = await ctx.sources.dexieExport.tableExists('message_blocks')
-      if (!blocksExist) {
+      this.blocksExist = await ctx.sources.dexieExport.tableExists('message_blocks')
+      if (!this.blocksExist) {
         warnings.push('message_blocks.json not found - messages will have empty blocks')
       }
 
-      // Step 2: Load all blocks into lookup map
-      // Blocks table is typically smaller than messages, safe to load entirely
-      if (blocksExist) {
-        logger.info('Loading message blocks into memory...')
-        const blocks = await ctx.sources.dexieExport.readTable<OldBlock>('message_blocks')
-        this.blockLookup = buildBlockLookup(blocks)
-        logger.info(`Loaded ${this.blockLookup.size} blocks into lookup map`)
-      }
-
-      // Step 3: Load assistant data for model lookup
+      // Step 2: Load assistant data for model lookup
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[]).
       // `state.defaultAssistant` is a sibling slot (not inside `assistants[]`) and
       // can also carry topics — must be visited too, otherwise its topics show
@@ -333,7 +330,7 @@ export class ChatMigrator extends BaseMigrator {
         warnings.push('No assistant data found - topics will have null assistantId and missing names')
       }
 
-      // Step 4: Count topics and estimate messages
+      // Step 3: Count topics and estimate messages
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
       this.topicCount = await topicReader.count()
       logger.info(`Found ${this.topicCount} topics to migrate`)
@@ -347,7 +344,7 @@ export class ChatMigrator extends BaseMigrator {
         logger.info(`Estimated ${this.messageCount} messages based on sample`)
       }
 
-      // Step 5: Validate sample data
+      // Step 4: Validate sample data
       if (this.topicCount > 0) {
         const sampleTopics = await topicReader.readSample<OldTopic>(5)
         for (const topic of sampleTopics) {
@@ -363,7 +360,7 @@ export class ChatMigrator extends BaseMigrator {
       logger.info('Prepare phase completed', {
         topics: this.topicCount,
         estimatedMessages: this.messageCount,
-        blocks: this.blockLookup.size,
+        blocksIndexed: this.blocksExist,
         assistants: this.assistantLookup.size
       })
 
@@ -405,6 +402,7 @@ export class ChatMigrator extends BaseMigrator {
 
     try {
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
+      await this.prepareBlockIndex(ctx)
 
       const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
       if (!sharedAssistantIds) {
@@ -731,6 +729,70 @@ export class ChatMigrator extends BaseMigrator {
     return result
   }
 
+  private async prepareBlockIndex(ctx: MigrationContext): Promise<void> {
+    this.blockIndexDb = ctx.db
+    ctx.db.run(sql.raw('PRAGMA temp_store = FILE'))
+    ctx.db.run(
+      sql.raw(`CREATE TEMP TABLE IF NOT EXISTS ${TEMP_BLOCK_INDEX_TABLE} (id TEXT PRIMARY KEY, payload TEXT NOT NULL)`)
+    )
+    ctx.db.run(sql.raw(`DELETE FROM ${TEMP_BLOCK_INDEX_TABLE}`))
+
+    if (!this.blocksExist) {
+      logger.warn('message_blocks.json not found, chat messages will migrate without blocks')
+      return
+    }
+
+    let indexed = 0
+    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
+    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_BATCH_SIZE, async (blocks) => {
+      ctx.db.transaction((tx) => {
+        for (const block of blocks) {
+          if (!block?.id) continue
+          tx.run(
+            sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${JSON.stringify(block)})`
+          )
+          indexed += 1
+        }
+      })
+    })
+
+    logger.info('Indexed message blocks in temporary SQLite table', { indexed })
+  }
+
+  private resolveBlockIds(blockIds: string[]): OldBlock[] {
+    if (blockIds.length === 0) return []
+
+    // Unit tests still seed blockLookup directly to exercise prepareTopicData
+    // without a real DB. Production migration uses the temp SQLite index below.
+    if (this.blockLookup.size > 0) {
+      return resolveBlocks(blockIds, this.blockLookup)
+    }
+
+    if (!this.blockIndexDb) return []
+
+    const byId = new Map<string, OldBlock>()
+    const uniqueIds = [...new Set(blockIds)]
+    for (let start = 0; start < uniqueIds.length; start += INARRAY_CHUNK) {
+      const chunk = uniqueIds.slice(start, start + INARRAY_CHUNK)
+      const placeholders = sql.join(
+        chunk.map((id) => sql`${id}`),
+        sql`, `
+      )
+      const rows = this.blockIndexDb.all<{ id: string; payload: string }>(
+        sql`SELECT id, payload FROM migration_chat_blocks WHERE id IN (${placeholders})`
+      )
+      for (const row of rows) {
+        try {
+          byId.set(row.id, JSON.parse(row.payload) as OldBlock)
+        } catch (error) {
+          logger.warn(`Failed to parse indexed message block ${row.id}`, { error })
+        }
+      }
+    }
+
+    return blockIds.map((id) => byId.get(id)).filter((block): block is OldBlock => Boolean(block))
+  }
+
   private collectFileRefRows(
     batchMessages: NewMessage[],
     now: number
@@ -868,7 +930,7 @@ export class ChatMigrator extends BaseMigrator {
 
     for (const oldMsg of oldMessages) {
       const blockIds = oldMsg.blocks || []
-      const blocks = resolveBlocks(blockIds, this.blockLookup)
+      const blocks = this.resolveBlockIds(blockIds)
 
       // Track block statistics for diagnostics
       this.blockStats.requested += blockIds.length
@@ -928,7 +990,7 @@ export class ChatMigrator extends BaseMigrator {
 
         // Resolve blocks for this message (we know it has blocks from first pass)
         const blockIds = oldMsg.blocks || []
-        const blocks = resolveBlocks(blockIds, this.blockLookup)
+        const blocks = this.resolveBlockIds(blockIds)
 
         // Resolve parentId through any skipped messages
         const resolvedParentId = resolveParentId(treeInfo.parentId)

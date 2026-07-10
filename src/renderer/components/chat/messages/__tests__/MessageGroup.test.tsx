@@ -470,6 +470,26 @@ describe('MessageGroup', () => {
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
   })
 
+  it('does not update message UI state from capture mode renders', async () => {
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState
+    })
+    const topic = { id: 'topic-1' } as Topic
+    const firstMessage = createMessage('msg-1', 0, 'fold')
+    const secondMessage = createMessage('msg-2', 1, 'fold')
+
+    const { rerender } = render(<MessageGroup captureMode messages={[firstMessage]} topic={topic} />)
+    rerender(<MessageGroup captureMode messages={[firstMessage, secondMessage]} topic={topic} />)
+
+    await waitFor(() => {
+      expect(updateMessageUiState).not.toHaveBeenCalled()
+    })
+  })
+
   it('keeps user message footer actions hidden by default without a divider', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',

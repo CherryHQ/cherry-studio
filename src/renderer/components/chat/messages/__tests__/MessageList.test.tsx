@@ -35,7 +35,7 @@ vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
 }))
 
-vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
+vi.mock('@renderer/components/chat/messages/MultiSelectActionPopup', () => ({
   __esModule: true,
   default: () => null
 }))
@@ -379,6 +379,36 @@ describe('MessageList', () => {
     // Narrow is config-derived, so it is published even during loading — the subwindow regression
     // was that the old probe-based report stayed silent until the probe mounted.
     expect(reportNarrow).toHaveBeenLastCalledWith(true)
+  })
+
+  it('keeps existing messages visible while history refresh is loading', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.queryByTestId('message-list-loading')).toBeNull()
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('assistant-1')
+  })
+
+  it('keeps the loading gate while stale cached messages are present', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true,
+          isMessagesStale: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('virtual-list')).toBeNull()
   })
 
   it('reports narrow=false when narrow mode is off', () => {

@@ -126,17 +126,17 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
             />
             {toolbar ? <div className="flex shrink-0 items-center">{toolbar}</div> : null}
           </div>
-          <Scrollbar ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 px-2.5 py-3">
+          <Scrollbar ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 px-2.5 py-3 pt-2">
             {/* Scrollbar is the scroll viewport; the cmdk list itself must not scroll so keyboard
                 navigation's scroll-into-view bubbles up to the styled Scrollbar instead. */}
             <CommandList className="max-h-none overflow-x-visible overflow-y-visible">
               {/* Pinned at the top, but hidden while searching so the query's first match keeps the
                   default keyboard highlight instead of this row. */}
               {createAction && !query.trim() ? (
-                <CommandGroup className="px-0 py-0">
+                <CommandGroup className="px-0 py-0 [&_[cmdk-group-items]]:space-y-1">
                   <CommandItem
                     value="__conversation_picker_create_new__"
-                    className="group h-[42px] gap-2.5 rounded-md px-3"
+                    className="group h-9 cursor-pointer gap-2.5 rounded-md px-2.5"
                     onSelect={() => createAction.onSelect()}>
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                       {createAction.icon}
@@ -155,12 +155,12 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                   <span>{labels.loadingText}</span>
                 </div>
               ) : visibleItems.length > 0 ? (
-                <CommandGroup className="px-0 py-0">
+                <CommandGroup className="px-0 py-0 [&_[cmdk-group-items]]:space-y-1">
                   {visibleItems.map((item) => (
                     <CommandItem
                       key={item.id}
                       value={item.id}
-                      className="group h-[42px] gap-2.5 rounded-md px-3"
+                      className="group h-9 cursor-pointer gap-2.5 rounded-md px-2.5"
                       // onSelect may be async; both current callers self-catch, but log here so a
                       // future consumer with a rejecting onSelect doesn't fail silently.
                       onSelect={() =>

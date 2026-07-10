@@ -78,7 +78,11 @@ export const aiRequestSchemas = {
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
   'ai.check_model': defineRoute({
-    input: z.strictObject({ ...aiBaseRequestShape, timeout: z.number().optional() }),
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
     output: z.object({ latency: z.number() })
   }),
   'ai.embed_many': defineRoute({
@@ -114,7 +118,8 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional(),
+        knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({

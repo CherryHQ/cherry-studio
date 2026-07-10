@@ -18,7 +18,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
@@ -90,6 +90,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (disabled)' }
     }
+    if (config.builtin_role === 'assistant') {
+      logger.debug('Heartbeat skipped (assistant role)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (assistant role)' }
+    }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
@@ -146,7 +150,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     workspace
   })
 
-  const subscribedChannels = scheduleId ? agentChannelService.getSubscribedChannels(scheduleId) : []
+  // Guards legacy rows and races that data hygiene cannot catch.
+  const subscribedChannels = scheduleId
+    ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
+    : []
 
   const channelManager = application.get('ChannelManager')
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
@@ -217,7 +224,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: effectivePrompt }],
-      listeners: [sentinel, ...channelListeners]
+      listeners: [sentinel, ...channelListeners],
+      headless: true
     })
 
     resultText = await executionDone

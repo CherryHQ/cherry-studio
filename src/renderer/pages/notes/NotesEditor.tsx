@@ -7,6 +7,7 @@ import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
@@ -133,11 +134,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                       const newValue = !enableSpellCheck
                       void setEnableSpellCheck(newValue).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
                       void window.api.setEnableSpellCheck(newValue).catch((error) => {
                         logger.error('Failed to update spell check runtime state', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
                     }}
                     icon={<SpellCheck size={18} />}

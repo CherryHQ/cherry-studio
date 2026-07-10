@@ -81,7 +81,7 @@ describe('ProviderHeader', () => {
   it('does not show the provider id subtitle', () => {
     render(<ProviderHeader providerId="openai" />)
 
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toHaveClass('font-bold', 'text-[15px]')
     expect(screen.queryByText('openai')).not.toBeInTheDocument()
   })
 
@@ -103,12 +103,15 @@ describe('ProviderHeader', () => {
     render(<ProviderHeader providerId="35836b32-9bc1-40ab-9195-8b0b4ea3f342" />)
 
     expect(screen.getByText('反反复')).toBeInTheDocument()
+    expect(screen.getByText('反反复').closest('a')).toBeNull()
+    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
     expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
   })
 
-  it('keeps the provider name as text and makes only the docs icon a link', () => {
+  it('links the provider name to the official website without showing the logo or docs icon', () => {
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
+      officialWebsite: 'https://openai.com/',
       docsWebsite: 'https://platform.openai.com/docs',
       modelsWebsite: 'https://platform.openai.com/docs/models',
       showApiOptionsButton: false
@@ -116,9 +119,11 @@ describe('ProviderHeader', () => {
 
     render(<ProviderHeader providerId="openai" />)
 
-    expect(screen.getByText('OpenAI').closest('a')).toBeNull()
-    const docsLink = screen.getByRole('link', { name: 'OpenAI · common.docs' })
-    expect(docsLink).toHaveAttribute('href', 'https://platform.openai.com/docs')
+    const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.api.official_website' })
+    expect(officialLinks).toHaveLength(1)
+    expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
+    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenAI · common.docs' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
   })
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,9 +18,6 @@ vi.mock('@renderer/ipc', () => ({
     on: () => () => {}
   }
 }))
-
-const mockToast = { success: vi.fn(), error: vi.fn() }
-vi.stubGlobal('window', { toast: mockToast, api: {} })
 
 describe('useTasks', () => {
   beforeEach(() => {
@@ -72,7 +70,7 @@ describe('useCreateTask', () => {
       body: taskData
     })
     expect(created).toEqual(newTask)
-    expect(mockToast.success).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
   })
 
   it('toasts error and returns undefined on failure', async () => {
@@ -85,7 +83,7 @@ describe('useCreateTask', () => {
     )
 
     expect(created).toBeUndefined()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 
@@ -108,7 +106,7 @@ describe('useUpdateTask', () => {
       body: { name: 'Updated' }
     })
     expect(updated).toEqual(updatedTask)
-    expect(mockToast.success).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
   })
 
   it('toasts error and returns undefined on failure', async () => {
@@ -119,7 +117,7 @@ describe('useUpdateTask', () => {
     const updated = await act(async () => result.current.updateTask('agent-1', 't-1', {} as any))
 
     expect(updated).toBeUndefined()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 
@@ -140,7 +138,7 @@ describe('useDeleteTask', () => {
       params: { agentId: 'agent-1', taskId: 't-1' }
     })
     expect(deleted).toBe(true)
-    expect(mockToast.success).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
   })
 
   it('toasts error and returns false on failure', async () => {
@@ -151,7 +149,7 @@ describe('useDeleteTask', () => {
     const deleted = await act(async () => result.current.deleteTask('agent-1', 't-1'))
 
     expect(deleted).toBe(false)
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 
@@ -168,7 +166,7 @@ describe('useRunTask', () => {
 
     expect(runTaskMock).toHaveBeenCalledWith('t-1')
     expect(ran).toBe(true)
-    expect(mockToast.success).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
   })
 
   it('toasts error and returns false on failure', async () => {
@@ -178,6 +176,6 @@ describe('useRunTask', () => {
     const ran = await act(async () => result.current.runTask('t-1'))
 
     expect(ran).toBe(false)
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })

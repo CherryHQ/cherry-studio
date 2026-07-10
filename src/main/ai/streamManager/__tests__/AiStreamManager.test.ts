@@ -58,6 +58,8 @@ class FakeListener implements StreamListener {
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
+const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
 }))
@@ -129,7 +131,7 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
+    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -175,11 +177,12 @@ function startSingle(
     request: AiStreamRequest
     listeners: StreamListener[]
     siblingsGroupId?: number
+    abortController?: AbortController
   }
 ) {
   manager.send({
     topicId: opts.topicId,
-    models: [{ modelId: opts.modelId, request: opts.request }],
+    models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
     siblingsGroupId: opts.siblingsGroupId
   })
@@ -202,6 +205,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
+    mockAbortPendingTurn.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -256,6 +260,53 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({ mode: 'injected', executionIds: [] })
       expect(mgr.inspect('a')).toBeUndefined()
+    })
+
+    it('aborts the agent-session turn controller for a pre-stream stop request', async () => {
+      const turnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        turnAbortController.abort(reason)
+        return true
+      })
+      const listener = new FakeListener('l:agent')
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-paused' },
+        listeners: [listener],
+        abortController: turnAbortController
+      })
+
+      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
+      expect(snap.status).toBe('aborted')
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(listener.pausedResults).toHaveLength(1)
+    })
+
+    it('does not apply an old pre-stream stop request to a new agent-session turn controller', () => {
+      const oldTurnAbortController = new AbortController()
+      const newTurnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        oldTurnAbortController.abort(reason)
+        return true
+      })
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-new' },
+        listeners: [new FakeListener('l:agent')],
+        abortController: newTurnAbortController
+      })
+
+      expect(snap.status).toBe('pending')
+      expect(snap.executions[0].abortSignal.aborted).toBe(false)
+      expect(oldTurnAbortController.signal.aborted).toBe(true)
+      expect(newTurnAbortController.signal.aborted).toBe(false)
     })
 
     it('evicts finished stream and creates new one', async () => {
@@ -1228,6 +1279,34 @@ describe('AiStreamManager', () => {
 
       expect(listener.doneResults[0].isTopicDone).toBe(true)
       expect(mgr.hasLiveStream(topicId)).toBe(false)
+    })
+
+    // The runtime's queued continuation could not launch (e.g. its drain re-check found the agent model
+    // deleted) after this stream was kept alive by the chaining path above. A bare error broadcast would
+    // leave the held stream in `activeStreams` with its status cache un-settled and still attachable —
+    // `terminateHeldTopicStream` must error the subscribers, settle the status cache, and evict it.
+    it('terminateHeldTopicStream settles and evicts a held agent-session stream whose continuation failed', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s3'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      // Prior turn finished but the runtime will continue → stream kept alive, terminal lifecycle skipped,
+      // so the status cache is NOT yet settled to a terminal state and the stream stays in activeStreams.
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(mgr.inspect(topicId)).toBeDefined()
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
+
+      mgr.terminateHeldTopicStream(topicId, 'provider-a::model-a', error('no model configured'))
+
+      // Subscribers learn the topic errored, the cross-window status cache settles to 'error'…
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].isTopicDone).toBe(true)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('error')
+
+      // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
     })
   })
 

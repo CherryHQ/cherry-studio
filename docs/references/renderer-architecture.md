@@ -60,7 +60,7 @@ Target layout (in-flight directories pending migration are listed in §8):
 
 ```text
 src/renderer/
-├── windows/      # App      — per-window entry roots (MainApp/SettingsApp/SubWindowApp) + shell
+├── windows/      # App      — per-window entry roots (MainApp/SubWindowApp) + shell
 ├── routes/       # App      — route definitions
 ├── pages/        # App      — cross-domain shell pages only (domain pages live in features)
 ├── features/     # Domain   — one business domain per dir

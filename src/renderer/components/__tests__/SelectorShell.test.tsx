@@ -98,6 +98,23 @@ describe('SelectorShell', () => {
     })
   })
 
+  it('separates the positioning shell from the animated visible panel', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+        <div />
+      </SelectorShell>
+    )
+
+    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
+    const panel = document.querySelector<HTMLElement>('[data-selector-shell-panel]')
+    expect(content).toHaveClass('bg-transparent')
+    expect(content).toHaveClass('shadow-none')
+    expect(content).toHaveClass('animation-selector-shell-content')
+    expect(panel).toHaveClass('bg-popover')
+    expect(panel).toHaveClass('shadow-lg')
+    expect(panel).toHaveClass('animation-selector-shell-panel')
+  })
+
   it('applies contentHeight as a fixed popover target height', () => {
     render(
       <SelectorShell
@@ -129,13 +146,22 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        height: { configurable: true, value: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` },
-        paddingTop: { configurable: true, value: '0px' },
-        paddingBottom: { configurable: true, value: '0px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          height: { configurable: true, value: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` },
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '500px'
@@ -170,7 +196,7 @@ describe('SelectorShell', () => {
     )
 
     await waitFor(() =>
-      expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 20))
+      expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 28))
     )
   })
 
@@ -237,12 +263,21 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        paddingTop: { configurable: true, value: '4px' },
-        paddingBottom: { configurable: true, value: '4px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '200px'
@@ -286,13 +321,22 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        maxHeight: { configurable: true, value: '160px' },
-        paddingTop: { configurable: true, value: '0px' },
-        paddingBottom: { configurable: true, value: '0px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          maxHeight: { configurable: true, value: '160px' },
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '500px'
@@ -326,7 +370,7 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('140'))
+    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('132'))
   })
 
   it('does not force focus into search when search autoFocus is false', async () => {

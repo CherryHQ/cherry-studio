@@ -89,8 +89,7 @@ describe('AuthenticationSection', () => {
       openConnectionCheck: openConnectionCheckMock,
       closeConnectionCheck: vi.fn(),
       startConnectionCheck: vi.fn(),
-      checkApi: vi.fn(),
-      showApiKeyError: vi.fn()
+      checkApi: vi.fn()
     })
   })
 
@@ -105,18 +104,17 @@ describe('AuthenticationSection', () => {
   })
 
   it('passes only minimal coordination props to child domains', () => {
-    const showApiKeyError = vi.fn()
     const openModelHealthCheck = vi.fn()
+    const connectionError = { message: 'bad key' }
     useProviderConnectionCheckMock.mockReturnValue({
-      apiKeyConnectivity: { status: 'failed', checking: false },
+      apiKeyConnectivity: { status: 'failed', checking: false, error: connectionError },
       connectionCheckOpen: true,
       checkableModels: [{ id: 'openai::gpt-4o', name: 'GPT-4o' }],
       checkableApiKeys: ['sk-test'],
       openConnectionCheck: openConnectionCheckMock,
       closeConnectionCheck: vi.fn(),
       startConnectionCheck: vi.fn(),
-      checkApi: vi.fn(),
-      showApiKeyError
+      checkApi: vi.fn()
     })
 
     const { getByRole } = render(
@@ -126,9 +124,9 @@ describe('AuthenticationSection', () => {
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'openai',
-        apiKeyConnectivity: { status: 'failed', checking: false },
-        onShowApiKeyError: showApiKeyError,
-        onOpenConnectionCheck: openConnectionCheckMock
+        apiKeyConnectivity: { status: 'failed', checking: false, error: connectionError },
+        onOpenConnectionCheck: openConnectionCheckMock,
+        requiresApiKey: undefined
       })
     )
     expect(apiHostPropsSpy).toHaveBeenCalledWith(
@@ -140,6 +138,8 @@ describe('AuthenticationSection', () => {
       expect.objectContaining({
         open: true,
         apiKeys: ['sk-test'],
+        connectionError,
+        requiresApiKey: undefined,
         onOpenModelHealthCheck: openModelHealthCheck
       })
     )

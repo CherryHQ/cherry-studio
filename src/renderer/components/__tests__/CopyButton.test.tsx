@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,12 +9,6 @@ import CopyButton from '../CopyButton'
 const mockWriteText = vi.fn()
 const mockClipboard = {
   writeText: mockWriteText
-}
-
-// Mock window.toast
-const mockedToast = {
-  success: vi.fn(),
-  error: vi.fn()
 }
 
 // Mock useTranslation
@@ -33,7 +28,6 @@ describe('CopyButton', () => {
   beforeEach(() => {
     // Setup mocks
     Object.assign(navigator, { clipboard: mockClipboard })
-    Object.assign(window, { toast: mockedToast })
 
     // Clear all mocks
     vi.clearAllMocks()
@@ -96,8 +90,8 @@ describe('CopyButton', () => {
     const clickableElement = copyIcon?.parentElement
     await userEvent.click(clickableElement!)
 
-    expect(mockedToast.success).toHaveBeenCalledWith('复制成功')
-    expect(mockedToast.error).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('复制成功')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('should show error message when copy fails', async () => {
@@ -109,8 +103,8 @@ describe('CopyButton', () => {
     const clickableElement = copyIcon?.parentElement
     await userEvent.click(clickableElement!)
 
-    expect(mockedToast.error).toHaveBeenCalledWith('复制失败')
-    expect(mockedToast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('复制失败')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('should apply custom size to icon and label', () => {

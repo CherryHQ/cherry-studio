@@ -88,7 +88,7 @@ const MEMORY_TOOL: Tool = {
 }
 
 /**
- * MCP server exposing cross-session memory to any agent (not gated on Soul Mode).
+ * MCP server exposing cross-session memory to any agent.
  *
  * Memory lives in the agent's workspace under `memory/` — `FACT.md` for
  * durable knowledge and `JOURNAL.jsonl` for timestamped events. Any agent

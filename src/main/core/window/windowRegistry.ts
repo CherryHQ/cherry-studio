@@ -101,33 +101,32 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Settings window — singleton popup surface for application settings.
-  // The renderer consumes initData as the target /settings/* route, so open()
-  // can focus an existing settings window and navigate it in-place.
-  [WindowType.Settings]: {
-    type: WindowType.Settings,
-    lifecycle: 'singleton',
-    singletonConfig: {
-      retentionTime: 300
-    },
-    htmlPath: 'windows/settings/index.html',
+  // Hidden one-shot print surface. PrintService owns loading generated paper HTML
+  // and closes the window after print / PDF export.
+  [WindowType.Print]: {
+    type: WindowType.Print,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
     windowOptions: {
-      ...DEFAULT_WINDOW_CONFIG,
-      width: 960,
-      height: 680,
-      minWidth: 760,
-      minHeight: 560,
+      skipTaskbar: true,
       autoHideMenuBar: true,
-      transparent: false,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true
+        sandbox: true,
+        webSecurity: false
       }
+    },
+    behavior: {
+      // Hidden helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
     }
   },
 
@@ -311,7 +310,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       movable: true,
       hasShadow: false,
       thickFrame: false,
-      roundedCorners: true,
+      // The toolbar is a transparent, frameless pill that draws its own rounded
+      // background in CSS (--selection-toolbar-border-radius). Newer macOS enlarged
+      // the system window-corner radius, so with the OS rounding on, the window mask
+      // overrides the pill's own corners — the top (only 2px from the window edge)
+      // takes the larger OS radius while the bottom keeps the CSS radius, producing a
+      // visible top/bottom mismatch. Disable OS rounding and let the pill define its
+      // own shape. NOTE: Electron defaults roundedCorners to true, so this must be an
+      // explicit false — omitting it would fall back to the OS rounding.
+      roundedCorners: false,
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.

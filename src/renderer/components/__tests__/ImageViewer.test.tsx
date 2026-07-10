@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,10 +11,6 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   fsRead: vi.fn(),
   fileSave: vi.fn(),
-  toast: {
-    error: vi.fn(),
-    success: vi.fn()
-  },
   clipboard: {
     write: vi.fn(),
     writeText: vi.fn()
@@ -49,8 +46,7 @@ describe('ImageViewer', () => {
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
 
     Object.assign(window, {
-      api: { file: { save: mocks.fileSave }, fs: { read: mocks.fsRead } },
-      toast: mocks.toast
+      api: { file: { save: mocks.fileSave }, fs: { read: mocks.fsRead } }
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })
     vi.stubGlobal('ClipboardItem', MockClipboardItem)
@@ -82,7 +78,7 @@ describe('ImageViewer', () => {
     await waitFor(() => {
       expect(mocks.clipboard.writeText).toHaveBeenCalledWith('https://example.com/image.png')
     })
-    expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
+    expect(toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
   it('copies image data from the context menu', async () => {
@@ -95,7 +91,7 @@ describe('ImageViewer', () => {
       expect(mocks.convertImageToPng).toHaveBeenCalled()
     })
     expect(mocks.clipboard.write).toHaveBeenCalledWith([expect.any(MockClipboardItem)])
-    expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
+    expect(toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
   it('shows download success after the image is saved from the context menu', async () => {
@@ -110,12 +106,12 @@ describe('ImageViewer', () => {
     await waitFor(() => {
       expect(mocks.fileSave).toHaveBeenCalledWith('image.png', expect.any(Uint8Array))
     })
-    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
 
     resolveSave('/tmp/image.png')
 
     await waitFor(() => {
-      expect(mocks.toast.success).toHaveBeenCalledWith('message.download.success')
+      expect(toast.success).toHaveBeenCalledWith('message.download.success')
     })
   })
 
@@ -128,9 +124,9 @@ describe('ImageViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
 
     await waitFor(() => {
-      expect(mocks.toast.error).toHaveBeenCalledWith('message.download.failed')
+      expect(toast.error).toHaveBeenCalledWith('message.download.failed')
     })
-    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('saves non-base64 inline image data URLs', async () => {

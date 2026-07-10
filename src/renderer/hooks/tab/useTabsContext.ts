@@ -34,6 +34,7 @@ export interface TabsContextValue {
   // Basic operations
   addTab: (tab: Tab) => void
   closeTab: (id: string) => void
+  closeTabs: (ids: readonly string[]) => void
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
 

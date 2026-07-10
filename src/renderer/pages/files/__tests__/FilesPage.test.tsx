@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -153,7 +154,6 @@ beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
   mockFiles([entry])
-  window.toast = { error: vi.fn() } as unknown as typeof window.toast
 })
 
 afterEach(() => {
@@ -575,7 +575,7 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
   })
 
@@ -598,8 +598,8 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledTimes(1)
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledTimes(1)
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
   })
 
@@ -616,7 +616,7 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_failed')
     })
   })
 
@@ -696,7 +696,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.restore'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
     })
   })
 
@@ -725,7 +725,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.restore'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.restore_failed')
     })
   })
 
@@ -771,7 +771,7 @@ describe('FilesPage file operations', () => {
     fireEvent.blur(input)
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.rename_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.rename_failed')
     })
   })
 
@@ -884,7 +884,7 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
     })
   })
 
@@ -904,7 +904,7 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.import_failed')
     })
   })
 

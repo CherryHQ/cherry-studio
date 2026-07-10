@@ -12,6 +12,7 @@ interface ConversationComposerStageProps {
   homeWelcomeText?: string
   overlay?: ReactNode
   composerElevated?: boolean
+  mainVisible?: boolean
 }
 
 export default function ConversationComposerStage({
@@ -20,9 +21,11 @@ export default function ConversationComposerStage({
   composer,
   homeWelcomeText,
   overlay,
-  composerElevated
+  composerElevated,
+  mainVisible
 }: ConversationComposerStageProps) {
   const isDocked = placement === 'docked'
+  const resolvedMainVisible = mainVisible ?? isDocked
 
   return (
     <ComposerDockTransitionFrame
@@ -30,7 +33,7 @@ export default function ConversationComposerStage({
       main={main}
       composer={composer}
       homeHeader={!isDocked && homeWelcomeText ? <ConversationHomeWelcome text={homeWelcomeText} /> : undefined}
-      mainVisible={isDocked}
+      mainVisible={resolvedMainVisible}
       overlay={overlay}
       composerElevated={composerElevated}
     />

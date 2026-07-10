@@ -12,6 +12,7 @@ const knowledgeService = {
   addItems: vi.fn(),
   deleteItems: vi.fn(),
   reindexItems: vi.fn(),
+  enableEmbeddingModel: vi.fn(),
   search: vi.fn(),
   listItemChunks: vi.fn()
 }
@@ -91,6 +92,17 @@ describe('knowledgeHandlers', () => {
     await knowledgeHandlers['knowledge.reindex_items']({ baseId: 'base-1', itemIds: ['i1'] }, ctx)
 
     expect(knowledgeService.reindexItems).toHaveBeenCalledWith('base-1', ['i1'])
+  })
+
+  it('enable_embedding_model forwards baseId and patch and returns the updated base', async () => {
+    const patch = { embeddingModelId: 'provider::embed', dimensions: 768 }
+    const updated = { id: 'base-1', embeddingModelId: 'provider::embed' }
+    knowledgeService.enableEmbeddingModel.mockResolvedValue(updated)
+
+    const result = await knowledgeHandlers['knowledge.enable_embedding_model']({ baseId: 'base-1', patch }, ctx)
+
+    expect(knowledgeService.enableEmbeddingModel).toHaveBeenCalledWith('base-1', patch)
+    expect(result).toBe(updated)
   })
 
   it('search forwards baseId and query and returns the matches', async () => {

@@ -4,6 +4,7 @@ import {
   createNoteItem,
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
+import { toast } from '@renderer/services/toast'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,8 +13,6 @@ import { usePreviewKnowledgeSource } from '../usePreviewKnowledgeSource'
 
 const mockOpenPath = vi.fn()
 const mockOpenExternal = vi.fn()
-const mockToastError = vi.fn()
-const mockToastWarning = vi.fn()
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 vi.mock('react-i18next', () => ({
@@ -41,10 +40,6 @@ describe('usePreviewKnowledgeSource', () => {
       shell: {
         openExternal: mockOpenExternal
       }
-    }
-    ;(window as any).toast = {
-      error: mockToastError,
-      warning: mockToastWarning
     }
   })
 
@@ -103,7 +98,7 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
   it('shows an unavailable toast for invalid url sources', async () => {
@@ -115,7 +110,7 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
   it('opens note sources only when the source is an http url', async () => {
@@ -126,7 +121,7 @@ describe('usePreviewKnowledgeSource', () => {
     })
 
     expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/note')
-    expect(mockToastWarning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('shows an unavailable toast for non-http note sources', async () => {
@@ -138,7 +133,7 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
   it('shows an unavailable toast for notes without a previewable source', async () => {
@@ -150,7 +145,7 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenPath).not.toHaveBeenCalled()
     expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
   it('logs and shows a failure toast when previewing rejects', async () => {
@@ -162,7 +157,7 @@ describe('usePreviewKnowledgeSource', () => {
       await result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
     })
 
-    expect(mockToastError).toHaveBeenCalledWith('预览原文失败: open failed')
+    expect(toast.error).toHaveBeenCalledWith('预览原文失败: open failed')
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', previewError, {
       itemId: 'file-1',
       itemType: 'file',

@@ -1,5 +1,6 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isCherryAIProvider } from '@shared/utils/provider'
@@ -9,7 +10,11 @@ function isCanonicalPresetProvider(provider: Provider): boolean {
 }
 
 export function isProviderSettingsListVisibleProvider(provider: Provider): boolean {
-  return !isCherryAIProvider(provider)
+  // Hide the internal local-embedding provider from the management list: it is
+  // download-managed, so editing / disabling / deleting it here would bypass the
+  // download card's in-use checks + weight cleanup. Its model still surfaces in
+  // capability-filtered model pickers (e.g. the KB embedding picker).
+  return !isCherryAIProvider(provider) && provider.id !== LOCAL_EMBEDDING_PROVIDER_ID
 }
 
 export function getFancyProviderName(provider: Provider): string {

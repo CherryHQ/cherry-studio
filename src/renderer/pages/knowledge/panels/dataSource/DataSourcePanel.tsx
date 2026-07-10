@@ -1,4 +1,5 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useState } from 'react'
@@ -114,7 +115,7 @@ const DataSourcePanel = ({
     try {
       await Promise.all(targets.map((item) => onReindex(item)))
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
     }
     setSelectedIds(new Set())
@@ -125,7 +126,7 @@ const DataSourcePanel = ({
     try {
       await Promise.all(targets.map((item) => onDelete(item)))
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
       return
     }
     setSelectedIds(new Set())
@@ -140,7 +141,7 @@ const DataSourcePanel = ({
     try {
       await onDelete(pendingDeleteItem)
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
       return
     }
 

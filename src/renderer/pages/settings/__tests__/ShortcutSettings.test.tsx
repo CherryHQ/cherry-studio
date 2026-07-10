@@ -167,16 +167,6 @@ describe('ShortcutSettings shortcut recorder', () => {
         onRegistrationConflict: registrationConflictMock
       }
     } as unknown as typeof window.api
-    window.modal = {
-      confirm: vi.fn()
-    } as unknown as typeof window.modal
-    window.toast = {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('uses a non-text focus target while recording shortcuts', () => {

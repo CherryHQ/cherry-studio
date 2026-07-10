@@ -105,6 +105,7 @@ export interface TooltipProps {
   delay?: number
   sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
+  fullWidthTrigger?: boolean
   classNames?: {
     content?: string
     placeholder?: string
@@ -125,6 +126,7 @@ export const Tooltip = ({
   delay = 0,
   sideOffset = 0,
   showArrow = true,
+  fullWidthTrigger = false,
   classNames,
   className,
   isDisabled,
@@ -135,9 +137,15 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
+  const triggerWrapperClassName = cn(
+    'relative z-10',
+    fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
+    classNames?.placeholder
+  )
+
   if (!tooltipContent || isDisabled) {
     return (
-      <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
+      <div className={triggerWrapperClassName} onClick={onClick}>
         {children}
       </div>
     )
@@ -157,7 +165,7 @@ export const Tooltip = ({
     <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
         <TooltipTrigger asChild>
-          <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
+          <div className={triggerWrapperClassName} onClick={onClick}>
             {children}
           </div>
         </TooltipTrigger>

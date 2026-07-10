@@ -27,7 +27,7 @@ import {
 import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { LegacyKnowledgeVectorLoadResult } from '../utils/KnowledgeVectorSourceReader'
+import type { LegacyKnowledgeVectorLoadResult, LegacyKnowledgeVectorRow } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
@@ -146,17 +146,34 @@ interface PlannedMaterialSnapshot {
   data: KnowledgeItemData
 }
 
+/**
+ * The per-base plan prepare() retains across the whole migration. It deliberately holds NO
+ * vectors/chunk text — only counts and the decisions that must stay stable between prepare() and
+ * execute() (the legacy base id to re-read, and each url/note item's resolved snapshot path, whose
+ * reservation must happen exactly once). execute() re-reads the legacy vectors and rebuilds a
+ * base's materials from scratch inside its own loop iteration, so at most one base's vectors are
+ * ever resident at a time instead of every base's for the whole migration (the OOM this guards
+ * against: a 28-base corpus with high-dimension embeddings held all 28 bases' vectors at once from
+ * the end of prepare() until execute() drained them).
+ */
 interface PreparedBasePlan {
   baseId: string
+  legacyBaseId: string
   materialDirPath: string
   targetDbPath: string
-  materials: PreparedMaterial[]
-  materialSnapshots: PlannedMaterialSnapshot[]
+  dimensions: number
+  // Which migrated items produced a material, in chunk-assignment order. Metadata only (ids), used
+  // for progress-unit accounting and test/log observability — never the chunks/vectors themselves.
+  materialItemIds: string[]
   expectedUnitCount: number
   // Distinct embedding hashes across the whole base (the embedding table is keyed
   // by hash, so identical chunk bodies — within or across materials — collapse to one row).
   expectedEmbeddingCount: number
   sourceRowCount: number
+  // Each url/note item's resolved snapshot relativePath, decided once here (reserveImportedFileRelativePath
+  // must not run twice — a second call could mint a different name and desync the store's material
+  // row from the raw/ file execute() writes). execute() reuses these verbatim instead of re-reserving.
+  snapshotRelativePathByItemId: Map<string, string>
   // Directory-expanded groups (container id → child ids) this base owns. Kept on the plan so a
   // per-base failure in execute() can degrade them (markDirectoryGroupsFullyOrphaned) the same way
   // a prepare-time skip does — otherwise an isolated base's directory children stay `completed`
@@ -263,6 +280,16 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // surfaces a restore entry instead of leaving a `completed` base with a missing/partial store and
   // forever-empty search.
   private basesToMarkFailed = new Set<string>()
+  // Mappings computed once in prepare() and reused by execute() to re-derive each base's
+  // loaderTargetMap without re-querying ctx.db or holding any vectors — none of these carry chunk
+  // text or embeddings, so caching them costs nothing next to the OOM they help avoid.
+  private legacyBasesById = new Map<string, LegacyKnowledgeBaseWithLoaders & { id: string }>()
+  private legacyItemIdRemap = new Map<string, string>()
+  private directoryChildLoaderRemapByBase = new Map<string, Map<string, string>>()
+  private migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
+  // One timestamp for every url/note snapshot this run materializes, set once in prepare() and
+  // reused by execute() so both phases stamp the same capture time.
+  private capturedAt = ''
 
   override reset(): void {
     this.sourceCount = 0
@@ -274,6 +301,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.executionErrors = []
     this.directoryItemsToDegrade = new Set<string>()
     this.basesToMarkFailed = new Set<string>()
+    this.legacyBasesById = new Map<string, LegacyKnowledgeBaseWithLoaders & { id: string }>()
+    this.legacyItemIdRemap = new Map<string, string>()
+    this.directoryChildLoaderRemapByBase = new Map<string, Map<string, string>>()
+    this.migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
+    this.capturedAt = ''
   }
 
   /**
@@ -475,11 +507,135 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     return owners
   }
 
+  /**
+   * Combine the base loader→migrated-item map with the directory-child re-attribution pass into the
+   * final loaderTargetMap, returning conflict messages instead of recording them directly: prepare()
+   * (the only caller that logs warnings) records each message once, while execute() re-derives the
+   * identical map from the identical inputs — re-reading the legacy vectors per base rather than
+   * retaining them — without re-warning about a conflict already reported.
+   */
+  private resolveLoaderTargetMap(
+    baseId: string,
+    legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
+    baseMigratedItems: Map<string, MigratedKnowledgeItemForVector>,
+    legacyItemIdRemap: Map<string, string>,
+    baseDirectoryChildLoaderRemap: Map<string, string> | undefined
+  ): { loaderTargetMap: Map<string, MigratedKnowledgeItemForVector>; conflictWarnings: string[] } {
+    const loaderTargetMap = this.buildLoaderTargetMap(legacyBase, baseMigratedItems, legacyItemIdRemap)
+    const conflictWarnings: string[] = []
+
+    if (baseDirectoryChildLoaderRemap) {
+      const standaloneLoaderOwners = this.collectStandaloneLoaderOwners(
+        legacyBase,
+        baseMigratedItems,
+        legacyItemIdRemap
+      )
+      for (const [loaderId, owner] of standaloneLoaderOwners) {
+        loaderTargetMap.set(loaderId, owner)
+      }
+      for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
+        if (standaloneLoaderOwners.has(loaderId)) {
+          conflictWarnings.push(
+            `Knowledge base ${baseId}: loader '${loaderId}' is owned by a standalone item; kept its vectors there and left the directory child to degrade`
+          )
+          continue
+        }
+        const child = baseMigratedItems.get(childItemId)
+        if (child) {
+          loaderTargetMap.set(loaderId, child)
+        }
+      }
+    }
+
+    return { loaderTargetMap, conflictWarnings }
+  }
+
+  /**
+   * Filter and group legacy vector rows by migrated item, in legacy read order. Pure (no `this`
+   * side effects) so prepare() and execute() get byte-identical grouping over the same inputs:
+   * prepare() records the returned skips as warnings/counts once, execute() only needs the
+   * chunksByItem grouping to rebuild materials and discards the skip list (already recorded).
+   */
+  private assignVectorRowsToItems(
+    baseId: string,
+    vectorRows: LegacyKnowledgeVectorRow[],
+    loaderTargetMap: Map<string, MigratedKnowledgeItemForVector>,
+    dimensions: number
+  ): {
+    chunksByItem: Map<string, { item: MaterialFieldSource; chunks: MigratedChunk[] }>
+    skips: Array<{ reason: string; message: string }>
+  } {
+    const chunksByItem = new Map<string, { item: MaterialFieldSource; chunks: MigratedChunk[] }>()
+    const skips: Array<{ reason: string; message: string }> = []
+
+    for (const row of vectorRows) {
+      // V2 only keeps vectors that can be proven to belong to an existing
+      // migrated knowledge_item row. Unmapped legacy vectors are treated
+      // as invalid index residue and are intentionally dropped.
+      const target = loaderTargetMap.get(row.uniqueLoaderId)
+      if (!target) {
+        skips.push({
+          reason: 'unmapped_loader',
+          message: `Skipped knowledge vector row in base ${baseId}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
+        })
+        continue
+      }
+
+      if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.type)) {
+        skips.push({
+          reason: 'non_indexable_container',
+          message: `Skipped knowledge vector row in base ${baseId}: container item '${target.id}' of type '${target.type}' is not indexable`
+        })
+        continue
+      }
+
+      if (row.vector.status === 'unsupported_encoding') {
+        skips.push({
+          reason: 'unsupported_vector_encoding',
+          message: `Skipped knowledge vector row in base ${baseId}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
+        })
+        continue
+      }
+
+      if (row.vector.status === 'missing' || row.vector.value.length === 0) {
+        skips.push({
+          reason: 'missing_vector_payload',
+          message: `Skipped knowledge vector row in base ${baseId}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
+        })
+        continue
+      }
+
+      // A vector whose length disagrees with the base's recorded dimensions
+      // would make the brute-force cosine scan compare mismatched lengths, so
+      // drop it rather than corrupt vector search for the whole base.
+      if (row.vector.value.length !== dimensions) {
+        skips.push({
+          reason: 'dimension_mismatch',
+          message: `Skipped knowledge vector row in base ${baseId}: vector length ${row.vector.value.length} != base dimensions ${dimensions} for uniqueLoaderId '${row.uniqueLoaderId}'`
+        })
+        continue
+      }
+
+      const materialItem = toMaterialFieldSource(target)
+      if (!materialItem) {
+        // INDEXABLE_KNOWLEDGE_ITEM_TYPES already excluded container types; this is
+        // unreachable, but keep it explicit so a future type addition fails closed.
+        continue
+      }
+
+      const entry = chunksByItem.get(target.id) ?? { item: materialItem, chunks: [] }
+      entry.chunks.push({ pageContent: row.pageContent, embedding: row.vector.value })
+      chunksByItem.set(target.id, entry)
+    }
+
+    return { chunksByItem, skips }
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       // One timestamp for every snapshot this run materializes; it records when
       // the file was written (the migration), not a page fetch — origin says so.
-      const capturedAt = new Date().toISOString()
+      this.capturedAt = new Date().toISOString()
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeStateWithLoaders>('knowledge')
       const migratedBases = await ctx.db.select().from(knowledgeBaseTable)
 
@@ -500,14 +656,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         })
         .from(knowledgeItemTable)
 
-      const migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
       for (const item of migratedItems) {
-        const bucket = migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        const bucket = this.migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
         bucket.set(item.id, item)
-        migratedItemsByBaseId.set(item.baseId, bucket)
+        this.migratedItemsByBaseId.set(item.baseId, bucket)
       }
 
-      const legacyBasesById = new Map(
+      this.legacyBasesById = new Map(
         knowledgeState.bases
           .filter((base): base is LegacyKnowledgeBaseWithLoaders & { id: string } => typeof base.id === 'string')
           .map((base) => [base.id, base])
@@ -518,9 +673,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         [...legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
       )
       const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
-      const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
+      this.legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
       const sharedDirectoryChildLoaderRemap = ctx.sharedData.get(KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY)
-      const directoryChildLoaderRemapByBase = isNestedStringMap(sharedDirectoryChildLoaderRemap)
+      this.directoryChildLoaderRemapByBase = isNestedStringMap(sharedDirectoryChildLoaderRemap)
         ? sharedDirectoryChildLoaderRemap
         : new Map<string, Map<string, string>>()
 
@@ -530,7 +685,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // virtual-path docs (markDirectoryGroupsFullyOrphaned); if the base loads, children that
         // receive no chunks are degraded individually (markEmptyDirectoryChildren). The map is
         // empty for bases without directory expansion, so the marker calls are no-ops there.
-        const directoryGroups = this.collectDirectoryGroups(base.id, migratedItemsByBaseId)
+        const directoryGroups = this.collectDirectoryGroups(base.id, this.migratedItemsByBaseId)
 
         if (base.status === 'failed' || base.embeddingModelId === null) {
           // Two distinct skip reasons collapse into this branch — attribute each to its real cause so
@@ -572,7 +727,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const legacyBase = legacyBasesById.get(legacyBaseId)
+        const legacyBase = this.legacyBasesById.get(legacyBaseId)
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
@@ -626,110 +781,36 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const vectorRows = source.rows
         this.sourceCount += vectorRows.length
 
-        const loaderTargetMap = this.buildLoaderTargetMap(
-          legacyBase,
-          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
-          legacyItemIdRemap
-        )
-
         // A v1 folder's per-file vectors were booked under the directory item's loader ids;
         // KnowledgeMigrator split that folder into per-file children and recorded each file's
         // loader id → child item id, scoped to this migrated base. Point those loader ids at the
         // child (not the directory container) so the vectors land on the child material instead
         // of being dropped as a non-indexable container. The per-base scope keeps a loader id
         // shared across bases (v1 ids are path/content hashes) pointing at the right base's child.
-        const baseMigratedItems = migratedItemsByBaseId.get(base.id)
-        const baseDirectoryChildLoaderRemap = directoryChildLoaderRemapByBase.get(base.id)
-        if (baseMigratedItems && baseDirectoryChildLoaderRemap) {
-          // A loader id can be claimed by BOTH a directory expansion and a standalone file/url/note
-          // item the user added separately — v1 loader ids are md5(path), so the same physical file
-          // added both on its own and inside a folder collides on one id. The standalone item owns a
-          // real raw/ file and is reindexable, whereas the directory child is a virtual-path doc, so
-          // keep the standalone as the vector owner: pin the loader id to it (independent of
-          // buildLoaderTargetMap's array-order last-write-wins, which may have left it on the
-          // non-indexable container) and skip the override that would otherwise steal its vectors and
-          // leave the standalone `completed` but unsearchable. The skipped directory child draws no
-          // chunks and is degraded by collectDirectoryGroups + markEmptyDirectoryChildren.
-          const standaloneLoaderOwners = this.collectStandaloneLoaderOwners(
-            legacyBase,
-            baseMigratedItems,
-            legacyItemIdRemap
-          )
-          for (const [loaderId, owner] of standaloneLoaderOwners) {
-            loaderTargetMap.set(loaderId, owner)
-          }
-          for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
-            if (standaloneLoaderOwners.has(loaderId)) {
-              this.recordSkippedWarning(
-                'directory_child_loader_conflict',
-                `Knowledge base ${base.id}: loader '${loaderId}' is owned by a standalone item; kept its vectors there and left the directory child to degrade`
-              )
-              continue
-            }
-            const child = baseMigratedItems.get(childItemId)
-            if (child) {
-              loaderTargetMap.set(loaderId, child)
-            }
-          }
+        // A loader id can also be claimed by BOTH a directory expansion and a standalone
+        // file/url/note item the user added separately — resolveLoaderTargetMap keeps the
+        // standalone as the vector owner (see collectStandaloneLoaderOwners) and reports the
+        // conflict instead of silently stealing the standalone's vectors.
+        const baseMigratedItems =
+          this.migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        const baseDirectoryChildLoaderRemap = this.directoryChildLoaderRemapByBase.get(base.id)
+        const { loaderTargetMap, conflictWarnings } = this.resolveLoaderTargetMap(
+          base.id,
+          legacyBase,
+          baseMigratedItems,
+          this.legacyItemIdRemap,
+          baseDirectoryChildLoaderRemap
+        )
+        for (const conflictWarning of conflictWarnings) {
+          this.recordSkippedWarning('directory_child_loader_conflict', conflictWarning)
         }
 
         // Group the surviving chunks by migrated item, preserving legacy read order
         // both across items (first appearance) and within an item (chunk order).
-        const chunksByItem = new Map<string, { item: MaterialFieldSource; chunks: MigratedChunk[] }>()
-
-        for (const row of vectorRows) {
-          // V2 only keeps vectors that can be proven to belong to an existing
-          // migrated knowledge_item row. Unmapped legacy vectors are treated
-          // as invalid index residue and are intentionally dropped.
-          const target = loaderTargetMap.get(row.uniqueLoaderId)
-          if (!target) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
-            this.recordSkippedWarning('unmapped_loader', warningMessage)
-            continue
-          }
-
-          if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.type)) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: container item '${target.id}' of type '${target.type}' is not indexable`
-            this.recordSkippedWarning('non_indexable_container', warningMessage)
-            continue
-          }
-
-          if (row.vector.status === 'unsupported_encoding') {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('unsupported_vector_encoding', warningMessage)
-            continue
-          }
-
-          if (row.vector.status === 'missing' || row.vector.value.length === 0) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('missing_vector_payload', warningMessage)
-            continue
-          }
-
-          // A vector whose length disagrees with the base's recorded dimensions
-          // would make the brute-force cosine scan compare mismatched lengths, so
-          // drop it rather than corrupt vector search for the whole base.
-          if (row.vector.value.length !== dimensions) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector length ${row.vector.value.length} != base dimensions ${dimensions} for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('dimension_mismatch', warningMessage)
-            continue
-          }
-
-          const materialItem = toMaterialFieldSource(target)
-          if (!materialItem) {
-            // INDEXABLE_KNOWLEDGE_ITEM_TYPES already excluded container types; this is
-            // unreachable, but keep it explicit so a future type addition fails closed.
-            continue
-          }
-
-          const entry = chunksByItem.get(target.id) ?? { item: materialItem, chunks: [] }
-          entry.chunks.push({ pageContent: row.pageContent, embedding: row.vector.value })
-          chunksByItem.set(target.id, entry)
+        const { chunksByItem, skips } = this.assignVectorRowsToItems(base.id, vectorRows, loaderTargetMap, dimensions)
+        for (const skip of skips) {
+          this.skippedCount += 1
+          this.recordSkippedWarning(skip.reason, skip.message)
         }
 
         // A directory child that drew no chunks (its v1 file's vectors were absent/unmappable) is an
@@ -742,15 +823,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // fileProcessorId so an unprocessed file's prospective `.md` artifact slot is
         // reserved too — same invariant the runtime add path uses, so a snapshot can't
         // later be overwritten by a reindex-produced artifact (or vice versa).
-        const reservedPaths = collectKnowledgeReservedRelativePaths(
-          [...(migratedItemsByBaseId.get(base.id)?.values() ?? [])],
-          {
-            fileProcessorId: base.fileProcessorId
-          }
-        )
+        const reservedPaths = collectKnowledgeReservedRelativePaths([...baseMigratedItems.values()], {
+          fileProcessorId: base.fileProcessorId
+        })
 
-        const materials: PreparedMaterial[] = []
-        const materialSnapshots: PlannedMaterialSnapshot[] = []
+        // Count and plan this base's materials WITHOUT retaining them: buildMigratedRebuildInput's
+        // result (chunk text + reused vectors) is only read here for its counts, then falls out of
+        // scope at the end of each loop iteration — it is never pushed onto `this.preparedBasePlans`,
+        // so a 28-base migration never holds more than one base's vectors at a time. execute() rebuilds
+        // the real materials per base, from the legacy DB again, right before writing them.
+        const materialItemIds: string[] = []
+        const snapshotRelativePathByItemId = new Map<string, string>()
         const baseEmbeddingHashes = new Set<string>()
         let expectedUnitCount = 0
         for (const { item, chunks } of chunksByItem.values()) {
@@ -758,38 +841,30 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // this run and pins the row to it (so toMaterialRelativePath never falls back).
           // A re-run after a partial migration may find the row already pinned (and that
           // path already reserved above); reuse it instead of minting a `name-1.md` twin.
+          // The decision (not the snapshot text itself) is what execute() must reuse verbatim —
+          // reserveImportedFileRelativePath must run exactly once per item.
           let relativePath: string
           if (item.type === 'url') {
             const contentText = joinMigratedChunkText(chunks)
             // buildUrlSnapshotFile is the same OKF-frontmatter + slug derivation the runtime's
             // captureUrlSnapshotFile uses, so a migrated url snapshot is byte-identical to a natively
             // captured one (the snapshot reader strips the frontmatter to round-trip the body).
-            const snapshot = buildUrlSnapshotFile(item.data.url, contentText, capturedAt)
+            const snapshot = buildUrlSnapshotFile(item.data.url, contentText, this.capturedAt)
             relativePath =
               item.data.relativePath ?? reserveImportedFileRelativePath(`${snapshot.slug}.md`, false, reservedPaths)
-            materialSnapshots.push({
-              itemId: item.id,
-              relativePath,
-              fileText: snapshot.fileText,
-              data: { ...item.data, relativePath }
-            })
+            snapshotRelativePathByItemId.set(item.id, relativePath)
           } else if (item.type === 'note') {
             const contentText = joinMigratedChunkText(chunks)
-            const snapshot = buildNoteSnapshotFile(item.data.source, contentText, capturedAt)
+            const snapshot = buildNoteSnapshotFile(item.data.source, contentText, this.capturedAt)
             relativePath =
               item.data.relativePath ?? reserveImportedFileRelativePath(`${snapshot.slug}.md`, false, reservedPaths)
-            materialSnapshots.push({
-              itemId: item.id,
-              relativePath,
-              fileText: snapshot.fileText,
-              data: { ...item.data, relativePath }
-            })
+            snapshotRelativePathByItemId.set(item.id, relativePath)
           } else {
             relativePath = toMaterialRelativePath(item)
           }
 
+          materialItemIds.push(item.id)
           const material = buildMigratedRebuildInput(item, chunks, relativePath)
-          materials.push(material)
           expectedUnitCount += material.input.units.length
           for (const embedding of material.input.embeddings) {
             baseEmbeddingHashes.add(embedding.embeddingTextHash)
@@ -801,13 +876,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // could be associated with valid, indexable migrated knowledge_item rows.
         this.preparedBasePlans.push({
           baseId: base.id,
+          legacyBaseId,
           materialDirPath: path.join(ctx.paths.knowledgeBaseDir, base.id, KNOWLEDGE_MATERIAL_ROOT_DIR),
           targetDbPath: this.getRuntimeVectorStorePath(ctx.paths.knowledgeBaseDir, base.id),
-          materials,
-          materialSnapshots,
+          dimensions,
+          materialItemIds,
           expectedUnitCount,
           expectedEmbeddingCount: baseEmbeddingHashes.size,
           sourceRowCount: vectorRows.length,
+          snapshotRelativePathByItemId,
           directoryGroups
         })
       }
@@ -919,7 +996,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       }
     }
 
-    const totalWork = this.preparedBasePlans.reduce((sum, plan) => sum + Math.max(plan.materials.length, 1), 0)
+    const totalWork = this.preparedBasePlans.reduce((sum, plan) => sum + Math.max(plan.materialItemIds.length, 1), 0)
     let processedWork = 0
     let processedCount = 0
 
@@ -932,6 +1009,66 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       let storePromoted = false
 
       try {
+        // Rebuild THIS base's materials right here, in this iteration's local scope, by re-reading
+        // its legacy vectors — prepare() intentionally did not retain them (see PreparedBasePlan).
+        // `materials`/`materialSnapshots` fall out of scope at the end of this iteration, so at most
+        // one base's vectors are ever resident, instead of every base's for the whole migration.
+        const legacyBase = this.legacyBasesById.get(plan.legacyBaseId)
+        const baseMigratedItems =
+          this.migratedItemsByBaseId.get(plan.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        const baseDirectoryChildLoaderRemap = this.directoryChildLoaderRemapByBase.get(plan.baseId)
+
+        const source = await ctx.sources.knowledgeVectorSource.loadBase(plan.legacyBaseId)
+        if (source.status !== 'ok') {
+          throw new Error(
+            `Knowledge vector base ${plan.baseId}: legacy vector DB unavailable at execute time (status=${source.status})`
+          )
+        }
+
+        const { loaderTargetMap } = this.resolveLoaderTargetMap(
+          plan.baseId,
+          legacyBase,
+          baseMigratedItems,
+          this.legacyItemIdRemap,
+          baseDirectoryChildLoaderRemap
+        )
+        // Conflict/skip classification was already recorded by prepare()'s pass over the same
+        // inputs — only the chunksByItem grouping is needed here to rebuild materials.
+        const { chunksByItem } = this.assignVectorRowsToItems(
+          plan.baseId,
+          source.rows,
+          loaderTargetMap,
+          plan.dimensions
+        )
+
+        const materials: PreparedMaterial[] = []
+        const materialSnapshots: PlannedMaterialSnapshot[] = []
+        for (const { item, chunks } of chunksByItem.values()) {
+          let relativePath: string
+          if (item.type === 'url' || item.type === 'note') {
+            // prepare() decided this exactly once; reusing it here (rather than re-deriving via
+            // reserveImportedFileRelativePath) keeps the store's material row in sync with whatever
+            // path validate() and any cross-base uniqueness check already accounted for.
+            const plannedRelativePath = plan.snapshotRelativePathByItemId.get(item.id)
+            if (plannedRelativePath === undefined) {
+              throw new Error(
+                `Knowledge vector base ${plan.baseId}: missing planned snapshot relative path for item '${item.id}'`
+              )
+            }
+            relativePath = plannedRelativePath
+            const contentText = joinMigratedChunkText(chunks)
+            const fileText =
+              item.type === 'url'
+                ? buildUrlSnapshotFile(item.data.url, contentText, this.capturedAt).fileText
+                : buildNoteSnapshotFile(item.data.source, contentText, this.capturedAt).fileText
+            materialSnapshots.push({ itemId: item.id, relativePath, fileText, data: { ...item.data, relativePath } })
+          } else {
+            relativePath = toMaterialRelativePath(item)
+          }
+
+          materials.push(buildMigratedRebuildInput(item, chunks, relativePath))
+        }
+
         await retryOnTransientFsLock(() => fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true }))
         // Defensive clear before building: the runtime path is normally fresh (KnowledgeMigrator mints
         // a new uuid dir per run), but wipe any stale store + WAL sidecars so a build always starts
@@ -963,7 +1100,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // so it is never mounted (it is dead disk, the same as the rename path produced).
         const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
-          for (const material of plan.materials) {
+          for (const material of materials) {
             await store.rebuildMaterial(material.itemId, material.input)
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
@@ -983,7 +1120,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
         storePromoted = true
 
-        if (plan.materials.length === 0) {
+        if (materials.length === 0) {
           processedWork += 1
           this.reportRebuildProgress(processedWork, totalWork)
           await yieldToEventLoop()
@@ -995,10 +1132,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // {baseDir}/raw/{relativePath} (a url instead of re-fetching the page, a note
         // instead of re-deriving from data). The material root may not exist yet (a
         // url/note-only base copies no files), so ensure it first.
-        if (plan.materialSnapshots.length > 0) {
+        if (materialSnapshots.length > 0) {
           await retryOnTransientFsLock(() => fs.promises.mkdir(plan.materialDirPath, { recursive: true }))
         }
-        for (const snapshot of plan.materialSnapshots) {
+        for (const snapshot of materialSnapshots) {
           // A reused item.data.relativePath could in principle carry a traversal;
           // guard it before writing — the same invariant every other base write
           // enforces (getKnowledgeBaseFilePath) but which this direct join bypasses.
@@ -1016,8 +1153,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         processedCount += plan.expectedUnitCount
         logger.info('Migrated knowledge vector base as preserved-chunk concatenation', {
           baseId: plan.baseId,
-          materials: plan.materials.length,
-          materialSnapshots: plan.materialSnapshots.length,
+          materials: materials.length,
+          materialSnapshots: materialSnapshots.length,
           units: plan.expectedUnitCount,
           embeddings: plan.expectedEmbeddingCount
         })
@@ -1122,17 +1259,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         // The rebuilt store's url/note material rows reference these snapshot paths,
         // so a missing file would surface later as an unreadable material.
-        const missingSnapshots = plan.materialSnapshots.filter(
-          (snapshot) => !fs.existsSync(path.join(plan.materialDirPath, snapshot.relativePath))
+        const snapshotRelativePaths = [...plan.snapshotRelativePathByItemId.values()]
+        const missingSnapshots = snapshotRelativePaths.filter(
+          (relativePath) => !fs.existsSync(path.join(plan.materialDirPath, relativePath))
         )
         if (missingSnapshots.length > 0) {
           errors.push({
             key: `knowledge_vector_material_snapshots_${plan.baseId}`,
-            expected: plan.materialSnapshots.length,
-            actual: plan.materialSnapshots.length - missingSnapshots.length,
+            expected: snapshotRelativePaths.length,
+            actual: snapshotRelativePaths.length - missingSnapshots.length,
             message: `Missing ${missingSnapshots.length} materialized url/note snapshot files in base ${plan.baseId}: ${missingSnapshots
               .slice(0, SKIP_WARNING_SAMPLE_LIMIT)
-              .map((snapshot) => snapshot.relativePath)
               .join(', ')}`
           })
         }
@@ -1152,7 +1289,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           const counts = store.describeIndexCounts()
           targetCount += counts.units
 
-          this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, counts.materials)
+          this.pushCountMismatch(errors, plan.baseId, 'material', plan.materialItemIds.length, counts.materials)
           this.pushCountMismatch(errors, plan.baseId, 'search_unit', plan.expectedUnitCount, counts.units)
           this.pushCountMismatch(errors, plan.baseId, 'embedding', plan.expectedEmbeddingCount, counts.embeddings)
 

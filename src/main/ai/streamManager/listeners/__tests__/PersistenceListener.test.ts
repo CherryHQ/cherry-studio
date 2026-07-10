@@ -366,6 +366,18 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock).not.toHaveBeenCalled()
   })
 
+  it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
+    const listener = makeListener()
+
+    await listener.onPaused({
+      finalMessage: undefined,
+      status: 'paused',
+      timings: { startedAt: 1000, completedAt: 2500.9 }
+    })
+
+    expect(appendMessageMock).not.toHaveBeenCalled()
+  })
+
   it('swallows append errors so stream teardown is not disrupted', async () => {
     appendMessageMock.mockImplementationOnce(() => {
       throw new Error('write failed')

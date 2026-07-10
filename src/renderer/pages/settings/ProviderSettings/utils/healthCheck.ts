@@ -144,10 +144,11 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
  */
 export async function checkApi(
   uniqueModelId: UniqueModelId,
-  options?: { timeout?: number; signal?: AbortSignal }
+  options?: { apiKey?: string; timeout?: number; signal?: AbortSignal }
 ): Promise<{ latency: number }> {
   options?.signal?.throwIfAborted()
   return await ipcApi.request('ai.check_model', {
+    apiKeyOverride: options?.apiKey,
     uniqueModelId,
     timeout: options?.timeout ?? 15000
   })

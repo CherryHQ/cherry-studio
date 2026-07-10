@@ -73,12 +73,13 @@ export function AgentToolCallCard({
     ...renderedItem,
     label: (
       <AgentToolDisclosureLabel
-        label={renderedItem.label}
-        trailing={
-          status &&
-          (status !== 'done' || hasError) && (
-            <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
-          )
+        label={
+          <div className="flex min-w-0 items-center gap-1.5">
+            <div className="min-w-0">{renderedItem.label}</div>
+            {status && (status !== 'done' || hasError) && (
+              <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+            )}
+          </div>
         }
       />
     ),

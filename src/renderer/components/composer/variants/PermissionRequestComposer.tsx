@@ -7,6 +7,7 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, Wrench } from 'lucide-react'
@@ -113,7 +114,7 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <Scrollbar className="mt-2 max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+        <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
         </Scrollbar>
       ) : (
@@ -214,7 +215,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           action,
           approvalId: request.approvalId
         })
-        window.toast.error(t('agent.toolPermission.error.sendFailed'))
+        toast.error(t('agent.toolPermission.error.sendFailed'))
         setIsSubmitting(false)
       }
     },
@@ -248,7 +249,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     <div
       data-composer-viewport-inset-target=""
       className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div className="rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) p-2.5 backdrop-blur">
+      <div className="rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]">
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
@@ -264,7 +265,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
-        <div className="mt-2 overflow-hidden rounded-[12px] bg-muted/30" data-testid="permission-preview">
+        <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 

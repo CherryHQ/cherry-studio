@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, loggerMock, settingsWindowServiceMock, windowManagerMock } = vi.hoisted(() => {
+const { applicationMock, loggerMock, openSettingsInMainWindowMock, windowManagerMock } = vi.hoisted(() => {
   const mainWindowServiceMock = {
     showMainWindow: vi.fn()
   }
   const windowManagerMock = {
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => [])
   }
-  const settingsWindowServiceMock = {
-    open: vi.fn()
-  }
+  const openSettingsInMainWindowMock = vi.fn()
   const loggerMock = {
     debug: vi.fn(),
     error: vi.fn(),
@@ -19,11 +17,10 @@ const { applicationMock, loggerMock, settingsWindowServiceMock, windowManagerMoc
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
       if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'SettingsWindowService') return settingsWindowServiceMock
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  return { applicationMock, loggerMock, settingsWindowServiceMock, windowManagerMock }
+  return { applicationMock, loggerMock, openSettingsInMainWindowMock, windowManagerMock }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
@@ -36,6 +33,10 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isMac: false
+}))
+
+vi.mock('@main/services/settingsNavigation', () => ({
+  openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
 import { handleNavigateProtocolUrl } from '../navigate'
@@ -53,10 +54,10 @@ describe('navigate protocol handler', () => {
     expect(windowManagerMock.getWindowsByType).not.toHaveBeenCalled()
   })
 
-  it('opens settings routes through SettingsWindowService', () => {
+  it('opens settings routes through the main-window settings helper', () => {
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/settings/provider?id=openai'))
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(windowManagerMock.getWindowsByType).not.toHaveBeenCalled()
   })
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,10 +42,6 @@ describe('useProviderDeepLinkImport', () => {
     createProviderMock.mockResolvedValue({ id: 'openai' })
     updateProviderByIdMock.mockResolvedValue(undefined)
     addApiKeyTriggerMock.mockResolvedValue(undefined)
-    ;(window as any).toast = {
-      success: vi.fn(),
-      error: vi.fn()
-    }
   })
 
   it('creates a provider, posts the API key, and navigates for a valid deep link', async () => {
@@ -104,7 +101,7 @@ describe('useProviderDeepLinkImport', () => {
       to: '/settings/provider',
       search: { id: 'openai' }
     })
-    expect(window.toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledTimes(1)
   })
 
   it('updates an existing provider when the deep link resolves to an existing entry', async () => {
@@ -172,7 +169,7 @@ describe('useProviderDeepLinkImport', () => {
       )
     )
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
 
     expect(popupShowMock).not.toHaveBeenCalled()
     expect(createProviderMock).not.toHaveBeenCalled()
@@ -210,7 +207,7 @@ describe('useProviderDeepLinkImport', () => {
       )
     )
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
 
     expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
     expect(onSelectProvider).not.toHaveBeenCalled()

@@ -106,6 +106,8 @@ const MessageGroup = ({
   // changes. Without this, fold mode can keep showing an old model column even
   // after branch navigation moves the active path to another multi-model node.
   useEffect(() => {
+    if (captureMode) return
+
     const previousIds = previousMessageIdsRef.current
     const previousIdSet = new Set(previousIds)
     const addedMessages = messages.filter((message) => !previousIdSet.has(message.id))
@@ -135,7 +137,7 @@ const MessageGroup = ({
     if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
       setUsefulMessageIdState(null)
     }
-  }, [getMessageUiState, messages, selectedMessageId, updateMessageUiState, usefulMessageId])
+  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState, usefulMessageId])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
