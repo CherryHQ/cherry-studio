@@ -42,6 +42,8 @@ export interface AiBaseRequest {
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
+  /** Selected API key override, currently used by provider health checks. */
+  apiKeyOverride?: string
   /**
    * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
    * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only

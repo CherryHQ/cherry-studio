@@ -12,7 +12,7 @@ export const providerSettingsTypography = {
 
 /** Connection — transparent input body + same muted border as model search.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
-const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-background px-2.5 shadow-none'
+const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-muted/30 px-2.5 shadow-none'
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
@@ -26,7 +26,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 /** Authentication section layout: slot stack only; fields provide their own surfaces. */
 export const authConnectionClasses = {
   shell: '',
-  body: 'flex flex-col gap-2'
+  body: 'flex flex-col gap-5'
 } as const
 
 /**
@@ -37,7 +37,7 @@ export const providerDetailColumnClasses = {
   scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-6 pb-4',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
+  headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border-subtle pb-2',
   sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
@@ -55,28 +55,32 @@ const providerListItemFrame =
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-border border-r-[0.5px]',
+  shell: 'flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-border border-r-[0.5px]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
-  headerAddButton:
-    'flex size-7 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-accent/40 hover:text-primary disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
-  searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
+  searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
+  searchWrap: 'flex h-9 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
-  scroller: 'min-h-0 flex-1 px-2.5 pb-2',
-  sectionStack: 'space-y-3',
+  searchClearButton:
+    'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  scroller: 'min-h-0 flex-1 px-2.5 pt-2 pb-2',
+  sectionStack: 'flex flex-col gap-2',
   section: 'space-y-2',
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
-  addWrap: 'shrink-0 border-t border-border-muted px-2.5 py-2',
+  addWrap: 'shrink-0',
+  addBottomWrap: '-mt-1.5',
   addButton:
-    'flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-muted border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex h-8 w-full items-center justify-start rounded-lg border border-border-muted border-dashed bg-transparent py-0 pr-2.5 pl-0.5 text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+  addButtonContent: 'flex min-w-0 items-center gap-2.5',
+  addButtonLeadingSpacer: 'w-2.5 shrink-0',
+  addButtonIconSlot: 'flex size-[26px] shrink-0 items-center justify-center',
   item: providerListItemFrame,
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
@@ -84,7 +88,6 @@ export const providerListClasses = {
   itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
-  itemDragHandleSpacer: 'flex w-2.5 shrink-0',
   itemAvatar:
     'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
@@ -93,17 +96,21 @@ export const providerListClasses = {
   itemTrailingSlotIndicatorOnly: 'size-2',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
-  groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
+  groupHeader: cn(providerListItemFrame, 'group/row pr-2.5 hover:bg-muted'),
   groupHeaderHasSelected: 'bg-muted',
+  groupTrailing: 'relative ml-2 flex size-3 shrink-0 items-center justify-center',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
-  groupCount: 'shrink-0 text-xs leading-none text-muted-foreground/60 tabular-nums',
+  groupChevronHiddenUntilHover:
+    'absolute opacity-0 transition-[opacity,transform] group-hover/row:opacity-100 group-focus-within/row:opacity-100',
+  groupEnabledDot:
+    'pointer-events-none absolute size-1.5 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
   itemMoreActions:
     'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute top-1/2 right-0.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-muted bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
@@ -156,7 +163,7 @@ export const drawerClasses = {
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
   valueSuffix: 'shrink-0 text-xs leading-tight text-foreground-muted',
   divider: 'h-px bg-border-muted',
-  switchCard: 'rounded-md border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
+  switchCard: 'rounded-lg border border-border bg-background px-3 py-3',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
@@ -177,19 +184,28 @@ export const modelListClasses = {
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
+  headerInlineRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2',
+  headerInlineActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   /** Model list header stack — matches model list block. */
   headerToolStack: 'flex min-w-0 w-full flex-col gap-2',
   titleWrap: 'flex w-full min-w-0 items-center gap-3',
   titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
+  subsectionIconButton:
+    'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  subsectionIcon: 'size-4',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
-  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
-  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
+  titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
-  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] text-primary hover:underline',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/70 transition-colors hover:!text-primary hover:no-underline',
+  titleHelpIconLink:
+    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-foreground-muted/70 transition-colors hover:text-primary',
+  titleHelpIcon: 'relative -top-px size-3.5 shrink-0',
   titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-muted/50',
   countMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
   toolbarGhost:
@@ -206,48 +222,33 @@ export const modelListClasses = {
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
     'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+  searchCompactWrap:
+    'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+  searchIconButton:
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
+  groupToggleIconButton:
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+  fetchGuideWrap: 'relative flex shrink-0',
+  fetchGuideArrow:
+    'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-icon motion-reduce:animate-none',
   addModelIconButton:
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
-  capabilityFilterRoot: 'flex min-w-0 shrink-0 items-center gap-1',
-  capabilityFilterButton:
-    'h-7 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background px-2 py-0 text-xs leading-tight text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
-  capabilityFilterButtonIconOnly: 'size-7 px-0',
-  capabilityFilterButtonActive: 'border-border-active bg-accent/40',
-  capabilityFilterLabel: 'min-w-0 truncate',
-  capabilityFilterClear:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 transition-colors hover:bg-accent/40 hover:text-muted-foreground/80',
-  capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
-  capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
-  capabilityTabIcon: 'size-3 shrink-0',
-  subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
-  subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
-  subsectionIconButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
-  subsectionIcon: 'size-4 shrink-0',
-  listActionTriggerButton:
-    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/55 shadow-none hover:bg-accent/40 hover:text-foreground/80 disabled:opacity-40',
-  listActionTriggerIcon: 'size-4 shrink-0',
-  listActionMenu: 'w-fit min-w-40 rounded-xl p-1.5',
-  listActionMenuItem: 'h-9 rounded-lg px-3 text-sm',
-  listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
-  subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
-  subsectionTitleEnabled: 'text-sm leading-5 text-foreground font-semibold',
-  subsectionCountEnabled: 'text-sm leading-5 text-foreground-muted tabular-nums font-medium',
-  subsectionTitleDisabled: 'text-sm leading-5 text-foreground font-semibold',
-  subsectionCountDisabled: 'text-sm leading-5 text-foreground-muted tabular-nums font-medium',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',
+  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
+  virtualGroupRow: '',
+  virtualGroupRowCollapsed: 'mb-2.5',
+  virtualModelRow: 'border-x border-border-subtle bg-transparent',
+  virtualModelRowLast: 'mb-2.5 rounded-b-lg border-b border-border-subtle pb-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -276,24 +277,29 @@ export const modelListClasses = {
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
-  groupCard: 'group/modelGroup min-w-0 w-full rounded-md border border-border-subtle bg-transparent px-2 py-1',
+  groupCard: 'group/modelGroup min-w-0 w-full overflow-hidden rounded-lg border border-border-subtle bg-transparent',
+  groupCardOpen: 'rounded-b-none border-b-0',
   groupHeader:
-    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-4 text-left outline-none focus-visible:outline-none',
+  groupHeaderOpen: '[border-bottom:0.5px_solid_var(--color-border-subtle)]',
   groupToggleButton:
-    'flex min-w-0 max-w-full items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
+    'flex min-w-0 max-w-full items-center gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
   groupHeaderIconTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
-  groupSwitchTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
   groupTitle: 'min-w-0 truncate text-sm leading-5 text-foreground font-medium',
-  groupChevron:
-    'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
+  groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
-  groupBody: 'mt-0.5 flex flex-col gap-0.5',
+  groupBody: 'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
+  groupBodyOpen: 'grid-rows-[1fr]',
+  groupBodyClosed: 'grid-rows-[0fr]',
+  groupBodyInner: 'min-h-0 overflow-hidden',
+  groupBodyList: 'flex flex-col gap-0',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground',
-  row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
-  rowMain: 'min-w-0 flex-1 items-center gap-3 self-center',
-  rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
+  row: 'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
+  rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
+  rowAvatar:
+    'inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-lg [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
   rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
@@ -307,8 +313,12 @@ export const modelListClasses = {
   rowMeta: 'mt-[3px] block min-w-0 max-w-full truncate text-xs leading-tight text-foreground/65',
   healthStatusSlot: 'shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
-  rowActionsCluster: 'flex min-h-7 min-w-0 items-center gap-2',
-  rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
+  rowActionsCluster: 'flex min-h-8 min-w-0 items-center gap-2',
+  rowActions: 'ml-auto min-w-0 shrink-0 items-center gap-2 self-center',
+  rowInlineActions: 'flex shrink-0 items-center gap-1',
+  rowActionButton:
+    'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',
+  rowDangerActionButton: 'hover:!text-foreground',
   rowIconButton:
     'size-7 rounded-lg border border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
@@ -376,7 +386,50 @@ export const modelSyncClasses = {
   fetchRowIdStrike: 'truncate text-sm leading-tight text-foreground-muted line-through decoration-foreground-muted',
   fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-muted tabular-nums',
   /** Trailing capability icons — pull preview panel strip */
-  fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]'
+  fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]',
+  manageTitle: 'inline-flex min-w-0 items-center gap-2',
+  manageTitleText: 'min-w-0 truncate',
+  manageTitleCountBadge: 'h-5 rounded-md px-1.5 py-0 text-xs leading-5 tabular-nums',
+  manageTitleActionButton:
+    'h-8 rounded-lg px-2.5 text-xs text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageTitleErrorRetryButton:
+    'relative size-7 shrink-0 rounded-lg p-0 text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageTitleErrorDot:
+    'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error-base ring-1 ring-card',
+  manageStickyHeader: 'sticky top-0 z-10 shrink-0 bg-card pt-1 pb-3',
+  manageToolbar: 'mb-2.5 flex items-center gap-2',
+  manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60',
+  manageSearchInput: 'h-9 rounded-lg bg-muted/30 pr-7 pl-8 text-sm shadow-none',
+  manageSearchClear:
+    'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
+  manageIconButton: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  manageTabs: 'w-full gap-0',
+  manageTabsList: 'h-auto w-full max-w-full justify-stretch gap-1 rounded-lg bg-muted/40 p-1',
+  manageTabsTrigger: 'h-7 min-w-0 flex-1 rounded-md px-2 text-center text-xs',
+  manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
+  manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
+  manageList: 'pb-1',
+  manageGroup: 'contents',
+  manageVirtualGroupRow: 'bg-card pb-1',
+  manageVirtualModelRow: 'bg-card pb-1',
+  manageGroupHeader: 'sticky top-0 z-30 mt-2.5 first:mt-0',
+  manageGroupHeaderSurface:
+    'flex min-h-9 items-center gap-2 border-b border-border-subtle bg-card py-0 text-left transition-colors',
+  manageGroupHeaderSurfaceCollapsed: '',
+  manageGroupToggle: 'flex min-w-0 flex-1 items-center gap-2 text-left',
+  manageGroupChevron: 'size-4 shrink-0 text-muted-foreground transition-transform',
+  manageGroupTitle: 'min-w-0 truncate text-sm font-semibold leading-5 text-foreground',
+  manageGroupBadge: 'h-4 rounded-md px-1.5 py-0 text-[10px] leading-4',
+  manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
+  manageRow:
+    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success/5',
+  manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
+  manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
+  manageRowDescriptionHelp:
+    'inline-flex size-4 shrink-0 items-center justify-center rounded text-icon outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
+  manageStaleBadge:
+    'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
+  manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const apiKeyListClasses = {
@@ -412,7 +465,7 @@ export const oauthCardClasses = {
     'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
   loginFooterDivider: 'text-xs text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
-  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary hover:underline',
+  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border-subtle px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
@@ -478,6 +531,7 @@ export const fieldClasses = {
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
-  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-5 text-primary hover:underline'
+  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-semibold',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-foreground-muted/70 transition-colors hover:text-primary hover:no-underline'
 } as const
