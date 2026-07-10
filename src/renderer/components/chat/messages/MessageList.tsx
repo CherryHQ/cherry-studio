@@ -1,8 +1,8 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
+import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -440,7 +440,7 @@ const MessageList = () => {
     })
   }, [bindRuntime])
 
-  if (data.isInitialLoading) {
+  if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
 
@@ -548,11 +548,6 @@ const MessageList = () => {
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
                 topic={topic}
-                onMultiModelMessageStyleChange={(style) => {
-                  setGroupLayoutOverrides((current) =>
-                    current[key] === style ? current : { ...current, [key]: style }
-                  )
-                }}
               />
             </NarrowLayout>
           ))}

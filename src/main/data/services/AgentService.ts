@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -117,6 +116,7 @@ export class AgentService {
   createAgent(req: CreateAgentDto): AgentEntity {
     const id = uuidv4()
     const mcps = req.mcps ?? []
+    const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
@@ -143,7 +143,7 @@ export class AgentService {
     // to keep this service↔service edge out of the static import graph — see
     // dataServiceRegistry.
     for (const skillId of skillIds) {
-      if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
+      if (!globalSkillService.getById(skillId)) {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
@@ -151,16 +151,7 @@ export class AgentService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          if (skillIds.length > 0) {
-            const rows = tx
-              .select({ id: agentGlobalSkillTable.id })
-              .from(agentGlobalSkillTable)
-              .where(inArray(agentGlobalSkillTable.id, skillIds))
-              .all()
-            if (rows.length !== skillIds.length) {
-              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
-            }
-          }
+          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -172,7 +163,7 @@ export class AgentService {
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
           for (const skillId of skillIds) {
-            getDataService('AgentGlobalSkillService').upsertJoinTx(tx, id, skillId, true)
+            globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),
@@ -348,6 +339,20 @@ export class AgentService {
 
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
+    const newSkillUpdates = updates.skillUpdates
+
+    // Same two-step validation as createAgent: pre-check each id outside the write
+    // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
+    // fallback). The in-tx recheck that closes the delete-after-prevalidation race
+    // lives inside AgentGlobalSkillService.applyJoinUpdatesByAgentTx. Resolved via the
+    // registry to keep the service↔service edge out of the static import graph.
+    if (newSkillUpdates !== undefined) {
+      for (const update of newSkillUpdates) {
+        if (!getDataService('AgentGlobalSkillService').getById(update.skillId)) {
+          throw DataApiErrorFactory.notFound('Skill', update.skillId)
+        }
+      }
+    }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
     // (description, instructions, disabledTools, configuration). Writing
@@ -374,6 +379,9 @@ export class AgentService {
                 .run()
             }
           }
+          if (newSkillUpdates !== undefined) {
+            getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
+          }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -389,11 +397,15 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
+  deleteAgent(
+    id: string,
+    options: { deleteSessions?: boolean } = {}
+  ): { deleted: boolean; deletedSessionIds?: string[] } {
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
+    let deletedSessionIds: string[] | undefined
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -406,7 +418,7 @@ export class AgentService {
           if (!agent) return { rowsAffected: 0 }
 
           if (options.deleteSessions === true) {
-            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
           }
 
           return this.deleteAgentTx(tx, id)
@@ -418,7 +430,7 @@ export class AgentService {
     if (deleted) {
       this._onAgentDeleted.fire({ agentId: id })
     }
-    return deleted
+    return { deleted, deletedSessionIds }
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {

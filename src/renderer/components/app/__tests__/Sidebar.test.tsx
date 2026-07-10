@@ -29,6 +29,7 @@ type FakeMiniApp = {
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
+  openSettingsTab: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
@@ -120,7 +121,11 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('@renderer/services/settingsNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('../../UserPopup', () => ({
   default: {
     show: mocks.showUserPopup
   }
@@ -324,7 +329,7 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('derives conversation detach URLs from instance metadata', () => {

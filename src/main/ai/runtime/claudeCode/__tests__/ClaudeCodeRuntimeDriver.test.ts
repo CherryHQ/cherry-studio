@@ -148,7 +148,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       resumeToken: 'resume-1'
     })
 
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1')
+    // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
+    // the model captured at its creation even if the agent was edited since.
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -295,6 +297,29 @@ describe('ClaudeCodeRuntimeDriver', () => {
           durationMs: 1234
         }
       }
+    })
+
+    void connection.close()
+  })
+
+  it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` → no adapter (the primed, turn-less case). The mid-session push must still surface so
+    // the catalog refreshes; `supportedCommands()` alone would miss it (captured once at init).
+    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands }
     })
 
     void connection.close()
@@ -785,6 +810,41 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // Teardown is the only place that disposes.
     void connection.close()
     expect(dispose).toHaveBeenCalled()
+  })
+
+  it('runs the session teardown once — a late close after a query-loop error must not re-dispose', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const approvalEmitter: any = { dispose: vi.fn() }
+    const steerHolder = { pending: [] as unknown[], dispose: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { approvalEmitter, steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // The query loop dies (failed result) → first teardown disposes the session-scoped state.
+    void connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'error', session_id: 'resume-1' })
+    let evt = await events.next()
+    while (evt.value?.type !== 'error' && !evt.done) evt = await events.next()
+    expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
+
+    // Regression: by the time the host's close() lands, a successor connection for the same session
+    // (e.g. a model-edit reconnect) may have registered fresh session-keyed state — a second by-id
+    // teardown would dispose the successor's approvals/snapshot, so it must no-op.
+    void connection.close()
+    expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
+    expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
   })
 })
 

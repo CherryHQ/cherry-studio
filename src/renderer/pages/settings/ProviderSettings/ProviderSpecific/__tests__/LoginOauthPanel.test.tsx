@@ -1,14 +1,14 @@
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LoginOauthPanel from '../LoginOauthPanel'
 
-const { requestMock, updateProviderMock, toastMock, modalMock } = vi.hoisted(() => ({
+const { requestMock, updateProviderMock } = vi.hoisted(() => ({
   requestMock: vi.fn(),
-  updateProviderMock: vi.fn().mockResolvedValue(undefined),
-  toastMock: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  modalMock: { confirm: vi.fn() }
+  updateProviderMock: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@logger', () => ({
@@ -33,8 +33,6 @@ vi.mock('@cherrystudio/ui', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  window.toast = toastMock as never
-  window.modal = modalMock as never
 })
 
 describe('LoginOauthPanel', () => {
@@ -53,7 +51,7 @@ describe('LoginOauthPanel', () => {
 
     await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
     expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
-    expect(toastMock.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success')
+    expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success')
   })
 
   it('resets auth to api-key and disables the provider in the cache on logout', async () => {
@@ -63,8 +61,7 @@ describe('LoginOauthPanel', () => {
       if (channel === 'oauth.logout') return Promise.resolve(undefined)
       throw new Error(`unexpected channel: ${channel}`)
     })
-    // Run the confirm dialog's onOk immediately.
-    modalMock.confirm.mockImplementation(({ onOk }: { onOk: () => Promise<void> }) => onOk())
+    // The global popup.confirm mock invokes onOk and resolves true (the confirmed path).
 
     render(<LoginOauthPanel providerId="codex" i18nNs="codex" showAccountId />)
 
@@ -74,6 +71,7 @@ describe('LoginOauthPanel', () => {
     await waitFor(() =>
       expect(updateProviderMock).toHaveBeenCalledWith({ authConfig: { type: 'api-key' }, isEnabled: false })
     )
+    expect(popup.confirm).toHaveBeenCalled()
     expect(requestMock).toHaveBeenCalledWith('oauth.logout', { providerId: 'codex' })
   })
 })

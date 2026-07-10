@@ -6,6 +6,7 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -218,6 +219,7 @@ export const useMiniApps = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -371,6 +373,8 @@ export const useMiniApps = () => {
           tabsContext?.closeTab(tab.id)
         }
       }
+
+      removeSidebarFavoriteMiniApp(appId)
     },
     [
       currentMiniAppId,
@@ -379,6 +383,7 @@ export const useMiniApps = () => {
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
+      removeSidebarFavoriteMiniApp,
       tabsContext
     ]
   )

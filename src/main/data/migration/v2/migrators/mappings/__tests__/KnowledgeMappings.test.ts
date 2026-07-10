@@ -162,6 +162,7 @@ describe('KnowledgeMappings', () => {
           model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
           chunkSize: 80,
           chunkOverlap: 40,
+          threshold: 0.6,
           documentCount: 100
         },
         1024
@@ -174,6 +175,7 @@ describe('KnowledgeMappings', () => {
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
         chunkOverlap: 40,
+        threshold: 0.6,
         documentCount: 100
       })
     })
@@ -202,8 +204,7 @@ describe('KnowledgeMappings', () => {
         chunkSize: 200,
         chunkOverlap: 199,
         threshold: undefined,
-        documentCount: undefined,
-        searchMode: 'hybrid'
+        documentCount: undefined
       })
     })
   })

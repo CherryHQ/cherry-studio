@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
@@ -5,12 +6,12 @@ import {
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorContent from './BaseNavigatorContent'
-import BaseNavigatorCreateMenu from './BaseNavigatorCreateMenu'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 import BaseNavigatorSearch from './BaseNavigatorSearch'
 
@@ -20,7 +21,7 @@ interface BaseNavigatorProps {
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
-  onCreateGroup: () => void
+  onCreateGroup: (baseId: string) => void
   onCreateBase: (groupId?: string) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
@@ -75,7 +76,15 @@ const BaseNavigator = ({
           <div className="min-w-0 flex-1">
             <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
           </div>
-          <BaseNavigatorCreateMenu onCreateBase={onCreateBase} onCreateGroup={onCreateGroup} />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="size-8 shrink-0 rounded-[10px]"
+            aria-label={t('common.add')}
+            onClick={() => onCreateBase()}>
+            <Plus className="size-3.5" />
+          </Button>
         </div>
 
         <BaseNavigatorContent
@@ -89,6 +98,7 @@ const BaseNavigator = ({
           onRenameBase={onRenameBase}
           onRenameGroup={onRenameGroup}
           onCreateBaseInGroup={onCreateBase}
+          onCreateGroup={onCreateGroup}
           onDeleteGroup={onDeleteGroup}
           onDeleteBase={onDeleteBase}
         />

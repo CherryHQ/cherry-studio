@@ -90,6 +90,7 @@ const providerKeyMap = {
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
   zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding',
   opencode: 'provider.opencode'
 } as const
 
@@ -185,7 +186,7 @@ export const getThemeModeLabelKey = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
-  assistants: 'agent.session.group.conversation',
+  assistants: 'title.chat',
   agents: 'title.work',
   paintings: 'title.paintings',
   translate: 'translate.title',
@@ -258,18 +259,6 @@ const mcpTypeKeyMap = {
 
 export const getMcpTypeLabelKey = (key: string): string => {
   return getLabelKey(mcpTypeKeyMap, key)
-}
-
-const mcpProviderDescriptionKeyMap = {
-  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
-  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
-  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
-  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
-  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
-} as const
-
-export const getMcpProviderDescriptionLabelKey = (key: string): string => {
-  return getLabelKey(mcpProviderDescriptionKeyMap, key)
 }
 
 const miniAppsStatusKeyMap = {

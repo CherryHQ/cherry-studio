@@ -198,5 +198,31 @@ describe('McpServerMappings', () => {
       const result = transformMcpServer({ id: 'srv-7', name: 'ordered', isActive: false }, 5)
       expect(result.row.sortOrder).toBe(5)
     })
+
+    describe('legacy type normalization', () => {
+      it.each([
+        ['stdio', 'stdio'],
+        ['sse', 'sse'],
+        ['streamableHttp', 'streamableHttp'],
+        ['inMemory', 'inMemory'],
+        // v1 briefly allowed these literals before collapsing them into streamableHttp
+        ['http', 'streamableHttp'],
+        ['streamable_http', 'streamableHttp'],
+        // any other unrecognized "http"-ish string is treated the same way
+        ['streamable-http', 'streamableHttp'],
+        // garbage/unrecognized strings fall back to null instead of violating the CHECK constraint
+        ['', null],
+        ['websocket', null],
+        ['unknown-type', null]
+      ])('maps legacy type %j to %j', (input, expected) => {
+        const result = transformMcpServer({ id: 'srv-legacy', name: 'legacy', isActive: false, type: input }, 0)
+        expect(result.row.type).toBe(expected)
+      })
+
+      it('maps missing type to null', () => {
+        const result = transformMcpServer({ id: 'srv-no-type', name: 'no-type', isActive: false }, 0)
+        expect(result.row.type).toBeNull()
+      })
+    })
   })
 })

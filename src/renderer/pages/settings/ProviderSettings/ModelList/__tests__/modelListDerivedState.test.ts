@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest'
 import {
   applyModelFilters,
   calculateModelListDerivedState,
-  calculateModelSections,
   countModelsInGroups,
+  groupModels,
   MODEL_LIST_CAPABILITY_FILTERS
 } from '../modelListDerivedState'
 
@@ -55,13 +55,36 @@ const models = [
 ] as any[]
 
 describe('modelListDerivedState', () => {
-  it('groups filtered models into sorted enabled and disabled sections', () => {
-    const sections = calculateModelSections(models as any, '', 'all')
+  it('groups filtered models into sorted unified groups', () => {
+    const groups = groupModels(applyModelFilters(models as any, '', 'all'))
 
-    expect(Object.keys(sections.enabled)).toEqual(['__ungrouped__', 'chat'])
-    expect(Object.keys(sections.disabled)).toEqual(['embedding', 'rerank'])
-    expect(countModelsInGroups(sections.enabled)).toBe(3)
-    expect(countModelsInGroups(sections.disabled)).toBe(2)
+    expect(Object.keys(groups)).toEqual(['chat', 'embedding', 'reasoning', 'rerank', 'vision'])
+    expect(countModelsInGroups(groups)).toBe(5)
+  })
+
+  it('uses model id group names before model.group', () => {
+    const groupedModels = [
+      {
+        id: 'provider::openai/gpt-4o',
+        apiModelId: 'openai/gpt-4o',
+        name: 'GPT 4o',
+        providerId: 'provider',
+        group: 'provider-group',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'provider::deepseek-v3',
+        apiModelId: 'deepseek-v3',
+        name: 'DeepSeek V3',
+        providerId: 'provider',
+        group: 'aihubmix',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    expect(Object.keys(groupModels(groupedModels as any))).toEqual(['deepseek', 'openai'])
   })
 
   it('applies search text and capability filters together', () => {
@@ -117,9 +140,9 @@ describe('modelListDerivedState', () => {
       'siliconflow::funaudio-cosyvoice'
     ])
 
-    expect(Object.keys(calculateModelSections(searchModels as any, 'dsv', 'all').enabled)).toEqual([
-      'Pro',
-      'FunAudioLLM'
+    expect(Object.keys(groupModels(applyModelFilters(searchModels as any, 'dsv', 'all'), true))).toEqual([
+      'deepseek',
+      'funaudio'
     ])
   })
 
@@ -169,12 +192,9 @@ describe('modelListDerivedState', () => {
       modelStatuses
     })
 
-    expect(derivedState.enabledModelCount).toBe(3)
-    expect(derivedState.disabledModelCount).toBe(2)
     expect(derivedState.modelCount).toBe(5)
     expect(derivedState.hasVisibleModels).toBe(true)
     expect(derivedState.hasNoModels).toBe(false)
-    expect(derivedState.allEnabled).toBe(false)
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 5,
@@ -201,7 +221,6 @@ describe('modelListDerivedState', () => {
     expect(derivedState.hasNoModels).toBe(true)
     expect(derivedState.hasVisibleModels).toBe(false)
     expect(derivedState.modelCount).toBe(0)
-    expect(derivedState.allEnabled).toBe(false)
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 0,

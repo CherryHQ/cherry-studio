@@ -158,6 +158,7 @@ export interface UseTopicMessagesResult {
    */
   siblingsMap: Record<string, SharedMessage[]>
   isLoading: boolean
+  isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
@@ -232,7 +233,7 @@ export function useTopicMessages(
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(
-    () => projectPagesToUI(branchItems, projectionCacheRef.current),
+    () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
     [branchItems]
   )
 
@@ -250,13 +251,16 @@ export function useTopicMessages(
       .slice()
       .reverse()
       .flatMap((p) => p.items)
-    return projectPagesToUI(allItems, projectionCacheRef.current)
+    return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
   }, [mutate, enabled])
+
+  const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 
   return {
     uiMessages,
     siblingsMap,
-    isLoading: enabled && (isLoading || readyTopicId !== topicId || !pagesBelongToTopic),
+    isLoading: enabled && (isLoading || isStale),
+    isStale,
     refresh,
     activeNodeId,
     rootId,
@@ -271,9 +275,9 @@ export function useTopicMessages(
  * reusing the per-row WeakMap so a stable shared message keeps its
  * projection identity across re-renders.
  */
-function projectPagesToUI(
+export function projectBranchMessagesToUI(
   branchItems: BranchMessage[],
-  cache: WeakMap<SharedMessage, CherryUIMessage>
+  cache: WeakMap<SharedMessage, CherryUIMessage> = new WeakMap()
 ): CherryUIMessage[] {
   return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
     const cached = cache.get(message)

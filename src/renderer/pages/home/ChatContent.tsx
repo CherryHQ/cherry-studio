@@ -33,6 +33,7 @@ interface Props {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
+  onStartBranchDraft?: MessageListActions['startMessageBranch']
 }
 
 /**
@@ -54,12 +55,14 @@ const ChatContent: FC<Props> = ({
   onLocateMessageHandled,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId
+  getBranchDraftAnchorId,
+  onStartBranchDraft
 }) => {
   const {
     uiMessages,
     siblingsMap,
     isLoading: isHistoryLoading,
+    isStale: isHistoryStale,
     refresh,
     activeNodeId,
     rootId,
@@ -79,7 +82,9 @@ const ChatContent: FC<Props> = ({
       onBranchLiveStateChange={onBranchLiveStateChange}
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
+      onStartBranchDraft={onStartBranchDraft}
       isHistoryLoading={isHistoryLoading}
+      isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -99,6 +104,7 @@ const ChatContent: FC<Props> = ({
 
 interface InnerProps extends Props {
   isHistoryLoading: boolean
+  isHistoryStale: boolean
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
@@ -123,7 +129,9 @@ const ChatContentInner: FC<InnerProps> = ({
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId,
+  onStartBranchDraft,
   isHistoryLoading,
+  isHistoryStale,
   initialMessages,
   uiMessages,
   siblingsMap,
@@ -188,9 +196,11 @@ const ChatContentInner: FC<InnerProps> = ({
       messages={runtime.messages}
       partsByMessageId={runtime.partsByMessageId}
       isInitialLoading={isHistoryLoading}
+      isMessagesStale={isHistoryStale}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       openCitationsPanel={onOpenCitationsPanel}
+      onStartBranchDraft={onStartBranchDraft}
     />
   )
   const composer = runtime.shouldRenderHomeComposer ? (

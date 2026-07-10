@@ -284,19 +284,20 @@ export class SkillService {
 
   private async installFromClaudePlugins(identifier: string): Promise<InstalledSkill> {
     const parts = identifier.split('/')
-    if (parts.length < 3) {
+    const [owner, repo, ...directoryParts] = parts
+    const directoryPath = directoryParts.join('/')
+    const skillName = directoryParts[directoryParts.length - 1] ?? ''
+
+    if (!owner || !repo || !directoryPath || !skillName || directoryParts.some((part) => !part.trim())) {
       throw new Error(`Invalid claude-plugins identifier: ${identifier}`)
     }
 
-    const [owner, repo, ...rest] = parts
-    const directoryPath = rest.join('/')
     const repoUrl = `https://github.com/${owner}/${repo}`
     const sourceUrl = `${repoUrl}/tree/main/${directoryPath}`
     const tempDir = await this.createTempDir('claude-plugins')
 
     try {
       await this.cloneRepository(repoUrl, tempDir)
-      const skillName = parts[parts.length - 1]
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, directoryPath)
       const installed = await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
 
@@ -333,7 +334,7 @@ export class SkillService {
   }
 
   private async installFromClawhub(slug: string): Promise<InstalledSkill> {
-    const detailUrl = `https://api.clawhub.ai/api/v1/skills/${slug}`
+    const detailUrl = `https://clawhub.ai/api/v1/skills/${slug}`
     const detailResp = await net.fetch(detailUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -342,7 +343,16 @@ export class SkillService {
       throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
     }
 
-    const downloadUrl = `https://api.clawhub.ai/api/v1/skills/${slug}/download`
+    const detailData = await detailResp.json()
+    const ownerHandle: string | undefined = (detailData as Record<string, unknown>)?.owner
+      ? (((detailData as Record<string, unknown>).owner as Record<string, unknown>)?.handle as string | undefined)
+      : undefined
+
+    const sourceUrl = ownerHandle
+      ? `https://clawhub.ai/${ownerHandle}/skills/${slug}`
+      : `https://clawhub.ai/skills/${slug}`
+
+    const downloadUrl = `https://clawhub.ai/api/v1/download?slug=${encodeURIComponent(slug)}`
     const downloadResp = await net.fetch(downloadUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -361,7 +371,7 @@ export class SkillService {
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
       const skillDir = await this.locateSkillDir(extractDir)
-      return await this.installSkillDir(skillDir, 'marketplace', `https://clawhub.ai/skills/${slug}`)
+      return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }
@@ -756,8 +766,12 @@ export class SkillService {
    *
    * - If the row exists and files weren't updated, no-ops.
    * - If files were updated, refreshes the metadata row in-place.
-   * - If the row is missing (first install), inserts it and fans it out to
-   *   every existing agent via `enableForAllAgents`.
+   * - If the row is missing (first install), inserts it.
+   *
+   * Per-agent enablement needs no fan-out here: `AgentGlobalSkillService.list()`
+   * defaults a builtin skill to enabled for every agent until a user explicitly
+   * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
+   * for existing and future agents alike — without any `agent_skill` rows.
    */
   async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
     const existing = agentGlobalSkillService.getByFolderName(folderName)
@@ -776,7 +790,7 @@ export class SkillService {
         contentHash
       })
     } else {
-      const inserted = agentGlobalSkillService.insert({
+      agentGlobalSkillService.insert({
         name: metadata.name,
         description: metadata.description ?? null,
         folderName,
@@ -788,7 +802,6 @@ export class SkillService {
         contentHash,
         isEnabled: false
       })
-      this.enableForAllAgents(inserted.id)
     }
 
     await this.linkMirror(folderName)
