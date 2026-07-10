@@ -156,6 +156,7 @@ afterEach(() => {
   dialog.mountCount = 0
   dialog.unmountCount = 0
   dialog.settingsNavigate.mockReset()
+  vi.restoreAllMocks()
 })
 
 function mockDeferredAnimationFrames() {
