@@ -1,4 +1,5 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -60,7 +61,7 @@ function createContext(
   } as unknown as MigrationContext
 }
 
-function makeProvider(id: string, models: Array<{ id: string }> = []) {
+function makeProvider(id: string, models: Array<{ id: string; supported_endpoint_types?: Array<'jina-rerank'> }> = []) {
   return {
     id,
     name: `Provider ${id}`,
@@ -570,6 +571,30 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
 
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+    })
+
+    it('maps Jina rerank endpoint metadata to endpoint and capability for opaque NewAPI model ids', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('new-api', [{ id: 'opaque-model-id', supported_endpoint_types: ['jina-rerank'] }])
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 

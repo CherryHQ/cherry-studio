@@ -458,6 +458,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -471,10 +472,10 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.id, legacy.capabilities),
+    capabilities: mapCapabilities(legacy.id, legacy.capabilities, endpointTypes),
     inputModalities: null,
     outputModalities: null,
-    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
+    endpointTypes,
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,
@@ -487,7 +488,11 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
   }
 }
 
-function mapCapabilities(modelId: string, capabilities?: LegacyModel['capabilities']): ModelCapability[] {
+function mapCapabilities(
+  modelId: string,
+  capabilities?: LegacyModel['capabilities'],
+  endpointTypes?: EndpointType[] | null
+): ModelCapability[] {
   const mapped: ModelCapability[] = []
   if (capabilities) {
     for (const capability of capabilities) {
@@ -500,6 +505,9 @@ function mapCapabilities(modelId: string, capabilities?: LegacyModel['capabiliti
     }
   }
   if (inferRerankFromModelId(modelId)) {
+    mapped.push(MODEL_CAPABILITY.RERANK)
+  }
+  if (endpointTypes?.includes(ENDPOINT_TYPE.JINA_RERANK)) {
     mapped.push(MODEL_CAPABILITY.RERANK)
   }
 
