@@ -344,15 +344,21 @@ export class BackupService extends BaseService {
     try {
       realParent = realpathSync(parent)
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-        // Missing parent (renderer passed a path under a not-yet-created dir) — give the
-        // renderer a branchable code rather than letting raw ENOENT fold to INTERNAL.
-        throw new IpcError(
-          'BACKUP_OUTPUT_PATH_INVALID',
-          `backup: outputPath parent directory does not exist: ${parent}`
-        )
-      }
-      throw e
+      // Parent missing (ENOENT) or unreadable/unresolvable (EACCES / ELOOP / ...) — all
+      // map to a stable invalid-path code so the renderer can branch. This check runs
+      // before the mapped try block, so it must produce a stable code itself.
+      throw new IpcError(
+        'BACKUP_OUTPUT_PATH_INVALID',
+        `backup: outputPath parent directory unavailable (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${parent}`
+      )
+    }
+    // realpathSync succeeds on a file too — reject a non-directory parent here, otherwise
+    // createWriteStream(tmpPath) fails ENOTDIR mid-export → INTERNAL.
+    if (!statSync(realParent).isDirectory()) {
+      throw new IpcError(
+        'BACKUP_OUTPUT_PATH_INVALID',
+        `backup: outputPath parent is not a directory: ${parent}`
+      )
     }
     const canonical = join(realParent, basename(resolve(outputPath)))
     // Refuse ANY app-managed writable root — the archive must never overwrite the live
