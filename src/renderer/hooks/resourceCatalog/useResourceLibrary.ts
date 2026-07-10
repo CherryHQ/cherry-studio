@@ -103,7 +103,9 @@ export function useResourceLibrary({
     search: isAssistant ? trimmedSearch : undefined,
     tagIds: isAssistant ? tagIds : undefined
   })
-  const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
+  // Agents are already fetched at AGENTS_MAX_LIMIT, so search client-side after
+  // mapping: builtin fallback descriptions exist only in the renderer display string.
+  const agents = agentAdapter.useList({ enabled: isAgent, search: undefined })
   const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
@@ -198,6 +200,11 @@ export function useResourceLibrary({
     [filteredAssistants.data, buildAssistantItem]
   )
   const agentItems = useMemo(() => agents.data.map(buildAgentItem), [agents.data, buildAgentItem])
+  const filteredAgentItems = useMemo(() => {
+    if (!trimmedSearch) return agentItems
+    const query = trimmedSearch.toLocaleLowerCase()
+    return agentItems.filter((item) => `${item.name} ${item.description}`.toLocaleLowerCase().includes(query))
+  }, [agentItems, trimmedSearch])
   const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
   const promptItems = useMemo(() => prompts.data.map(buildPromptItem), [prompts.data, buildPromptItem])
 
@@ -208,7 +215,7 @@ export function useResourceLibrary({
 
     let list: ResourceItem[]
     if (isAssistant) list = filteredAssistantItems
-    else if (isAgent) list = agentItems
+    else if (isAgent) list = filteredAgentItems
     else if (isPrompt) list = promptItems
     else list = skillItems
 
@@ -219,7 +226,7 @@ export function useResourceLibrary({
     isAgent,
     isPrompt,
     filteredAssistantItems,
-    agentItems,
+    filteredAgentItems,
     promptItems,
     skillItems,
     sort
