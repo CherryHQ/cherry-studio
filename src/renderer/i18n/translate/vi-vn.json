@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Chỉnh sửa hình ảnh (OpenAI)",
     "image-generation": "Tạo ảnh (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6523,7 +6524,7 @@
         },
         "group_name": {
           "label": "Tên Nhóm",
-          "placeholder": "Tùy chọn ví dụ: ChatGPT",
+          "placeholder": "Ví dụ: ChatGPT",
           "tooltip": "Tùy chọn ví dụ: ChatGPT"
         },
         "max_input_tokens": {
@@ -6536,7 +6537,8 @@
         },
         "model_id": {
           "label": "ID mô hình",
-          "placeholder": "Bắt buộc, ví dụ: gpt-3.5-turbo",
+          "placeholder": "Ví dụ: gpt-5.5",
+          "required": "Vui lòng nhập ID mô hình",
           "select": {
             "placeholder": "Chọn Mô hình"
           },
@@ -6544,7 +6546,7 @@
         },
         "model_name": {
           "label": "Tên mô hình",
-          "placeholder": "Opcional p. ej. GPT-4",
+          "placeholder": "Ví dụ: GPT-5.5",
           "tooltip": "Opcjonalnie np. GPT-4"
         },
         "supported_text_delta": {
@@ -6613,14 +6615,17 @@
       },
       "group_disable": "Tắt nhóm này",
       "group_enable": "Bật nhóm này",
-      "list_title": "Model list",
+      "list_title": "Mô hình",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
-          "label": "Thêm các mô hình vào danh sách"
+          "label": "Thêm tất cả mô hình"
         },
         "add_whole_group": "Thêm toàn bộ nhóm",
+        "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
+        "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
+        "default_model_cannot_remove": "Không thể xóa mô hình mặc định.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6642,11 +6647,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Xóa các mô hình khỏi danh sách",
+        "remove_listed": "Xóa tất cả mô hình",
         "remove_model": "Xóa mô hình",
+        "remove_skipped_default_in_use": "Đã bỏ qua {{count}} mô hình mặc định",
         "remove_whole_group": "Xóa toàn bộ nhóm",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Không hợp lệ",
+        "stale_filter": "Không hợp lệ",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6706,7 +6714,7 @@
         "custom_add": "Tùy chỉnh",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Thêm"
+        "pull_short": "Lấy danh sách mô hình"
       },
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
@@ -6798,6 +6806,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Thêm nhà cung cấp",
         "name": {
           "label": "Tên nhà cung cấp",
           "placeholder": "Ví dụ: OpenAI",

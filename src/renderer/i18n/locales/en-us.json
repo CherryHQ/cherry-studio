@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Image Edit (OpenAI)",
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -6552,7 +6553,7 @@
         },
         "group_name": {
           "label": "Group Name",
-          "placeholder": "Optional e.g. ChatGPT",
+          "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
         },
         "max_input_tokens": {
@@ -6565,7 +6566,8 @@
         },
         "model_id": {
           "label": "Model ID",
-          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "placeholder": "e.g. gpt-5.5",
+          "required": "Please enter the model ID",
           "select": {
             "placeholder": "Select Model"
           },
@@ -6573,7 +6575,7 @@
         },
         "model_name": {
           "label": "Model Name",
-          "placeholder": "Optional e.g. GPT-4",
+          "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
         },
         "supported_text_delta": {
@@ -6642,14 +6644,17 @@
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
-      "list_title": "Model list",
+      "list_title": "Models",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
-          "label": "Add models to the list"
+          "label": "Add all models"
         },
         "add_whole_group": "Add the whole group",
+        "clean_stale_models": "Clean stale models",
+        "clean_stale_success": "Cleaned {{count}} stale model(s)",
+        "default_model_cannot_remove": "Default model can't be deleted.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6671,11 +6676,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Remove models from the list",
+        "remove_listed": "Remove all models",
         "remove_model": "Delete model",
+        "remove_skipped_default_in_use": "Skipped {{count}} default model(s)",
         "remove_whole_group": "Delete group",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Stale",
+        "stale_filter": "Stale",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6827,6 +6835,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Add Provider",
         "name": {
           "label": "Provider Name",
           "placeholder": "Example: OpenAI",
