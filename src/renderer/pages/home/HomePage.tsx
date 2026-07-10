@@ -147,6 +147,7 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [detachedSidebarOpen, setDetachedSidebarOpen] = useState(false)
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
@@ -173,9 +174,9 @@ const HomePage: FC = () => {
   // ≥200 pinned topics fill the first page).
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
   const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
-  // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
+  const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -356,14 +357,16 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const topicListPosition: ChatPanePosition =
+    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isClassicTopicLayout || panePosition !== 'right' || !visibleAssistantId) return undefined
+    if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [allTopics, isClassicTopicLayout, panePosition, t, visibleAssistantId])
+  }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
@@ -389,15 +392,19 @@ const HomePage: FC = () => {
   const setResourceListOpen = useCallback(
     (open: boolean) => {
       setAutoCollapsedResourceList(false)
+      if (isWindowFrame) {
+        setDetachedSidebarOpen(open)
+        return
+      }
       void setShowSidebar(open)
     },
-    [setShowSidebar]
+    [isWindowFrame, setShowSidebar]
   )
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
   const toggleResourceListOpen = useCallback(() => {
-    if (isMessageOnlyView || isWindowFrame) return
+    if (isMessageOnlyView) return
 
     if (effectiveShowSidebar) {
       setResourceListOpen(false)
@@ -408,7 +415,7 @@ const HomePage: FC = () => {
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, isWindowFrame, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
@@ -795,7 +802,6 @@ const HomePage: FC = () => {
       visibleTopic
     ]
   )
-  const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const shellPanePosition: ChatPanePosition = 'left'
 
   // Message-only (detached) view has no rail: resolve its single target topic and show its own
@@ -825,7 +831,7 @@ const HomePage: FC = () => {
           setAssistantPickerOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onSelectTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
@@ -848,10 +854,10 @@ const HomePage: FC = () => {
         onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
         onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
-        onOpenHistoryRecords={openHistoryRecords}
+        onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
         resourceMenuItems={resourceMenuItems}
-        onSetPanePosition={setTopicListPosition}
+        onSetPanePosition={isWindowFrame ? undefined : setTopicListPosition}
         panePosition="left"
       />
     )
@@ -952,7 +958,7 @@ const HomePage: FC = () => {
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
           onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+          showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
           locateMessageId={pendingLocateMessageId}

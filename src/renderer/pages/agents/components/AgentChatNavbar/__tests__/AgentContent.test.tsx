@@ -1,3 +1,4 @@
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,6 +115,22 @@ describe('AgentContent', () => {
     expect(toggle).toHaveAttribute('data-tone', 'conversation')
     expect(toggle).not.toHaveAttribute('data-active')
     expect(screen.getByRole('button', { name: 'agent.session.add.title' })).toBeInTheDocument()
+  })
+
+  it('places detached-window conversation controls before the title', () => {
+    render(
+      <WindowFrameProvider
+        value={{ mode: 'window', chrome: { titleLeading: <span data-testid="window-title">Session title</span> } }}>
+        <AgentContent activeAgent={agentA} />
+      </WindowFrameProvider>
+    )
+
+    const title = screen.getByTestId('window-title')
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const newSession = screen.getByRole('button', { name: 'agent.session.add.title' })
+
+    expect(toggle.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(newSession.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('hides the new-session button when the sidebar is visible', () => {

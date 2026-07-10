@@ -4,6 +4,7 @@ import { CommandTooltip } from '@renderer/components/command'
 import { NavbarHeader } from '@renderer/components/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useResolvedCommand } from '@renderer/hooks/command'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { t } from 'i18next'
 import { SquarePen } from 'lucide-react'
 import type { FC } from 'react'
@@ -18,6 +19,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
   const newTopic = useResolvedCommand('topic.create')
+  const { mode, chrome } = useWindowFrame()
 
   return (
     <NavbarHeader className="home-navbar relative" style={{ height: 'var(--navbar-height)' }}>
@@ -54,6 +56,9 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
                 </CommandTooltip>
               </>
             ))}
+          {mode === 'window' && chrome?.titleLeading ? (
+            <div className={showSidebarControls ? 'ml-2 min-w-0' : 'min-w-0'}>{chrome.titleLeading}</div>
+          ) : null}
         </div>
       </div>
     </NavbarHeader>

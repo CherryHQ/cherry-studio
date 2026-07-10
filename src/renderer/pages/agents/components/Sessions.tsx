@@ -37,6 +37,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import {
   type AgentSessionExportOptions,
   agentSessionToMarkdown,
@@ -321,6 +322,7 @@ const Sessions = ({
   const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
+  const isWindowFrame = useWindowFrame().mode === 'window'
   const [groupNow] = useState(() => new Date())
   const { notesPath } = useNotesSettings()
   const [exportMenuOptions] = useMultiplePreferences({
@@ -1773,7 +1775,7 @@ const Sessions = ({
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
-        onOpenInNewTab={openSessionInNewTab}
+        onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}

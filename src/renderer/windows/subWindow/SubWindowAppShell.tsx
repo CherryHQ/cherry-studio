@@ -9,6 +9,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -85,6 +86,16 @@ export const SubWindowAppShell = () => {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
   const showFallbackTitleBar = !!activeTab && !isPageTitledRoute(activeTab.url)
 
+  // Conversation pages switch topics/sessions inside their existing tab and
+  // publish the current instance through metadata. Keep the tab URL canonical
+  // so route state and a later reattach both point at the visible conversation.
+  useEffect(() => {
+    if (!activeTab || !isPageTitledRoute(activeTab.url)) return
+    const url = resolveSidebarAppTabEntryUrl(activeTab)
+    if (url === activeTab.url) return
+    updateTab(activeTab.id, { url })
+  }, [activeTab, updateTab])
+
   // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
   // ourselves in the top-right corner and publish their width as --window-controls-width so
   // every title bar below can reserve that corner. macOS keeps its native traffic lights, so
@@ -93,8 +104,8 @@ export const SubWindowAppShell = () => {
 
   return (
     // The window frame tells the hosted page (HomePage / AgentPage) it owns the whole
-    // window: hide the in-page list + sidebar toggle (lock to one conversation) and turn
-    // the page navbar into the window title bar via the injected chrome. See ConversationShell.
+    // window and turns the page navbar into the window title bar via the injected chrome.
+    // Conversation pages keep their own default-closed sidebar state.
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"

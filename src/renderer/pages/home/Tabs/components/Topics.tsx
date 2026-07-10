@@ -46,6 +46,7 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -254,6 +255,7 @@ export function Topics({
   const isRightPanel = presentation === 'right-panel'
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
+  const isWindowFrame = useWindowFrame().mode === 'window'
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const {
@@ -1270,7 +1272,7 @@ export function Topics({
           onConfirmDelete={handleConfirmDeleteTopic}
           onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
+          onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}

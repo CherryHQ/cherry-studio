@@ -83,6 +83,16 @@ describe('ConversationShell', () => {
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
 
+  it('renders the detached-window title as a fallback when the page has no navbar', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
+        <ConversationShell center={<div />} />
+      </WindowFrameProvider>
+    )
+
+    expect(screen.getByTestId('title-leading')).toBeInTheDocument()
+  })
+
   it('does not add an embedded topbar wrapper or reserve when no right tool exists', () => {
     const { container } = render(<ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />)
 

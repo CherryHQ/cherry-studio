@@ -266,6 +266,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
+const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
@@ -332,6 +333,10 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
+}))
+
+vi.mock('@renderer/hooks/useWindowFrame', () => ({
+  useWindowFrame: () => ({ mode: windowFrameMocks.mode })
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
@@ -802,6 +807,7 @@ describe('Sessions', () => {
     })
     vi.clearAllMocks()
     tabsContextMocks.openTab.mockClear()
+    windowFrameMocks.mode = 'embedded'
   })
 
   afterEach(() => {
@@ -1833,6 +1839,18 @@ describe('Sessions', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent).not.toHaveTextContent('Open in new tab')
+  })
+
+  it('hides open-in-new-tab but keeps open-in-new-window for inactive sessions in a detached window', () => {
+    windowFrameMocks.mode = 'window'
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Beta session'))
+    const betaMenu = screen.getByText('Beta session').closest('[data-testid="context-menu"]')
+    const menuContent = betaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).not.toHaveTextContent('Open in new tab')
+    expect(menuContent).toHaveTextContent('Open in New Window')
   })
 
   it('hides the inline delete action for pinned sessions', () => {

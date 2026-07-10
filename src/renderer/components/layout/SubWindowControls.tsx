@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Pin } from 'lucide-react'
@@ -31,7 +32,8 @@ export const SubWindowControls = () => {
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
     if (!tab) return
-    window.electron.ipcRenderer.invoke(IpcChannel.Tab_Attach, tab).catch((err) => {
+    const payload = { ...tab, url: resolveSidebarAppTabEntryUrl(tab) }
+    window.electron.ipcRenderer.invoke(IpcChannel.Tab_Attach, payload).catch((err) => {
       logger.error('Back to main window failed', err as Error)
     })
   }

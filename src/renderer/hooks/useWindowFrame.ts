@@ -9,7 +9,7 @@ export type WindowFrameMode = 'embedded' | 'window'
 
 /** Window chrome the host window injects into the page's title bar (composition, not flags). */
 export interface WindowFrameChrome {
-  /** Left of the title bar, e.g. the conversation's emoji + name. */
+  /** Conversation title, placed after page-leading controls or used as the shell fallback. */
   titleLeading?: ReactNode
   /** Left of the page's own top-right tool, e.g. pin + back-to-main. */
   titleTrailing?: ReactNode

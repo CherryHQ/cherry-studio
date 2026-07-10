@@ -3,6 +3,7 @@ import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell
 import { CommandTooltip } from '@renderer/components/command'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useResolvedCommand } from '@renderer/hooks/command'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { SquarePen } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -29,6 +30,7 @@ const AgentContent = ({
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
   const newSession = useResolvedCommand('topic.create')
+  const { mode, chrome } = useWindowFrame()
 
   return (
     <div className="flex w-full justify-between">
@@ -64,6 +66,9 @@ const AgentContent = ({
             )}
           </>
         )}
+        {mode === 'window' && chrome?.titleLeading ? (
+          <div className={showSidebarControls ? 'ml-2 min-w-0' : 'min-w-0'}>{chrome.titleLeading}</div>
+        ) : null}
       </div>
       <div data-navbar-right-occupant className="flex items-center">
         {activeAgent && <Tools>{tools}</Tools>}

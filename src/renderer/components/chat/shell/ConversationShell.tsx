@@ -57,13 +57,16 @@ export default function ConversationShell({
   const leftPaneOpen = Boolean(paneOpen && (panePosition ?? 'left') === 'left')
 
   // In window mode the page navbar IS the window title bar, so wrap it even without a
-  // right tool to pick up the drag region, traffic-light inset, and title-leading slot.
+  // right tool to pick up the drag region and traffic-light inset. Conversation navbars
+  // place the injected title after their own leading controls; when no navbar exists, the
+  // shell renders the title directly as a fallback.
+  const fallbackLeading = topBar == null ? chrome?.titleLeading : undefined
   const resolvedTopBar =
     topRightTool || isWindow ? (
       <ConversationShellTopBar
         isWindow={isWindow}
         leftPaneOpen={leftPaneOpen}
-        leading={chrome?.titleLeading}
+        leading={fallbackLeading}
         trailing={chrome?.titleTrailing}
         topRightTool={topRightTool}>
         {topBar}

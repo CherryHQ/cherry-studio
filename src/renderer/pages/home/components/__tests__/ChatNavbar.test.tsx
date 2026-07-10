@@ -1,4 +1,5 @@
 import type * as CherryUi from '@cherrystudio/ui'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +65,22 @@ describe('ChatNavbar', () => {
     render(<ChatNavbar />)
 
     expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+  })
+
+  it('places detached-window conversation controls before the title', () => {
+    render(
+      <WindowFrameProvider
+        value={{ mode: 'window', chrome: { titleLeading: <span data-testid="window-title">Topic title</span> } }}>
+        <ChatNavbar />
+      </WindowFrameProvider>
+    )
+
+    const title = screen.getByTestId('window-title')
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const newTopic = screen.getByRole('button', { name: 'chat.conversation.new' })
+
+    expect(toggle.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(newTopic.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('hides the new-topic button when the sidebar is visible', () => {

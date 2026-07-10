@@ -393,6 +393,7 @@ vi.mock('../Chat', () => ({
     paneOpen,
     panePosition,
     showResourceListControls,
+    onSidebarToggle,
     locateMessageId,
     resourcePaneCount,
     onCreateEmptyTopic,
@@ -406,6 +407,7 @@ vi.mock('../Chat', () => ({
     paneOpen?: boolean
     panePosition?: string
     showResourceListControls?: boolean
+    onSidebarToggle?: () => void
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
     onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
@@ -421,6 +423,11 @@ vi.mock('../Chat', () => ({
       <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+      {showResourceListControls && onSidebarToggle && (
+        <button type="button" onClick={onSidebarToggle}>
+          Toggle sidebar
+        </button>
+      )}
       {resourcePaneCount && (
         <output data-testid="resource-pane-count">
           {resourcePaneCount.label}:{resourcePaneCount.count}
@@ -521,15 +528,21 @@ vi.mock('../Tabs/HomeTabs', () => ({
           }}>
           Select topic next
         </button>
-        <button type="button" onClick={() => onOpenHistoryRecords?.()}>
-          Open history records
-        </button>
-        <button type="button" onClick={() => void onSetPanePosition?.('right')}>
-          Move topics right
-        </button>
-        <button type="button" onClick={() => void onSetPanePosition?.('left')}>
-          Move topics left
-        </button>
+        {onOpenHistoryRecords && (
+          <button type="button" onClick={onOpenHistoryRecords}>
+            Open history records
+          </button>
+        )}
+        {onSetPanePosition && (
+          <>
+            <button type="button" onClick={() => void onSetPanePosition('right')}>
+              Move topics right
+            </button>
+            <button type="button" onClick={() => void onSetPanePosition('left')}>
+              Move topics left
+            </button>
+          </>
+        )}
         {resourceMenuItems
           ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
           .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
@@ -1634,7 +1647,8 @@ describe('HomePage', () => {
 
     const shortcutHandler = vi
       .mocked(useCommandHandler)
-      .mock.calls.find(([command]) => command === 'app.sidebar.toggle')?.[1]
+      .mock.calls.filter(([command]) => command === 'app.sidebar.toggle')
+      .at(-1)?.[1]
 
     expect(shortcutHandler).toBeDefined()
 
@@ -1645,30 +1659,54 @@ describe('HomePage', () => {
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
   })
 
-  it('removes the topic sidebar entirely in a detached chat window, shortcut included', () => {
+  it('keeps detached topic sidebar state local, default-closed, and fixed on the left', () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
 
-    render(
+    const { unmount } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
         <HomePage />
       </WindowFrameProvider>
     )
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    // Detached windows show no sidebar toggle / new-topic button in the navbar.
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+    expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
+    expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('topic-resource-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Move topics right' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open history records' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'assistants.presets.manage.title' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next')
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
 
     const shortcutHandler = vi
       .mocked(useCommandHandler)
-      .mock.calls.find(([command]) => command === 'app.sidebar.toggle')?.[1]
+      .mock.calls.filter(([command]) => command === 'app.sidebar.toggle')
+      .at(-1)?.[1]
 
     act(() => {
       void shortcutHandler?.()
     })
 
-    // The sidebar-toggle shortcut is inert in a detached window — the pane stays closed.
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+
+    unmount()
+    homeMocks.persistCacheValues.set('ui.global_search.recent_items', [])
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <HomePage />
+      </WindowFrameProvider>
+    )
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
   it('uses the compact minimum window width even while the topic sidebar is open', async () => {
