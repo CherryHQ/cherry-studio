@@ -66,8 +66,9 @@ vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
 const { application } = await import('@application')
 const { localEmbeddingDownloadService } = await import('../LocalEmbeddingDownloadService')
 
-/** Where the q8 weights land: `<models>/<repo owner>/<repo name>` (see LOCAL_MODELS.embedding). */
-const MODEL_DIR = '/mock/feature.embedding.models/onnx-community/Qwen3-Embedding-0.6B-ONNX'
+/** The dedicated cache root — cleanup/removal target it whole so no empty
+ * `onnx-community/` parent chain survives (the weights nest two levels below). */
+const MODELS_ROOT = '/mock/feature.embedding.models'
 const READY_FILE = 'model_quantized.onnx'
 
 function broadcastSpy() {
@@ -107,14 +108,22 @@ describe('LocalEmbeddingDownloadService', () => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
       // not move the bar; only the .onnx weights (≈99% of the download) drive it.
       onProgress?.({ status: 'progress', file: 'tokenizer.json', progress: 100 })
+      onProgress?.({ status: 'progress', file: READY_FILE, progress: 0 })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 42 })
     })
 
     await localEmbeddingDownloadService.download()
 
+    // The onnxruntime phase owns the bar's first 10%, so the weights' first bytes
+    // hold the bar there instead of resetting it to 0 (the "10% → 0%" flicker).
     expect(broadcastSpy()).toHaveBeenCalledWith(
       'local_model.download_progress',
-      expect.objectContaining({ file: READY_FILE, percent: 42 })
+      expect.objectContaining({ file: READY_FILE, percent: 10 })
+    )
+    // ...and the weights' own 0–100 maps onto the remaining 10–100 span: 10 + 42 * 0.9.
+    expect(broadcastSpy()).toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ file: READY_FILE, percent: 48 })
     )
     expect(broadcastSpy()).not.toHaveBeenCalledWith(
       'local_model.download_progress',
@@ -169,7 +178,7 @@ describe('LocalEmbeddingDownloadService', () => {
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: true })
 
       expect(terminate).toHaveBeenCalledTimes(1)
-      expect(rm).toHaveBeenCalledWith(MODEL_DIR, { recursive: true, force: true })
+      expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
     })
@@ -233,6 +242,6 @@ describe('LocalEmbeddingDownloadService', () => {
 
     // Weights present + no user_model row would read as `ready` and trip the KB FK on select.
     expect(terminate).toHaveBeenCalled()
-    expect(rm).toHaveBeenCalledWith(MODEL_DIR, { recursive: true, force: true })
+    expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
   })
 })

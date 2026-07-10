@@ -117,8 +117,9 @@ class OnnxRuntimeBinaryService {
       await this.extractLeaf(tarballPath, extractDir, leaf)
       await this.installLeaf(extractDir, leaf)
     } finally {
-      await fs.promises.rm(tarballPath, { force: true })
-      await fs.promises.rm(extractDir, { recursive: true, force: true })
+      // Drop the whole staging dir, not just the tarball + extract dir inside it —
+      // a cancelled download would otherwise leave an empty `.tmp` behind.
+      await fs.promises.rm(tmpDir, { recursive: true, force: true })
     }
   }
 

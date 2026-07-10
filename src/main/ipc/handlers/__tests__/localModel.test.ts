@@ -46,6 +46,44 @@ describe('localModelHandlers', () => {
     expect(localEmbeddingDownloadService.cancel).toHaveBeenCalled()
   })
 
+  describe('download', () => {
+    it('does not touch the onnxruntime binary when the download succeeds', async () => {
+      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue(undefined)
+
+      await localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)
+
+      expect(onnxRuntimeBinaryService.removeIfUnused).not.toHaveBeenCalled()
+    })
+
+    it('drops the shared onnxruntime binary when a download is cancelled and the sibling has no model', async () => {
+      const abortError = new Error('download cancelled')
+      vi.mocked(localEmbeddingDownloadService.download).mockRejectedValue(abortError)
+      vi.mocked(localOcrDownloadService.getStatus).mockReturnValue('not_downloaded')
+
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).rejects.toBe(abortError)
+
+      expect(onnxRuntimeBinaryService.removeIfUnused).toHaveBeenCalledWith(false)
+    })
+
+    it('keeps the shared onnxruntime binary when the sibling is mid-download (it may await the same coalesced ensure)', async () => {
+      vi.mocked(localEmbeddingDownloadService.download).mockRejectedValue(new Error('download cancelled'))
+      vi.mocked(localOcrDownloadService.getStatus).mockReturnValue('downloading')
+
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).rejects.toThrow()
+
+      expect(onnxRuntimeBinaryService.removeIfUnused).toHaveBeenCalledWith(true)
+    })
+
+    it('propagates the original download error even when the binary cleanup itself fails', async () => {
+      const downloadError = new Error('network down')
+      vi.mocked(localOcrDownloadService.download).mockRejectedValue(downloadError)
+      vi.mocked(localEmbeddingDownloadService.getStatus).mockReturnValue('not_downloaded')
+      vi.mocked(onnxRuntimeBinaryService.removeIfUnused).mockRejectedValueOnce(new Error('EBUSY'))
+
+      await expect(localModelHandlers['local_model.download']({ model: 'ocr' }, ctx)).rejects.toBe(downloadError)
+    })
+  })
+
   describe('remove', () => {
     it('removes the shared onnxruntime binary once the sibling feature is also gone', async () => {
       vi.mocked(localEmbeddingDownloadService.remove).mockResolvedValue({ removed: true })

@@ -17,6 +17,14 @@ const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 /** Repo / quantization / ready-probe file for the local embedding model. */
 const { repo: MODEL_REPO, dtype: MODEL_DTYPE, readyFile: MODEL_FILE } = LOCAL_MODELS.embedding
 
+/**
+ * Share of the progress bar reserved for the onnxruntime binary phase; the 614MB
+ * model weights own the rest. Both phases must map onto this one scale — the
+ * weights' own 0–100 starts where the binary's slice ends — or the bar snaps
+ * backwards at the phase boundary.
+ */
+const ONNXRUNTIME_PERCENT = 10
+
 /** Whether `fileName` exists anywhere under `dir` (the transformers.js cache layout
  * nests weights under source-specific sub-paths, so we search rather than guess). */
 function containsFile(dir: string, fileName: string): boolean {
@@ -44,8 +52,15 @@ function containsFile(dir: string, fileName: string): boolean {
 class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   protected readonly kind: LocalModelKind = 'embedding'
 
+  /** The dedicated cache root for this one model (`models/qwen3-embedding`). Cleanup
+   * and removal target this rather than the nested repo dir so no empty
+   * `onnx-community/` parent chain is left behind. */
+  private modelsRootDir(): string {
+    return application.getPath('feature.embedding.models')
+  }
+
   private modelDir(): string {
-    return path.join(application.getPath('feature.embedding.models'), ...MODEL_REPO.split('/'))
+    return path.join(this.modelsRootDir(), ...MODEL_REPO.split('/'))
   }
 
   protected isReady(): boolean {
@@ -54,9 +69,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
     await onnxRuntimeBinaryService.ensure(signal, (fraction) => {
-      // Reserve the bar's first 10% for the onnxruntime binary; the 614MB model
-      // weights dominate, so this keeps the bar monotonic without a second UI.
-      this.broadcast({ status: 'downloading', percent: Math.round(fraction * 10) })
+      this.broadcast({ status: 'downloading', percent: Math.round(fraction * ONNXRUNTIME_PERCENT) })
     })
     const source = await currentModelSource()
     await application
@@ -79,7 +92,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // start reading/writing the very files being removed).
     await application
       .get('EmbeddingInferenceService')
-      .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
+      .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
   }
 
   override cancel(): void {
@@ -104,7 +117,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       // mid-delete (it would otherwise start reading/writing the very files being removed).
       await application
         .get('EmbeddingInferenceService')
-        .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
+        .terminateThen(() => fs.promises.rm(this.modelsRootDir(), { recursive: true, force: true }))
     } catch (error) {
       // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows
       // lock on rm()). Re-register so "files present ⟺ user_model row present" holds —
@@ -134,16 +147,20 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // leading events. Falling through to 0 for 'done' used to snap the full bar back to
     // empty for the moment between the last byte and the 'ready' emitted after
     // registration (the download's visible "100% → 0%" flicker).
-    let percent: number
+    let rawPercent: number
     if (typeof p.progress === 'number') {
-      percent = Math.round(p.progress)
+      rawPercent = p.progress
     } else if (p.total) {
-      percent = Math.round(((p.loaded ?? 0) / p.total) * 100)
+      rawPercent = ((p.loaded ?? 0) / p.total) * 100
     } else if (p.status === 'done') {
-      percent = 100
+      rawPercent = 100
     } else {
       return
     }
+    // The onnxruntime phase already advanced the bar to ONNXRUNTIME_PERCENT, so
+    // map the weights' own 0–100 onto the remaining span. Broadcasting the raw
+    // value reset the bar to 0 the moment the weights started streaming.
+    const percent = Math.round(ONNXRUNTIME_PERCENT + (rawPercent * (100 - ONNXRUNTIME_PERCENT)) / 100)
     this.broadcast({ status: p.status, percent, loaded: p.loaded, total: p.total, file: p.file })
   }
 }

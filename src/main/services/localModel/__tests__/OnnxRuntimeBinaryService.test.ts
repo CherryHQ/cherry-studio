@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -114,6 +114,8 @@ describe('OnnxRuntimeBinaryService', () => {
     expect(net.fetch).toHaveBeenCalledTimes(1)
     expect(extractMock).toHaveBeenCalledTimes(1)
     expect(onnxRuntimeBinaryService.isReady()).toBe(true)
+    // The staging dir must not survive the download — not even as an empty shell.
+    expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
   })
 
   it('does not download again once already ready', async () => {
@@ -176,6 +178,8 @@ describe('OnnxRuntimeBinaryService', () => {
 
     expect(extractMock).not.toHaveBeenCalled()
     expect(onnxRuntimeBinaryService.isReady()).toBe(false)
+    // A failed download must not leave the staging dir behind either.
+    expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
   })
 
   describe('removeIfUnused', () => {
