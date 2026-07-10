@@ -18,7 +18,7 @@ const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
   mockSafeOpen: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useAttachment', () => ({
+vi.mock('../useAttachment', () => ({
   useAttachment: () => ({ preview: mockPreview })
 }))
 

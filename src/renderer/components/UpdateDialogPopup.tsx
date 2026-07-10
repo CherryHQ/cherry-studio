@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
