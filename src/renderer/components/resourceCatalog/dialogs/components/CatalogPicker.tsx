@@ -258,9 +258,7 @@ export const AddCatalogPopover: FC<{
             )}
           </CommandList>
         </Command>
-        {footer ? (
-          <div className="border-border/60 border-t bg-popover overflow-hidden rounded-b-md">{footer}</div>
-        ) : null}
+        {footer ? <div className="overflow-hidden rounded-b-md border-border border-t bg-popover">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   )
