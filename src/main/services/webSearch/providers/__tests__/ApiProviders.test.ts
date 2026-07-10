@@ -1,4 +1,7 @@
+import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
+import type { IncomingMessage } from 'node:http'
+import type { RequestOptions } from 'node:https'
 
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
@@ -6,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  httpRequest: vi.fn(),
+  httpsRequest: vi.fn(),
   lookup: vi.fn(),
   loggerWarn: vi.fn(),
   isInChina: vi.fn()
@@ -30,6 +35,14 @@ vi.mock('electron', () => ({
 
 vi.mock('node:dns/promises', () => ({
   lookup: mocks.lookup
+}))
+
+vi.mock('node:http', () => ({
+  request: mocks.httpRequest
+}))
+
+vi.mock('node:https', () => ({
+  request: mocks.httpsRequest
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -126,6 +139,71 @@ function createTextResponse(body: string, contentType: string, status = 200) {
   })
 }
 
+function toHeadersInit(headers: RequestOptions['headers']): HeadersInit {
+  const resolvedHeaders = new Headers()
+
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    if (Array.isArray(value)) {
+      resolvedHeaders.set(key, value.join(', '))
+      continue
+    }
+
+    if (value !== undefined) {
+      resolvedHeaders.set(key, String(value))
+    }
+  }
+
+  return resolvedHeaders
+}
+
+function toRequestUrl(options: RequestOptions): string {
+  const protocol = options.protocol ?? 'https:'
+  const hostname = options.hostname ?? options.host
+  const path = options.path ?? '/'
+
+  if (typeof hostname !== 'string') {
+    throw new Error('Mocked request requires a hostname')
+  }
+
+  const port = options.port ? String(options.port) : ''
+  const shouldOmitPort = (protocol === 'https:' && port === '443') || (protocol === 'http:' && port === '80')
+  const portSuffix = port && !shouldOmitPort ? `:${port}` : ''
+
+  return `${protocol}//${hostname}${portSuffix}${path}`
+}
+
+function mockNodeRequest(requestMock: typeof mocks.httpRequest): void {
+  requestMock.mockImplementation((options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+    const request = Object.assign(new EventEmitter(), {
+      end: vi.fn(),
+      destroy: vi.fn(),
+      setTimeout: vi.fn()
+    })
+
+    queueMicrotask(async () => {
+      try {
+        const response = await fetchMock(toRequestUrl(options), {
+          method: options.method ?? 'GET',
+          headers: toHeadersInit(options.headers)
+        })
+        const body = await response.text()
+        const message = Object.assign(new EventEmitter(), {
+          statusCode: response.status,
+          headers: Object.fromEntries(response.headers.entries())
+        }) as IncomingMessage
+
+        callback(message)
+        message.emit('data', Buffer.from(body))
+        message.emit('end')
+      } catch (error) {
+        request.emit('error', error)
+      }
+    })
+
+    return request
+  })
+}
+
 function serializeRequestBody(body: RequestInit['body']) {
   if (!body) {
     return null
@@ -162,6 +240,10 @@ describe('main web search API providers', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    mocks.httpRequest.mockReset()
+    mocks.httpsRequest.mockReset()
+    mockNodeRequest(mocks.httpRequest)
+    mockNodeRequest(mocks.httpsRequest)
     mocks.lookup.mockReset()
     mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     mocks.loggerWarn.mockReset()
@@ -303,6 +385,7 @@ describe('main web search API providers', () => {
         "request": {
           "body": null,
           "headers": {
+            "host": "example.com",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           },
           "method": "GET",
@@ -595,6 +678,7 @@ describe('main web search API providers', () => {
         "contentRequest": {
           "body": null,
           "headers": {
+            "host": "searx.example",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           },
           "method": "GET",
