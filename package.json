@@ -121,6 +121,7 @@
     "ppu-paddle-ocr": "6.0.0",
     "selection-hook": "2.0.1",
     "sharp": "0.34.5",
+    "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
     "tar": "^7.5.9",
     "tesseract.js": "6.0.1",

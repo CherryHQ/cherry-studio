@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -10,6 +9,7 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
+import { isNoApiKeyProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,6 +40,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
+  const requiresApiKey = !isNoApiKeyProvider(provider)
 
   // AbortController + runId pair guards against stale callbacks landing on the
   // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
@@ -68,13 +69,14 @@ export function useProviderConnectionCheck(providerId: string) {
       return
     }
 
-    if (isEmpty(checkableApiKeys)) {
+    if (requiresApiKey && isEmpty(checkableApiKeys)) {
       toast.error(i18n.t('message.error.enter.api.label'))
       return
     }
 
+    setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(true)
-  }, [checkableApiKeys, i18n, provider])
+  }, [checkableApiKeys, i18n, provider, requiresApiKey])
 
   const startConnectionCheck = useCallback(
     async ({ model, apiKey }: { model?: Model; apiKey: string }) => {
@@ -83,7 +85,7 @@ export function useProviderConnectionCheck(providerId: string) {
         return
       }
 
-      if (!apiKey) {
+      if (requiresApiKey && !apiKey) {
         toast.error(i18n.t('message.error.enter.api.label'))
         return
       }
@@ -99,20 +101,15 @@ export function useProviderConnectionCheck(providerId: string) {
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
-        // Persist the pending key BEFORE running the check. The check resolves
-        // credentials from the saved provider (getRotatedApiKey in main), so
-        // without flushing first it would validate a stale saved key: a new bad
-        // key typed within the input debounce window could pass against an old
-        // good key and then enable the provider on never-checked credentials.
-        // If saving fails it throws into the catch, surfacing only the failure
-        // path. Committing changes provider.apiKeys but not provider.id / host /
-        // inputApiKey, so it does not trip the abort effect.
+        // Persist the pending key BEFORE running the check so a key typed within
+        // the input debounce window is not lost. The probe itself uses the
+        // selected key override below instead of the provider's rotated key.
         await commitInputApiKeyNow()
         didCommitApiKey = true
 
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        await runCheckApi(model.id, { signal: controller.signal })
+        await runCheckApi(model.id, { apiKey: apiKey || undefined, signal: controller.signal })
 
         if (runId !== runIdRef.current) return
 
@@ -148,10 +145,12 @@ export function useProviderConnectionCheck(providerId: string) {
             error
           })
         }
-        toast.error({
-          timeout: 8000,
-          title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
-        })
+        if (!didCommitApiKey) {
+          toast.error({
+            timeout: 8000,
+            title: i18n.t('settings.provider.api_key.save_failed')
+          })
+        }
 
         setApiKeyConnectivity({
           kind: 'failed',
@@ -160,10 +159,18 @@ export function useProviderConnectionCheck(providerId: string) {
           model,
           error: serializeHealthCheckError(error)
         })
-        setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
+    [
+      abortInFlightCheck,
+      checkableModels.length,
+      commitInputApiKeyNow,
+      i18n,
+      provider,
+      requiresApiKey,
+      setTimeoutTimer,
+      updateProvider
+    ]
   )
 
   const checkApi = useCallback(async () => {
@@ -187,12 +194,6 @@ export function useProviderConnectionCheck(providerId: string) {
     })
   }, [checkableApiKeys, checkableModels, i18n, startConnectionCheck, t])
 
-  const showApiKeyError = useCallback(() => {
-    if (apiKeyConnectivity.error) {
-      showErrorDetailPopup({ error: apiKeyConnectivity.error })
-    }
-  }, [apiKeyConnectivity.error])
-
   useEffect(() => {
     // Provider / host / apiKey changed mid-flight: abort the in-flight check so
     // its late then/catch doesn't land on the new credentials.
@@ -212,7 +213,7 @@ export function useProviderConnectionCheck(providerId: string) {
     openConnectionCheck,
     closeConnectionCheck,
     startConnectionCheck,
-    showApiKeyError,
+    requiresApiKey,
     resetApiKeyConnectivity
   }
 }

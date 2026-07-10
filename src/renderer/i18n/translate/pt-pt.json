@@ -2128,6 +2128,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Edição de Imagem (OpenAI)",
     "image-generation": "Geração de Imagens (OpenAI)",
     "jina-rerank": "Jina Reordenar",
     "openai": "OpenAI",
@@ -4173,7 +4174,6 @@
       "hint": "macOS: brew install git | Windows: Baixe em git-scm.com (certifique-se de adicionar o Git ao PATH durante a instalação)",
       "title": "Git Necessário"
     },
-    "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
     "migration": {
       "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
@@ -4234,7 +4234,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Tem certeza de que deseja desinstalar o OpenClaw? Pressione OK para confirmar.",
-    "uninstall_progress": "Progresso de Desinstalação",
     "uninstalled": {
       "description": "OpenClaw foi desinstalado com sucesso.",
       "title": "Desinstalação concluída"
@@ -6533,7 +6532,8 @@
         },
         "model_id": {
           "label": "ID do modelo",
-          "placeholder": "Obrigatório Exemplo: gpt-3.5-turbo",
+          "placeholder": "Exemplo: gpt-5.5",
+          "required": "Introduza o ID do modelo",
           "select": {
             "placeholder": "Selecionar modelo"
           },
@@ -6541,7 +6541,7 @@
         },
         "model_name": {
           "label": "Nome do modelo",
-          "placeholder": "Exemplo: GPT-3.5",
+          "placeholder": "Exemplo: GPT-5.5",
           "tooltip": "Por exemplo, GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6610,17 @@
       },
       "group_disable": "Desativar este grupo",
       "group_enable": "Ativar este grupo",
-      "list_title": "Model list",
+      "list_title": "Modelos",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
-          "label": "Adicionar modelo da lista"
+          "label": "Adicionar todos os modelos"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "clean_stale_models": "Limpar modelos obsoletos",
+        "clean_stale_success": "{{count}} modelo(s) obsoleto(s) limpo(s)",
+        "default_model_cannot_remove": "O modelo predefinido não pode ser eliminado.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6642,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Obter novamente a lista de modelos",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Remover modelo da lista",
+        "remove_listed": "Remover todos os modelos",
         "remove_model": "Remover Modelo",
+        "remove_skipped_default_in_use": "Ignorados {{count}} modelo(s) predefinido(s)",
         "remove_whole_group": "Remover todo o grupo",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsoleto",
+        "stale_filter": "Obsoleto",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6709,7 @@
         "custom_add": "Personalizado",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Adicionar"
+        "pull_short": "Obter lista de modelos"
       },
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
@@ -6795,6 +6801,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Adicionar fornecedor",
         "name": {
           "label": "Nome do Fornecedor",
           "placeholder": "Exemplo OpenAI",

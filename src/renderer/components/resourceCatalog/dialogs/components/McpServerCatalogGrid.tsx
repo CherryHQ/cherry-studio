@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
