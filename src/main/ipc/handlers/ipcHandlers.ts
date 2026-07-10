@@ -5,6 +5,7 @@ import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
 import { cherryinHandlers } from './cherryin'
+import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
@@ -32,6 +33,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...binaryHandlers,
   ...cherryinHandlers,
+  ...citationHandlers,
   ...codeCliHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,

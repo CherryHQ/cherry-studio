@@ -2,11 +2,11 @@ import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
-import { fetchWebContent, fetchXOEmbed, isXPostUrl, noContent, xOembedKey } from '@renderer/utils/fetch'
-import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
 import { Check, Copy, FileSearch } from 'lucide-react'
-import React, { useMemo } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
 
@@ -26,16 +26,6 @@ interface CitationsListProps {
 interface CitationsPanelContentProps {
   citations: Citation[]
   actions?: CitationPanelActions
-}
-
-/**
- * 限制文本长度
- * @param text
- * @param maxLength
- */
-const truncateText = (text: string, maxLength = 100) => {
-  if (!text) return ''
-  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
 const getCitationHostname = (citation: Citation) => {
@@ -174,22 +164,18 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
-  const { data: rawContent, isLoading } = useSWRImmutable(
-    citation.url ? `webContent/${citation.url}` : null,
+  const { data: fetchedContent, isLoading } = useSWRImmutable(
+    citation.url ? (isXPost ? `webContent/${citation.url}` : `citationPreview/${citation.url}`) : null,
     async () => {
       if (isXPost) {
         const oembed = await fetchXOEmbed(citation.url)
         return oembed ? `@${oembed.author}: ${oembed.text}` : ''
       }
-      const res = await fetchWebContent(citation.url, 'markdown')
-      // Graceful degrade: fetchWebContent swallows failures into `noContent`, so
-      // suppress it to render no snippet (just title + link) rather than placeholder text.
-      if (res.content === noContent) return ''
-      return cleanMarkdownContent(res.content)
+      const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url })
+      return content
     },
     { shouldRetryOnError: false }
   )
-  const fetchedContent = useMemo(() => (rawContent ? truncateText(rawContent, 100) : undefined), [rawContent])
 
   const { data: oembedData } = useSWRImmutable(
     isXPost && citation.url ? xOembedKey(citation.url) : null,

@@ -3,6 +3,7 @@ import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { cherryinRequestSchemas } from './cherryin'
+import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
@@ -28,6 +29,7 @@ export const ipcRequestSchemas = {
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...cherryinRequestSchemas,
+  ...citationRequestSchemas,
   ...codeCliRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
