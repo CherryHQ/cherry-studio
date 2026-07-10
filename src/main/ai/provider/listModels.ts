@@ -304,7 +304,7 @@ const vertexFetcher: ModelFetcher = {
 }
 
 const githubFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.github,
+  match: (p) => matchesPreset(p, SystemProviderIds.github),
   fetch: async (provider, signal) => {
     const headers = defaultHeaders(provider)
     const catalogResponse = await getFromApi({
@@ -614,10 +614,13 @@ const fetchers: ModelFetcher[] = [
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 
-const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
+const UNSUPPORTED_PROVIDER_PRESETS = [SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic] as const
 
 function isUnsupported(provider: Provider): boolean {
-  return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.presetProviderId === 'vertex-anthropic'
+  return (
+    UNSUPPORTED_PROVIDER_PRESETS.some((presetId) => matchesPreset(provider, presetId)) ||
+    provider.presetProviderId === 'vertex-anthropic'
+  )
 }
 
 // ── Public API ──
