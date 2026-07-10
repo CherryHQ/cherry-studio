@@ -51,6 +51,17 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
   // missing file and finalize successfully — producing a .cbu without backup.sqlite.
   await stat(inputs.dbCopyPath)
+  // No-clobber: refuse to overwrite an existing file. archive writes via a temp file
+  // + atomic rename, which silently overwrites on replace-supporting systems — a prior
+  // good backup (or any user file) at outPath would be destroyed. Defense-in-depth
+  // alongside BackupService.validateOutputPath (entry check); this brackets the small
+  // TOCTOU window between entry and archive completion.
+  try {
+    await stat(outPath)
+    throw new Error(`backup: target already exists (no-clobber): ${outPath}`)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  }
   // Honor a pre-aborted signal before opening any stream (no temp file to clean up).
   if (signal?.aborted) throw new BackupCancelledError()
 

@@ -62,7 +62,12 @@ export function useBackupV2() {
         return result
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
-        const cancelled = /cancelled/i.test(message)
+        // Prefer the stable IpcError code (BACKUP_CANCELLED / BACKUP_INSUFFICIENT_DISK /
+        // BACKUP_DISK_FULL) over regex on the message — BackupService.toIpcError maps
+        // domain errors to codes at the IPC boundary. Fall back to /cancelled/i for any
+        // path that still throws a bare cancel message.
+        const code = (e as { code?: string }).code
+        const cancelled = code === 'BACKUP_CANCELLED' || /cancelled/i.test(message)
         setState({ ...INITIAL, error: message, cancelled })
         throw e
       } finally {
