@@ -7,7 +7,6 @@ import {
   ResourcePaneProvider,
   ResourcePaneTab,
   Shell,
-  type ShellTabShortcutOpenBehavior,
   useResourcePane,
   useShellActions,
   useShellState
@@ -123,19 +122,19 @@ function TopicRightPaneProvider({
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <TopicRightPaneKeyboardShortcut />
         <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
       </ResourcePaneProvider>
     </Shell>
   )
 }
 
-function TopicRightPaneKeyboardShortcut() {
+function TopicRightPaneKeyboardShortcut({ hasBranchPanel }: { hasBranchPanel: boolean }) {
   const resourcePane = useResourcePane()
   const { open } = useShellState()
   const actions = useShellActions()
   const isActiveTab = useIsActiveTab()
   const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'branch'
+  const enabled = isActiveTab && Boolean(resourcePane || hasBranchPanel)
   const handleToggle = useCallback(() => {
     if (open) {
       actions.close()
@@ -144,7 +143,7 @@ function TopicRightPaneKeyboardShortcut() {
     actions.openTab(targetTab)
   }, [actions, open, targetTab])
 
-  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled: isActiveTab })
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
 
   return null
 }
@@ -225,9 +224,12 @@ function TopicRightPaneSurface({
 
 function TopicRightPaneHost(props: TopicRightPaneSurfaceProps) {
   return (
-    <Shell.Host>
-      <TopicRightPaneSurface {...props} />
-    </Shell.Host>
+    <>
+      <TopicRightPaneKeyboardShortcut hasBranchPanel={Boolean(props.topicId)} />
+      <Shell.Host>
+        <TopicRightPaneSurface {...props} />
+      </Shell.Host>
+    </>
   )
 }
 
@@ -239,13 +241,7 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
   )
 }
 
-function TopicRightPaneShortcuts({
-  topicId,
-  openBehavior = 'toggle-active'
-}: {
-  topicId?: string
-  openBehavior?: ShellTabShortcutOpenBehavior
-}) {
+function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const hasBranchPanel = !!topicId
@@ -257,7 +253,7 @@ function TopicRightPaneShortcuts({
           tab="branch"
           label={t('chat.message.flow.title')}
           icon={<GitBranch className="size-3.5" />}
-          openBehavior={openBehavior}
+          openBehavior="toggle-active"
         />
       )}
       {hasBranchPanel && enableDeveloperMode && (
@@ -265,7 +261,7 @@ function TopicRightPaneShortcuts({
           tab="trace"
           label={t('trace.label')}
           icon={<Activity className="size-3.5" />}
-          openBehavior={openBehavior}
+          openBehavior="toggle-active"
         />
       )}
     </>

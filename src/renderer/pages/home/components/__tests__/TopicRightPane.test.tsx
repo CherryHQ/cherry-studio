@@ -143,6 +143,20 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
   })
 
+  it('does not register the right sidebar keyboard shortcut without a pane target', () => {
+    render(
+      <TopicRightPane>
+        <div data-testid="draft-chat" />
+      </TopicRightPane>
+    )
+
+    expect(useCommandHandlerMock).not.toHaveBeenCalledWith(
+      'topic.sidebar.toggle',
+      expect.any(Function),
+      expect.anything()
+    )
+  })
+
   it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
     render(
       <TopicRightPane>
