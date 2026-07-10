@@ -173,9 +173,9 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
       side: 'right',
       align: 'start',
-      collisionPadding: 12,
-      avoidCollisions: false
+      collisionPadding: 12
     })
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
     expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
   })
 
@@ -206,12 +206,12 @@ describe('ModelSelectorDetailCard', () => {
 
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
       side: 'left',
-      align: 'start',
-      avoidCollisions: false
+      align: 'start'
     })
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
   })
 
-  it('uses a narrow portal container as the placement and collision boundary', () => {
+  it('keeps a narrow portal container for ownership without using it as the collision boundary', () => {
     const model = makeModel()
     const portalContainer = document.createElement('div')
     portalContainer.dataset.testPortal = 'true'
@@ -255,11 +255,12 @@ describe('ModelSelectorDetailCard', () => {
     act(() => mockHoverCardOpenChange.current?.(true))
 
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'left',
+      side: 'right',
       align: 'start',
-      collisionBoundary: portalContainer,
       portalContainer
     })
+    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
   })
 
   it('does not use a document fragment as the collision boundary', () => {
