@@ -31,7 +31,7 @@ See `docs/references/backup/backup-architecture.md` §7 (placement / neutral lay
 
 | File | Contents |
 |------|----------|
-| `contributor-types.ts` | Pure types — `BackupContributor` / `EntityGraphSchema` / hook context interfaces (`BackupContextBase` + per-hook subtypes) + `ReadonlyBackupRegistry` query interface. D-model JSDoc on `AfterImportContext` / `RestoreResourceContext`. |
+| `contributorTypes.ts` | Pure types — `BackupContributor` / `EntityGraphSchema` / hook context interfaces (`BackupContextBase` + per-hook subtypes) + `ReadonlyBackupRegistry` query interface. D-model JSDoc on `AfterImportContext` / `RestoreResourceContext`. |
 | `contexts.ts` | `BackupScopedDb` (drizzle wrapper, `allowedTables` write-boundary guard) / `BackupReadonlyDb` (select-only) / `ContributorWriteBoundaryViolationError`. |
 | `__tests__/contexts.test.ts` | Tests — allowedTables guard, error payload, select-unrestricted, BackupReadonlyDb select-only. |
 

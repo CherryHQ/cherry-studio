@@ -1,5 +1,5 @@
 // Tests for the BackupScopedDb allowedTables write boundary and BackupReadonlyDb
-// (the runtime parts of contexts.ts). The contributor-types.ts interfaces are pure
+// (the runtime parts of contexts.ts). The contributorTypes.ts interfaces are pure
 // types — their correctness is enforced by tsc, not runtime assertions.
 import type { DbOrTx } from '@main/data/db/types'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'

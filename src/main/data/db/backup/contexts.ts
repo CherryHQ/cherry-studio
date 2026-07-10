@@ -4,8 +4,8 @@
 // contributor hook may do: BackupScopedDb enforces an allowedTables write boundary
 // (a contributor can only write its own declared tables — fail-loud otherwise),
 // while reads stay unrestricted (cross-domain ref-target verification). Hook
-// context interfaces live in contributor-types.ts (co-located with the operations
-// that consume them) so this module has no type edge back into contributor-types.
+// context interfaces live in contributorTypes.ts (co-located with the operations
+// that consume them) so this module has no type edge back into contributorTypes.
 
 import type { DbOrTx } from '@main/data/db/types'
 import { getTableName, type Table } from 'drizzle-orm'
