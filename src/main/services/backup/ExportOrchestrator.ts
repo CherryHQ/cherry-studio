@@ -316,6 +316,14 @@ export class ExportOrchestrator {
       }
       await this.pruneMissingRows(backupDbPath, filesMissing, knowledgeMissing)
 
+      // 4.6 final VACUUM — after ALL export-time DELETEs (stripper step 2.5 + rowScopes
+      // 2.6 + pruneMissingRows 4.5), rewrite backup.sqlite so deleted rows (excluded
+      // runtime payload, e.g. non-agent.task job_schedule) do not survive in freelist
+      // pages — recoverable from the archive otherwise (secure_delete is off in this
+      // SQLite build). VACUUM runs on the closed snapshot, before archive assembly.
+      this.assertNotCancelled(options)
+      await this.vacuumFinal(backupDbPath)
+
       // staged ids = collected − missing (per-file manifest for restore cross-check).
       const stagedFileIds = [...fileIds].filter((id) => !filesMissing.includes(id))
 
@@ -454,6 +462,22 @@ export class ExportOrchestrator {
         db.prepare(`DELETE FROM "${s.table}" WHERE "${s.column}" != ?`).run(s.value)
       }
       db.exec('COMMIT')
+    } finally {
+      db.close()
+    }
+  }
+
+  /**
+   * Final VACUUM after all export-time DELETEs (stripper + rowScopes + pruneMissingRows).
+   * Without it, deleted rows — excluded runtime payload like non-agent.task job_schedule —
+   * survive in the file's freelist pages and are recoverable from the archive (secure_delete
+   * is off in this SQLite build). VACUUM rewrites the file with only live pages, so the
+   * archive carries no excluded payload. Run on the closed snapshot before archive assembly.
+   */
+  private async vacuumFinal(backupDbPath: string): Promise<void> {
+    const db = new Database(backupDbPath)
+    try {
+      db.exec('VACUUM')
     } finally {
       db.close()
     }
