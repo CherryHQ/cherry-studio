@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   getLastRuntimeResumeToken: vi.fn(),
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
+  buildSkillWhitelist: vi.fn(),
+  findMcpServerByIdOrName: vi.fn(),
+  preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
@@ -40,6 +43,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
 }))
 
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: { findByIdOrName: mocks.findMcpServerByIdOrName }
+}))
+
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
@@ -51,6 +58,9 @@ vi.mock('@application', () => ({
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig
         }
       }
+      if (name === 'PreferenceService') {
+        return { get: mocks.preferenceGet }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
@@ -61,10 +71,11 @@ vi.mock('../../provider/endpoint', () => ({
 }))
 
 vi.mock('../settingsBuilder', () => ({
-  buildClaudeCodeSessionSettings: mocks.buildSessionSettings
+  buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
+  buildSkillWhitelist: mocks.buildSkillWhitelist
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession } = await import('../agentSessionWarmup')
+const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
@@ -79,6 +90,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
     mocks.getRotatedApiKey.mockReturnValue('api-key')
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
+    mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
+    mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
@@ -353,5 +367,179 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+})
+
+describe('deriveConnectionConfig', () => {
+  const sessionWithWorkspace = {
+    id: 'session-1',
+    agentId: 'agent-1',
+    workspace: { type: 'user', path: '/workspace/project' }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
+    mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
+    mocks.preferenceGet.mockReturnValue(undefined)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
+  })
+
+  async function deriveSignature() {
+    const result = await deriveConnectionConfig('session-1')
+    if (!result.ok) throw new Error('expected ok derive')
+    return result.config
+  }
+
+  it('is a pure read: no rotation advance, no gateway effects, no settings materialization', async () => {
+    const result = await deriveConnectionConfig('session-1')
+
+    expect(result.ok).toBe(true)
+    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    // mkdir / builtin-agent provisioning / shared snapshot update all live inside
+    // buildClaudeCodeSessionSettings — derive must never enter it.
+    expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
+  })
+
+  it('does not start the gateway even when the route resolves to it', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'other-provider::gpt-plan',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({ id: providerId }))
+
+    const result = await deriveConnectionConfig('session-1')
+
+    expect(result.ok).toBe(true)
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    // The gateway fingerprint reads the persisted preference instead of ensureValidApiKey.
+    expect(mocks.preferenceGet).toHaveBeenCalledWith('feature.api_gateway.api_key')
+  })
+
+  it('is stable across repeated derivation and across key rotation', async () => {
+    const first = await deriveSignature()
+    const second = await deriveSignature()
+
+    expect(second.rebuildSignature).toBe(first.rebuildSignature)
+  })
+
+  it('changes the rebuild signature for each rebuild-group input', async () => {
+    const base = await deriveSignature()
+
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, workspace: { type: 'user', path: '/elsewhere' } })
+    const workspaceChanged = await deriveSignature()
+    expect(workspaceChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+
+    mocks.buildSkillWhitelist.mockResolvedValue(['new-skill'])
+    const skillsChanged = await deriveSignature()
+    expect(skillsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+    mocks.buildSkillWhitelist.mockResolvedValue([])
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const planModelChanged = await deriveSignature()
+    expect(planModelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { max_turns: 5 }
+    })
+    const maxTurnsChanged = await deriveSignature()
+    expect(maxTurnsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: ['mcp-1'],
+      configuration: {}
+    })
+    mocks.findMcpServerByIdOrName.mockReturnValue({
+      id: 'mcp-1',
+      name: 'server',
+      type: 'stdio',
+      command: 'npx old-server'
+    })
+    const withMcp = await deriveSignature()
+    expect(withMcp.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    // Same MCP id, edited definition — the definition facts must be signed, not just the id.
+    mocks.findMcpServerByIdOrName.mockReturnValue({
+      id: 'mcp-1',
+      name: 'server',
+      type: 'stdio',
+      command: 'npx new-server'
+    })
+    const mcpDefinitionChanged = await deriveSignature()
+    expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+  })
+
+  it('keeps the rebuild signature stable across live tool-policy edits and surfaces them as facts', async () => {
+    const base = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: ['WebSearch'],
+      mcps: [],
+      configuration: { permission_mode: 'acceptEdits' }
+    })
+    const policyChanged = await deriveSignature()
+
+    expect(policyChanged.rebuildSignature).toBe(base.rebuildSignature)
+    expect(policyChanged.live.toolPolicy).toEqual({
+      permissionMode: 'acceptEdits',
+      disabledTools: ['WebSearch'],
+      mcps: []
+    })
+    expect(base.live.toolPolicy.permissionMode).toBeNull()
+  })
+
+  it('reports unroutable for deleted agents, missing workspaces and unroutable providers', async () => {
+    mocks.getAgent.mockReturnValue(undefined)
+    expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1', configuration: {} })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+    expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'gemini', presetProviderId: 'gemini' })
+    expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
   })
 })

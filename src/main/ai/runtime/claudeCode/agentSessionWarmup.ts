@@ -4,6 +4,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -22,7 +23,7 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings } from './settingsBuilder'
+import { buildClaudeCodeSessionSettings, buildSkillWhitelist } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
@@ -60,6 +61,136 @@ function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
     .digest('hex')
+}
+
+/**
+ * Normalized tool-policy facts — the live-updatable group of {@link ConnectionConfig}. These are
+ * hot-appliable on a running connection (SDK `setPermissionMode` + the session-keyed
+ * `toolPolicySnapshot.update`), so they are EXCLUDED from `rebuildSignature`: a policy edit must
+ * live-patch, not respawn.
+ */
+export interface ToolPolicyFacts {
+  permissionMode: string | null
+  disabledTools: string[]
+  mcps: string[]
+}
+
+/**
+ * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
+ * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
+ * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
+ *
+ * NOTE: `agent.mcps` feeds BOTH groups on purpose — the policy gating side is live (snapshot
+ * update), but the spawned `options.mcpServers` set is rebuild-only today, so an MCP set edit
+ * live-heals the gating AND flags 'rebuild' for the servers themselves.
+ */
+export interface ConnectionConfig {
+  rebuildSignature: string
+  live: {
+    toolPolicy: ToolPolicyFacts
+  }
+}
+
+export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig } | { ok: false; reason: 'unroutable' }
+
+/**
+ * Pure facts extractor for connection staleness — NOT a builder inversion. Reads the same inputs
+ * the settings builder consumes and reduces them to a signature + live facts, WITHOUT touching the
+ * builder's side effects: no workspace mkdir, no builtin-agent provisioning, no shared
+ * tool-policy-snapshot update (mutating it here would make the permission applier think the SDK is
+ * already in sync — forking local policy from the subprocess), no MCP instance construction, no
+ * gateway start/key generation, no key-rotation advance.
+ *
+ * Discipline: any NEW input added to `buildClaudeCodeSessionSettings` /
+ * `buildClaudeCodeQueryRequestForAgentSession` that changes the spawned subprocess's behavior must
+ * be added to the facts below (or to {@link ToolPolicyFacts} if it becomes hot-appliable).
+ *
+ * Known limitation: MCP facts cover the DB server definitions, not the runtime-discovered tool
+ * lists (reading those goes through the MCP client — not a pure read). Tool-list drift within an
+ * unchanged definition does not flag staleness; policy gating still heals live via the snapshot.
+ */
+export async function deriveConnectionConfig(
+  sessionId: string,
+  connectionModelId?: UniqueModelId
+): Promise<DeriveConnectionConfigResult> {
+  const unroutable = { ok: false, reason: 'unroutable' } as const
+
+  const session = agentSessionService.getById(sessionId)
+  if (!session?.agentId) return unroutable
+  const agent = agentService.getAgent(session.agentId)
+  if (!agent?.model) return unroutable
+  const cwd = session.workspace?.path
+  if (!cwd) return unroutable
+
+  const uniqueModelId = connectionModelId ?? agent.model
+  let routeFacts: ClaudeCodeRouteFacts
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
+    const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+    // Same pinning semantics as the query-request builder (see its comment).
+    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    routeFacts = deriveRouteFacts(
+      provider,
+      model,
+      modelId,
+      baseUrl,
+      pinSubModelsToPrimary ? undefined : agent.planModel,
+      pinSubModelsToPrimary ? undefined : agent.smallModel
+    )
+  } catch {
+    // Deleted provider/model rows or an unroutable combination (e.g. Gemini) — the connection
+    // cannot be rebuilt to a valid target, so it is invalid rather than merely stale.
+    return unroutable
+  }
+
+  const skills = await buildSkillWhitelist(agent.id, cwd)
+  const rebuildFacts = {
+    modelId: uniqueModelId,
+    route: routeFacts,
+    cwd,
+    instructions: agent.instructions ?? null,
+    builtinRole: agent.configuration?.builtin_role ?? null,
+    skills: [...skills].sort(),
+    maxTurns: agent.configuration?.max_turns ?? null,
+    envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    mcp: deriveMcpDefinitionFacts(agent.mcps)
+  }
+
+  return {
+    ok: true,
+    config: {
+      rebuildSignature: createHash('sha256').update(JSON.stringify(rebuildFacts)).digest('hex'),
+      live: {
+        toolPolicy: {
+          permissionMode: agent.configuration?.permission_mode ?? null,
+          disabledTools: [...(agent.disabledTools ?? [])].sort(),
+          mcps: [...(agent.mcps ?? [])].sort()
+        }
+      }
+    }
+  }
+}
+
+/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined): unknown[] {
+  return [...(mcpIds ?? [])].sort().map((mcpId) => {
+    const server = mcpServerService.findByIdOrName(mcpId)
+    if (!server) return { mcpId, missing: true }
+    return {
+      mcpId,
+      id: server.id,
+      name: server.name,
+      type: server.type,
+      command: server.command ?? null,
+      args: server.args ?? null,
+      baseUrl: server.baseUrl ?? null,
+      env: Object.entries(server.env ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+      headers: Object.entries(server.headers ?? {}).sort(([a], [b]) => a.localeCompare(b))
+    }
+  })
 }
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
@@ -121,14 +252,33 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
-async function resolveClaudeCodeRuntimeRoute(
+interface ClaudeCodeRouteFacts {
+  branch: 'external-cli' | 'gateway' | 'direct'
+  baseUrl?: string
+  credentialsFingerprint: string
+  modelIds: {
+    primary: string
+    opus: string
+    sonnet: string
+    haiku: string
+  }
+}
+
+/**
+ * Pure (read-only) half of the route resolution: branch decision, model-id slots, baseUrl and the
+ * credentials fingerprint — everything the staleness signature needs. MUST stay side-effect free:
+ * no `getRotatedApiKey` (advances rotation), no gateway `ensureValidApiKey` (persists a key on
+ * first use) or `start()` (boots the HTTP server). Credential *values* are materialized by
+ * {@link resolveClaudeCodeRuntimeRoute} on the connect path only.
+ */
+function deriveRouteFacts(
   primaryProvider: Provider,
   primaryModel: Model,
   primaryModelId: string,
   primaryBaseUrl: string,
   planModel: UniqueModelId | null | undefined,
   smallModel: UniqueModelId | null | undefined
-): Promise<ClaudeCodeRuntimeRoute> {
+): ClaudeCodeRouteFacts {
   const primaryRef: RuntimeModelRef = {
     providerId: primaryProvider.id,
     modelId: primaryModelId,
@@ -160,6 +310,7 @@ async function resolveClaudeCodeRuntimeRoute(
     const pinToPrimary = (ref: RuntimeModelRef) =>
       ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
     return {
+      branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
       modelIds: {
         primary: primaryRef.apiModelId,
@@ -175,11 +326,17 @@ async function resolveClaudeCodeRuntimeRoute(
   )
 
   if (shouldUseGateway) {
-    const gateway = await resolveApiGatewayRuntime()
+    const config = application.get('ApiGatewayService').getCurrentConfig()
+    const host = config.host || '127.0.0.1'
+    const port = config.port || 23333
+    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
+    // persist one). Before the gateway's first activation the preference is empty — the signature
+    // changes once when the key is generated, costing a single extra rebuild. Accepted.
+    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
-      baseUrl: gateway.baseUrl,
-      apiKey: gateway.apiKey,
-      credentialsFingerprint: fingerprintCredentials([gateway.apiKey]),
+      branch: 'gateway',
+      baseUrl: `http://${host}:${port}`,
+      credentialsFingerprint: fingerprintCredentials([typeof gatewayKey === 'string' ? gatewayKey : '']),
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -190,21 +347,55 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
-  const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
-  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
   // Fingerprint the enabled key SET (read-only), not the rotated pick — so prewarm/consume builds
   // that rotate onto different keys still sign identically, while enabling/disabling/editing a key
   // invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
   return {
+    branch: 'direct',
     baseUrl: anthropicBaseUrl,
-    apiKey: runtimeApiKey,
     credentialsFingerprint: fingerprintCredentials(enabledKeys),
     modelIds: {
       primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
       opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
       sonnet: withDeepSeek1mSuffix(sonnetRef.apiModelId, anthropicBaseUrl),
       haiku: withDeepSeek1mSuffix(haikuRef.apiModelId, anthropicBaseUrl)
+    }
+  }
+}
+
+/** Effectful half: materializes the credentials for the branch {@link deriveRouteFacts} picked. */
+async function resolveClaudeCodeRuntimeRoute(
+  primaryProvider: Provider,
+  primaryModel: Model,
+  primaryModelId: string,
+  primaryBaseUrl: string,
+  planModel: UniqueModelId | null | undefined,
+  smallModel: UniqueModelId | null | undefined
+): Promise<ClaudeCodeRuntimeRoute> {
+  const facts = deriveRouteFacts(primaryProvider, primaryModel, primaryModelId, primaryBaseUrl, planModel, smallModel)
+
+  switch (facts.branch) {
+    case 'external-cli':
+      return { credentialsFingerprint: facts.credentialsFingerprint, modelIds: facts.modelIds }
+    case 'gateway': {
+      const gateway = await resolveApiGatewayRuntime()
+      return {
+        baseUrl: gateway.baseUrl,
+        apiKey: gateway.apiKey,
+        credentialsFingerprint: fingerprintCredentials([gateway.apiKey]),
+        modelIds: facts.modelIds
+      }
+    }
+    case 'direct': {
+      const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
+      const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      return {
+        baseUrl: facts.baseUrl,
+        apiKey: runtimeApiKey,
+        credentialsFingerprint: facts.credentialsFingerprint,
+        modelIds: facts.modelIds
+      }
     }
   }
 }
