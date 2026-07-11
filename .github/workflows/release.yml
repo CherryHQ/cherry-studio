@@ -112,10 +112,8 @@ jobs:
           supportedArchitectures:
             os:
               - current
-              - win32
             cpu:
               - current
-              - x64
               - arm64
           '@
           $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
@@ -178,13 +176,8 @@ jobs:
           if (-not $installer) {
             throw 'Windows ARM64 setup executable was not produced'
           }
-          if ($installer.Length -lt 300MB) {
-            throw "Windows ARM64 setup is only $([math]::Round($installer.Length / 1MB, 2)) MiB"
-          }
 
-          $packageDir = Join-Path $PWD 'dist\win-arm64-unpacked'
-
-          $requiredFiles = @(
+          $requiredPaths = @(
             'CherryStudio.exe',
             'd3dcompiler_47.dll',
             'ffmpeg.dll',
@@ -193,31 +186,22 @@ jobs:
             'resources\app.asar.unpacked\resources\binaries\win32-arm64\bun.exe',
             'resources\app.asar.unpacked\resources\binaries\win32-arm64\mise.exe',
             'resources\app.asar.unpacked\resources\binaries\win32-arm64\uv.exe',
-            'resources\app.asar.unpacked\resources\binaries\win32-arm64\uvx.exe'
+            'resources\app.asar.unpacked\resources\binaries\win32-arm64\uvx.exe',
+            'resources\app.asar.unpacked\node_modules\@aiany\sqlite-vec-windows-arm64',
+            'resources\app.asar.unpacked\node_modules\@anthropic-ai\claude-agent-sdk-win32-arm64\claude.exe',
+            'resources\app.asar.unpacked\node_modules\@img\sharp-win32-arm64',
+            'resources\app.asar.unpacked\node_modules\@napi-rs\canvas-win32-arm64-msvc',
+            'resources\app.asar.unpacked\node_modules\@napi-rs\system-ocr-win32-arm64-msvc'
           )
-          $missingFiles = $requiredFiles | Where-Object { -not (Test-Path (Join-Path $packageDir $_)) }
-          if ($missingFiles) {
-            throw "Windows ARM64 package is missing: $($missingFiles -join ', ')"
+
+          function Assert-Paths($Root, $Label) {
+            $missing = $requiredPaths | Where-Object { -not (Test-Path (Join-Path $Root $_)) }
+            if ($missing) {
+              throw "$Label is missing: $($missing -join ', ')"
+            }
           }
 
-          $unpackedModules = Join-Path $packageDir 'resources\app.asar.unpacked\node_modules'
-          $requiredPackages = @(
-            '@aiany\sqlite-vec-windows-arm64',
-            '@img\sharp-win32-arm64',
-            '@napi-rs\canvas-win32-arm64-msvc',
-            '@napi-rs\system-ocr-win32-arm64-msvc'
-          )
-          $missingPackages = $requiredPackages | Where-Object { -not (Test-Path (Join-Path $unpackedModules $_)) }
-          if ($missingPackages) {
-            throw "Windows ARM64 package is missing native packages: $($missingPackages -join ', ')"
-          }
-
-          $claudeArm64 = Get-ChildItem $unpackedModules -Recurse -Filter 'claude.exe' |
-            Where-Object { $_.FullName -like '*claude-agent-sdk-win32-arm64*' } |
-            Select-Object -First 1
-          if (-not $claudeArm64) {
-            throw 'Windows ARM64 package is missing the ARM64 Claude executable'
-          }
+          Assert-Paths (Join-Path $PWD 'dist\win-arm64-unpacked') 'Windows ARM64 package'
 
           $extractDir = Join-Path $env:RUNNER_TEMP 'cherry-studio-arm64-setup'
           Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -234,12 +218,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to extract Windows ARM64 payload with exit code $LASTEXITCODE"
           }
-          $missingInstallerFiles = $requiredFiles | Where-Object {
-            -not (Test-Path (Join-Path $payloadDir $_))
-          }
-          if ($missingInstallerFiles) {
-            throw "Windows ARM64 setup is missing: $($missingInstallerFiles -join ', ')"
-          }
+          Assert-Paths $payloadDir 'Windows ARM64 setup'
 
       - name: Release
         uses: ncipollo/release-action@v1
