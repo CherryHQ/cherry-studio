@@ -368,7 +368,7 @@ function AssistantBasicFields({
           name="tagName"
           render={({ field }) => (
             <FormItem className="min-w-0">
-              <FormLabel>{t('library.config.basic.tags')}</FormLabel>
+              <FormLabel className="font-normal">{t('library.config.basic.tags')}</FormLabel>
               <TagSelector
                 value={field.value}
                 onChange={field.onChange}
