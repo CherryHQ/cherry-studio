@@ -11,10 +11,7 @@ interface UsePaintingInitialSelectionInput {
 }
 
 /**
- * Bootstrap the page's first painting while `currentPainting` is still the
- * untouched mount-time draft (reference equality — every mutation path
- * replaces the reference, so once the user touches anything no branch fires
- * again):
+ * Bootstrap the page's first painting once:
  *
  *   - History resolved non-empty → adopt the most recent persisted painting.
  *   - Fresh user (no history) → re-seed the draft on the resolved provider.
@@ -29,21 +26,26 @@ export function usePaintingInitialSelection({
   initialProviderId,
   setCurrentPainting
 }: UsePaintingInitialSelectionInput) {
-  const initialDraftRef = useRef(currentPainting)
+  const bootstrappedRef = useRef(false)
 
   useEffect(() => {
-    if (currentPainting !== initialDraftRef.current) return
+    if (bootstrappedRef.current) return
 
     if (historyItems.length > 0) {
-      setCurrentPainting(historyItems[0])
+      bootstrappedRef.current = true
+      if (!historyItems.some((item) => item.id === currentPainting.id)) {
+        setCurrentPainting(historyItems[0])
+      }
+      return
+    }
+
+    if (currentPainting.persistedAt) {
+      bootstrappedRef.current = true
       return
     }
 
     if (initialProviderId && currentPainting.providerId !== initialProviderId) {
-      // Track the re-seeded draft so a later history load still replaces it.
-      const reseeded = createDefaultPainting(initialProviderId)
-      initialDraftRef.current = reseeded
-      setCurrentPainting(reseeded)
+      setCurrentPainting(createDefaultPainting(initialProviderId))
     }
   }, [currentPainting, historyItems, initialProviderId, setCurrentPainting])
 }
