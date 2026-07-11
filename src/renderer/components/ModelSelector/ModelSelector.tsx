@@ -8,6 +8,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -499,7 +500,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const closeBeforeSettingsNavigation = useCallback(
-    (path: string) => {
+    (path: SettingsPath) => {
       closeBeforeAction(() => {
         const navigate = () => openSettingsTab(path)
         if (onSettingsNavigate) {

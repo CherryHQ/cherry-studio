@@ -4,7 +4,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
@@ -54,6 +54,13 @@ const RestoreKnowledgeBaseDialog = ({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCallback(
+    (navigate: () => void) => {
+      onOpenChange(false)
+      window.requestAnimationFrame(navigate)
+    },
+    [onOpenChange]
+  )
 
   useEffect(() => {
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))
@@ -138,6 +145,7 @@ const RestoreKnowledgeBaseDialog = ({
                 placeholder={t('knowledge.not_set')}
                 filter={isEmbeddingModel}
                 invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />
               {hasAttemptedSubmit && !values.embeddingModelId ? (
