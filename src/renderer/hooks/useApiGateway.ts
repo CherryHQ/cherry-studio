@@ -47,19 +47,25 @@ export const useApiGateway = () => {
     [setApiGatewayConfig]
   )
 
-  const startApiGateway = useCallback(async () => {
-    if (apiGatewayLoading) return
+  // Resolves `true` only when Main confirms the server is listening (its IPC `start()` succeeds
+  // after the server binds). Returns `false` on the loading no-op, an unsuccessful IPC result, or a
+  // thrown error, so callers that gate on a running gateway (e.g. the code-CLI gateway provider) can
+  // tell a real start from a swallowed failure instead of trusting a stale persisted key.
+  const startApiGateway = useCallback(async (): Promise<boolean> => {
+    if (apiGatewayLoading) return false
     setApiGatewayLoading(true)
     try {
       const result = await window.api.apiGateway.start()
       if (result.success) {
         setApiGatewayEnabled(true)
         toast.success(t('apiGateway.messages.startSuccess'))
-      } else {
-        toast.error(t('apiGateway.messages.startError') + result.error)
+        return true
       }
+      toast.error(t('apiGateway.messages.startError') + result.error)
+      return false
     } catch (error: any) {
       toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      return false
     } finally {
       setApiGatewayLoading(false)
     }

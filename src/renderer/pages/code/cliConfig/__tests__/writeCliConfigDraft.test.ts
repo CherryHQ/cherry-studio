@@ -311,6 +311,36 @@ describe('writeCliConfigDraft', () => {
       })
     })
 
+    it('writes an explicitly-supplied hand-edited draft verbatim for a real provider (no rebuild)', async () => {
+      // Complement of the gateway-rebuild path: for a real provider, a supplied draft is written
+      // through as-is — no rebuild, so the resolved provider key is NOT injected and the user's
+      // hand-edited managed values survive. (Guards the `args.gateway || !files?.length` branch.)
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({
+          theme: 'dark',
+          env: { ANTHROPIC_AUTH_TOKEN: 'hand-edited-token', ANTHROPIC_MODEL: 'hand-model' }
+        })
+      }
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        files: [editedDraft]
+      })
+
+      // Written byte-for-byte: the resolved provider key (sk-secret) is never merged in.
+      expect(written!.content).toBe(editedDraft.content)
+    })
+
     it('writes the managed Claude reasoning effort', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ theme: 'dark' })
       mockGet({
@@ -1021,6 +1051,40 @@ describe('writeCliConfigDraft', () => {
         writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'cherryai::qwen', gateway })
       ).rejects.toThrow(/gateway/)
       expect(writes).toEqual([])
+    })
+
+    it('rebuilds from the edited draft: preserves hand-edited unmanaged fields and injects the fresh key', async () => {
+      // Reviewer's data-loss path: the preview draft the user hand-edited carries a stale/empty
+      // gateway key. A gateway save must NOT write it verbatim (stale key) and must NOT rebuild from
+      // disk (losing the edits) — it rebuilds from the supplied draft, so unmanaged edits survive and
+      // the managed credential/model are re-injected fresh.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({
+          theme: 'dark',
+          env: { ANTHROPIC_AUTH_TOKEN: 'stale-preview-key', KEEP: '1' }
+        })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      // hand-edited unmanaged fields survive
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      // managed credential/model re-injected fresh (stale preview key replaced)
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+      expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     })
   })
 

@@ -43,7 +43,14 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
     // read it back imperatively so the caller gets the fresh value (React state in this
     // async closure is still the pre-start key).
     if (!apiGatewayRunning) {
-      await startApiGateway()
+      // Main persists the key in `onActivate` BEFORE the server binds, and it survives a stop — so a
+      // key can exist while nothing is listening. Only proceed when the start actually confirmed the
+      // server is running; otherwise the caller must not write the CLI config or mark the gateway
+      // current against a dead port. `startApiGateway` returns false on failure (it never rejects).
+      const started = await startApiGateway()
+      if (!started) {
+        throw new Error('API gateway failed to start')
+      }
     } else if (!apiGatewayConfig.enabled) {
       setApiGatewayEnabled(true)
     }

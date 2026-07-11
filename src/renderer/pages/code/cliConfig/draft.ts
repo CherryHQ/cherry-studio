@@ -144,17 +144,22 @@ export async function writeCliConfigDraft(args: {
 }): Promise<unknown> {
   let files = args.files
   if (args.modelId) {
-    const writeArgs = {
+    const writeArgs: CliConfigDraftBuildArgs = {
       cliTool: args.cliTool,
       modelId: args.modelId,
       configBlob: args.configBlob,
       writePrimaryModel: args.writePrimaryModel,
-      gateway: args.gateway
+      gateway: args.gateway,
+      files: args.files
     }
     const context = await resolveContext(writeArgs)
     if (!context) return
     assertCliConfigCredentials(args.cliTool, context)
-    if (!files?.length) {
+    // Gateway: always rebuild so the freshly-resolved gateway key/model is (re)injected — the preview
+    // draft may carry a stale/empty key built before the gateway started. Passing `args.files` as the
+    // merge base keeps the user's hand-edited unmanaged fields (managed credential/model are
+    // overwritten). Real providers keep writing an explicitly-supplied hand-edited draft through verbatim.
+    if (args.gateway || !files?.length) {
       files = await buildCliConfigDraftFiles(writeArgs, context)
     }
   } else if (!files?.length) {
