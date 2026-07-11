@@ -22,14 +22,14 @@ import path from 'node:path'
 
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import { loggerService } from '@logger'
 import type { DbService } from '@main/data/db/DbService'
 import { applyMigrations } from '@main/data/db/applyMigrations'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
-import { readAppliedChain } from '@main/data/db/restore/appliedChain'
-import type { RestoreJournal } from '@main/data/db/restore/restoreJournal'
-import { writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { type AppliedMigration, readAppliedChain } from '@main/data/db/restore/appliedChain'
+import { type RestoreJournal, readRestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import type { DbType } from '@main/data/db/types'
 
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
@@ -46,6 +46,7 @@ export type ImportPhase =
   | 'merge'
   | 'migrate'
   | 'seal'
+  | 'stage'
   | 'verify'
   | 'journal'
 
@@ -174,11 +175,15 @@ export class ImportOrchestrator {
       this.assertNotCancelled(options)
 
       // (d) Migrate work forward to the bundled latest, then read its COMPLETE applied chain.
-      // applyMigrations is a no-op when work (a copy of live) is already current; the call
-      // is what makes producer-side exact-equality with the bundled chain hold (plan (d) M5).
+      // applyMigrations is a no-op when work (a copy of live) is already current.
       this.emit(options, 'migrate', 0, 1, 'applying migrations to work.sqlite')
       applyMigrations(workDb, this.deps.migrationsFolder)
       const chain = readAppliedChain(workSqlite)
+      // (d) Producer-side exact-equality seal (plan (d) M5): the work chain MUST equal the
+      // bundled chain item-by-item. An ahead-of-code or forked work DB is aborted here rather
+      // than relaunched for the gate to expire. The gate keeps the weaker prefix check to
+      // tolerate binary changes between staging and relaunch.
+      this.verifyChainExactEquality(chain)
 
       // (c) Seal work: fold any WAL into main, close ALL connections, assert no sidecars.
       this.emit(options, 'seal', 0, 1, 'sealing work.sqlite')
@@ -186,19 +191,23 @@ export class ImportOrchestrator {
       workSqlite.close()
       workSqlite = undefined
       this.assertSealed(workPath)
+      this.assertNotCancelled(options)
 
-      // (c) Second fingerprint — re-capture live (checkpointTruncate + hash) and compare.
-      // Symmetric with the capture: a checkpoint fold is required so a writer whose data
-      // still sits in the WAL (main file unchanged) is still detected. A mismatch means a
+      // (e) Stage file resources → journal entries. Empty until the staging track lands.
+      // Staging+sealing runs BEFORE the 2nd fingerprint so the fingerprint is the last async
+      // check before the synchronous journal write (plan (c) 时序: work seal → resource seal →
+      // 2nd fingerprint → journal).
+      this.emit(options, 'stage', 0, 1, 'staging file resources')
+      const fileResources = await this.deps.stageFileResources()
+      this.assertNotCancelled(options)
+
+      // (c) Second fingerprint — the LAST async check before the journal write. Re-capture live
+      // (checkpointTruncate + hash) and compare. A checkpoint fold is required so a writer whose
+      // data still sits in the WAL (main file unchanged) is still detected. A mismatch means a
       // writer touched live during staging → abort WITHOUT writing the journal (fail-closed).
       // The gate re-checks anyway; this early abort avoids wasting a relaunch.
       this.emit(options, 'verify', 0, 1, 're-verifying live DB fingerprint')
-      this.assertNotCancelled(options)
       await this.verifyFingerprint(fingerprint)
-
-      // (e) Stage file resources → journal entries. Empty until the staging track lands.
-      this.emit(options, 'journal', 0, 1, 'writing staged restore journal')
-      const fileResources = await this.deps.stageFileResources()
 
       const journal: RestoreJournal = {
         version: 1,
@@ -213,7 +222,27 @@ export class ImportOrchestrator {
         },
         fileResources
       }
-      writeRestoreJournal(journal)
+      // writeRestoreJournal renames the journal before its parent-dir fsync; a throw after the
+      // rename still leaves a valid staged journal on disk (plan R1-M3). Reread: if it landed
+      // for this restore, treat as committed (preserve staging); else propagate.
+      this.emit(options, 'journal', 0, 1, 'writing staged restore journal')
+      try {
+        writeRestoreJournal(journal)
+      } catch (writeErr) {
+        const reread = readRestoreJournal()
+        if (
+          reread.kind === 'ok' &&
+          reread.journal.restoreId === options.restoreId &&
+          reread.journal.state === 'staged'
+        ) {
+          logger.warn(
+            'writeRestoreJournal threw after rename — journal landed, treating as committed',
+            writeErr as Error
+          )
+        } else {
+          throw writeErr
+        }
+      }
       committed = true
 
       return { restoreId: options.restoreId, journalPath: this.deps.journalPath }
@@ -251,6 +280,29 @@ export class ImportOrchestrator {
     const recomputed = await captureLiveFingerprint(this.deps.dbService, this.deps.liveDbPath)
     if (recomputed !== captured) {
       throw new RestoreFingerprintMismatchError(captured, recomputed)
+    }
+  }
+
+  /**
+   * Producer-side exact-equality seal (plan (d) M5): the work DB's COMPLETE applied chain must
+   * equal the bundled chain item-by-item (same length, same folderMillis+hash at each index).
+   * An ahead-of-code or forked work DB is aborted here rather than relaunched for the gate to
+   * expire. The gate keeps the weaker prefix check to tolerate binary changes between staging
+   * and relaunch.
+   */
+  private verifyChainExactEquality(workChain: readonly AppliedMigration[]): void {
+    const bundled = readMigrationFiles({ migrationsFolder: this.deps.migrationsFolder })
+    if (workChain.length !== bundled.length) {
+      throw new Error(
+        `importBackup: work chain length ${workChain.length} !== bundled ${bundled.length} (ahead-of-code or fork — aborting)`
+      )
+    }
+    for (let i = 0; i < workChain.length; i++) {
+      if (workChain[i].folderMillis !== bundled[i].folderMillis || workChain[i].hash !== bundled[i].hash) {
+        throw new Error(
+          `importBackup: work chain diverges from bundled at index ${i} (folderMillis ${workChain[i].folderMillis} vs ${bundled[i].folderMillis}) — fork, aborting`
+        )
+      }
     }
   }
 
