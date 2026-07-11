@@ -353,8 +353,19 @@ export class BackupService extends BaseService {
       )
     }
     // realpathSync succeeds on a file too — reject a non-directory parent here, otherwise
-    // createWriteStream(tmpPath) fails ENOTDIR mid-export → INTERNAL.
-    if (!statSync(realParent).isDirectory()) {
+    // createWriteStream(tmpPath) fails ENOTDIR mid-export → INTERNAL. Wrap statSync so a
+    // TOCTOU disappearance / permission loss between realpath and stat also maps to
+    // BACKUP_OUTPUT_PATH_INVALID instead of leaking to INTERNAL.
+    let parentStat: { isDirectory(): boolean }
+    try {
+      parentStat = statSync(realParent)
+    } catch (e) {
+      throw new IpcError(
+        'BACKUP_OUTPUT_PATH_INVALID',
+        `backup: outputPath parent inaccessible (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${parent}`
+      )
+    }
+    if (!parentStat.isDirectory()) {
       throw new IpcError(
         'BACKUP_OUTPUT_PATH_INVALID',
         `backup: outputPath parent is not a directory: ${parent}`
