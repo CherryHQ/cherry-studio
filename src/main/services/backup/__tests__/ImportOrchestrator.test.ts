@@ -12,10 +12,13 @@ import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import type { DbService } from '@main/data/db/DbService'
+import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
+import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { snapshotTo } from '@main/data/db/restore/snapshot'
 import { setupTestDatabase } from '@test-helpers/db'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -96,8 +99,17 @@ describe('ImportOrchestrator spine', () => {
     if (read.kind !== 'ok') return
     expect(read.journal.state).toBe('staged')
     expect(read.journal.restoreId).toBe('rst-001')
-    expect(read.journal.db.fingerprint.length).toBeGreaterThan(0)
-    expect(read.journal.db.chain.length).toBeGreaterThanOrEqual(1)
+    // fingerprint == a gate-equivalent re-checkpoint+rehash of the live DB (not just non-empty)
+    checkpointTruncateAssert(dbh.sqlite)
+    expect(read.journal.db.fingerprint).toBe(await hashDbFile(liveDbPath))
+    // chain == readAppliedChain(work.sqlite) — the journal carries work's COMPLETE applied
+    // sequence (the producer-side exact-equality seal guarantees it equals the bundled chain)
+    const workRo = new Database(join(stagingRoot, 'rst-001', 'work.sqlite'), { readonly: true })
+    try {
+      expect(read.journal.db.chain).toEqual(readAppliedChain(workRo))
+    } finally {
+      workRo.close()
+    }
     // promote/aside stored userData-relative. In production app.database.file lives
     // under userData so aside is a clean basename; here the test live DB is in a
     // sibling temp dir, so assert the exact path.relative the producer computes.
