@@ -289,7 +289,12 @@ export function useChatVirtualizerRuntime<T>({
       const naturalHeight = getNaturalScrollHeight()
       const baseline = freezeBaselineScrollHeightRef.current ?? naturalHeight
       freezeBaselineScrollHeightRef.current = baseline
-      setFreezeSpacerHeight(Math.max(0, baseline - (naturalHeight + pendingAnchorSpacerDelta)))
+      // A pending spacer shrink will remove range on the next React commit, so
+      // reserve it now. A pending growth does not provide range until it is in
+      // the DOM; crediting it early leaves one frame where the browser can clamp
+      // scrollTop before the anchor spacer commits.
+      const pendingRangeLoss = Math.min(0, pendingAnchorSpacerDelta)
+      setFreezeSpacerHeight(Math.max(0, baseline - (naturalHeight + pendingRangeLoss)))
     },
     [getNaturalScrollHeight, setFreezeSpacerHeight]
   )
@@ -557,6 +562,13 @@ export function useChatVirtualizerRuntime<T>({
     const scroller = scrollerRef.current
     if (!content || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
+      let userDrives = scrollDriverRef.current === 'user'
+      if (userDrives) {
+        // Restore range from the currently committed DOM before the anchor can
+        // re-assert scrollTop. Disclosure collapse may already have let the
+        // browser clamp it while a larger React spacer is still pending.
+        maintainFreezeScrollRange()
+      }
       const wasBottomFollowSuppressed = isBottomFollowSuppressed()
       const wasPinned = anchor.isPinned()
       // Anchor first: it may adjust spacer height. Auto-stick reads
@@ -564,7 +576,6 @@ export function useChatVirtualizerRuntime<T>({
       const nextAnchorSpacerHeight = anchor.onContentSizeChange()
       const pendingAnchorSpacerDelta = nextAnchorSpacerHeight - anchor.spacerHeight
       const pinReleasedByContent = wasPinned && !anchor.isPinned()
-      let userDrives = scrollDriverRef.current === 'user'
       if (!userDrives && !anchor.isPinned() && anchor.spacerHeight > 0 && nextAnchorSpacerHeight === 0) {
         // Runtime follow consumed the released spacer budget completely. Seal
         // that budget so a later content shrink cannot resurrect blank range.
@@ -720,6 +731,7 @@ export function useChatVirtualizerRuntime<T>({
         if (!deferredResume) stickToEffectiveBottomRef.current()
         return
       }
+      if (userDrives) maintainFreezeScrollRangeRef.current()
       const nextAnchorSpacerHeight = anchorRef.current.onContentSizeChange()
       if (userDrives) {
         maintainFreezeScrollRangeRef.current(nextAnchorSpacerHeight - anchorRef.current.spacerHeight)

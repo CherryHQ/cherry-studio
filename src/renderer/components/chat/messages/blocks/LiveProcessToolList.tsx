@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
 import { formatFileSize } from '@renderer/utils/file'
-import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -118,26 +117,26 @@ const LiveProcessToolRow = React.memo(function LiveProcessToolRow({
       data-tool-call-id={toolCallId}
       data-tool-status={status}
       data-tool-error={hasError || undefined}>
-      <div className="flex min-h-7 min-w-0 items-center gap-1.5 py-0.5">
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={status} hasError={hasError} />
-        </div>
-        {hasDetails && (
+      <div className="flex min-h-7 min-w-0 items-center py-0.5">
+        {hasDetails ? (
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
             aria-label={disclosureLabel}
             aria-expanded={expanded}
             aria-controls={contentId}
             data-testid="live-process-tool-trigger"
-            className="size-7 shrink-0 rounded bg-transparent p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1 focus-visible:ring-0"
+            className="h-auto min-h-7 w-full min-w-0 flex-1 justify-start overflow-hidden rounded bg-transparent px-0 py-0.5 text-left shadow-none focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1 focus-visible:ring-0"
             onClick={() => onExpandedChange(toolCallId, expanded)}>
-            <ChevronDown
-              aria-hidden="true"
-              className={`size-3.5 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
-            />
+            <div className="w-full min-w-0 overflow-hidden">
+              <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={status} hasError={hasError} />
+            </div>
           </Button>
+        ) : (
+          <div className="w-full min-w-0 overflow-hidden">
+            <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={status} hasError={hasError} />
+          </div>
         )}
       </div>
       <div id={contentId} hidden={!expanded}>

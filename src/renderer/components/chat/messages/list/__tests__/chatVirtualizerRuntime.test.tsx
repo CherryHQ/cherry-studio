@@ -1720,6 +1720,83 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('bridges pinned spacer growth before its React commit when a disclosure collapses', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 0
+      let naturalContentHeight = 1000
+      const view = render(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const getAnchorSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const getFreezeSpacerHeight = () => Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+      const scroller = runtime!.scrollerRef.current!
+      const content = runtime!.contentRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = Math.min(value, Math.max(0, scroller.scrollHeight - scroller.clientHeight))
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight() + getFreezeSpacerHeight()
+      })
+      setElementMetric(content, 'scrollHeight', () => {
+        return naturalContentHeight + getAnchorSpacerHeight()
+      })
+      runtime!.vlistHandleRef.current = createHandle({
+        findItemIndex: vi.fn(() => 0),
+        getItemOffset: vi.fn((index) => (index === 1 ? 1000 : 0))
+      })
+      raf.tick(60)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'current-user-message']}
+          preserveScrollAnchor
+          scrollToTopKey="current-user-message"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(getAnchorSpacerHeight()).toBe(400)
+
+      scrollTop = 1000
+      act(() => runtime!.scrollerProps.onScroll(1000))
+      act(() => runtime!.takeUserControl())
+
+      // Collapsing the disclosure removes range before the larger anchor spacer
+      // can commit. The temporary freeze spacer must bridge that one-frame gap.
+      naturalContentHeight = 820
+      scrollTop = Math.min(scrollTop, scroller.scrollHeight - scroller.clientHeight)
+      expect(scrollTop).toBe(820)
+
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
+
+      expect(getAnchorSpacerHeight()).toBe(580)
+      expect(getFreezeSpacerHeight()).toBe(180)
+      expect(scrollTop).toBe(1000)
+
+      // Once the anchor spacer is present in the measured DOM, the temporary
+      // bridge is redundant and should be reclaimed without moving the viewport.
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
+      expect(getFreezeSpacerHeight()).toBe(0)
+      expect(scrollTop).toBe(1000)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it.each([
     ['continues after the spacer is consumed', true],
     ['ends as the spacer is consumed', false]
@@ -1798,6 +1875,12 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
 
       expect(getAnchorSpacerHeight()).toBe(400)
+      expect(getFreezeSpacerHeight()).toBe(300)
+      expect(scrollTop).toBe(800)
+
+      // The committed anchor spacer now provides the restored range, so the
+      // next measurement can reclaim the one-frame bridge.
+      act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
       expect(getFreezeSpacerHeight()).toBe(0)
       expect(scrollTop).toBe(800)
 

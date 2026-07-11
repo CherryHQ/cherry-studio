@@ -1,5 +1,6 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
@@ -110,6 +111,38 @@ describe('LiveProcessToolList', () => {
     expect(getToolRow('read')).toHaveAttribute('data-tool-status', 'invoking')
     expect(getToolRow('write')).toHaveAttribute('data-tool-status', 'done')
     expect(screen.queryByTestId('live-process-tool-content')).toBeNull()
+  })
+
+  it('uses the tool summary as the only disclosure trigger and leaves detail-less rows non-interactive', async () => {
+    const user = userEvent.setup()
+    renderList([
+      makeItem('read'),
+      makeItem('status-only', {
+        arguments: undefined,
+        partialArguments: undefined,
+        response: undefined,
+        status: 'done'
+      })
+    ])
+    const readRow = getToolRow('read')
+    const statusOnlyRow = getToolRow('status-only')
+    const readHeader = within(readRow).getByTestId('mock-tool-header')
+    const trigger = within(readRow).getByRole('button', { name: 'Expand: read' })
+
+    expect(trigger).toContainElement(readHeader)
+    expect(within(readRow).getAllByRole('button')).toEqual([trigger])
+    expect(trigger.querySelector('svg')).toBeNull()
+    expect(within(statusOnlyRow).queryByRole('button')).toBeNull()
+
+    await user.click(readHeader)
+    expect(within(readRow).getByTestId('live-process-tool-content')).toBeInTheDocument()
+
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    expect(within(readRow).queryByTestId('live-process-tool-content')).toBeNull()
+
+    await user.keyboard(' ')
+    expect(within(readRow).getByTestId('live-process-tool-content')).toBeInTheDocument()
   })
 
   it('mounts at most one detail body and calls onBeforeExpand before each opening', () => {
