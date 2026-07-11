@@ -65,8 +65,31 @@ jobs:
             ${{ runner.os }}-pnpm-webui-windows-
             ${{ runner.os }}-pnpm-
 
+      - name: Configure Windows package architectures
+        shell: pwsh
+        run: |
+          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
+          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
+          $windowsArchitectures = @'
+          supportedArchitectures:
+            os:
+              - current
+            cpu:
+              - current
+              - arm64
+          '@
+          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
+          Set-Content pnpm-workspace.yaml $workspaceConfig
+
       - name: Install desktop dependencies
         run: pnpm install
+
+      - name: Verify Windows arm64 native dependencies
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath "node_modules/@napi-rs/system-ocr-win32-arm64-msvc")) {
+            throw "Missing @napi-rs/system-ocr-win32-arm64-msvc after pnpm install."
+          }
 
       - name: Install WebUI dependencies
         working-directory: webui
