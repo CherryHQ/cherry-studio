@@ -7,6 +7,7 @@ import {
   ArtifactPaneView,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
+import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -853,7 +854,24 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   )
 }
 
-function AgentRightPaneShortcuts() {
+function AgentRightPaneWorkspaceOpener() {
+  const { state, meta } = useAgentRightPane()
+  const shellState = useShellState()
+  const hasFiles = meta.filesEnabled !== false
+  const workspacePath = state.workspacePath
+  const showWorkspaceOpener = hasFiles && workspacePath && !shellState.open && !shellState.maximized
+
+  if (!showWorkspaceOpener) return null
+
+  return (
+    <OpenExternalAppButton
+      workdir={workspacePath}
+      className="mr-1 inline-flex h-7 shrink-0 translate-y-px items-center self-center"
+    />
+  )
+}
+
+function AgentRightPaneShortcuts({ showWorkspaceOpener = true }: { showWorkspaceOpener?: boolean } = {}) {
   const { meta } = useAgentRightPane()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -864,6 +882,7 @@ function AgentRightPaneShortcuts() {
 
   return (
     <>
+      {showWorkspaceOpener && <AgentRightPaneWorkspaceOpener />}
       {hasFiles && (
         <Shell.TabShortcut
           tab="files"
@@ -883,6 +902,7 @@ export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
   FilesToggle: AgentRightPaneFilesToggle,
+  WorkspaceOpener: AgentRightPaneWorkspaceOpener,
   Shortcuts: AgentRightPaneShortcuts
 })
 

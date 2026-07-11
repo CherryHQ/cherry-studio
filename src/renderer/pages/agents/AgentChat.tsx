@@ -120,8 +120,9 @@ const AgentChat = ({
   const { agent: activeAgent } = useAgent(visibleAgentId)
   const resourcePaneTopRightTool = resourcePane ? (
     <>
+      <AgentRightPane.WorkspaceOpener />
       {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
-      <AgentRightPane.Shortcuts />
+      <AgentRightPane.Shortcuts showWorkspaceOpener={false} />
       <AgentRightPane.FilesToggle />
     </>
   ) : undefined
@@ -486,8 +487,9 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
+            <AgentRightPane.WorkspaceOpener />
             {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
-            <AgentRightPane.Shortcuts />
+            <AgentRightPane.Shortcuts showWorkspaceOpener={false} />
             <AgentRightPane.FilesToggle />
           </>
         }

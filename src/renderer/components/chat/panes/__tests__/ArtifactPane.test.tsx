@@ -818,7 +818,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
   })
 
-  it('shows refresh and root external-open controls in the overlay file-tree search row', async () => {
+  it('shows only the refresh control in the overlay file-tree search row', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
@@ -826,8 +826,10 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('file-tree-search-toolbar')).toBeInTheDocument())
 
     const toolbar = screen.getByTestId('file-tree-search-toolbar')
-    expect(within(toolbar).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
-    expect(within(toolbar).getByRole('button', { name: 'Open in Finder' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'agent.preview_pane.refresh' })).toHaveClass(
+      'text-foreground-muted'
+    )
+    expect(within(toolbar).queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
   })
 
   it('refreshes the overlay file tree and re-reads preview content', async () => {
@@ -1111,7 +1113,7 @@ describe('ArtifactPane', () => {
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
 
-  it('does not render the workspace opener without a workspace path', () => {
+  it('does not render the workspace opener in the expanded file tree', () => {
     render(<ArtifactPane />)
 
     expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
@@ -1167,7 +1169,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('artifact-file-preview-scrollbar')).toHaveClass('overflow-y-auto')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {

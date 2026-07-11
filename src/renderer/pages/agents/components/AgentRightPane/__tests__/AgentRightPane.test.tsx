@@ -122,7 +122,11 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: () => <button type="button">Open external</button>
+  default: ({ workdir }: { workdir: string }) => (
+    <button type="button" data-workdir={workdir}>
+      Open external
+    </button>
+  )
 }))
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
@@ -219,7 +223,11 @@ describe('AgentRightPane', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+    const opener = screen.getByRole('button', { name: 'Open external' })
+    const filesShortcut = screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })
+    expect(opener).toHaveAttribute('data-workdir', '/workspace')
+    expect(opener.compareDocumentPosition(filesShortcut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(filesShortcut).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
     expect(screen.getByTestId('status-shortcut-preview')).toBeInTheDocument()
@@ -231,6 +239,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(statusShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByRole('button', { name: 'Open external' })).toBeNull()
     expect(document.querySelector('[data-shell-tab-shortcut="status"]')).toBeNull()
   })
 

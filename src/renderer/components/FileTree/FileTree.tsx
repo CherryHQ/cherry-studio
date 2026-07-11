@@ -1,4 +1,5 @@
 import {
+  Button,
   type FlatTreeItem,
   Input,
   type RenderRowFn,
@@ -131,13 +132,15 @@ export function FileTree(props: FileTreeProps) {
             data-testid="file-tree-search-input"
           />
           {searchKeyword && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label={searchClearLabel ?? 'Clear search'}
               onClick={() => onSearchKeywordChange?.('')}
-              className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
-              <X size={13} />
-            </button>
+              className="-translate-y-1/2 absolute top-1/2 right-1 size-5 min-h-5 text-foreground-muted hover:bg-accent hover:text-foreground">
+              <X className="size-[13px]" />
+            </Button>
           )}
         </div>
         {searchToolbar}

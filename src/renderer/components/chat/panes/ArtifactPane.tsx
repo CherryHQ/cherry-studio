@@ -10,6 +10,7 @@ import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
@@ -633,13 +634,12 @@ export function ArtifactPaneView({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="text-foreground-muted hover:bg-accent hover:text-foreground"
           aria-label={t('agent.preview_pane.refresh')}
           onClick={handleRefresh}>
           <RotateCw size={16} />
         </Button>
       </Tooltip>
-      {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
     </div>
   )
 
@@ -650,6 +650,22 @@ export function ArtifactPaneView({
 
   const renderOverlay = () => {
     if (!overlaySelection) return null
+    const previewContent = (
+      <ArtifactFilePreview
+        workspacePath={overlaySelection.workspacePath}
+        filePath={overlaySelection.filePath}
+        isText={isText}
+        fileSize={fileSize}
+        pdfLayoutPending={pdfLayoutPending}
+        pdfLayoutRefreshKey={pdfLayoutRefreshKey}
+        contentRefreshKey={contentRefreshToken}
+        officeActions={
+          isOfficeDocumentSelection ? (
+            <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+          ) : undefined
+        }
+      />
+    )
 
     return (
       <div
@@ -657,12 +673,7 @@ export function ArtifactPaneView({
         data-testid="artifact-file-preview-overlay"
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
-        className={cn(
-          'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-            ? 'overflow-hidden'
-            : 'overflow-auto'
-        )}>
+        className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
@@ -672,29 +683,20 @@ export function ArtifactPaneView({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="text-foreground-muted hover:bg-accent hover:text-foreground"
               aria-label={t('agent.preview_pane.close')}
               onClick={handleClosePreview}>
               <X size={16} />
             </Button>
           </Tooltip>
         </div>
-        <div className="min-h-0 flex-1">
-          <ArtifactFilePreview
-            workspacePath={overlaySelection.workspacePath}
-            filePath={overlaySelection.filePath}
-            isText={isText}
-            fileSize={fileSize}
-            pdfLayoutPending={pdfLayoutPending}
-            pdfLayoutRefreshKey={pdfLayoutRefreshKey}
-            contentRefreshKey={contentRefreshToken}
-            officeActions={
-              isOfficeDocumentSelection ? (
-                <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
-              ) : undefined
-            }
-          />
-        </div>
+        {isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview ? (
+          <div className="min-h-0 flex-1 overflow-hidden">{previewContent}</div>
+        ) : (
+          <Scrollbar data-testid="artifact-file-preview-scrollbar" className="min-h-0 flex-1 overflow-x-auto">
+            {previewContent}
+          </Scrollbar>
+        )}
       </div>
     )
   }

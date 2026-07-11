@@ -99,6 +99,11 @@ vi.mock('@renderer/components/chat/panes/Shell/Shell', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
+  ResourcePaneCountButton: ({ label, count }: { label: string; count: number }) => (
+    <button type="button">
+      {label} {count}
+    </button>
+  ),
   useShellActions: () => ({
     close: vi.fn()
   }),
@@ -222,6 +227,7 @@ vi.mock('../components/AgentRightPane', () => {
     {
       Host: () => <div data-testid="agent-right-pane-host" />,
       MaximizedOverlay: () => <div data-testid="agent-right-pane-overlay" />,
+      WorkspaceOpener: () => <button type="button">Open external</button>,
       FilesToggle: ({ disabled }: { disabled?: boolean }) => (
         <button type="button" disabled={disabled}>
           Files
@@ -327,11 +333,16 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps the right-pane expand button next to the tab shortcuts', () => {
-    renderAgentChat()
+  it('keeps the workspace opener before the resource count and expand button', () => {
+    renderAgentChat({ resourcePaneCount: { label: 'Tasks', count: 52 } })
 
-    expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
+    const opener = screen.getByRole('button', { name: 'Open external' })
+    const shortcuts = screen.getByRole('button', { name: 'Shortcuts' })
+    const resourceCount = screen.getByRole('button', { name: 'Tasks 52' })
+    const files = screen.getByRole('button', { name: 'Files' })
+    expect(opener.compareDocumentPosition(resourceCount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(resourceCount.compareDocumentPosition(shortcuts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(shortcuts.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {
