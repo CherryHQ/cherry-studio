@@ -33,6 +33,7 @@ import { loggerService } from '@logger'
 import { app } from 'electron'
 
 import { registerIpc } from './ipc'
+import { initHermesIpcBridge } from './services/HermesIpcBridge'
 import { versionService } from './services/VersionService'
 
 const logger = loggerService.withContext('MainEntry')
@@ -63,6 +64,9 @@ const startApp = async () => {
   // bootstrap and IPC readiness. TODO(v2): decompose into per-service
   // ipcHandle/ipcOn inside lifecycle services.
   await registerIpc()
+
+  // Forward Hermes tool-progress SSE events to renderer via IPC
+  initHermesIpcBridge()
 }
 
 // Top-level safety net: bootstrap() handles known fatal errors internally

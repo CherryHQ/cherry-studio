@@ -24,7 +24,7 @@ import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
-import { customFetch } from '../utils/customFetch'
+import { customFetch, filteredCustomFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
@@ -190,7 +190,10 @@ export async function providerToAiSdkConfig(
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
-  config.providerSettings.fetch ??= customFetch
+  // Use SSE-filtering fetch by default so custom events from compatible
+  // API servers (e.g. Hermes tool-progress) don't break the AI SDK's
+  // Zod-based chat-completion chunk parser.
+  config.providerSettings.fetch ??= filteredCustomFetch
 
   return config
 }

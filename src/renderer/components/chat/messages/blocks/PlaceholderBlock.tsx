@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { HermesToolProgressIndicator } from '../tools/hermes/HermesToolProgressIndicator'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
 
 interface PlaceholderBlockProps {
@@ -62,19 +63,22 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, creat
 
   if (isProcessing) {
     return (
-      <div
-        className="mt-1 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
-        data-testid="message-status-placeholder">
-        <PlaceholderShimmerText data-testid="message-status-text">
-          {t(PLACEHOLDER_LABEL_KEYS[status])}
-        </PlaceholderShimmerText>
-        <span aria-hidden="true" className="text-muted-foreground/40">
-          ·
-        </span>
-        <span className="text-muted-foreground/55" data-testid="message-status-elapsed">
-          {formatPlaceholderElapsed(elapsedMs, t)}
-        </span>
-      </div>
+      <>
+        <div
+          className="mt-1 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
+          data-testid="message-status-placeholder">
+          <PlaceholderShimmerText data-testid="message-status-text">
+            {t(PLACEHOLDER_LABEL_KEYS[status])}
+          </PlaceholderShimmerText>
+          <span aria-hidden="true" className="text-muted-foreground/40">
+            ·
+          </span>
+          <span className="text-muted-foreground/55" data-testid="message-status-elapsed">
+            {formatPlaceholderElapsed(elapsedMs, t)}
+          </span>
+        </div>
+        <HermesToolProgressIndicator />
+      </>
     )
   }
   return null

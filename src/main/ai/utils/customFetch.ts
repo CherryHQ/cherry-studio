@@ -1,6 +1,8 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { net, session } from 'electron'
 
+import { createSSEFilteringFetch } from './sseFilteringFetch'
+
 /**
  * Sentinel header that carries a caller-supplied `User-Agent` past Chromium's
  * network stack.
@@ -68,6 +70,14 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
 
   return net.fetch(target, init)
 }
+
+/**
+ * Wrapped fetch that filters custom SSE events (e.g. Hermes tool-progress)
+ * from chat-completion streams before the AI SDK parses them.
+ *
+ * @see {@link createSSEFilteringFetch} for details.
+ */
+export const filteredCustomFetch: FetchFunction = createSSEFilteringFetch(customFetch)
 
 /**
  * Install the default-session `onBeforeSendHeaders` interceptor that restores a
