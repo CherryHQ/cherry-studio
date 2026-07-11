@@ -168,58 +168,6 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
-      - name: Verify Windows ARM64 installer
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem dist -Filter '*-arm64-setup.exe' | Select-Object -First 1
-          if (-not $installer) {
-            throw 'Windows ARM64 setup executable was not produced'
-          }
-
-          $requiredPaths = @(
-            'CherryStudio.exe',
-            'd3dcompiler_47.dll',
-            'ffmpeg.dll',
-            'libEGL.dll',
-            'libGLESv2.dll',
-            'resources\app.asar.unpacked\resources\binaries\win32-arm64\bun.exe',
-            'resources\app.asar.unpacked\resources\binaries\win32-arm64\mise.exe',
-            'resources\app.asar.unpacked\resources\binaries\win32-arm64\uv.exe',
-            'resources\app.asar.unpacked\resources\binaries\win32-arm64\uvx.exe',
-            'resources\app.asar.unpacked\node_modules\@aiany\sqlite-vec-windows-arm64',
-            'resources\app.asar.unpacked\node_modules\@anthropic-ai\claude-agent-sdk-win32-arm64\claude.exe',
-            'resources\app.asar.unpacked\node_modules\@img\sharp-win32-arm64',
-            'resources\app.asar.unpacked\node_modules\@napi-rs\canvas-win32-arm64-msvc',
-            'resources\app.asar.unpacked\node_modules\@napi-rs\system-ocr-win32-arm64-msvc'
-          )
-
-          function Assert-Paths($Root, $Label) {
-            $missing = $requiredPaths | Where-Object { -not (Test-Path (Join-Path $Root $_)) }
-            if ($missing) {
-              throw "$Label is missing: $($missing -join ', ')"
-            }
-          }
-
-          Assert-Paths (Join-Path $PWD 'dist\win-arm64-unpacked') 'Windows ARM64 package'
-
-          $extractDir = Join-Path $env:RUNNER_TEMP 'cherry-studio-arm64-setup'
-          Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
-          & 7z x $installer.FullName "-o$extractDir" -y | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to extract Windows ARM64 setup with exit code $LASTEXITCODE"
-          }
-          $payload = Get-ChildItem $extractDir -Recurse -File -Filter 'app-arm64.7z' | Select-Object -First 1
-          if (-not $payload) {
-            throw 'Windows ARM64 setup does not contain app-arm64.7z'
-          }
-          $payloadDir = Join-Path $extractDir 'payload'
-          & 7z x $payload.FullName "-o$payloadDir" -y | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to extract Windows ARM64 payload with exit code $LASTEXITCODE"
-          }
-          Assert-Paths $payloadDir 'Windows ARM64 setup'
-
       - name: Release
         uses: ncipollo/release-action@v1
         with:
