@@ -173,7 +173,7 @@ const USER_SCROLL_INPUT_WINDOW_MS = 250
 // subpixel/rounding noise so an already-stable viewport never churns.
 const FREEZE_REASSERT_TOLERANCE_PX = 2
 const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
-  'button,[role="button"],a,input,textarea,select,.block-wrapper,[data-message-id],p,pre,li,table'
+  'button,[role="button"],a,input,textarea,select,h1,h2,h3,h4,h5,h6,.block-wrapper,[data-message-id],p,pre,li,table'
 
 export function useChatVirtualizerRuntime<T>({
   items,

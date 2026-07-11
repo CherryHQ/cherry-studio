@@ -1085,8 +1085,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const completedLayout = useMemo(() => (isActive ? null : projectCompletedMessageParts(entries)), [entries, isActive])
   const completedFlatEntries = useMemo(() => {
     if (!completedLayout) return []
-    const reportIndexes = new Set(completedLayout.reportEntries.map((entry) => entry.index))
-    return entries.filter((entry) => !reportIndexes.has(entry.index))
+    const projectedIndexes = new Set(
+      [...completedLayout.historyEntries, ...completedLayout.resultEntries].map((entry) => entry.index)
+    )
+    return entries.filter((entry) => projectedIndexes.has(entry.index))
   }, [completedLayout, entries])
   const rawHistoryEntries = completedLayout?.historyEntries ?? EMPTY_PART_ENTRIES
   const historyToolItems = useMemo(

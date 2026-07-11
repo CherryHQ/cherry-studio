@@ -638,7 +638,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('keeps reading at an outline element when streaming content grows after navigation', () => {
+  it('keeps the requested heading anchored when content before it grows inside a block wrapper', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -680,21 +680,25 @@ describe('useChatVirtualizerRuntime', () => {
 
       const message = document.createElement('div')
       message.dataset.messageKey = 'message-a'
+      const blockWrapper = document.createElement('div')
+      blockWrapper.className = 'block-wrapper'
       const heading = document.createElement('h2')
+      let headingDocumentTop = 300
       Object.defineProperty(heading, 'getBoundingClientRect', {
         configurable: true,
         value: () => ({
-          top: 300 - scrollTop,
-          bottom: 340 - scrollTop,
+          top: headingDocumentTop - scrollTop,
+          bottom: headingDocumentTop + 40 - scrollTop,
           left: 0,
           right: 800,
           width: 800,
           height: 40,
           x: 0,
-          y: 300 - scrollTop
+          y: headingDocumentTop - scrollTop
         })
       })
-      message.append(heading)
+      blockWrapper.append(heading)
+      message.append(blockWrapper)
       runtime!.contentRef.current!.prepend(message)
 
       act(() => runtime!.scrollToBottom('instant'))
@@ -702,11 +706,12 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
       expect(scrollTop).toBe(300)
 
+      headingDocumentTop = 350
       scrollHeight = 1700
       act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
       raf.tick(60)
 
-      expect(scrollTop).toBe(300)
+      expect(scrollTop).toBe(350)
     } finally {
       restoreResizeObserver()
       raf.restore()

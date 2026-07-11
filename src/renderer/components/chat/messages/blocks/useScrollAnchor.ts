@@ -1,19 +1,6 @@
 import { useCallback, useRef } from 'react'
 
-import { useIsScrollRuntimeManaged } from './ScrollOwnershipContext'
-
-/** Nearest actually-scrollable ancestor (overflow-y auto/scroll + scrollable content). */
-function findScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let node = el?.parentElement ?? null
-  while (node) {
-    const overflowY = getComputedStyle(node).overflowY
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node
-    }
-    node = node.parentElement
-  }
-  return null
-}
+import { findScrollParent, useIsScrollRuntimeManaged } from './ScrollOwnershipContext'
 
 /**
  * Preserves the user's visual scroll position when an element's height changes
@@ -23,11 +10,10 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
  * message list scrolls its own inner div, not the `overflow:hidden` `#messages`
  * wrapper, so a hardcoded `#messages` lookup would write `scrollTop` to a non-scroller (no-op).
  *
- * Inside the virtual list the runtime owns scroll stability entirely (it freezes
- * the viewport on user takeover and drives it otherwise — see
- * {@link ScrollOwnershipContext}), so the update applies directly and this hook
- * writes nothing. Only outside the list (no provider) does the standalone
- * rect-diff restore below run.
+ * When that nearest scroller is the virtual list, the runtime owns stability
+ * entirely (see {@link ScrollOwnershipContext}), so this hook writes nothing.
+ * Nested scrollers and portal content keep the standalone rect-diff behavior
+ * even though React context still reaches them.
  *
  * Usage:
  *   const { anchorRef, withScrollAnchor } = useScrollAnchor()
@@ -40,14 +26,6 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
 
   const withScrollAnchor = useCallback(
     (update: () => void) => {
-      // The message-list runtime keeps the viewport stable against every layout
-      // change (including this one); a second scrollTop writer in the same frame
-      // is exactly what used to jitter the scrollbar.
-      if (isRuntimeManaged) {
-        update()
-        return
-      }
-
       const anchor = anchorRef.current
       if (!anchor) {
         update()
@@ -56,6 +34,14 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
 
       const scrollContainer = findScrollParent(anchor)
       if (!scrollContainer) {
+        update()
+        return
+      }
+
+      // The list runtime keeps its own viewport stable against every layout
+      // change. Yield only for that exact scroller; context may cross a portal
+      // or include an independently scrollable descendant.
+      if (isRuntimeManaged(scrollContainer)) {
         update()
         return
       }

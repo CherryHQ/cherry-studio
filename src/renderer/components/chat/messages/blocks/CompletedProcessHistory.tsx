@@ -58,6 +58,8 @@ const CompletedProcessHistory = React.memo(function CompletedProcessHistory({
       ) : (
         toolCountText
       )
+    ) : hasError ? (
+      processStatusText
     ) : hasReasoning ? (
       t('common.reasoning_content')
     ) : (

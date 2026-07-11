@@ -1033,6 +1033,21 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: 'Error 2 tool calls' })).toBeInTheDocument()
     })
 
+    it('prioritizes a completed error over a reasoning-only history label', () => {
+      renderParts([
+        { type: 'text', text: 'partial answer' },
+        { type: 'reasoning', text: 'Investigating', state: 'done' },
+        { type: 'data-error', data: { name: 'Err', message: 'failed after reasoning' } }
+      ] as unknown as CherryMessagePart[])
+
+      const historyTrigger = screen.getByRole('button', { name: 'Error' })
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByTestId('mock-error-block')).toBeNull()
+
+      fireEvent.click(historyTrigger)
+      expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'failed after reasoning')
+    })
+
     it('renders pure text without a process-history summary', () => {
       renderParts([{ type: 'text', text: 'plain final answer' } as unknown as CherryMessagePart])
 
@@ -1067,17 +1082,47 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'process.pdf')
     })
 
-    it('uses collapseCompletedToolHistory only for terminal history', () => {
-      renderParts(
-        [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[],
+    it('keeps the AgentRightPane flat history path projected and in original order', () => {
+      const { container } = renderParts(
+        [
+          { type: 'text', text: 'process preface' },
+          toolPart('read'),
+          { type: 'text', text: '...' },
+          { type: 'text', text: '   ' },
+          { type: 'reasoning', text: '', state: 'done' },
+          toolPart('edit'),
+          { type: 'text', text: 'final answer' },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'report',
+            toolName: 'report_artifacts',
+            state: 'output-available',
+            input: {
+              summary: 'Created final outputs',
+              artifacts: [{ path: 'dist/report.md', description: 'Report' }]
+            },
+            output: {}
+          }
+        ] as unknown as CherryMessagePart[],
         msg(),
         {},
         { ...defaultMessageRenderConfig, collapseCompletedToolHistory: false }
       )
 
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
-      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
+      expect(screen.queryByText('...')).toBeNull()
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      expect(latestMainTextProps(2)).toBeUndefined()
+      expect(latestMainTextProps(3)).toBeUndefined()
+      expect(screen.getByText('process preface')).toBeInTheDocument()
       expect(screen.getByText('final answer')).toBeInTheDocument()
+      expect(screen.getByText('report.md')).toBeInTheDocument()
+
+      const html = container.innerHTML
+      expect(html.indexOf('process preface')).toBeLessThan(html.indexOf('mock-tool-group-content'))
+      expect(html.indexOf('mock-tool-group-content')).toBeLessThan(html.indexOf('final answer'))
+      expect(html.indexOf('final answer')).toBeLessThan(html.indexOf('report.md'))
     })
 
     it('preserves the completed history reasoning cutoff when more than three reasoning blocks exist', () => {

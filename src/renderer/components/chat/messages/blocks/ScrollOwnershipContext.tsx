@@ -1,22 +1,23 @@
 /**
- * Scroll-ownership context — marks the subtree whose scroll stability is owned
- * by the message-list runtime.
+ * Scroll-ownership context — identifies the DOM scroller whose stability is
+ * owned by the message-list runtime.
  *
  * Inside the virtual list, `chatVirtualizerRuntime` is the single `scrollTop`
  * writer: while it drives (top-pin, bottom-follow, smooth scroll) it keeps the
  * view coherent itself, and once the user takes over (any pointer/keyboard
  * interaction inside the scroller) it freezes the viewport centrally against
- * every layout change. Either way a block must never write `scrollTop` — a
- * second writer in the same frame is what used to jitter the scrollbar.
+ * every layout change. Either way a block must never write that same scroller's
+ * `scrollTop` — a second writer in the same frame is what used to jitter it.
  *
- * A block's `useScrollAnchor` therefore only checks for the provider's
- * presence: inside it, state updates apply directly; outside the list (no
- * provider) the standalone anchor behavior is preserved.
+ * React context can cross portals and nested scroll containers, so provider
+ * presence alone does not establish DOM ownership. Blocks compare their nearest
+ * real scroll parent with `scrollContainerRef` before yielding to the runtime.
  */
 
-import { createContext, type ReactNode, use, useMemo } from 'react'
+import { createContext, type ReactNode, type RefObject, use, useCallback, useMemo } from 'react'
 
 interface ScrollOwnership {
+  scrollContainerRef: RefObject<HTMLElement | null>
   requestFollowRecovery: () => void
 }
 
@@ -25,21 +26,51 @@ const NOOP = () => {}
 
 export const ScrollOwnershipProvider = ({
   children,
+  scrollContainerRef,
   requestFollowRecovery = NOOP
 }: {
   children: ReactNode
+  scrollContainerRef: RefObject<HTMLElement | null>
   requestFollowRecovery?: () => void
 }) => {
-  const value = useMemo(() => ({ requestFollowRecovery }), [requestFollowRecovery])
+  const value = useMemo(
+    () => ({ requestFollowRecovery, scrollContainerRef }),
+    [requestFollowRecovery, scrollContainerRef]
+  )
   return <ScrollOwnershipContext value={value}>{children}</ScrollOwnershipContext>
 }
 
-/** True when the message-list runtime owns scroll stability for this subtree. */
-export function useIsScrollRuntimeManaged(): boolean {
-  return use(ScrollOwnershipContext) !== null
+/** Nearest actually-scrollable ancestor (overflow-y auto/scroll + scrollable content). */
+export function findScrollParent(element: HTMLElement | null): HTMLElement | null {
+  let node = element?.parentElement ?? null
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node
+    }
+    node = node.parentElement
+  }
+  return null
 }
 
-/** Ask the list runtime to resume following after a local disclosure settles at the real bottom. */
-export function useRequestScrollFollowRecovery(): () => void {
-  return use(ScrollOwnershipContext)?.requestFollowRecovery ?? NOOP
+/** Returns whether the runtime owns a specific DOM scroll container. */
+export function useIsScrollRuntimeManaged(): (scrollContainer: HTMLElement | null) => boolean {
+  const ownership = use(ScrollOwnershipContext)
+  return useCallback(
+    (scrollContainer) => scrollContainer !== null && scrollContainer === ownership?.scrollContainerRef.current,
+    [ownership]
+  )
+}
+
+/** Ask the owning runtime to resume following after a local disclosure settles. */
+export function useRequestScrollFollowRecovery(anchorRef?: RefObject<HTMLElement | null>): () => void {
+  const ownership = use(ScrollOwnershipContext)
+  return useCallback(() => {
+    if (!ownership) return
+    if (anchorRef) {
+      const scrollContainer = ownership.scrollContainerRef.current
+      if (!anchorRef.current || !scrollContainer?.contains(anchorRef.current)) return
+    }
+    ownership.requestFollowRecovery()
+  }, [anchorRef, ownership])
 }

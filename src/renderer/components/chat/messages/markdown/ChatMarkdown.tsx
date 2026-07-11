@@ -52,7 +52,13 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   // later process part. Historical markdown still mounts the static renderer.
   if (hasStreamedRef.current) {
     return (
-      <StreamingMarkdown id={block.id} plugins={plugins} components={mergedComponents} footnoteLabel={footnoteLabel}>
+      <StreamingMarkdown
+        id={block.id}
+        plugins={plugins}
+        components={mergedComponents}
+        footnoteLabel={footnoteLabel}
+        animated={isStreaming ? undefined : false}
+        parseIncompleteMarkdown={isStreaming}>
         {content}
       </StreamingMarkdown>
     )
