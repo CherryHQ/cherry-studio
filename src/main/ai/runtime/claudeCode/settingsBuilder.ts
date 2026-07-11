@@ -322,13 +322,14 @@ export async function buildClaudeCodeSessionSettings(
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
-  // metadata above were built from a still-cold cache, while the SDK bridge's ListTools awaits the
-  // same single-flighted refresh and may expose the warmed tools moments later — leaving approval
-  // resolution and tool cards blind to tools the model can see. Chain onto that refresh: rebuild the
-  // live session policy snapshot and fill the metadata map in place (the stream adapter reads this
-  // same object by reference on every turn), so both converge with what the bridge exposes. The
-  // agent is re-fetched at fire-time so this late rebuild can't clobber a policy update applied
-  // between build and refresh completion.
+  // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
+  // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
+  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can
+  // see. Those two are one-shot bakes with no invalidation channel of their own, so chain onto the
+  // surviving refresh: rebuild the live session policy snapshot and fill the metadata map in place
+  // (the stream adapter reads this same object by reference on every turn), so both converge with
+  // what the bridge exposes. The agent is re-fetched at fire-time so this late rebuild can't
+  // clobber a policy update applied between build and refresh completion.
   if (!mcpWarm.completedInTime) {
     mcpToolMetadata ??= {}
     const metadataRef = mcpToolMetadata
@@ -1102,12 +1103,16 @@ function addMcpToolMetadataAliases(
 // Session build reads MCP tools from cache-only `listTools` (sync, so a dead server can't stall
 // startup — issue #16242). The approval descriptors + tool-card metadata built below therefore
 // see nothing for a server whose cache is still cold on a first session. Warm the agent's own
-// servers via the single-flighted `listToolsForSnapshot` (shared with the SDK bridge) so those
-// cache-only reads reflect configured tools — bounded by a short cap so a dead/slow server still
-// can't stall session start; on timeout we fall back to the empty cache. The in-flight refresh
-// keeps running past the cap, so the caller chains a reconciliation onto `warm` (step 7 of the
-// build) that rebuilds the session snapshot + metadata once the refresh lands.
-const MCP_SNAPSHOT_WARM_TIMEOUT_MS = 3_000
+// servers via the single-flighted `warmToolsCache` so those cache-only reads reflect configured
+// tools — bounded by a short cap so a dead/slow server still can't stall session start; on
+// timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
+// then converges BOTH remaining consumers: the caller chains a reconciliation onto `warm` (step 7
+// of the build) that rebuilds the session snapshot + metadata, and the cache write it lands fires
+// `onToolsCacheUpdated`, which the SDK bridge relays as `tools/list_changed` so the SDK re-lists.
+// The warm also carries a liveness duty beyond latency: it is the only path that re-probes a
+// warmed-but-empty cache (see `warmToolsCache`), i.e. the retry that lets a previously-dead
+// server recover at all.
+const MCP_WARM_TIMEOUT_MS = 3_000
 
 interface McpWarmResult {
   // False when the bounded race hit the cap with the refresh still in flight.
@@ -1124,13 +1129,13 @@ async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWarmResult
   const warm = Promise.allSettled(
     mcpIds.flatMap((mcpId) => {
       const server = mcpServerService.findByIdOrName(mcpId)
-      return server ? [mcpService.listToolsForSnapshot(server.id)] : []
+      return server ? [mcpService.warmToolsCache(server.id)] : []
     })
   )
 
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(false), MCP_SNAPSHOT_WARM_TIMEOUT_MS)
+    timer = setTimeout(() => resolve(false), MCP_WARM_TIMEOUT_MS)
     timer.unref?.()
   })
 

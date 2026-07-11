@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
-  listToolsForSnapshot: vi.fn<(serverId: string) => Promise<unknown[]>>(async () => [] as unknown[]),
+  warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   findByIdOrName: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
@@ -207,14 +207,14 @@ describe('buildClaudeCodeSessionSettings', () => {
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
-    mocks.listToolsForSnapshot.mockResolvedValue([])
+    mocks.warmToolsCache.mockResolvedValue(undefined)
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
       }
       if (name === 'McpCatalogService') {
-        return { listTools: vi.fn(async () => []), listToolsForSnapshot: mocks.listToolsForSnapshot }
+        return { listTools: vi.fn(async () => []), warmToolsCache: mocks.warmToolsCache }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -997,26 +997,26 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     }
 
-    it('warms each configured MCP server once via listToolsForSnapshot', async () => {
+    it('warms each configured MCP server once via warmToolsCache', async () => {
       const session = sessionWithMcps(['srv-a', 'srv-b'])
 
       await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-      expect(mocks.listToolsForSnapshot).toHaveBeenCalledTimes(2)
-      expect(mocks.listToolsForSnapshot).toHaveBeenCalledWith('srv-a')
-      expect(mocks.listToolsForSnapshot).toHaveBeenCalledWith('srv-b')
+      expect(mocks.warmToolsCache).toHaveBeenCalledTimes(2)
+      expect(mocks.warmToolsCache).toHaveBeenCalledWith('srv-a')
+      expect(mocks.warmToolsCache).toHaveBeenCalledWith('srv-b')
     })
 
     it('does not stall the build when a server never responds (issue #16242 guard)', async () => {
-      // A dead/slow server returns a never-resolving snapshot promise. The bounded race must let the
+      // A dead/slow server returns a never-resolving warm promise. The bounded race must let the
       // build finish; without the timeout race this build would hang forever.
-      mocks.listToolsForSnapshot.mockReturnValue(new Promise<never>(() => {}))
+      mocks.warmToolsCache.mockReturnValue(new Promise<never>(() => {}))
       const session = sessionWithMcps(['srv-dead'])
 
       vi.useFakeTimers()
       try {
         const build = buildClaudeCodeSessionSettings(session as never, {} as never)
-        // Advance past MCP_SNAPSHOT_WARM_TIMEOUT_MS (3_000ms) so the warm race resolves via timeout.
+        // Advance past MCP_WARM_TIMEOUT_MS (3_000ms) so the warm race resolves via timeout.
         await vi.advanceTimersByTimeAsync(3_000)
         await expect(build).resolves.toBeDefined()
       } finally {
@@ -1025,8 +1025,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('tolerates a rejecting server and still resolves', async () => {
-      mocks.listToolsForSnapshot.mockImplementation((serverId: string) =>
-        serverId === 'srv-a' ? Promise.reject(new Error('boom')) : Promise.resolve([])
+      mocks.warmToolsCache.mockImplementation((serverId: string) =>
+        serverId === 'srv-a' ? Promise.reject(new Error('boom')) : Promise.resolve()
       )
       const session = sessionWithMcps(['srv-a', 'srv-b'])
 
@@ -1038,15 +1038,15 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-      expect(mocks.listToolsForSnapshot).not.toHaveBeenCalled()
+      expect(mocks.warmToolsCache).not.toHaveBeenCalled()
     })
 
     it('reconciles the session snapshot and tool metadata once a timed-out warm completes', async () => {
       // The refresh outlives the 3s cap; the cache-only listTools stays cold until it lands. Once it
       // does, the SDK bridge may expose the tools, so the session snapshot + metadata must follow.
-      let resolveRefresh!: (tools: unknown[]) => void
-      mocks.listToolsForSnapshot.mockReturnValue(
-        new Promise<unknown[]>((resolve) => {
+      let resolveRefresh!: () => void
+      mocks.warmToolsCache.mockReturnValue(
+        new Promise<void>((resolve) => {
           resolveRefresh = resolve
         })
       )
@@ -1054,7 +1054,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') {
-          return { listTools: vi.fn(() => cachedTools), listToolsForSnapshot: mocks.listToolsForSnapshot }
+          return { listTools: vi.fn(() => cachedTools), warmToolsCache: mocks.warmToolsCache }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1083,7 +1083,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       // The in-flight refresh lands: the reconciliation rebuilds the snapshot from the live agent
       // and fills the same metadata object the settings (and stream adapter) hold.
       cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
-      resolveRefresh(cachedTools)
+      resolveRefresh()
       await vi.waitFor(() => {
         expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
         expect(settings.mcpToolMetadata).toMatchObject({
