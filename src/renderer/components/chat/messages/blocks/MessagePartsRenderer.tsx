@@ -1112,14 +1112,19 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const completedHistoryHasError = useMemo(() => {
     if (!completedLayout) return false
 
-    for (let index = completedLayout.resultEntries.length - 1; index >= 0; index--) {
-      const entry = completedLayout.resultEntries[index]
+    for (let index = completedFlatEntries.length - 1; index >= 0; index--) {
+      const entry = completedFlatEntries[index]
       if (!isPotentiallyVisibleEntry(entry, message.id)) continue
-      return (entry.part.type as string) === 'data-error'
+      if (isReasoningMessagePart(entry.part)) continue
+      if ((entry.part.type as string) === 'data-error') return true
+      if (!isToolUIPart(entry.part)) return false
+
+      const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+      return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     }
 
     return historyHasError
-  }, [completedLayout, historyHasError, message.id])
+  }, [completedFlatEntries, completedLayout, historyHasError, message.id])
   const historyHasReasoning = hasVisibleReasoning(rawHistoryEntries)
   const historyEntries = useMemo(
     () => filterToolHistoryReasoningEntries(rawHistoryEntries, historyToolItems.length === 0),
@@ -1147,20 +1152,26 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         {liveItems.map((item, itemIndex) => {
           if (item.kind === 'process') {
             const isExpanded = expandedRunKey === item.key
+            const enableAnimation = isStreamLive && itemIndex === liveItems.length - 1
             return (
-              <AnimatedBlockWrapper
+              // Keep the shell type stable when a trailing result folds into this run and makes it the last item.
+              <motion.div
                 key={`live-process-${message.id}-${item.key}`}
-                enableAnimation={isStreamLive && itemIndex === liveItems.length - 1}
-                animation="fade">
-                <LiveProcessRunView
-                  entries={item.entries}
-                  isExpanded={isExpanded}
-                  isLastItem={itemIndex === liveItems.length - 1}
-                  isStreamLive={isStreamLive}
-                  message={message}
-                  onExpandedChange={(expanded) => setExpandedRunKey(expanded ? item.key : null)}
-                />
-              </AnimatedBlockWrapper>
+                className="block-wrapper"
+                variants={enableAnimation ? blockWrapperFadeVariants : undefined}
+                initial={enableAnimation ? 'hidden' : undefined}
+                animate={enableAnimation ? 'visible' : undefined}>
+                <ErrorBoundary fallbackComponent={BlockErrorFallback}>
+                  <LiveProcessRunView
+                    entries={item.entries}
+                    isExpanded={isExpanded}
+                    isLastItem={itemIndex === liveItems.length - 1}
+                    isStreamLive={isStreamLive}
+                    message={message}
+                    onExpandedChange={(expanded) => setExpandedRunKey(expanded ? item.key : null)}
+                  />
+                </ErrorBoundary>
+              </motion.div>
             )
           }
 

@@ -754,6 +754,9 @@ describe('MessagePartsRenderer', () => {
         msg({ status: 'pending' })
       )
 
+      const processRun = screen.getByTestId('live-process-run')
+      fireEvent.click(within(processRun).getByRole('button'))
+
       expect(latestMainTextProps(0)?.isStreaming).toBe(false)
       expect(latestMainTextProps(2)?.isStreaming).toBe(true)
     })
@@ -803,7 +806,7 @@ describe('MessagePartsRenderer', () => {
     it('shows the latest running tool after an earlier tool failure', () => {
       activateTurn('streaming')
       renderParts(
-        [toolPart('failed', 'output-error'), toolPart('cleanup')] as unknown as CherryMessagePart[],
+        [toolPart('failed', 'output-error'), toolPart('cleanup', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
       )
 
