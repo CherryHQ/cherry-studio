@@ -65,7 +65,8 @@ describe('internal/entry/rename', () => {
       source: 'bytes',
       data: new Uint8Array([0x01]),
       name: 'old',
-      ext: 'txt'
+      ext: 'txt',
+      cleanupPolicy: 'manual'
     })
     const renamed = await rename(deps, created.id, 'new')
     expect(renamed.name).toBe('new')
@@ -81,7 +82,8 @@ describe('internal/entry/rename', () => {
       source: 'bytes',
       data: new Uint8Array([0x01]),
       name: 'same',
-      ext: 'txt'
+      ext: 'txt',
+      cleanupPolicy: 'manual'
     })
     const updateSpy = vi.spyOn(deps.fileEntryService, 'update')
 
@@ -94,7 +96,7 @@ describe('internal/entry/rename', () => {
   it('renames external file on disk and updates DB externalPath + name', async () => {
     const original = path.join(tmp, 'before.txt')
     await writeFile(original, 'hello')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
     const renamed = await rename(deps, entry.id, 'after')
     expect(renamed.name).toBe('after')
     const expectedPath = path.join(tmp, 'after.txt')
@@ -108,7 +110,7 @@ describe('internal/entry/rename', () => {
     const collision = path.join(tmp, 'b.txt')
     await writeFile(original, 'A')
     await writeFile(collision, 'B')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
     await expect(rename(deps, entry.id, 'b')).rejects.toThrow()
     const stored = fileEntryService.getById(entry.id)
     expect(stored.name).toBe('a')
@@ -133,7 +135,7 @@ describe('internal/entry/rename', () => {
 
     const filePath = path.join(tmp, `${nfcName}.txt`)
     await writeFile(filePath, 'x')
-    const entry = await ensureExternal(deps, { externalPath: filePath as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: filePath as FilePath, cleanupPolicy: 'manual' })
 
     // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
     // the latter is a Node native ESM namespace member and Vitest cannot
@@ -162,7 +164,7 @@ describe('internal/entry/rename', () => {
     // the test works on case-sensitive CI filesystems too.
     const original = path.join(tmp, 'CaseOnly.txt')
     await writeFile(original, 'C')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
 
     // Force the "target exists" path: pretend the lowercased path exists,
     // and resolves to the same inode as the original.
@@ -182,7 +184,7 @@ describe('internal/entry/rename', () => {
     const collision = path.join(tmp, 'dst-collide.txt')
     await writeFile(original, 'S')
     await writeFile(collision, 'D')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
 
     await expect(rename(deps, entry.id, 'dst-collide')).rejects.toThrow(/already exists/)
     // No DB or FS state change
@@ -196,7 +198,7 @@ describe('internal/entry/rename', () => {
   it('reindexes the DanglingCache reverse index on external rename (oldPath → newPath)', async () => {
     const original = path.join(tmp, 'reindex-old.txt')
     await writeFile(original, 'hi')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
     vi.mocked(deps.danglingCache.removeEntry).mockClear()
     vi.mocked(deps.danglingCache.addEntry).mockClear()
     vi.mocked(deps.danglingCache.onFsEvent).mockClear()
@@ -214,7 +216,7 @@ describe('internal/entry/rename', () => {
     // physical file so they don't need this — only external does.
     const original = path.join(tmp, 'occ-stale.txt')
     await writeFile(original, 'v1')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
     vi.mocked(deps.versionCache.invalidate).mockClear()
     await rename(deps, entry.id, 'occ-fresh')
     expect(deps.versionCache.invalidate).toHaveBeenCalledWith(entry.id)
@@ -228,7 +230,7 @@ describe('internal/entry/rename', () => {
     // silent on success.
     const original = path.join(tmp, 'rollback-old.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
 
     const dbErr = new Error('UNIQUE constraint failed: file_entry.externalPath')
     const spy = vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockImplementationOnce(() => {
@@ -260,7 +262,7 @@ describe('internal/entry/rename', () => {
     // rejected before `fsMove` or the SQL UPDATE runs.
     const original = path.join(tmp, 'safe.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
 
     await expect(rename(deps, entry.id, '../evil')).rejects.toThrow()
 
@@ -278,7 +280,7 @@ describe('internal/entry/rename', () => {
   it('rejects newName with a path separator before any FS or DB side effect (external)', async () => {
     const original = path.join(tmp, 'safe2.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath, cleanupPolicy: 'manual' })
 
     await expect(rename(deps, entry.id, 'sub/path')).rejects.toThrow()
 
@@ -300,7 +302,8 @@ describe('internal/entry/rename', () => {
       source: 'bytes',
       data: new Uint8Array([0x01]),
       name: 'safe',
-      ext: 'txt'
+      ext: 'txt',
+      cleanupPolicy: 'manual'
     })
 
     await expect(rename(deps, created.id, 'has\0null')).rejects.toThrow()

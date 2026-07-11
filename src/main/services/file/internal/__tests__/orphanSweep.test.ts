@@ -35,7 +35,7 @@ beforeEach(() => {
 describe('pending-restore guard', () => {
   it('runDbSweep aborts with pending-restore before touching any service', () => {
     hasPendingRestoreMock.mockReturnValue(true)
-    const fileEntryService = { findUnreferenced: vi.fn(), listAllIds: vi.fn() }
+    const fileEntryService = { findManualUnreferenced: vi.fn(), listAllIds: vi.fn() }
     const fileRefService = { countByEntryIds: vi.fn(), pruneMissingTempSessionRefs: vi.fn() }
 
     const report = runDbSweep({ fileEntryService, fileRefService })
@@ -46,7 +46,7 @@ describe('pending-restore guard', () => {
     }
     expect(report.orphanRefsTotal).toBe(0)
     expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
-    expect(fileEntryService.findUnreferenced).not.toHaveBeenCalled()
+    expect(fileEntryService.findManualUnreferenced).not.toHaveBeenCalled()
     expect(fileRefService.pruneMissingTempSessionRefs).not.toHaveBeenCalled()
   })
 
@@ -212,7 +212,7 @@ describe('runDbSweep (umbrella + observability)', () => {
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
-      findUnreferenced: () => {
+      findManualUnreferenced: () => {
         throw new Error('boom')
       },
       listAllIds: fileEntryService.listAllIds.bind(fileEntryService)
@@ -607,7 +607,8 @@ describe('runFileSweep (FS-level)', () => {
       origin: 'internal',
       name: 'doomed-if-filter-creeps-in',
       ext: 'txt',
-      size: 1
+      size: 1,
+      cleanupPolicy: 'manual'
     })
     await writeFile(trashedPath, 'x')
     // 2) Move to trash via the service (sets deletedAt; row stays in DB).

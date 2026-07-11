@@ -274,7 +274,7 @@ describe('FileManager (integration)', () => {
       const file = path.join(tmp, fileName)
       await writeFile(file, 'payload')
 
-      const entry = await fm.ensureExternalEntry({ externalPath: file as never })
+      const entry = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
       expect(entry.name).toBe(expectedName)
       expect(entry.ext).toBe('exe')
 
@@ -307,7 +307,8 @@ describe('FileManager (integration)', () => {
       source: 'bytes',
       data: new Uint8Array([0x01, 0x02]),
       name: 'note',
-      ext: 'txt'
+      ext: 'txt',
+      cleanupPolicy: 'manual'
     })
     expect(created.origin).toBe('internal')
     if (created.origin !== 'internal') throw new Error('expected internal entry')
@@ -337,7 +338,7 @@ describe('FileManager (integration)', () => {
   it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await expect(fm.trash(e.id)).rejects.toThrow()
     // External BO has no `deletedAt` field by construction; if the trash
     // attempt had slipped through, the DB CHECK fe_external_no_delete would
@@ -351,7 +352,7 @@ describe('FileManager (integration)', () => {
   it('INT-6: permanentDelete on external leaves user file untouched', async () => {
     const file = path.join(tmp, 'ext-keep.txt')
     await writeFile(file, 'preserve me')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await fm.permanentDelete(e.id)
     await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
     const { readFile } = await import('node:fs/promises')
@@ -378,7 +379,7 @@ describe('FileManager (integration)', () => {
 
     const externalFile = path.join(tmp, 'will-go.txt')
     await writeFile(externalFile, 'will-go')
-    const ext = await fm.ensureExternalEntry({ externalPath: externalFile as never })
+    const ext = await fm.ensureExternalEntry({ externalPath: externalFile as never, cleanupPolicy: 'manual' })
     expect(await fm.getDanglingState({ id: ext.id })).toBe('present')
 
     const { rm: rmFile } = await import('node:fs/promises')
@@ -415,7 +416,7 @@ describe('FileManager (integration)', () => {
   it('INT-9: subscribeDangling delivers transitions for the subscribed external entry', async () => {
     const file = path.join(tmp, 'sub.txt')
     await writeFile(file, 'sub')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     // After ensureExternalEntry the cache holds 'present' (source='ops').
     // A 'missing' observation is a genuine transition → listener fires.
     const seen: string[] = []
@@ -489,10 +490,10 @@ describe('FileManager (integration)', () => {
 
   it('INT-14a: a runDbSweep collapse propagates through to runSweep outcome="failed"', async () => {
     // Drive `runDbSweep` into its inner `'failed'` branch by spying on
-    // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
+    // `scanOrphanEntries`'s downstream `findManualUnreferenced` call to throw.
     // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
     // → `runSweep` returns the `'failed'` variant.
-    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findUnreferenced').mockImplementationOnce(() => {
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findManualUnreferenced').mockImplementationOnce(() => {
       throw new Error('db conn lost mid-sweep')
     })
 
@@ -508,7 +509,7 @@ describe('FileManager (integration)', () => {
 
   it('INT-14b: an FS sweep collapse degrades runSweep umbrella to "partial" (does not bleed into "failed")', async () => {
     // `listAllIds` is the FS sweep's first dependency call; `runDbSweep` uses
-    // `findUnreferenced`, so spying on `listAllIds` isolates the failure to
+    // `findManualUnreferenced`, so spying on `listAllIds` isolates the failure to
     // the FS side and the DB sweep stays on its happy `'completed'` path.
     // Without the umbrella merge, the cleanup UI would see `outcome:
     // 'completed'` over an EACCES — the regression flagged in
@@ -545,14 +546,38 @@ describe('FileManager (integration)', () => {
     expect(typeof report.lastRunAt).toBe('number')
   })
 
+  it('INT-14d: runSweep reclaims a large auto candidate set and reports entryCleanup (no volume abort)', async () => {
+    const HOUR = 60 * 60 * 1000
+    const now = Date.now()
+    const nthCleanupId = (i: number): FileEntryId => `019606a0-0000-7000-8000-${String(900 + i).padStart(12, '0')}`
+    const rows = Array.from({ length: 25 }, (_, i) => ({
+      id: nthCleanupId(i),
+      origin: 'internal' as const,
+      name: 'e',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      cleanupPolicy: 'delete_when_unreferenced' as const,
+      deletedAt: null,
+      createdAt: now - 2 * HOUR,
+      updatedAt: now - 2 * HOUR
+    }))
+    await dbh.db.insert(fileEntryTable).values(rows)
+
+    // 25 auto candidates = 100% of rows; the removed count-fraction abort (spec
+    // §5.3) would have refused. Silent cleanup now reclaims them in one pass.
+    const swept = await fm.runSweep()
+    expect(swept.entryCleanup).toMatchObject({ outcome: 'completed', deleted: 25 })
+  })
+
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {
     // Two valid items + one that fails (invalid base64 data URI). Verify
     // succeeded carries `{ id, sourceRef }` correlation back to input indices
     // and failed carries the sourceRef (`#${index}`) for the bad item.
     const result = await fm.batchCreateInternalEntries([
-      { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin' },
-      { source: 'base64', data: 'not-a-data-uri' as never },
-      { source: 'bytes', data: new Uint8Array([2]), name: 'c', ext: 'bin' }
+      { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin', cleanupPolicy: 'manual' },
+      { source: 'base64', data: 'not-a-data-uri' as never, cleanupPolicy: 'manual' },
+      { source: 'bytes', data: new Uint8Array([2]), name: 'c', ext: 'bin', cleanupPolicy: 'manual' }
     ])
     expect(result.succeeded).toHaveLength(2)
     expect(result.failed).toHaveLength(1)
@@ -570,9 +595,9 @@ describe('FileManager (integration)', () => {
     const missing = path.join(tmp, 'no-such-file.txt')
 
     const result = await fm.batchEnsureExternalEntries([
-      { externalPath: same as never },
-      { externalPath: same as never },
-      { externalPath: missing as never }
+      { externalPath: same as never, cleanupPolicy: 'manual' },
+      { externalPath: same as never, cleanupPolicy: 'manual' },
+      { externalPath: missing as never, cleanupPolicy: 'manual' }
     ])
     // Two `same`-path inputs collapse to ONE DB row, but BOTH appear in
     // succeeded with the matching sourceRef so callers can still correlate

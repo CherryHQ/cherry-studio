@@ -61,35 +61,44 @@ describe('internal/entry/copy', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('copies an internal source into a fresh internal entry with a new UUID', async () => {
+  it('copies an internal source into a fresh internal entry with a new UUID, preserving its cleanupPolicy', async () => {
     const src = await createInternal(deps, {
       source: 'bytes',
       data: new Uint8Array([0xde, 0xad, 0xbe, 0xef]),
       name: 'src',
-      ext: 'bin'
+      ext: 'bin',
+      cleanupPolicy: 'manual'
     })
     const dst = await copy(deps, { id: src.id })
     expect(dst.id).not.toBe(src.id)
     expect(dst.origin).toBe('internal')
     if (dst.origin !== 'internal') throw new Error('expected internal entry')
     expect(dst.size).toBe(4)
+    expect(dst.cleanupPolicy).toBe('manual')
     const dstPhysical = path.join(filesDir, `${dst.id}.bin`)
     const buf = await readFile(dstPhysical)
     expect(Array.from(buf)).toEqual([0xde, 0xad, 0xbe, 0xef])
   })
 
   it('respects newName override', async () => {
-    const src = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'orig', ext: 'txt' })
+    const src = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0]),
+      name: 'orig',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
     const dst = await copy(deps, { id: src.id, newName: 'renamed' })
     expect(dst.name).toBe('renamed')
   })
 
-  it('copies an external source into a fresh internal entry', async () => {
+  it('copies an external source into a fresh internal entry, preserving its cleanupPolicy', async () => {
     const ext = path.join(tmp, 'ext.txt')
     await writeFile(ext, 'external-content')
-    const src = await ensureExternal(deps, { externalPath: ext as FilePath })
+    const src = await ensureExternal(deps, { externalPath: ext as FilePath, cleanupPolicy: 'delete_when_unreferenced' })
     const dst = await copy(deps, { id: src.id })
     expect(dst.origin).toBe('internal')
+    expect(dst.cleanupPolicy).toBe('delete_when_unreferenced')
     const dstPhysical = path.join(filesDir, `${dst.id}.txt`)
     expect(await readFile(dstPhysical, 'utf-8')).toBe('external-content')
   })
@@ -100,7 +109,13 @@ describe('internal/entry/copy', () => {
     // SafeNameSchema gate in place, an unsafe newName fails at rename and
     // the create must be rolled back so the caller sees a clean "either the
     // renamed entry, or nothing" surface.
-    const src = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'orig', ext: 'txt' })
+    const src = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'orig',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
 
     const beforeRows = await dbh.db.select().from(fileEntryTable)
     const dstCountBefore = beforeRows.length

@@ -16,17 +16,21 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  jobFileRefTable,
   type MiniAppLogoFileRefRow,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
   type PersistentFileRefSourceType,
+  persistentFileRefTablesBySourceType,
   type ProviderLogoFileRefRow,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
+import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType, tempSessionRoles } from '@shared/data/types/file'
 import {
   chatMessageSourceType,
   FileRefSchema,
+  jobSourceType,
   miniAppLogoRef,
   paintingSourceType,
   providerLogoRef,
@@ -68,8 +72,18 @@ export interface FileRefService {
   /** Ref-count aggregation for a batch of entry ids. */
   countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
 
+  /**
+   * Whether any temp-session (CacheService-backed) ref points at this entry.
+   * Cache-only — never touches the persistent ref tables, unlike `findByEntryId`.
+   * Used by the cleanup pass's per-candidate temp-ref guard (spec §6).
+   */
+  hasTempSessionRef(fileEntryId: FileEntryId): boolean
+
   /** Drop temp-session cache refs whose file_entry no longer exists. */
   pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): number
+
+  /** Persistent-ref count for one entry, inside the caller's tx (cleanup pass §5.4). Excludes temp-session refs. */
+  countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number
 }
 
 const SQLITE_INARRAY_CHUNK = 500
@@ -77,6 +91,7 @@ const TEMP_SESSION_REFS_CACHE_KEY = 'file.temp_session.refs'
 
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
+type JobFileRefRow = typeof jobFileRefTable.$inferSelect
 type TempSessionFileRef = Extract<FileRef, { sourceType: typeof tempSessionSourceType }>
 type TempSessionRefCache = Record<string, TempSessionFileRef[]>
 
@@ -104,6 +119,10 @@ function singleFileRowToFileRef(
   sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
 ): FileRef {
   return FileRefSchema.parse({ ...row, sourceType })
+}
+
+function jobRowToFileRef(row: JobFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: jobSourceType })
 }
 
 function tempSessionRowToFileRef(row: TempSessionFileRef): FileRef {
@@ -187,6 +206,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
+      },
+      [jobSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(jobFileRefTable)
+          .where(eq(jobFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
+          .all()
+        return rows.map(jobRowToFileRef)
       }
     } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
 
@@ -238,6 +266,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
+      }
+      case jobSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(jobFileRefTable)
+          .where(eq(jobFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
+          .all()
+        return rows.map(jobRowToFileRef)
       }
     }
   }
@@ -306,6 +343,13 @@ class FileRefServiceImpl implements FileRefService {
             .from(miniAppLogoFileRefTable)
             .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
             .groupBy(miniAppLogoFileRefTable.fileEntryId)
+            .all(),
+        [jobSourceType]: () =>
+          this.getDb()
+            .select({ entryId: jobFileRefTable.fileEntryId, refCount: count() })
+            .from(jobFileRefTable)
+            .where(inArray(jobFileRefTable.fileEntryId, chunk))
+            .groupBy(jobFileRefTable.fileEntryId)
             .all()
       } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 
@@ -325,6 +369,13 @@ class FileRefServiceImpl implements FileRefService {
     return counts
   }
 
+  hasTempSessionRef(fileEntryId: FileEntryId): boolean {
+    for (const refs of Object.values(this.readTempSessionCache())) {
+      if (refs.some((ref) => ref.fileEntryId === fileEntryId)) return true
+    }
+    return false
+  }
+
   pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): number {
     const cache = this.readTempSessionCache()
     let removed = 0
@@ -341,6 +392,15 @@ class FileRefServiceImpl implements FileRefService {
       this.writeTempSessionCache(cache)
     }
     return removed
+  }
+
+  countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number {
+    let total = 0
+    for (const table of Object.values(persistentFileRefTablesBySourceType)) {
+      const rows = tx.select({ c: count() }).from(table).where(eq(table.fileEntryId, id)).all()
+      total += rows[0]?.c ?? 0
+    }
+    return total
   }
 
   private assertEntriesExist(entryIds: readonly FileEntryId[]): void {

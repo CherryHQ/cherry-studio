@@ -1,5 +1,7 @@
+import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, jobFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
@@ -86,6 +88,22 @@ describe('FileRefService', () => {
     await dbh.db.insert(chatMessageFileRefTable).values({ fileEntryId, sourceId, role: 'attachment' })
   }
 
+  async function seedJob(id = uuidv4()): Promise<string> {
+    await dbh.db.insert(jobTable).values({
+      id,
+      type: 'image-generation.generate',
+      status: 'running',
+      queue: 'image-generation.test',
+      scheduledAt: Date.now(),
+      input: {}
+    })
+    return id
+  }
+
+  async function seedJobRef(fileEntryId: FileEntryId, sourceId: string, role: 'input' | 'mask'): Promise<void> {
+    await dbh.db.insert(jobFileRefTable).values({ fileEntryId, sourceId, role })
+  }
+
   describe('read aggregation', () => {
     it('findByEntryId returns refs across persistent tables and temp-session cache', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
@@ -115,6 +133,20 @@ describe('FileRefService', () => {
 
     it('findBySource returns empty array when source key has no refs', async () => {
       expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).toEqual([])
+    })
+
+    it('aggregates job refs (findByEntryId / findBySource) so job-held inputs are visible', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
+      const jobId = await seedJob()
+      await seedEntry(entryId)
+      await seedJobRef(entryId, jobId, 'input')
+
+      expect(fileRefService.findByEntryId(entryId)).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'job', sourceId: jobId, role: 'input' })
+      ])
+      expect(fileRefService.findBySource({ sourceType: 'job', sourceId: jobId })).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'job', sourceId: jobId, role: 'input' })
+      ])
     })
   })
 
@@ -198,18 +230,21 @@ describe('FileRefService', () => {
   })
 
   describe('sweep helpers', () => {
-    it('countByEntryIds counts refs across chat, painting, and temp-session sources', async () => {
+    it('countByEntryIds counts refs across chat, painting, job, and temp-session sources', async () => {
       const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
       const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
       const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
       const idD = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
+      const idE = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
       const paintingId = await seedPainting()
       const secondPaintingId = await seedPainting()
       const messageId = await seedChatMessage()
+      const jobId = await seedJob()
       await seedEntry(idA)
       await seedEntry(idB)
       await seedEntry(idC)
       await seedEntry(idD)
+      await seedEntry(idE)
       fileRefService.createManyTempSessionRefs([
         { fileEntryId: idA, sourceId: 's1', role: 'pending' },
         { fileEntryId: idA, sourceId: 's2', role: 'pending' }
@@ -217,12 +252,14 @@ describe('FileRefService', () => {
       await seedPaintingRef(idB, paintingId, 'output')
       await seedChatRef(idD, messageId)
       await seedPaintingRef(idD, secondPaintingId, 'input')
+      await seedJobRef(idE, jobId, 'input')
 
-      const result = fileRefService.countByEntryIds([idA, idB, idC, idD])
+      const result = fileRefService.countByEntryIds([idA, idB, idC, idD, idE])
       expect(result.get(idA)).toBe(2)
       expect(result.get(idB)).toBe(1)
       expect(result.has(idC)).toBe(false)
       expect(result.get(idD)).toBe(2)
+      expect(result.get(idE)).toBe(1)
     })
 
     it('countByEntryIds chunks batches above the SQLite IN parameter cap', async () => {
@@ -259,6 +296,34 @@ describe('FileRefService', () => {
       expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).toEqual([
         expect.objectContaining({ fileEntryId: existing })
       ])
+    })
+  })
+
+  describe('countPersistentRefsByEntryIdTx', () => {
+    it('counts across all persistent tables inside a tx', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
+      const paintingId = await seedPainting()
+      const messageId = await seedChatMessage()
+      await seedEntry(entryId)
+      await seedPaintingRef(entryId, paintingId, 'output')
+      await seedChatRef(entryId, messageId)
+
+      const n = application
+        .get('DbService')
+        .withWriteTx((tx) => fileRefService.countPersistentRefsByEntryIdTx(tx, entryId))
+
+      expect(n).toBe(2)
+    })
+
+    it('returns 0 for an entry with no persistent refs', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000ee02' as FileEntryId
+      await seedEntry(entryId)
+
+      const n = application
+        .get('DbService')
+        .withWriteTx((tx) => fileRefService.countPersistentRefsByEntryIdTx(tx, entryId))
+
+      expect(n).toBe(0)
     })
   })
 })

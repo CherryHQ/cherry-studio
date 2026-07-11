@@ -1,10 +1,13 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  jobFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
+  persistentFileRefTablesBySourceType,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { paintingTable } from '@data/db/schemas/painting'
@@ -15,7 +18,7 @@ import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
+import { eq, getTableName } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `@logger` is mocked globally by tests/main.setup.ts with the unified
@@ -976,6 +979,7 @@ describe('FileEntryService', () => {
       const entry = fileEntryService.create({
         id,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'note',
         ext: 'txt',
         size: 11
@@ -992,6 +996,7 @@ describe('FileEntryService', () => {
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
       const entry = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'doc',
         ext: 'pdf',
         externalPath: '/Users/me/doc.pdf'
@@ -1009,6 +1014,7 @@ describe('FileEntryService', () => {
       expect(() =>
         fileEntryService.create({
           origin: 'external',
+          cleanupPolicy: 'manual',
           name: 'doc',
           ext: 'pdf',
           size: 100,
@@ -1024,6 +1030,7 @@ describe('FileEntryService', () => {
         fileEntryService.create({
           id,
           origin: 'internal',
+          cleanupPolicy: 'manual',
           name: 'payload',
           ext: 'exe ',
           size: 1
@@ -1040,6 +1047,7 @@ describe('FileEntryService', () => {
         fileEntryService.create({
           id,
           origin: 'internal',
+          cleanupPolicy: 'manual',
           name: 'note',
           ext: 'txt',
           size: 1,
@@ -1052,7 +1060,7 @@ describe('FileEntryService', () => {
   describe('update', () => {
     it('updates name and refreshes updatedAt', async () => {
       const id = '019606a0-0000-7000-8000-000000000b01' as FileEntryId
-      fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'old', ext: 'txt', size: 1 })
       const original = fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
       const updated = fileEntryService.update(id, { name: 'new' })
@@ -1081,7 +1089,7 @@ describe('FileEntryService', () => {
 
     it('updates deletedAt for soft delete', async () => {
       const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
-      fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'tmp', ext: 'txt', size: 1 })
       const deletedAt = Date.now()
       const updated = fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
@@ -1091,6 +1099,7 @@ describe('FileEntryService', () => {
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
       const entry = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'ext',
         ext: 'txt',
         externalPath: '/x/y.txt'
@@ -1106,7 +1115,7 @@ describe('FileEntryService', () => {
       // row back with a raw SELECT after the rejection and asserting the
       // `name` column is unchanged.
       const id = '019606a0-0000-7000-8000-000000000b04' as FileEntryId
-      fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'safe', ext: 'txt', size: 1 })
 
       expect(() => fileEntryService.update(id, { name: 'has\0null' })).toThrow()
 
@@ -1116,7 +1125,7 @@ describe('FileEntryService', () => {
 
     it('rejects unsafe ext BEFORE the SQL UPDATE commits', async () => {
       const id = '019606a0-0000-7000-8000-000000000b05' as FileEntryId
-      fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'safe', ext: 'txt', size: 1 })
 
       expect(() => fileEntryService.update(id, { ext: 'txt.' })).toThrow()
 
@@ -1144,6 +1153,7 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: active,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'a',
         ext: 'txt',
         size: 1
@@ -1151,6 +1161,7 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: trashed,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 't',
         ext: 'txt',
         size: 1
@@ -1175,6 +1186,7 @@ describe('FileEntryService', () => {
     it('returns the refreshed row with new path and name', async () => {
       const entry = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'old-doc',
         ext: 'pdf',
         externalPath: '/Users/me/old-doc.pdf'
@@ -1223,6 +1235,7 @@ describe('FileEntryService', () => {
       // `rowToFileEntry` parse. Raw SELECT proves the row stayed unchanged.
       const entry = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'safe',
         ext: 'txt',
         externalPath: '/Users/me/safe.txt'
@@ -1244,6 +1257,7 @@ describe('FileEntryService', () => {
       // caller went through `canonicalizeExternalPath` or `as`-cast.
       const entry = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'safe',
         ext: 'txt',
         externalPath: '/Users/me/safe.txt'
@@ -1265,12 +1279,14 @@ describe('FileEntryService', () => {
       // otherwise see this as an unhandled rejection.
       fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'a',
         ext: 'txt',
         externalPath: '/Users/me/a.txt'
       })
       const b = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'b',
         ext: 'txt',
         externalPath: '/Users/me/b.txt'
@@ -1302,12 +1318,20 @@ describe('FileEntryService', () => {
       withWriteTx.mockClear()
 
       const internalId = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
-      fileEntryService.create({ id: internalId, origin: 'internal', name: 'tx', ext: 'txt', size: 1 })
+      fileEntryService.create({
+        id: internalId,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'tx',
+        ext: 'txt',
+        size: 1
+      })
       fileEntryService.update(internalId, { name: 'tx-renamed' })
       fileEntryService.delete(internalId)
 
       const external = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'ext-tx',
         ext: 'txt',
         externalPath: '/Users/me/ext-tx.txt'
@@ -1326,7 +1350,7 @@ describe('FileEntryService', () => {
 
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
-      fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'd', ext: 'txt', size: 1 })
       fileEntryService.delete(id)
       expect(fileEntryService.findById(id)).toBeNull()
     })
@@ -1336,109 +1360,138 @@ describe('FileEntryService', () => {
     })
   })
 
-  describe('findUnreferenced', () => {
-    async function seedRef(fileEntryId: FileEntryId): Promise<void> {
-      const now = Date.now()
-      const paintingId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
-      await dbh.db.insert(paintingTable).values({
-        id: paintingId,
-        providerId: 'provider',
-        modelId: null,
-        prompt: 'prompt',
-        orderKey: paintingId,
-        createdAt: now,
-        updatedAt: now
-      })
-      await dbh.db.insert(paintingFileRefTable).values({
-        id: '22222222-2222-4222-8222-' + fileEntryId.slice(-12),
-        fileEntryId,
-        sourceId: paintingId,
-        role: 'output',
-        createdAt: now,
-        updatedAt: now
-      })
-    }
+  // Shared by `findManualUnreferenced` and `findCleanupCandidates` — both need to
+  // seed a persistent (painting / chat) ref pointing at a given entry.
+  async function seedRef(fileEntryId: FileEntryId): Promise<void> {
+    const now = Date.now()
+    const paintingId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId,
+      createdAt: now,
+      updatedAt: now
+    })
+    await dbh.db.insert(paintingFileRefTable).values({
+      id: '22222222-2222-4222-8222-' + fileEntryId.slice(-12),
+      fileEntryId,
+      sourceId: paintingId,
+      role: 'output',
+      createdAt: now,
+      updatedAt: now
+    })
+  }
 
-    async function seedChatRef(fileEntryId: FileEntryId): Promise<void> {
-      const now = Date.now()
-      const suffix = fileEntryId.slice(-12)
-      const topicId = `topic-${suffix}`
-      const rootId = `root-${suffix}`
-      const messageId = `message-${suffix}`
-      await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: messageId, orderKey: topicId })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: rootId,
-          parentId: null,
-          topicId,
-          role: 'root',
-          data: { parts: [] },
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: messageId,
-          parentId: rootId,
-          topicId,
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'hello' }] },
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await dbh.db.insert(chatMessageFileRefTable).values({
-        id: `33333333-3333-4333-8333-${suffix}`,
-        fileEntryId,
-        sourceId: messageId,
-        role: 'attachment',
+  async function seedChatRef(fileEntryId: FileEntryId): Promise<void> {
+    const now = Date.now()
+    const suffix = fileEntryId.slice(-12)
+    const topicId = `topic-${suffix}`
+    const rootId = `root-${suffix}`
+    const messageId = `message-${suffix}`
+    await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: messageId, orderKey: topicId })
+    await dbh.db.insert(messageTable).values([
+      {
+        id: rootId,
+        parentId: null,
+        topicId,
+        role: 'root',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
         createdAt: now,
         updatedAt: now
-      })
-    }
-
-    async function seedProviderLogoRef(fileEntryId: FileEntryId): Promise<void> {
-      const now = Date.now()
-      const providerId = `provider-${fileEntryId.slice(-12)}`
-      await dbh.db.insert(userProviderTable).values({ providerId, name: 'P', orderKey: providerId })
-      await dbh.db.insert(providerLogoFileRefTable).values({
-        id: `44444444-4444-4444-8444-${fileEntryId.slice(-12)}`,
-        fileEntryId,
-        sourceId: providerId,
+      },
+      {
+        id: messageId,
+        parentId: rootId,
+        topicId,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'hello' }] },
+        status: 'success',
+        siblingsGroupId: 0,
         createdAt: now,
         updatedAt: now
-      })
-    }
+      }
+    ])
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: `33333333-3333-4333-8333-${suffix}`,
+      fileEntryId,
+      sourceId: messageId,
+      role: 'attachment',
+      createdAt: now,
+      updatedAt: now
+    })
+  }
 
-    async function seedMiniAppLogoRef(fileEntryId: FileEntryId): Promise<void> {
-      const now = Date.now()
-      const appId = `app-${fileEntryId.slice(-12)}`
-      await dbh.db.insert(miniAppTable).values({
-        appId,
-        presetMiniAppId: null,
-        name: 'A',
-        url: 'https://a.com',
-        status: 'enabled',
-        orderKey: appId
-      })
-      await dbh.db.insert(miniAppLogoFileRefTable).values({
-        id: `55555555-5555-4555-8555-${fileEntryId.slice(-12)}`,
-        fileEntryId,
-        sourceId: appId,
-        createdAt: now,
-        updatedAt: now
-      })
-    }
+  async function seedProviderLogoRef(fileEntryId: FileEntryId): Promise<void> {
+    const now = Date.now()
+    const providerId = `provider-${fileEntryId.slice(-12)}`
+    await dbh.db.insert(userProviderTable).values({ providerId, name: 'P', orderKey: providerId })
+    await dbh.db.insert(providerLogoFileRefTable).values({
+      id: `44444444-4444-4444-8444-${fileEntryId.slice(-12)}`,
+      fileEntryId,
+      sourceId: providerId,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
 
+  async function seedMiniAppLogoRef(fileEntryId: FileEntryId): Promise<void> {
+    const now = Date.now()
+    const appId = `app-${fileEntryId.slice(-12)}`
+    await dbh.db.insert(miniAppTable).values({
+      appId,
+      presetMiniAppId: null,
+      name: 'A',
+      url: 'https://a.com',
+      status: 'enabled',
+      orderKey: appId
+    })
+    await dbh.db.insert(miniAppLogoFileRefTable).values({
+      id: `55555555-5555-4555-8555-${fileEntryId.slice(-12)}`,
+      fileEntryId,
+      sourceId: appId,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
+
+  // Seeds a `job` row plus a `job_file_ref` pointing at `fileEntryId` (mirrors
+  // how AiService protects async image-job inputs). Returns the job id so a test
+  // can delete the job row and assert the FK cascade releases the ref.
+  async function seedJobRef(fileEntryId: FileEntryId): Promise<string> {
+    const now = Date.now()
+    const suffix = fileEntryId.slice(-12)
+    const jobId = `44444444-4444-4444-8444-${suffix}`
+    await dbh.db.insert(jobTable).values({
+      id: jobId,
+      type: 'image-generation.generate',
+      status: 'running',
+      queue: 'image-generation.test',
+      scheduledAt: now,
+      input: {}
+    })
+    await dbh.db.insert(jobFileRefTable).values({
+      id: `55555555-5555-4555-8555-${suffix}`,
+      fileEntryId,
+      sourceId: jobId,
+      role: 'input',
+      createdAt: now,
+      updatedAt: now
+    })
+    return jobId
+  }
+
+  describe('findManualUnreferenced', () => {
     it('returns only entries with zero persistent refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
       fileEntryService.create({
         id: referenced,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'r',
         ext: 'txt',
         size: 1
@@ -1446,13 +1499,14 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: orphan,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'o',
         ext: 'txt',
         size: 1
       })
       await seedRef(referenced)
 
-      const result = fileEntryService.findUnreferenced()
+      const result = fileEntryService.findManualUnreferenced()
       const ids = result.map((e) => e.id)
       expect(ids).toEqual([orphan])
     })
@@ -1463,6 +1517,7 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: referenced,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'chat-ref',
         ext: 'txt',
         size: 1
@@ -1470,13 +1525,14 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: orphan,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'orphan',
         ext: 'txt',
         size: 1
       })
       await seedChatRef(referenced)
 
-      const result = fileEntryService.findUnreferenced()
+      const result = fileEntryService.findManualUnreferenced()
       expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
@@ -1486,6 +1542,7 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: referenced,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'both-ref',
         ext: 'txt',
         size: 1
@@ -1493,6 +1550,7 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: orphan,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'orphan',
         ext: 'txt',
         size: 1
@@ -1500,28 +1558,56 @@ describe('FileEntryService', () => {
       await seedRef(referenced)
       await seedChatRef(referenced)
 
-      const result = fileEntryService.findUnreferenced()
+      const result = fileEntryService.findManualUnreferenced()
       expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
     it('excludes entries referenced only by provider_logo_file_ref', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d31' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d32' as FileEntryId
-      fileEntryService.create({ id: referenced, origin: 'internal', name: 'plogo', ext: 'webp', size: 1 })
-      fileEntryService.create({ id: orphan, origin: 'internal', name: 'orphan', ext: 'webp', size: 1 })
+      fileEntryService.create({
+        id: referenced,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'plogo',
+        ext: 'webp',
+        size: 1
+      })
+      fileEntryService.create({
+        id: orphan,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'orphan',
+        ext: 'webp',
+        size: 1
+      })
       await seedProviderLogoRef(referenced)
 
-      expect(fileEntryService.findUnreferenced().map((e) => e.id)).toEqual([orphan])
+      expect(fileEntryService.findManualUnreferenced().map((e) => e.id)).toEqual([orphan])
     })
 
     it('excludes entries referenced only by mini_app_logo_file_ref', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d33' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d34' as FileEntryId
-      fileEntryService.create({ id: referenced, origin: 'internal', name: 'malogo', ext: 'webp', size: 1 })
-      fileEntryService.create({ id: orphan, origin: 'internal', name: 'orphan', ext: 'webp', size: 1 })
+      fileEntryService.create({
+        id: referenced,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'malogo',
+        ext: 'webp',
+        size: 1
+      })
+      fileEntryService.create({
+        id: orphan,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'orphan',
+        ext: 'webp',
+        size: 1
+      })
       await seedMiniAppLogoRef(referenced)
 
-      expect(fileEntryService.findUnreferenced().map((e) => e.id)).toEqual([orphan])
+      expect(fileEntryService.findManualUnreferenced().map((e) => e.id)).toEqual([orphan])
     })
 
     it('honours the optional origin filter', async () => {
@@ -1529,21 +1615,23 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id: internalOrphan,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 'i',
         ext: 'txt',
         size: 1
       })
       const externalOrphan = fileEntryService.create({
         origin: 'external',
+        cleanupPolicy: 'manual',
         name: 'e',
         ext: 'txt',
         externalPath: '/abs/orphan.txt' as CanonicalExternalPath
       })
 
-      const externalsOnly = fileEntryService.findUnreferenced({ origin: 'external' })
+      const externalsOnly = fileEntryService.findManualUnreferenced({ origin: 'external' })
       expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan.id])
 
-      const internalsOnly = fileEntryService.findUnreferenced({ origin: 'internal' })
+      const internalsOnly = fileEntryService.findManualUnreferenced({ origin: 'internal' })
       expect(internalsOnly.map((e) => e.id)).toEqual([internalOrphan])
     })
 
@@ -1552,14 +1640,157 @@ describe('FileEntryService', () => {
       fileEntryService.create({
         id,
         origin: 'internal',
+        cleanupPolicy: 'manual',
         name: 't',
         ext: 'txt',
         size: 1
       })
       fileEntryService.update(id, { deletedAt: Date.now() })
 
-      const result = fileEntryService.findUnreferenced()
+      const result = fileEntryService.findManualUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()
+    })
+
+    it('excludes delete_when_unreferenced entries (owned by the cleanup pass, not the orphan report)', () => {
+      // Regression for the double-report bug: a zero-ref auto entry is a cleanup
+      // candidate, so reporting it here too would misclassify it as a manual
+      // orphan while it is still pending auto-reclamation.
+      const manual = '019606a0-0000-7000-8000-000000000d31' as FileEntryId
+      const auto = '019606a0-0000-7000-8000-000000000d32' as FileEntryId
+      fileEntryService.create({
+        id: manual,
+        origin: 'internal',
+        cleanupPolicy: 'manual',
+        name: 'm',
+        ext: 'txt',
+        size: 1
+      })
+      fileEntryService.create({
+        id: auto,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        name: 'a',
+        ext: 'txt',
+        size: 1
+      })
+
+      const ids = fileEntryService.findManualUnreferenced().map((e) => e.id)
+      expect(ids).toContain(manual)
+      expect(ids).not.toContain(auto)
+    })
+  })
+
+  describe('findCleanupCandidates', () => {
+    const HOUR = 60 * 60 * 1000
+    function seedEntry(
+      id: FileEntryId,
+      policy: 'manual' | 'delete_when_unreferenced',
+      ageMs: number,
+      deletedAt: number | null = null
+    ) {
+      const ts = Date.now() - ageMs
+      return dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'e',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        cleanupPolicy: policy,
+        deletedAt,
+        createdAt: ts,
+        updatedAt: ts
+      })
+    }
+
+    it('returns only auto-policy, zero-ref entries past grace; includes trashed; excludes manual/young/referenced', async () => {
+      const auto = '019606a0-0000-7000-8000-0000000cc001' as FileEntryId
+      const manual = '019606a0-0000-7000-8000-0000000cc002' as FileEntryId
+      const young = '019606a0-0000-7000-8000-0000000cc003' as FileEntryId
+      const referenced = '019606a0-0000-7000-8000-0000000cc004' as FileEntryId
+      const trashed = '019606a0-0000-7000-8000-0000000cc005' as FileEntryId
+      await seedEntry(auto, 'delete_when_unreferenced', 2 * HOUR)
+      await seedEntry(manual, 'manual', 2 * HOUR)
+      await seedEntry(young, 'delete_when_unreferenced', 0)
+      await seedEntry(referenced, 'delete_when_unreferenced', 2 * HOUR)
+      await seedEntry(trashed, 'delete_when_unreferenced', 2 * HOUR, Date.now())
+      await seedRef(referenced)
+
+      const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
+      expect(ids.sort()).toEqual([auto, trashed].sort())
+      expect(fileEntryService.countCleanupCandidates(HOUR)).toBe(2)
+    })
+
+    it('respects the batch limit', async () => {
+      for (let i = 0; i < 5; i++) {
+        await seedEntry(`019606a0-0000-7000-8000-0000000cd00${i}`, 'delete_when_unreferenced', 2 * HOUR)
+      }
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 3 })).toHaveLength(3)
+      expect(fileEntryService.countCleanupCandidates(HOUR)).toBe(5)
+    })
+
+    it('excludes candidates referenced by any registered persistent ref table (behavioral coverage)', async () => {
+      // Behavioral replacement for the old length-vs-length tautology: seed one
+      // auto candidate held by EACH persistent ref table plus one unreferenced
+      // control, and assert the cleanup-candidate path excludes every held one.
+      const paintingRef = '019606a0-0000-7000-8000-0000000ce001' as FileEntryId
+      const chatRef = '019606a0-0000-7000-8000-0000000ce002' as FileEntryId
+      const jobRef = '019606a0-0000-7000-8000-0000000ce003' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-0000000ce004' as FileEntryId
+      for (const id of [paintingRef, chatRef, jobRef, orphan]) {
+        await seedEntry(id, 'delete_when_unreferenced', 2 * HOUR)
+      }
+      await seedRef(paintingRef)
+      await seedChatRef(chatRef)
+      await seedJobRef(jobRef)
+
+      const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
+      expect(ids).toEqual([orphan])
+    })
+
+    it('every table with an FK to file_entry is registered in the anti-join (fail-open guard)', () => {
+      // `satisfies Record<PersistentFileRefSourceType>` forces registered *types*
+      // into the map, but cannot force every physical FK-to-file_entry table to
+      // be registered. A ref table left out makes entries it alone references
+      // look unreferenced → the GC deletes them (data loss). Reflect the live
+      // schema so a forgotten registration fails CI, not production.
+      const registered = new Set(Object.values(persistentFileRefTablesBySourceType).map((t) => getTableName(t)))
+      // Reflect the live schema via the `pragma_foreign_key_list` table-valued
+      // function so a table with an FK to file_entry(id) but no registry entry
+      // fails here. `table` is a keyword, hence the quotes.
+      const referencingFileEntry = (
+        dbh.sqlite
+          .prepare(
+            `SELECT DISTINCT m.name AS name
+             FROM sqlite_master m
+             JOIN pragma_foreign_key_list(m.name) fk
+             WHERE m.type = 'table' AND fk."table" = 'file_entry'`
+          )
+          .all() as Array<{ name: string }>
+      ).map((r) => r.name)
+
+      // Sanity: the reflection actually found the ref tables (guards a silent no-op).
+      expect(referencingFileEntry.length).toBeGreaterThan(0)
+      for (const name of referencingFileEntry) {
+        expect(registered).toContain(name)
+      }
+    })
+
+    it('excludes an auto entry held by a job_file_ref, and reclaims it once the job row is gone', async () => {
+      // Regression: async image-job inputs are `delete_when_unreferenced` and
+      // past grace, but a live job holds them via job_file_ref — they must NOT
+      // be reclaimed until the job row (and its cascading ref) is gone.
+      const jobInput = '019606a0-0000-7000-8000-0000000cc010' as FileEntryId
+      await seedEntry(jobInput, 'delete_when_unreferenced', 2 * HOUR)
+      const jobId = await seedJobRef(jobInput)
+
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)).not.toContain(
+        jobInput
+      )
+
+      // Job row pruned (terminal-row GC) → FK cascade drops the ref → reclaimable.
+      await dbh.db.delete(jobTable).where(eq(jobTable.id, jobId))
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)).toContain(jobInput)
     })
   })
 
@@ -1624,9 +1855,9 @@ describe('FileEntryService', () => {
       expect(page.total).toBe(2)
     })
 
-    it('findUnreferenced skips bad rows', async () => {
+    it('findManualUnreferenced skips bad rows', async () => {
       await seedOneGoodOneBad()
-      const entries = fileEntryService.findUnreferenced()
+      const entries = fileEntryService.findManualUnreferenced()
       expect(entries.map((e) => e.id)).toEqual([goodId])
     })
 
@@ -1677,6 +1908,47 @@ describe('FileEntryService', () => {
       // Good rows still surface through the same method.
       const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as CanonicalExternalPath)
       expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
+    })
+  })
+
+  describe('cleanupPolicy', () => {
+    it('defaults to manual on the BO when the insert omits it', async () => {
+      // `cleanupPolicy` is now required on `fileEntryService.create` (see
+      // `CreateFileEntryRowSchema`), so the DB-default coverage this test
+      // pins must go around the service and insert directly — the DB column
+      // default (`DEFAULT 'manual'`) is what's under test here, not the
+      // service-layer validation.
+      const id = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'a',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      const entry = fileEntryService.findById(id)
+      expect(entry?.cleanupPolicy).toBe('manual')
+    })
+
+    it('rejects invalid cleanup_policy values at the DB layer', async () => {
+      await expect(
+        dbh.db.insert(fileEntryTable).values({
+          id: '019606a0-0000-7000-8000-00000000cc02',
+          origin: 'internal',
+          name: 'b',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          cleanupPolicy: 'bogus',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        })
+      ).rejects.toThrow(/CHECK|constraint/i)
     })
   })
 })

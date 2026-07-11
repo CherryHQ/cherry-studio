@@ -7,7 +7,8 @@
  *    FK-constrained by their owning source tables, so there is no generic
  *    source-orphan cleanup path. The DB pass prunes CacheService-backed
  *    temp-session refs that point at missing `file_entry` rows, then reports
- *    active entries with zero refs.
+ *    active **manual-policy** entries with zero refs (`delete_when_unreferenced`
+ *    zero-ref entries belong to the cleanup pass, not this report).
  *
  * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
@@ -59,19 +60,21 @@ export interface OrphanEntryReport {
 }
 
 export interface ScanOrphanEntriesDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced'>
+  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced'>
   readonly fileRefService: Pick<FileRefService, 'countByEntryIds'>
 }
 
 /**
- * Identify active entries with zero persistent refs and zero temp-session refs
- * pointing at them. The default policy in architecture §7.1 is "preserve" —
- * this scan only **reports**. FileEntry row cleanup belongs to explicit
- * user/caller-driven flows; dangling external entries are not auto-deleted by
- * sweep.
+ * Identify active **manual-policy** entries with zero persistent refs and zero
+ * temp-session refs pointing at them. `delete_when_unreferenced` entries are
+ * excluded here (owned by the cleanup pass) so the report never double-counts
+ * auto entries pending reclamation as manual orphans. The default policy for
+ * manual orphans in architecture §7.1 is "preserve" — this scan only
+ * **reports**; FileEntry row cleanup belongs to explicit user/caller-driven
+ * flows, and dangling external entries are not auto-deleted by sweep.
  */
 export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryReport {
-  const candidates = deps.fileEntryService.findUnreferenced()
+  const candidates = deps.fileEntryService.findManualUnreferenced()
   const counts = deps.fileRefService.countByEntryIds(candidates.map((row) => row.id))
   const rows = candidates.filter((row) => (counts.get(row.id) ?? 0) === 0)
   const byOrigin: Partial<Record<FileEntryOrigin, number>> = {}
@@ -84,7 +87,7 @@ export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryRepor
 // ─── DB-sweep umbrella + observability ───
 
 export interface RunDbSweepDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced' | 'listAllIds'>
+  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced' | 'listAllIds'>
   readonly fileRefService: Pick<FileRefService, 'countByEntryIds' | 'pruneMissingTempSessionRefs'>
 }
 
