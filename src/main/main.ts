@@ -11,6 +11,8 @@
 
 import '@main/data/bootConfig'
 
+import { platform, release } from 'node:os'
+
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
@@ -37,6 +39,14 @@ import { versionService } from './services/VersionService'
 
 const logger = loggerService.withContext('MainEntry')
 
+// WebUI远程扩展，仅Win11启用，最小侵入。
+const isWindows11 = () => {
+  if (platform() !== 'win32') return false
+  const buildNumber = Number.parseInt(release().split('.')[2] ?? '0', 10)
+
+  return Number.isFinite(buildNumber) && buildNumber >= 22_000
+}
+
 const startApp = async () => {
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
@@ -47,6 +57,13 @@ const startApp = async () => {
   // Must run before any window is created or notification fires, hence after the
   // migration gate returns and before lifecycle bootstrap.
   electronApp.setAppUserModelId('com.cherryai.cherrystudio')
+
+  // WebUI远程扩展，仅Win11启用，最小侵入。
+  // Keep the module out of non-Win11 process graphs entirely.
+  if (isWindows11()) {
+    const { WebUiService } = await import('./webService')
+    serviceList.push(WebUiService)
+  }
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

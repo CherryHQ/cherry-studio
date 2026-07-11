@@ -7,16 +7,22 @@ import {
   settingsSubmenuScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { Server } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChannelDetail from './ChannelDetail'
 import { AVAILABLE_CHANNELS, type AvailableChannel } from './channelTypes'
+import WebUiRemoteSettings from './WebUiRemoteSettings'
+
+type SelectedChannel = AvailableChannel | 'webui'
 
 const ChannelsSettings: FC = () => {
   const { t } = useTranslation()
-  const [selectedType, setSelectedType] = useState<AvailableChannel>(AVAILABLE_CHANNELS[0])
+  const [selectedType, setSelectedType] = useState<SelectedChannel>(AVAILABLE_CHANNELS[0])
+  const [isWebUiSupported] = useSharedCache('feature.webui.supported', false)
 
   return (
     <RowFlex className="flex-1">
@@ -30,7 +36,7 @@ const ChannelsSettings: FC = () => {
                 <MenuItem
                   key={ch.type}
                   label={t(ch.titleKey)}
-                  active={selectedType.type === ch.type}
+                  active={selectedType !== 'webui' && selectedType.type === ch.type}
                   onClick={() => setSelectedType(ch)}
                   icon={
                     iconSrc ? <img src={iconSrc} alt={ch.name} className="h-4 w-4 rounded object-contain" /> : undefined
@@ -40,11 +46,21 @@ const ChannelsSettings: FC = () => {
                 />
               )
             })}
+            {isWebUiSupported && (
+              <MenuItem
+                label="WebUI Remote"
+                active={selectedType === 'webui'}
+                onClick={() => setSelectedType('webui')}
+                icon={<Server size={16} />}
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+              />
+            )}
           </MenuList>
         </Scrollbar>
       </div>
       <div className="relative flex-1">
-        <ChannelDetail key={selectedType.type} channelDef={selectedType} />
+        {selectedType === 'webui' ? <WebUiRemoteSettings /> : <ChannelDetail key={selectedType.type} channelDef={selectedType} />}
       </div>
     </RowFlex>
   )

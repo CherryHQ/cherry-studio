@@ -422,6 +422,10 @@ export interface PreferenceSchemas {
     'feature.translate.page.source_language': PreferenceTypes.TranslateSourceLanguage
     // target-key-definitions/complex/complex
     'feature.translate.page.target_language': PreferenceTypes.TranslateLangCode
+    // WebUI remote extension runtime switch
+    'feature.webui.enabled': boolean
+    // WebUI remote extension HTTP port
+    'feature.webui.port': number
     // target-key-definitions/complex/complex
     'menu.presentation_mode': PreferenceTypes.MenuPresentationMode
     // target-key-definitions/complex/complex
@@ -718,6 +722,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.translate.page.scroll_sync': false,
     'feature.translate.page.source_language': 'auto',
     'feature.translate.page.target_language': 'zh-cn',
+    'feature.webui.enabled': false,
+    'feature.webui.port': 5820,
     'menu.presentation_mode': 'cherry',
     'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
     'shortcut.app.print': { binding: ['CommandOrControl', 'P'], enabled: true },
