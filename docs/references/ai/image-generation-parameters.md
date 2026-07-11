@@ -15,8 +15,9 @@ Vendor wire-format quirks live in exactly one declarative place each.
 ## The data chain at a glance
 
 One canonical param set (`paramValues`) is the trunk. It forks into two delivery
-adapters only at the very end — the wire request is the same, only the way it's
-shipped differs.
+adapters only at the very end — the canonical param bag is the same; only how each
+adapter turns it into a wire request differs (a WireProfile `providerOptions` body
+for SDK delivery vs. a bespoke envelope the transport builds).
 
 ```
 ┌─ RENDERER ────────────────────────────────────────────────────────────────────┐
