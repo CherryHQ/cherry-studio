@@ -1,6 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -355,6 +355,36 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the
+    // gateway fails to start — otherwise the UI shows the gateway active with nothing listening on the
+    // port. `ensureReady` throws on a failed start; the write and selection flip must both be skipped.
+    it('does not enable the gateway when ensureReady (start) fails', async () => {
+      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const options = {
+        ...baseOptions(),
+        currentProviderId: null, // gateway not current → toggling enables it
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'cs-sk-old',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider
+
+      await act(async () => {
+        result.current.onToggleCurrent(gatewayProvider)
+        await flushMicrotasks()
+      })
+
+      expect(ensureReady).toHaveBeenCalled()
+      // Never wrote a config against a dead port, never flipped the active selection.
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
     })
   })

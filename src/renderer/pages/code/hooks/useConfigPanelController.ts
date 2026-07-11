@@ -142,8 +142,10 @@ export function useConfigPanelController({
       // Re-apply to the CLI config file when editing the currently active provider.
       if (currentProviderId === editingProvider.id || shouldEnableAfterSave) {
         try {
-          // Gateway: ensure it's running and rebuild the files with the fresh key (the preview draft
-          // may have been built before the gateway started, so its files could hold a stale/empty key).
+          // Gateway: ensure it's running and hand the edited draft to writeCliConfigDraft, which rebuilds
+          // it with the fresh key/model using these files as the merge base — so the stale/empty preview
+          // key is replaced while the user's hand-edited raw-file fields survive (real providers write
+          // the supplied files through verbatim).
           const gateway = isApiGatewayProviderId(editingProvider.id)
             ? await resolveGatewayWriteContext(editingProvider.id)
             : undefined
@@ -151,7 +153,7 @@ export function useConfigPanelController({
             cliTool: selectedCliTool,
             modelId: cliConfigModelId,
             configBlob: sanitizedConfig,
-            files: gateway ? undefined : values.cliConfigFiles,
+            files: values.cliConfigFiles,
             writePrimaryModel,
             gateway
           })
