@@ -231,28 +231,30 @@ export class BackupService extends BaseService {
    * promoting a half-restored state. Mutually exclusive with export (activeOperation).
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
+    // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
+    // the reservation are atomic — no await between them (mirrors startBackup; without this,
+    // two concurrent startRestore calls could both pass the null check before either reserves).
     if (this.activeOperation) {
       throw new Error('BackupService: an operation is already running (cancel it first)')
     }
-    // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
-    // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
-    // must be reported/cleared first; this guard is the backstop behind the preboot gate.
-    const journal = readRestoreJournal()
-    if (journal.kind === 'ok') {
-      throw new IpcError(
-        'BACKUP_RESTORE_PENDING',
-        `backup: a prior restore is in state '${journal.journal.state}' — report or clear it before starting another`
-      )
-    }
-    if (journal.kind === 'corrupt') {
-      throw new IpcError('BACKUP_RESTORE_JOURNAL_CORRUPT', 'backup: restore journal is corrupt — see logs')
-    }
-
     const restoreId = `rst-${randomUUID()}`
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
     this.activeOperation = active
     try {
+      // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
+      // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
+      // must be reported/cleared first; this guard is the backstop behind the preboot gate.
+      const journal = readRestoreJournal()
+      if (journal.kind === 'ok') {
+        throw new IpcError(
+          'BACKUP_RESTORE_PENDING',
+          `backup: a prior restore is in state '${journal.journal.state}' — report or clear it before starting another`
+        )
+      }
+      if (journal.kind === 'corrupt') {
+        throw new IpcError('BACKUP_RESTORE_JOURNAL_CORRUPT', 'backup: restore journal is corrupt — see logs')
+      }
       const importOrch = new ImportOrchestrator({
         dbService: application.get('DbService'),
         migrationsFolder: application.getPath('app.database.migrations'),
@@ -276,8 +278,11 @@ export class BackupService extends BaseService {
         // onProgress wiring to the renderer lands with the restore progress UI (plan (f)).
       })
       // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
-      // exits the current process (app.exit(0)) in both dev (after a dialog) and packaged —
-      // the gate runs at the next boot's preboot, before any service initializes.
+      // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
+      // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
+      // so no in-flight state outlives the exit. The journal is already durable (committed
+      // above), so skipping onStop is intentional: the preboot gate owns the next state.
+      this.activeOperation = null
       this.triggerRelaunch()
       return { restoreId }
     } catch (e) {
@@ -328,6 +333,12 @@ export class BackupService extends BaseService {
    * 'none' journal means a prior restore crashed before writing the journal — its
    * half-built work.sqlite + staged files are unrecoverable garbage (the preboot gate
    * returns early on journal=none and never touches the tree).
+   *
+   * INVARIANT: this runs only from onInit (single-threaded, before any startRestore can
+   * reserve activeOperation). It MUST NOT run once restores can span a stop→start lifecycle
+   * boundary or while an orphan sweep is concurrent — either could make it delete a tree
+   * a live restore / sweep is using. The spine restore runs within one boot → relaunch, so
+   * this is safe today; revisit if that changes.
    */
   private gcStagingResidue(): void {
     const stagingRoot = application.getPath('feature.backup.restore.staging')

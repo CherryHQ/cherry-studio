@@ -23,6 +23,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
+import { loggerService } from '@logger'
 import type { DbService } from '@main/data/db/DbService'
 import { applyMigrations } from '@main/data/db/applyMigrations'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
@@ -33,6 +34,8 @@ import type { DbType } from '@main/data/db/types'
 
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
+
+const logger = loggerService.withContext('ImportOrchestrator')
 
 /** Progress phase names emitted to the caller (mirrors ExportOrchestrator's emitProgress). */
 export type ImportPhase =
@@ -129,6 +132,12 @@ export class ImportOrchestrator {
       if (fs.existsSync(workPath)) {
         throw new Error(`importBackup: work.sqlite already exists (interrupted prior restore?): ${workPath}`)
       }
+      // aside is the live-DB rename target at promotion — must not pre-exist (a stale aside
+      // from an unclean crash would make the gate's rename fail). Mirrors #16884 "add-targets
+      // must not pre-exist".
+      if (fs.existsSync(asideAbs)) {
+        throw new Error(`importBackup: aside target already exists (unclean prior restore?): ${asideAbs}`)
+      }
 
       // (a) Quiesce — drain verdict MUST precede createSnapshot (#16850 Q3c precondition).
       this.emit(options, 'quiesce', 0, 1, 'draining in-flight writers')
@@ -150,9 +159,12 @@ export class ImportOrchestrator {
       this.deps.dbService.createSnapshot(workPath)
       this.assertNotCancelled(options)
 
-      // Open the detached work connection. Default journal mode (DELETE) is intentional:
-      // the gate renames only the main file, so work must carry no -wal/-shm sidecars.
+      // Open the detached work connection. VACUUM INTO copies the live DB's header (including
+      // its WAL journal_mode flag), so explicitly switch work to DELETE mode before any
+      // merge/migrate write — the gate renames only the main file, so work must carry no
+      // -wal/-shm sidecars (the seal below is the belt-and-suspenders backstop).
       workSqlite = new Database(workPath)
+      workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
       // (b) Merge backup rows into work. remote-fills-local-empty + additive; skippedFileIds
@@ -181,8 +193,8 @@ export class ImportOrchestrator {
       // writer touched live during staging → abort WITHOUT writing the journal (fail-closed).
       // The gate re-checks anyway; this early abort avoids wasting a relaunch.
       this.emit(options, 'verify', 0, 1, 're-verifying live DB fingerprint')
-      await this.verifyFingerprint(fingerprint)
       this.assertNotCancelled(options)
+      await this.verifyFingerprint(fingerprint)
 
       // (e) Stage file resources → journal entries. Empty until the staging track lands.
       this.emit(options, 'journal', 0, 1, 'writing staged restore journal')
@@ -260,8 +272,9 @@ export class ImportOrchestrator {
   private async cleanupStaging(workDir: string): Promise<void> {
     try {
       await fs.promises.rm(workDir, { recursive: true, force: true })
-    } catch {
-      // best-effort — startup GC (plan (h)) will catch residue on the next boot
+    } catch (e) {
+      // best-effort — startup GC (plan (h)) is the backstop for residue on the next boot
+      logger.warn('staging cleanup failed (startup GC will catch residue)', e as Error)
     }
   }
 }
