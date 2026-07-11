@@ -48,4 +48,28 @@ describe('ErrorBoundary', () => {
     expect(customOnError.mock.calls[0]).toContain(boomError)
     expect(errorSpy).toHaveBeenCalledTimes(1)
   })
+
+  // B6: the boundary wraps every window's provider stack (incl. the lightest
+  // selection toolbar), so it must not statically reach the heavy error bucket.
+  it('does not statically reach zod/ai/axios through its import graph', async () => {
+    vi.resetModules()
+    const loaded = vi.fn()
+    const heavyDeps = ['zod', 'ai', 'axios']
+    for (const dep of heavyDeps) {
+      vi.doMock(dep, async (importOriginal) => {
+        loaded(dep)
+        return await importOriginal()
+      })
+    }
+
+    try {
+      await import('../ErrorBoundary')
+      expect(loaded).not.toHaveBeenCalled()
+    } finally {
+      for (const dep of heavyDeps) {
+        vi.doUnmock(dep)
+      }
+      vi.resetModules()
+    }
+  })
 })

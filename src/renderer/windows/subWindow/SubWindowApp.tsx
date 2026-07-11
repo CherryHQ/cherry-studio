@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -9,8 +8,6 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
-
-void preferenceService.preloadAll()
 
 // Behavior leaf inside the providers: runs the shared per-window init and mounts
 // the popup/toast hosts. The subWindow has no window-specific init hooks.

@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -15,8 +14,6 @@ import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitor
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 
 const logger = loggerService.withContext('MainApp')
-
-void preferenceService.preloadAll()
 
 // Behavior leaf inside the providers: runs the shared per-window init plus the
 // main-only app-update and storage-monitor hooks, and mounts the popup/toast hosts.

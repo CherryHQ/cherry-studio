@@ -60,4 +60,28 @@ describe('RouteErrorFallback', () => {
 
     expect(await screen.findByText('route recovered')).toBeInTheDocument()
   })
+
+  // B6: wired as defaultErrorComponent for every tab router, so it must not
+  // statically reach the heavy error bucket.
+  it('does not statically reach zod/ai/axios through its import graph', async () => {
+    vi.resetModules()
+    const loaded = vi.fn()
+    const heavyDeps = ['zod', 'ai', 'axios']
+    for (const dep of heavyDeps) {
+      vi.doMock(dep, async (importOriginal) => {
+        loaded(dep)
+        return await importOriginal()
+      })
+    }
+
+    try {
+      await import('../RouteErrorFallback')
+      expect(loaded).not.toHaveBeenCalled()
+    } finally {
+      for (const dep of heavyDeps) {
+        vi.doUnmock(dep)
+      }
+      vi.resetModules()
+    }
+  })
 })
