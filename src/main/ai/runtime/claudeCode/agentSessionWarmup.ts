@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -38,12 +40,26 @@ interface RuntimeModelRef {
 interface ClaudeCodeRuntimeRoute {
   baseUrl?: string
   apiKey?: string
+  /** Rotation-insensitive credential identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
+  credentialsFingerprint: string
   modelIds: {
     primary: string
     opus: string
     sonnet: string
     haiku: string
   }
+}
+
+/**
+ * Hash the credential material that identifies a route's auth, independent of which key rotation
+ * happens to pick. Direct routes hash the provider's enabled key SET (rotation within the set is
+ * invisible; adding/removing/disabling a key changes the fingerprint). Gateway routes hash the
+ * stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
+ */
+function fingerprintCredentials(material: string[]): string {
+  return createHash('sha256')
+    .update(JSON.stringify([...material].sort()))
+    .digest('hex')
 }
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
@@ -99,6 +115,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
+    credentialsFingerprint: route.credentialsFingerprint,
     settings,
     sdkModelId
   }
@@ -143,6 +160,7 @@ async function resolveClaudeCodeRuntimeRoute(
     const pinToPrimary = (ref: RuntimeModelRef) =>
       ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
     return {
+      credentialsFingerprint: 'external-cli',
       modelIds: {
         primary: primaryRef.apiModelId,
         opus: pinToPrimary(opusRef),
@@ -161,6 +179,7 @@ async function resolveClaudeCodeRuntimeRoute(
     return {
       baseUrl: gateway.baseUrl,
       apiKey: gateway.apiKey,
+      credentialsFingerprint: fingerprintCredentials([gateway.apiKey]),
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -173,9 +192,14 @@ async function resolveClaudeCodeRuntimeRoute(
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
   const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
   const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+  // Fingerprint the enabled key SET (read-only), not the rotated pick — so prewarm/consume builds
+  // that rotate onto different keys still sign identically, while enabling/disabling/editing a key
+  // invalidates warm reuse.
+  const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
   return {
     baseUrl: anthropicBaseUrl,
     apiKey: runtimeApiKey,
+    credentialsFingerprint: fingerprintCredentials(enabledKeys),
     modelIds: {
       primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
       opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
@@ -272,6 +296,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   return {
     key: request.key,
     options: request.options,
-    initializeTimeoutMs: request.initializeTimeoutMs
+    initializeTimeoutMs: request.initializeTimeoutMs,
+    credentialsFingerprint: request.credentialsFingerprint
   }
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
   getRotatedApiKey: vi.fn(),
+  getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
@@ -26,7 +27,8 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getProviderByProviderId,
-    getRotatedApiKey: mocks.getRotatedApiKey
+    getRotatedApiKey: mocks.getRotatedApiKey,
+    getApiKeys: mocks.getApiKeys
   }
 }))
 
@@ -76,6 +78,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
     mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
     mocks.getRotatedApiKey.mockReturnValue('api-key')
+    mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
@@ -171,6 +174,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_API_KEY: 'api-key'
     })
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
+  it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
+    mocks.getApiKeys.mockReturnValue([
+      { key: 'key-a', isEnabled: true },
+      { key: 'key-b', isEnabled: true }
+    ])
+    mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
+
+    const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // Rotation picked different keys, but the enabled SET is identical → same fingerprint.
+    expect(first?.settings.env?.ANTHROPIC_API_KEY).toBe('key-a')
+    expect(second?.settings.env?.ANTHROPIC_API_KEY).toBe('key-b')
+    expect(first?.credentialsFingerprint).toBe(second?.credentialsFingerprint)
+
+    mocks.getApiKeys.mockReturnValue([{ key: 'key-a', isEnabled: true }])
+    const afterKeyRemoval = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
   })
 
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
