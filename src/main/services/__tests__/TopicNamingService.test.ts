@@ -185,4 +185,27 @@ describe('TopicNamingService', () => {
     )
     expect(mocks.updateSession).toHaveBeenCalledWith('session-1', { name: 'Generated Title' })
   })
+
+  it('does not persist a lone surrogate when the first-message title cut lands inside an emoji', async () => {
+    // CJK text carries no spaces, so first-message naming falls back to a hard
+    // length cut at 50 chars. Place an emoji straddling that boundary: the 49
+    // CJK chars fill indices 0-48, and the emoji's high/low surrogate halves sit
+    // at indices 49/50. A naive slice(0, 50) keeps the high half but drops its
+    // low partner, leaving a lone surrogate (renders as the replacement glyph).
+    const longText = '字'.repeat(49) + '😀' + '文'.repeat(20)
+    mocks.getMessageById.mockResolvedValue({
+      id: 'message-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: longText }] }
+    })
+
+    await createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).toHaveBeenCalledTimes(1)
+    const renamedTo = mocks.updateTopic.mock.calls[0][1] as { name: string }
+    // A lone surrogate is a high surrogate with no following low one (or a low
+    // surrogate with no preceding high one) — exactly what a mid-pair cut leaves.
+    const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+    expect(LONE_SURROGATE.test(renamedTo.name)).toBe(false)
+  })
 })

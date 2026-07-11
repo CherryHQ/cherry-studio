@@ -11,6 +11,7 @@ import type { Message, MessageData, UIMessage } from '@shared/data/types/message
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
 import { IpcChannel } from '@shared/IpcChannel'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 
 const logger = loggerService.withContext('TopicNamingService')
 
@@ -92,7 +93,9 @@ function removeSpecialCharactersForTopicName(name: string): string {
 function truncateText(text: string, maxLength = 50): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
   if (normalized.length <= maxLength) return normalized
-  return normalized.slice(0, maxLength).trim()
+  // Clamp the cut so it can't land between an emoji's surrogate halves and
+  // persist a lone surrogate as the topic title.
+  return normalized.slice(0, clampSurrogateBoundary(normalized, maxLength)).trim()
 }
 
 function buildStructuredConversation(messages: StructuredMessage[]): string {
