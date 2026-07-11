@@ -19,6 +19,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { loggerService } from '@logger'
 import semver from 'semver'
@@ -114,6 +115,43 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
 
   // ❺ All other cases pass.
   return { outcome: 'pass' }
+}
+
+// ── Directory-level version eligibility ─────────────────────────────
+
+/**
+ * A candidate directory's version-eligibility verdict plus the raw inputs
+ * that produced it. `check` drives the decision; `previousVersion` and
+ * `versionLogExists` are surfaced so the migration gate can log them without
+ * re-reading version.log at the call site.
+ */
+export interface CandidateVersionEvaluation {
+  check: VersionCheckResult
+  previousVersion: string | null
+  versionLogExists: boolean
+}
+
+/**
+ * Evaluate whether a candidate v1 data directory is version-eligible for
+ * migration, reading its `version.log` from disk.
+ *
+ * The SINGLE assembler of the three-step check — existence probe →
+ * previous-version read → compatibility judgement — for both callers:
+ *   - the candidate selector (`selectLegacyUserData`) reads only `.check`;
+ *   - the migration gate (`v2MigrationGate`) reads `.check` for the decision
+ *     and `previousVersion` / `versionLogExists` for its diagnostic log.
+ * Keeping the assembly here is what makes "is this directory eligible?" live
+ * in one place and stops the two callers from drifting apart.
+ *
+ * @param dir The candidate userData directory (its `version.log` is read).
+ * @param currentAppVersion `app.getVersion()` — passed in to keep this pure of Electron.
+ */
+export function evaluateCandidateVersion(dir: string, currentAppVersion: string): CandidateVersionEvaluation {
+  const versionLogPath = path.join(dir, 'version.log')
+  const versionLogExists = fs.existsSync(versionLogPath)
+  const previousVersion = versionLogExists ? readPreviousVersion(versionLogPath, currentAppVersion) : null
+  const check = checkUpgradePathCompatibility({ currentAppVersion, previousVersion, versionLogExists })
+  return { check, previousVersion, versionLogExists }
 }
 
 // ── version.log reader ──────────────────────────────────────────────

@@ -819,6 +819,11 @@ export class JobManager extends BaseService {
    * enqueues directly using `jobInputTemplate` and writes `markFired`
    * synchronously to keep `lastRun` consistent with the cron path.
    *
+   * Exception to the "natural fire calendar" clause: manually firing an
+   * overdue never-fired `once` schedule writes `lastRun >= trigger.at`, which
+   * the spent-once guard in `armSchedule` treats as the one-shot's fire —
+   * startup recovery will not re-arm it for a make-up run.
+   *
    * @param id - Schedule row id
    * @returns `true` if fired; `false` if no schedule exists for `id`
    */
@@ -1452,8 +1457,7 @@ export class JobManager extends BaseService {
     const scheduler = application.get('SchedulerService')
     const retryId = `retry:${jobId}:${nextAttempt}`
     scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, () => {
-      jobService.promoteDelayedDue(Date.now())
-      void this.dispatch(queue)
+      this.promoteDueAtFire(retryId, jobId, queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
   }
@@ -1473,12 +1477,32 @@ export class JobManager extends BaseService {
    * "always overdue → catch-up enqueue → fails again" loop after restart.
    * The error log keeps `{ code, stack }` so Sentry can bucket distinct
    * failure modes instead of flattening to one opaque string.
+   *
+   * A spent `once` schedule (its natural fire already happened) is never
+   * re-armed — see the guard below.
    */
   private armSchedule(schedule: JobScheduleSnapshot): void {
     if (!schedule.enabled) return
+    // Dispose any prior registration BEFORE the spent-once guard below: an
+    // update that turns an armed one-shot spent (e.g. rescheduling it onto a
+    // moment already covered by a manual fire) must cancel the pending timer,
+    // or it would later fire with its stale closure snapshot.
     if (this.scheduleDisposables.has(schedule.id)) {
       this.scheduleDisposables.get(schedule.id)?.dispose()
       this.scheduleDisposables.delete(schedule.id)
+    }
+    // A once trigger whose natural fire already happened is spent — re-arming
+    // it (startup recovery, re-enable, no-op update) would replay the job on
+    // every restart, since scheduleOnce fires a past `at` immediately. Compare
+    // against trigger.at rather than mere lastRun presence: a manual trigger
+    // also writes lastRun but must not swallow a still-pending natural fire.
+    if (
+      schedule.trigger.kind === 'once' &&
+      schedule.lastRun !== null &&
+      Date.parse(schedule.lastRun) >= schedule.trigger.at
+    ) {
+      logger.debug('Skipping spent once schedule', { scheduleId: schedule.id })
+      return
     }
 
     const scheduler = application.get('SchedulerService')
@@ -1502,7 +1526,13 @@ export class JobManager extends BaseService {
       } finally {
         try {
           const nextRun = scheduler.getNextRun(scheduleKey)
-          jobScheduleService.markFired(schedule.id, firedAt, nextRun?.getTime() ?? null)
+          // Persist a once fire at no earlier than its `at`: the once timer
+          // elapses on the monotonic clock while `firedAt` reads the wall
+          // clock, so a natural fire can observe firedAt === at - 1 (see
+          // promoteDueAtFire). Unclamped, the spent-once guard above would
+          // see lastRun < at and replay the one-shot on the next startup.
+          const persistedFiredAt = trigger.kind === 'once' ? Math.max(firedAt, trigger.at) : firedAt
+          jobScheduleService.markFired(schedule.id, persistedFiredAt, nextRun?.getTime() ?? null)
         } catch (markErr) {
           logger.warn('markFired failed — nextRun may be stale', {
             scheduleId: schedule.id,
@@ -1530,9 +1560,49 @@ export class JobManager extends BaseService {
     const jobKey = `job:${snapshot.id}`
     const scheduledMs = Date.parse(snapshot.scheduledAt)
     scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, () => {
-      jobService.promoteDelayedDue(Date.now())
-      void this.dispatch(snapshot.queue)
+      this.promoteDueAtFire(jobKey, snapshot.id, snapshot.queue)
     })
+  }
+
+  /**
+   * Fire-time body of the delayed-promotion `once` schedules (armDelayedJob /
+   * scheduleRetry): promote due rows, then dispatch — or re-arm if the fire
+   * landed before the wall clock reached the job's scheduledAt.
+   *
+   * The re-arm exists because of a clock-domain mismatch: the once-timer
+   * elapses on the monotonic (libuv) clock while `promoteDelayedDue` compares
+   * `scheduledAt <= Date.now()` on the wall clock. Both round to whole ms
+   * independently, so a fire can observe `Date.now() === scheduledAt - 1`
+   * (~0.4% of fires, measured). `scheduleOnce` self-cleans before invoking its
+   * callback, so a missed promotion would otherwise strand the job in
+   * `delayed` until the DELAYED_PROMOTION_INTERVAL_MS tick — up to 5 minutes
+   * late in production, a permanent hang in tests (which never arm that tick).
+   *
+   * Cautions for future edits:
+   *   - Do NOT close the gap by inflating the promotion cursor (e.g.
+   *     `promoteDelayedDue(Math.max(Date.now(), scheduledMs))`): a row
+   *     promoted before the wall clock reaches its scheduledAt is invisible
+   *     to the dispatch claim query (also `scheduledAt <= Date.now()`) and
+   *     would strand as `pending` instead — same hang, one state later.
+   *   - Re-arm at the row's CURRENT scheduledAt, not the original fire time:
+   *     the next delay is the exact wall-clock remainder, so the loop
+   *     converges (strictly smaller remainder each round) and cannot spin.
+   *   - Re-registering the same schedule id is safe by design:
+   *     `registerSchedule` replaces an existing id, and `scheduleOnce`
+   *     removed this id from its map before invoking the callback.
+   */
+  private promoteDueAtFire(scheduleId: string, jobId: string, queue: string): void {
+    jobService.promoteDelayedDue(Date.now())
+    const row = jobService.getById(jobId)
+    if (row?.status === 'delayed' && !this._isShuttingDown) {
+      logger.debug('once-fire preceded wall-clock scheduledAt — re-arming', { jobId, scheduleId })
+      const scheduler = application.get('SchedulerService')
+      scheduler.registerSchedule(scheduleId, { kind: 'once', at: Date.parse(row.scheduledAt) }, () => {
+        this.promoteDueAtFire(scheduleId, jobId, queue)
+      })
+      return
+    }
+    void this.dispatch(queue)
   }
 
   /**

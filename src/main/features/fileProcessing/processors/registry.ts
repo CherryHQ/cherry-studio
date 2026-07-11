@@ -1,16 +1,18 @@
+import { isLocalPaddleocrModelDownloaded } from '@main/ai/inference/ocrModelPaths'
 import { isMac, isWin } from '@main/core/platform'
 
-import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
-import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
-import { mistralDocumentToMarkdownHandler } from './mistral/document-to-markdown/handler'
-import { mistralImageToTextHandler } from './mistral/image-to-text/handler'
-import { openMineruDocumentToMarkdownHandler } from './open-mineru/document-to-markdown/handler'
-import { ovocrImageToTextHandler } from './ovocr/image-to-text/handler'
+import { doc2xDocumentToMarkdownHandler } from './doc2x/documentToMarkdown/handler'
+import { localPaddleocrImageToTextHandler } from './localPaddleocr/imageToText/handler'
+import { mineruDocumentToMarkdownHandler } from './mineru/documentToMarkdown/handler'
+import { mistralDocumentToMarkdownHandler } from './mistral/documentToMarkdown/handler'
+import { mistralImageToTextHandler } from './mistral/imageToText/handler'
+import { openMineruDocumentToMarkdownHandler } from './openMineru/documentToMarkdown/handler'
+import { ovocrImageToTextHandler } from './ovocr/imageToText/handler'
 import { isOvOcrAvailable } from './ovocr/utils'
-import { paddleDocumentToMarkdownHandler } from './paddleocr/document-to-markdown/handler'
-import { paddleImageToTextHandler } from './paddleocr/image-to-text/handler'
-import { systemImageToTextHandler } from './system/image-to-text/handler'
-import { tesseractImageToTextHandler } from './tesseract/image-to-text/handler'
+import { paddleDocumentToMarkdownHandler } from './paddleocr/documentToMarkdown/handler'
+import { paddleImageToTextHandler } from './paddleocr/imageToText/handler'
+import { systemImageToTextHandler } from './system/imageToText/handler'
+import { tesseractImageToTextHandler } from './tesseract/imageToText/handler'
 import type { FileProcessingProcessorRegistry } from './types'
 
 export const processorRegistry = {
@@ -31,6 +33,13 @@ export const processorRegistry = {
     capabilities: {
       image_to_text: paddleImageToTextHandler,
       document_to_markdown: paddleDocumentToMarkdownHandler
+    }
+  },
+  'local-paddleocr': {
+    // Only usable once the model files are on disk (downloaded via the settings card).
+    isAvailable: isLocalPaddleocrModelDownloaded,
+    capabilities: {
+      image_to_text: localPaddleocrImageToTextHandler
     }
   },
   ovocr: {

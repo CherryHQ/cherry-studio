@@ -121,11 +121,11 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/services/settingsNavigation', () => ({
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
 }))
 
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('../../UserPopup', () => ({
   default: {
     show: mocks.showUserPopup
   }

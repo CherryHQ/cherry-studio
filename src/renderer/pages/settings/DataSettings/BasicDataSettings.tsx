@@ -1,8 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
-import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import {
   SettingDivider,
   SettingGroup,
@@ -22,6 +19,11 @@ import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from '
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import BackupPopup from './BackupPopup'
+import { BackupUnavailableGate } from './BackupUnavailableGate'
+import { LanTransferPopup } from './LanTransferPopup'
+import RestorePopup from './RestorePopup'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
@@ -421,50 +423,54 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show()} variant="outline">
-              <SaveIcon size={14} />
-              {t('settings.general.backup.button')}
-            </Button>
-            <Button onClick={() => RestorePopup.show()} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.general.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-        </SettingRow>
+        <BackupUnavailableGate>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+            <RowFlex className="justify-between gap-1.25">
+              <Button onClick={() => BackupPopup.show()} variant="outline">
+                <SaveIcon size={14} />
+                {t('settings.general.backup.button')}
+              </Button>
+              <Button onClick={() => RestorePopup.show()} variant="outline">
+                <FolderOpen size={14} />
+                {t('settings.general.restore.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+          </SettingRow>
+          <SettingRow>
+            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+          </SettingRow>
+        </BackupUnavailableGate>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.export_to_phone.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => LanTransferPopup.show()} variant="outline">
-              <Wifi size={14} />
-              {t('settings.data.export_to_phone.lan.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
-              <FolderInput size={14} />
-              {t('settings.data.export_to_phone.file.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+        <BackupUnavailableGate>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
+            <RowFlex className="justify-between gap-1.25">
+              <Button onClick={() => LanTransferPopup.show()} variant="outline">
+                <Wifi size={14} />
+                {t('settings.data.export_to_phone.lan.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
+            <RowFlex className="justify-between gap-1.25">
+              <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
+                <FolderInput size={14} />
+                {t('settings.data.export_to_phone.file.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+        </BackupUnavailableGate>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>

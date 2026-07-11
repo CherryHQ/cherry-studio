@@ -71,7 +71,7 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model)
+  const sdkConfig = await resolveSdkConfig(provider, model, request.apiKeyOverride)
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
@@ -129,9 +129,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkConfig> {
+async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
   return {
-    ...(await providerToAiSdkConfig(provider, model)),
+    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
     modelId: model.apiModelId ?? model.id
   }
 }

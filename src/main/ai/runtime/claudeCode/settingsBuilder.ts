@@ -30,10 +30,9 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -54,11 +53,8 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
-import {
-  CHANNEL_SECURITY_PROMPT,
-  REPORT_ARTIFACTS_PROMPT,
-  SOUL_MODE_DISALLOWED_TOOLS
-} from '@shared/ai/claudecode/constants'
+import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -80,6 +76,18 @@ import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolAppro
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
+const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
+const HEADLESS_INTERACTIVE_TOOL_DENIAL =
+  'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
+  'rename',
+  'complete_bootstrap',
+  'reset_bootstrap',
+  'add_channel',
+  'update_channel',
+  'remove_channel',
+  'reconnect_channel'
+])
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
@@ -172,6 +180,20 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
   )
 }
 
+export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
+  const stripUserinfo = (value: string) => value.replace(/^(([a-z][a-z\d+.-]*:\/\/)?)[^/@\s]+@/i, '$1')
+  try {
+    const url = new URL(proxyUrl)
+    if (!url.username && !url.password) return stripUserinfo(proxyUrl)
+    // Drop proxy userinfo before this value enters the assistant system prompt.
+    url.username = ''
+    url.password = ''
+    return url.toString()
+  } catch {
+    return stripUserinfo(proxyUrl)
+  }
+}
+
 /**
  * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
  * Injected into system prompt so the agent knows the user's setup immediately.
@@ -202,7 +224,7 @@ async function buildAssistantContext(): Promise<string> {
     `- App: Cherry Studio v${appVersion}`,
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
-    proxy ? `- Proxy: ${proxy}` : '- Proxy: none',
+    proxy ? `- Proxy: ${redactProxyUrlForAssistantContext(proxy)}` : '- Proxy: none',
     `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
     `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
     '',
@@ -264,6 +286,11 @@ export async function buildClaudeCodeSessionSettings(
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
 
+  // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
+  // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
+  // `warmAgentMcpToolCaches`. The returned handle drives the post-timeout reconciliation below.
+  const mcpWarm = await warmAgentMcpToolCaches(agent)
+
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
@@ -290,13 +317,40 @@ export async function buildClaudeCodeSessionSettings(
 
   // 6. MCP servers (session + built-in)
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = buildMcpServers(session, agent, soulEnabled, isAssistant)
-  const mcpToolMetadata = await buildMcpToolMetadata(agent)
+  const mcpServers = buildMcpServers(session, agent, isAssistant)
+  let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
-  // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
-  const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
+  // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
+  // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
+  // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
+  // the SDK re-lists) — leaving approval resolution and tool cards blind to tools the model can
+  // see. Those two are one-shot bakes with no invalidation channel of their own, so chain onto the
+  // surviving refresh: rebuild the live session policy snapshot and fill the metadata map in place
+  // (the stream adapter reads this same object by reference on every turn), so both converge with
+  // what the bridge exposes. The agent is re-fetched at fire-time so this late rebuild can't
+  // clobber a policy update applied between build and refresh completion.
+  if (!mcpWarm.completedInTime) {
+    mcpToolMetadata ??= {}
+    const metadataRef = mcpToolMetadata
+    void mcpWarm.warm
+      .then(async () => {
+        const liveAgent = agentService.getAgent(agent.id)
+        if (!liveAgent) return
+        await getToolPolicySnapshot(session.id)?.update(liveAgent)
+        const freshMetadata = await buildMcpToolMetadata(liveAgent)
+        if (freshMetadata) Object.assign(metadataRef, freshMetadata)
+      })
+      .catch((error) => {
+        logger.warn('Failed to reconcile MCP tool snapshot after bounded warm timed out', {
+          sessionId: session.id,
+          error
+        })
+      })
+  }
+
+  // 8. Auto-approve allowlist for injected built-in MCP servers
+  const finalAllowedTools = adjustAllowedToolsForMcp(isAssistant)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -309,7 +363,7 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    settingSources: getSettingSources(agent),
+    settingSources: getSettingSources(agent, provider),
     settings: { autoCompactEnabled: true },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
@@ -638,44 +692,29 @@ async function buildToolPermissions(
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
-  // Raw session context for tool enable-predicates (worktree needs .git; claw notify/config need a
-  // connected channel). Channels are fetched once here so the predicates stay synchronous.
+  // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
-        cwd,
-        channels: (() => {
-          try {
-            return channelService.listChannels({ agentId: agent.id })
-          } catch (error) {
-            logger.warn('Failed to list channels for tool policy context', {
-              agentId: agent.id,
-              error: error instanceof Error ? error.message : String(error)
-            })
-            return []
-          }
-        })()
+        cwd
       }
     : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
-    autoAllowRuntimeNamePrefixes: [
-      // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
-      // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
-      // user's knowledge bases, report_artifacts only records a declaration. The
-      // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
-      // channel-linked sessions) is bounded by the system-level channel security policy
-      // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
-      // user's knowledge bases, so it must go through per-call approval rather than this prefix.
-      'mcp__cherry-tools__',
-      ...(soulEnabled ? ['mcp__claw__'] : []),
-      ...(isAssistant ? ['mcp__assistant__'] : [])
-    ],
-    // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
+    // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
+    // approval) is a deliberate decision (matches feat/chat-page): the READ tools have no side
+    // effects in the main process — web_search/web_fetch read the network,
+    // kb_search/kb_read/kb_list read the user's knowledge bases, report_artifacts only records a
+    // declaration. The untrusted-channel exposure this creates (approval-free reads + web_fetch URL
+    // egress for channel-linked sessions) is bounded by the system-level channel security policy
+    // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
+    // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
+    // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
+    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNamePrefixes: isAssistant ? ['mcp__assistant__'] : [],
+    // Mutating cherry-tools (kb_manage) must still prompt for approval.
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
@@ -683,6 +722,17 @@ async function buildToolPermissions(
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
+    }
+
+    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
+    // headless interactive-tool denial at fire time. Mirrored by `headlessInteractiveToolHook` so the
+    // denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`; this
+    // branch stays so an interactive follow-up on a warm connection can still reach the approval path.
+    if (
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
+      application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+    ) {
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
@@ -761,6 +811,42 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
+  // mode — the `canUseTool` branch above is skipped for auto-approved paths (bypassPermissions /
+  // acceptEdits), which a migrated autonomy agent may run in. Resolves headless state by session id at
+  // fire-time so a warm connection reused across interactive and headless turns is judged per-turn.
+  const headlessInteractiveToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+      }
+    }
+  }
+
+  const headlessConfigMutationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME)) return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
+    if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -816,14 +902,26 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
+    hooks: {
+      PreToolUse: [
+        {
+          hooks: [
+            headlessInteractiveToolHook,
+            headlessConfigMutationHook,
+            disabledToolHook,
+            dependencyIsolationHook,
+            rtkRewriteHook,
+            steerHook
+          ]
+        }
+      ]
+    },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
-    // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
+    // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
-        ...(isAssistant ? ['AskUserQuestion'] : [])
+        ...(isAssistant ? HEADLESS_INTERACTIVE_TOOLS : [])
       ])
     ],
     toolPolicySnapshot
@@ -859,7 +957,6 @@ export async function buildSystemPrompt(
   cwd: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
 
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -896,32 +993,14 @@ export async function buildSystemPrompt(
   // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  // Soul mode
-  if (soulEnabled) {
-    const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
-    const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-  }
-
-  // Standard mode
-  if (instructions) {
-    return {
-      type: 'preset',
-      preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-    }
-  }
-  return {
-    type: 'preset',
-    preset: 'claude_code',
-    append: `${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-  }
+  const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
+  const userInstructions = instructions ? `\n\n${instructions}` : ''
+  return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  soulEnabled: boolean,
   isAssistant: boolean
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
@@ -939,45 +1018,45 @@ export function buildMcpServers(
     }
   }
 
-  // 3. Cherry tools
+  // 3. Cherry tools — builtin lookups plus the agent autonomy tools (cron / notify / config),
+  // which register only because the agent context is passed. Use `agent.id` instead of
+  // `session.agentId` so TS can see the value is non-null after the upstream
+  // orphan check in buildClaudeCodeSessionSettings.
+  const sourceChannelId = resolveSourceChannel(agent.id, session.id)
+  let workspaceSource: AgentSessionWorkspaceSource
+  switch (session.workspace.type) {
+    case AGENT_WORKSPACE_TYPE.USER:
+      workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
+      break
+    case AGENT_WORKSPACE_TYPE.SYSTEM:
+      workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+      break
+    default: {
+      const exhaustive: never = session.workspace.type
+      throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
+    }
+  }
   mcpList['cherry-tools'] = {
     type: 'sdk',
     name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer().mcpServer
-  }
-
-  // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
-  // `session.agentId` so TS can see the value is non-null after the upstream
-  // orphan check in buildClaudeCodeSessionSettings.
-  if (soulEnabled) {
-    const sourceChannelId = resolveSourceChannel(agent.id, session.id)
-    let workspaceSource: AgentSessionWorkspaceSource
-    switch (session.workspace.type) {
-      case AGENT_WORKSPACE_TYPE.USER:
-        workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
-        break
-      case AGENT_WORKSPACE_TYPE.SYSTEM:
-        workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        break
-      default: {
-        const exhaustive: never = session.workspace.type
-        throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
-      }
-    }
-    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
-    mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
-
-    // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
-    // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
-    // "log completion" step (and all memory writes) have no backing server.
-    const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
-    mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
-
-    logger.debug('Soul Mode: injected claw + agent-memory MCP servers', {
+    instance: new CherryBuiltinToolsServer({
       agentId: agent.id,
-      totalMcpServers: Object.keys(mcpList).length
-    })
+      workspaceSource,
+      workspacePath: session.workspace.path,
+      sourceChannelId
+    }).mcpServer
   }
+
+  // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
+  // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
+  // "log completion" step (and all memory writes) have no backing server.
+  const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
+  mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
+
+  logger.debug('Injected cherry-tools + agent-memory MCP servers', {
+    agentId: agent.id,
+    totalMcpServers: Object.keys(mcpList).length
+  })
 
   // 5. Assistant — navigate + diagnose tools (Cherry Assistant only)
   if (isAssistant) {
@@ -1021,6 +1100,50 @@ function addMcpToolMetadataAliases(
   addMcpToolMetadataAlias(metadataByName, `mcp__${toCamelCase(server.name)}__${tool.name}`, metadata)
 }
 
+// Session build reads MCP tools from cache-only `listTools` (sync, so a dead server can't stall
+// startup — issue #16242). The approval descriptors + tool-card metadata built below therefore
+// see nothing for a server whose cache is still cold on a first session. Warm the agent's own
+// servers via the single-flighted `warmToolsCache` so those cache-only reads reflect configured
+// tools — bounded by a short cap so a dead/slow server still can't stall session start; on
+// timeout we fall back to the empty cache. The in-flight refresh keeps running past the cap and
+// then converges BOTH remaining consumers: the caller chains a reconciliation onto `warm` (step 7
+// of the build) that rebuilds the session snapshot + metadata, and the cache write it lands fires
+// `onToolsCacheUpdated`, which the SDK bridge relays as `tools/list_changed` so the SDK re-lists.
+// The warm also carries a liveness duty beyond latency: it is the only path that re-probes a
+// warmed-but-empty cache (see `warmToolsCache`), i.e. the retry that lets a previously-dead
+// server recover at all.
+const MCP_WARM_TIMEOUT_MS = 3_000
+
+interface McpWarmResult {
+  // False when the bounded race hit the cap with the refresh still in flight.
+  completedInTime: boolean
+  // The underlying single-flighted refresh; keeps running past the cap.
+  warm: Promise<unknown>
+}
+
+async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWarmResult> {
+  const mcpIds = agent.mcps
+  if (!mcpIds?.length) return { completedInTime: true, warm: Promise.resolve() }
+
+  const mcpService = application.get('McpCatalogService')
+  const warm = Promise.allSettled(
+    mcpIds.flatMap((mcpId) => {
+      const server = mcpServerService.findByIdOrName(mcpId)
+      return server ? [mcpService.warmToolsCache(server.id)] : []
+    })
+  )
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), MCP_WARM_TIMEOUT_MS)
+    timer.unref?.()
+  })
+
+  const completedInTime = await Promise.race([warm.then(() => true), timeout])
+  if (timer) clearTimeout(timer)
+  return { completedInTime, warm }
+}
+
 async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
   const mcpIds = agent.mcps
   if (!mcpIds?.length) return undefined
@@ -1055,24 +1178,25 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 }
 
 /**
- * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
- * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
- * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
- * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
- * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
+ * Auto-approve allowlist for injected built-in MCP servers, so the
+ * cherry-tools/agent-memory/assistant tools pass without per-call approval.
+ * The auto-approved cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage
+ * tool is excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
-export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return undefined
-
+export function adjustAllowedToolsForMcp(isAssistant: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
+  result.push('mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result
 }
 
-function getSettingSources(agent: AgentEntity): Array<'user' | 'project' | 'local'> {
+function getSettingSources(agent: AgentEntity, provider: Provider): Array<'user' | 'project' | 'local'> {
   const builtinRole = agent.configuration?.builtin_role
-  return builtinRole ? [] : ['project', 'local']
+  if (builtinRole) return []
+
+  // Managed skills are mirrored under Cherry's isolated CLAUDE_CONFIG_DIR/skills, which Claude Code loads from the
+  // user source. Login providers point CLAUDE_CONFIG_DIR at the user's real CLI config, so keep that source isolated.
+  return isExternalCliProvider(provider) ? ['project', 'local'] : ['user', 'project', 'local']
 }
 
 function getLanguageInstruction(): string {
