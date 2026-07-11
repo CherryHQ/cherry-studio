@@ -102,6 +102,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+      - name: Configure Windows package architectures
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          @'
+
+          supportedArchitectures:
+            os:
+              - current
+              - win32
+            cpu:
+              - current
+              - x64
+              - arm64
+          '@ | Add-Content pnpm-workspace.yaml
+
       - name: Install Dependencies
         run: pnpm install
 
@@ -159,17 +175,11 @@ jobs:
           if (-not $installer) {
             throw 'Windows ARM64 setup executable was not produced'
           }
+          if ($installer.Length -lt 300MB) {
+            throw "Windows ARM64 setup is only $([math]::Round($installer.Length / 1MB, 2)) MiB"
+          }
 
-          $installDir = Join-Path $env:RUNNER_TEMP 'cherry-studio-arm64'
-          Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
-          $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installDir" -PassThru
-          if (-not $process.WaitForExit(600000)) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw 'Windows ARM64 installer did not exit within 10 minutes'
-          }
-          if ($process.ExitCode -ne 0) {
-            throw "Windows ARM64 installer exited with code $($process.ExitCode)"
-          }
+          $packageDir = Join-Path $PWD 'dist\win-arm64-unpacked'
 
           $requiredFiles = @(
             'CherryStudio.exe',
@@ -182,12 +192,12 @@ jobs:
             'resources\app.asar.unpacked\resources\binaries\win32-arm64\uv.exe',
             'resources\app.asar.unpacked\resources\binaries\win32-arm64\uvx.exe'
           )
-          $missingFiles = $requiredFiles | Where-Object { -not (Test-Path (Join-Path $installDir $_)) }
+          $missingFiles = $requiredFiles | Where-Object { -not (Test-Path (Join-Path $packageDir $_)) }
           if ($missingFiles) {
-            throw "Windows ARM64 installation is missing: $($missingFiles -join ', ')"
+            throw "Windows ARM64 package is missing: $($missingFiles -join ', ')"
           }
 
-          $unpackedModules = Join-Path $installDir 'resources\app.asar.unpacked\node_modules'
+          $unpackedModules = Join-Path $packageDir 'resources\app.asar.unpacked\node_modules'
           $requiredPackages = @(
             '@aiany\sqlite-vec-windows-arm64',
             '@img\sharp-win32-arm64',
@@ -196,14 +206,27 @@ jobs:
           )
           $missingPackages = $requiredPackages | Where-Object { -not (Test-Path (Join-Path $unpackedModules $_)) }
           if ($missingPackages) {
-            throw "Windows ARM64 installation is missing native packages: $($missingPackages -join ', ')"
+            throw "Windows ARM64 package is missing native packages: $($missingPackages -join ', ')"
           }
 
           $claudeArm64 = Get-ChildItem $unpackedModules -Recurse -Filter 'claude.exe' |
             Where-Object { $_.FullName -like '*claude-agent-sdk-win32-arm64*' } |
             Select-Object -First 1
           if (-not $claudeArm64) {
-            throw 'Windows ARM64 installation is missing the ARM64 Claude executable'
+            throw 'Windows ARM64 package is missing the ARM64 Claude executable'
+          }
+
+          $extractDir = Join-Path $env:RUNNER_TEMP 'cherry-studio-arm64-setup'
+          Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+          & 7z x $installer.FullName "-o$extractDir" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to extract Windows ARM64 setup with exit code $LASTEXITCODE"
+          }
+          $missingInstallerFiles = $requiredFiles | Where-Object {
+            -not (Get-ChildItem $extractDir -Recurse -File -Filter (Split-Path $_ -Leaf) | Select-Object -First 1)
+          }
+          if ($missingInstallerFiles) {
+            throw "Windows ARM64 setup is missing: $($missingInstallerFiles -join ', ')"
           }
 
       - name: Release

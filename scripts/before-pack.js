@@ -99,9 +99,7 @@ exports.default = async function (context) {
     fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
 
     try {
-      // pnpm otherwise treats the existing lockfile/node_modules as current and skips
-      // materializing optional dependencies for the newly added target architecture.
-      execSync(`pnpm install --force`, { stdio: 'inherit' })
+      execSync(`pnpm install`, { stdio: 'inherit' })
     } finally {
       // Restore original pnpm-workspace.yaml
       fs.writeFileSync(workspaceConfigPath, originalWorkspaceConfig)
