@@ -76,11 +76,12 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
   { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
 ]
 
+// Mirrors the standalone settings window nav items (settingsSubmenuItemClassName).
 const EDIT_DIALOG_TAB_TRIGGER_CLASS =
-  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-2 text-left font-normal text-foreground/70 text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
+  'h-7.5 w-full flex-none justify-start rounded-lg border-transparent bg-transparent px-2.5 text-left font-normal text-foreground/80 text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground data-[state=active]:!bg-selected data-[state=active]:!font-medium data-[state=active]:!text-foreground data-[state=active]:!shadow-(--shadow-selected-outline)'
 
 const EDIT_DIALOG_GROUP_BUTTON_CLASS =
-  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-2 text-left font-normal text-foreground/70 text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+  'flex h-7.5 w-full items-center justify-start rounded-lg bg-transparent px-2.5 text-left font-normal text-foreground/80 text-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
 
@@ -366,29 +367,31 @@ export function EditDialogShell<TValues extends FieldValues>({
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!isSubmitting}
-        className="flex h-[min(600px,70vh)] flex-col gap-4 sm:max-w-180 lg:max-w-200"
+        className="flex h-[min(600px,70vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-180 lg:max-w-200"
         onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
-        <DialogTitle className="text-lg">{title}</DialogTitle>
-
         <Form {...form}>
           <form
             id="resource-edit-dialog-form"
             onSubmit={onSubmit}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              <div className="w-32 shrink-0 pr-2">
-                <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-0">
+              {/* Mirrors the standalone settings window shell: sidebar-tinted rail + hairline divider. */}
+              <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px] bg-sidebar">
+                <DialogTitle className="px-4 pt-4 pb-2 text-lg">{title}</DialogTitle>
+                <TabsList
+                  asChild
+                  className="h-auto w-full items-stretch justify-start rounded-none bg-transparent px-2.5 pb-2.5">
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
                       if (hasChildren && groupPresentation === 'inline') {
                         return tab.children?.map((child) => (
                           <TabsTrigger key={child.id} value={child.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                            <span className="min-w-0 flex-1 truncate px-1 text-left">{child.label}</span>
+                            <span className="min-w-0 flex-1 truncate text-left">{child.label}</span>
                           </TabsTrigger>
                         ))
                       }
@@ -404,7 +407,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               data-expanded={groupExpanded || undefined}
                               className={EDIT_DIALOG_GROUP_BUTTON_CLASS}
                               onClick={() => toggleTabGroup(tab.id)}>
-                              <span className="min-w-0 flex-1 truncate px-1 text-left">{tab.label}</span>
+                              <span className="min-w-0 flex-1 truncate text-left">{tab.label}</span>
                               <ChevronDown
                                 size={13}
                                 strokeWidth={1.8}
@@ -414,7 +417,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             </button>
                           ) : (
                             <TabsTrigger value={tab.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                              <span className="min-w-0 flex-1 truncate px-1 text-left">{tab.label}</span>
+                              <span className="min-w-0 flex-1 truncate text-left">{tab.label}</span>
                             </TabsTrigger>
                           )}
                           {hasChildren && groupExpanded ? (
@@ -424,7 +427,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   key={child.id}
                                   value={child.id}
                                   className={EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS}>
-                                  <span className="min-w-0 truncate px-1">{child.label}</span>
+                                  <span className="min-w-0 truncate">{child.label}</span>
                                 </TabsTrigger>
                               ))}
                             </div>
@@ -436,24 +439,26 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </TabsList>
               </div>
 
-              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 px-5">
-                {children}
-              </Scrollbar>
-            </Tabs>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 py-4">
+                  {children}
+                </Scrollbar>
 
-            <DialogFooter className="flex-row items-center justify-between">
-              <p className="min-h-4 flex-1 text-destructive text-xs" aria-live="polite">
-                {rootError ?? ''}
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
-                  {t('common.cancel')}
-                </Button>
-                <Button type="submit" disabled={!canSave} loading={isSubmitting}>
-                  {t('common.save')}
-                </Button>
+                <DialogFooter className="flex-row items-center justify-between px-5 pb-4">
+                  <p className="min-h-4 flex-1 text-destructive text-xs" aria-live="polite">
+                    {rootError ?? ''}
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button type="submit" disabled={!canSave} loading={isSubmitting}>
+                      {t('common.save')}
+                    </Button>
+                  </div>
+                </DialogFooter>
               </div>
-            </DialogFooter>
+            </Tabs>
           </form>
         </Form>
       </DialogContent>
