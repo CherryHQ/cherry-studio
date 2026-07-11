@@ -1,4 +1,4 @@
-import { dialog } from 'electron'
+import { dialog, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -15,6 +15,10 @@ const event = {} as Electron.IpcMainInvokeEvent
 describe('FileStorage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('save', () => {
@@ -34,7 +38,7 @@ describe('FileStorage', () => {
   describe('resolveHomeRelativeFilePath', () => {
     it('expands a ~/-prefixed path against the home directory', async () => {
       await expect(fileStorage.showInFolder(event, '~/Documents/x.txt')).rejects.toThrow(
-        '/mock/sys.home/Documents/x.txt'
+        path.join('/mock/sys.home', 'Documents', 'x.txt')
       )
     })
 
@@ -57,6 +61,70 @@ describe('FileStorage', () => {
     it('writes the given content', async () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
+    })
+  })
+
+  describe('deleteExternalFile', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-delete-test-${uniqueId()}.md`)
+      fs.writeFileSync(tmpFile, 'content')
+      vi.mocked(shell.trashItem).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    it('normalizes the path before passing it to the platform trash API', async () => {
+      const portablePath = tmpFile.replace(/\\/g, '/')
+
+      await fileStorage.deleteExternalFile(event, portablePath)
+
+      expect(shell.trashItem).toHaveBeenCalledWith(tmpFile)
+    })
+
+    it('normalizes Windows paths without relying on the test host platform', async () => {
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+
+      await fileStorage.deleteExternalFile(event, 'C:/Users/test/Notes/note.md')
+
+      expect(shell.trashItem).toHaveBeenCalledWith('C:\\Users\\test\\Notes\\note.md')
+    })
+
+    it('does not invoke the trash API for an empty path', async () => {
+      await fileStorage.deleteExternalFile(event, '')
+
+      expect(shell.trashItem).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('deleteExternalDir', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-delete-dir-test-'))
+      vi.mocked(shell.trashItem).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('normalizes the path before passing it to the platform trash API', async () => {
+      const portablePath = tmpDir.replace(/\\/g, '/')
+
+      await fileStorage.deleteExternalDir(event, portablePath)
+
+      expect(shell.trashItem).toHaveBeenCalledWith(tmpDir)
+    })
+
+    it('does not invoke the trash API for an empty path', async () => {
+      await fileStorage.deleteExternalDir(event, '')
+
+      expect(shell.trashItem).not.toHaveBeenCalled()
     })
   })
 })
