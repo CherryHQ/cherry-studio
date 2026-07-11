@@ -44,7 +44,7 @@ jobs:
 
       - name: Install WebUI dependencies
         working-directory: webui
-        run: pnpm install --ignore-workspace --no-frozen-lockfile
+        run: pnpm install --ignore-workspace --no-frozen-lockfile --allow-build=esbuild --allow-build=@parcel/watcher
 
       - name: Typecheck WebUI
         working-directory: webui
