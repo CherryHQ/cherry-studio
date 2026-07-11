@@ -36,8 +36,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
             skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
+              permission_mode: 'bypassPermissions'
             }
           }
         })

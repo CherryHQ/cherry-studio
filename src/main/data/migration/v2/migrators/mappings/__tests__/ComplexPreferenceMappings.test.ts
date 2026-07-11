@@ -1,3 +1,4 @@
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,8 +10,6 @@ import {
   type TransformFunction,
   type TransformResult
 } from '../ComplexPreferenceMappings'
-
-const appFavorite = (id: string) => ({ type: 'app', id })
 
 describe('ComplexPreferenceMappings', () => {
   describe('type exports', () => {
@@ -171,13 +170,7 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_favorites_migrate', () => {
-    const canonicalSidebarFavorites = [
-      appFavorite('assistants'),
-      appFavorite('agents'),
-      appFavorite('translate'),
-      appFavorite('paintings'),
-      appFavorite('knowledge')
-    ]
+    const canonicalSidebarFavorites = DefaultPreferences.default['ui.sidebar.favorites']
 
     it('should overwrite customized legacy favorites with the canonical tabs', () => {
       // Given
@@ -193,6 +186,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(result).toEqual({
         'ui.sidebar.favorites': canonicalSidebarFavorites
       })
+      expect(result?.['ui.sidebar.favorites']).toBe(canonicalSidebarFavorites)
     })
 
     it('should overwrite disabled legacy favorites with the canonical tabs', () => {

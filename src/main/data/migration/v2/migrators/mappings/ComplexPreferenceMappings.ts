@@ -19,6 +19,7 @@
  */
 
 import { loggerService } from '@logger'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -36,8 +37,6 @@ import {
 } from './TranslateTransforms'
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
-
-const DEFAULT_SIDEBAR_FAVORITE_IDS = ['assistants', 'agents', 'translate', 'paintings', 'knowledge'] as const
 
 // ============================================================================
 // Type Definitions
@@ -85,7 +84,7 @@ export interface ComplexMapping {
 
 function transformSidebarFavorites(): TransformResult {
   return {
-    'ui.sidebar.favorites': DEFAULT_SIDEBAR_FAVORITE_IDS.map((id) => ({ type: 'app' as const, id }))
+    'ui.sidebar.favorites': DefaultPreferences.default['ui.sidebar.favorites']
   }
 }
 
