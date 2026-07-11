@@ -84,4 +84,26 @@ describe('buildParamsSchema', () => {
     expect(parsed.numImages).toBe(2)
     expect(parsed.anything).toBe(1)
   })
+
+  it('coerces/catches a stale canonical key NOT in the current model support block (A3 regression)', () => {
+    // Path: registered model → no-support model → registered model. The middle model
+    // leaves a stale `seed` in painting.params, and the returned registered model does
+    // NOT declare `seed` in its `supports`. Before the fix the supported branch only
+    // caught declared keys and `.loose()` let `seed` ride RAW into the strict IPC
+    // schema (`imageParamsSchema`, no `.catch`), rejecting the whole submit. Now every
+    // catalog key is base-coerced first, then the model's constraints overlay.
+    const onlyNumImages = {
+      modes: { generate: { supports: { numImages: { type: 'range', min: 1, max: 4 } } } }
+    } as unknown as ImageGenerationSupport
+    const s = buildParamsSchema(onlyNumImages, 'generate')
+
+    const parsed = s.parse({ seed: 'abc', numImages: '2', legacyExtra: 'x' })
+    expect(parsed.seed).toBeUndefined() // stale invalid catalog key dropped, not passed raw
+    expect(parsed.numImages).toBe(2) // supported key still coerced + range-constrained
+    expect(parsed.legacyExtra).toBe('x') // genuinely non-catalog extra still passes via `.loose()`
+    // a VALID stale value for an unsupported catalog key still coerces through (preserved)
+    expect((s.parse({ seed: '7' }) as { seed?: number }).seed).toBe(7)
+    // the cleaned bag now survives the strict IPC-boundary schema instead of rejecting
+    expect(() => imageParamsSchema.parse(parsed)).not.toThrow()
+  })
 })
