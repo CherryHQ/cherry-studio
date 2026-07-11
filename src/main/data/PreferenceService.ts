@@ -269,9 +269,15 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-      if (windowId) {
-        this.subscribeForWindow(windowId, keys)
+      if (windowId === undefined) {
+        // Push delivery requires a resolvable BrowserWindow — resolving here
+        // would leave the renderer marked subscribed but never receiving
+        // pushes. Load-bearing assumption: every preference reader is a
+        // BrowserWindow; a view-hosted renderer would reject on every read.
+        logger.warn('Preference subscribe rejected: sender is not attached to a BrowserWindow')
+        throw new Error('Preference subscribe requires a BrowserWindow sender')
       }
+      this.subscribeForWindow(windowId, keys)
     })
   }
 

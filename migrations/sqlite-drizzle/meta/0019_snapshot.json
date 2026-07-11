@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a92eb84f-bd39-4417-880f-8419910b4144",
+  "id": "2db09e8e-7808-4ecb-a6e2-8e57c0340882",
   "prevId": "056f15b4-1256-4d30-85f9-c1ad2f1b23c6",
   "tables": {
     "agent": {
@@ -558,6 +558,11 @@
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
+        },
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -637,8 +642,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2533,8 +2538,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

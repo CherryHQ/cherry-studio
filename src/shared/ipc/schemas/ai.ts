@@ -78,7 +78,11 @@ export const aiRequestSchemas = {
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
   'ai.check_model': defineRoute({
-    input: z.strictObject({ ...aiBaseRequestShape, timeout: z.number().optional() }),
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
     output: z.object({ latency: z.number() })
   }),
   'ai.embed_many': defineRoute({

@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useEffect } from 'react'
 
 import HomeWindow from './home/HomeWindow'
@@ -42,15 +43,20 @@ function QuickAssistantContent(): React.ReactElement {
  */
 function QuickAssistantApp(): React.ReactElement {
   return (
-    <ThemeProvider>
-      <CodeStyleProvider>
-        <ErrorBoundary>
-          <QuickAssistantContent />
-          <PopupHost />
-          <ToastHost />
-        </ErrorBoundary>
-      </CodeStyleProvider>
-    </ThemeProvider>
+    // Outer boundary: ancestor of the providers, catches provider render throws with
+    // the context-free fatal fallback. The inner boundary keeps content-area errors
+    // themed without tearing down the providers.
+    <ErrorBoundary fallbackComponent={WindowFatalFallback}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <ErrorBoundary>
+            <QuickAssistantContent />
+            <PopupHost />
+            <ToastHost />
+          </ErrorBoundary>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

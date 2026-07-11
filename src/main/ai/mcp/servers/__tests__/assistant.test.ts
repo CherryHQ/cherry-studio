@@ -43,6 +43,7 @@ describe('isAllowedAssistantNavigationPath', () => {
   })
 
   it('blocks removed routes and prefix lookalikes', () => {
+    expect(isAllowedAssistantNavigationPath('/openclaw')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/store')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/app/library')).toBe(false)
     expect(isAllowedAssistantNavigationPath('/agents-legacy')).toBe(false)

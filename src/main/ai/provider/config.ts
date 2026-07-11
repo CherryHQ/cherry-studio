@@ -12,6 +12,7 @@ import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,8 +42,13 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+}
+
+interface ProviderToAiSdkConfigOptions {
+  apiKeyOverride?: string
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -88,19 +94,24 @@ type ConfigBuilderEntry = {
 }
 
 /** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
-export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
+export async function providerToAiSdkConfig(
+  provider: Provider,
+  model: Model,
+  options?: ProviderToAiSdkConfigOptions
+): Promise<ProviderConfig> {
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = providerService.getRotatedApiKey(provider.id)
+  const apiKey = options?.apiKeyOverride ?? providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
     baseConfig: { baseURL, apiKey },
+    endpointType,
     endpoint,
     aiSdkProviderId
   }
@@ -110,6 +121,15 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: buildGrokCliConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
+    // Local embedding runs fully in-process (transformers.js in a worker): no
+    // endpoint, baseURL, or apiKey. Without this entry it falls through to the
+    // openai-compatible builder, which hands ai-core an empty baseURL and throws
+    // "Invalid URL". Route it to its own registered provider so embed calls reach
+    // LocalEmbeddingModel.doEmbed directly.
+    {
+      match: (p) => p.id === LOCAL_EMBEDDING_PROVIDER_ID,
+      build: (ctx) => ({ providerId: LOCAL_EMBEDDING_PROVIDER_ID, endpoint: ctx.endpoint, providerSettings: {} })
+    },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
@@ -476,8 +496,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
     // CherryIn provider may not exist
   }
 
-  const endpointType = ctx.model.endpointTypes?.[0]
-  const cherryinEndpointType = mapCherryinEndpointType(endpointType)
+  const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 
   return {
     providerId: ctx.aiSdkProviderId,
@@ -501,7 +520,7 @@ function buildAzureConfig(
   ctx: BuilderContext
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
 
   // Azure + Claude model → azure-anthropic
   if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
@@ -611,7 +630,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
 }
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
   let rawBaseURL: string
 
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {

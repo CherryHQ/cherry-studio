@@ -552,6 +552,9 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
       sharedData: new Map([['legacyAssistantIdRemap', new Map([['default', remappedDefaultId]])]])
     }
     await migrator.prepare(ctx as any)
+    expect(ctx.sources.dexieExport.readTable).not.toHaveBeenCalled()
+    expect(ctx.sources.dexieExport.createStreamReader).toHaveBeenCalledWith('topics')
+    expect(ctx.sources.dexieExport.createStreamReader).not.toHaveBeenCalledWith('message_blocks')
 
     const internal = migrator as unknown as {
       topicMetaLookup: Map<string, { name?: string; pinned?: boolean }>
@@ -565,6 +568,52 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     // defaultAssistant's topic resolves through the remap, not the dead 'default' literal.
     expect(internal.topicAssistantLookup.get('topic-X')).toBe(remappedDefaultId)
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
+  })
+})
+
+describe('ChatMigrator message block index', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'u1')
+    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      await onBatch([b2, b1])
+      return 2
+    })
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blocksExist'] = true
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const ctx = {
+      db: dbh.db,
+      sources: {
+        dexieExport: {
+          createStreamReader: vi.fn().mockReturnValue({ readInBatches })
+        }
+      }
+    } as unknown as MigrationContext
+
+    const prepareBlockIndex = m['prepareBlockIndex'] as (ctx: MigrationContext) => Promise<void>
+    await prepareBlockIndex.call(migrator, ctx)
+
+    const prepareTopicData = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await prepareTopicData.call(migrator, topic('t1', [msg('u1', 'user', ['b1', 'b2'])]))
+
+    expect(result).not.toBeNull()
+    expect(result?.messages).toHaveLength(1)
+    expect(result?.messages[0]?.searchableText).toContain('Content of b1')
+    expect(result?.messages[0]?.searchableText).toContain('Content of b2')
+    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
   })
 })
 

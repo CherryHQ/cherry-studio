@@ -5,6 +5,7 @@ import { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind } from './chatTokenView
 export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'skill',
   'file',
+  'folder',
   'command',
   'knowledge',
   'reference',
