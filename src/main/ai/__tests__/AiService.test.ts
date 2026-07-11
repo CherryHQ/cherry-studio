@@ -945,6 +945,53 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
   })
 
+  it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
+    // Async PPIO/DashScope jobs resume against the endpoint / response-family carried
+    // in the payload; guard that a non-default mode routes through ITS OWN
+    // vendorTransport and the derived descriptor reaches the enqueued job. Without
+    // this, a restart-resume (or an edit-mode job) would hit the wrong endpoint.
+    const service = createService()
+    stubResolution(service)
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: { vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions', isSync: false } }
+      }
+    })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      mode: 'edit',
+      paramValues: {},
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    // The descriptor is derived from the registry (main-hosted), keyed by the
+    // resolved mode — NOT laundered through paramValues.
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image')
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        modelDescriptor: {
+          id: 'qwen-image',
+          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+          isSync: false,
+          mode: 'edit'
+        }
+      })
+    )
+  })
+
   it('maps a failed job snapshot to a thrown error', async () => {
     const service = createService()
     stubResolution(service)
