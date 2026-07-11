@@ -1084,8 +1084,9 @@ describe('writeCliConfigDraft', () => {
       expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
 
       const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
-      // Gateway addressing: single colon, providerId:apiModelId (NOT the "::" internal id).
-      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat' })
+      // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
+      // suffix that keeps gemini-cli's model normalization from rewriting the name.
+      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
       // The real provider is never read, so its key can't leak into the CLI config file.
       expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })

@@ -267,7 +267,7 @@ describe('CodeCliService', () => {
       }
     }
 
-    it('addresses the model as providerId:modelId in gateway mode', async () => {
+    it('addresses the model as providerId:modelId plus the sentinel suffix in gateway mode', async () => {
       const script = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.GEMINI_CLI,
@@ -276,7 +276,9 @@ describe('CodeCliService', () => {
         gateway: true,
         directory: '/tmp/project'
       })
-      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash')
+      // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
+      // any name satisfying endsWith("flash") to a default Gemini model.
+      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
     })
 
     it('passes the bare model id in direct (non-gateway) mode', async () => {

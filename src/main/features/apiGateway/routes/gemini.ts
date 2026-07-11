@@ -1,4 +1,5 @@
 import { bearer } from '@elysia/bearer'
+import { stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
@@ -14,12 +15,14 @@ const GENERATE_METHODS = new Set(['generateContent', 'streamGenerateContent'])
  * Split the wildcard path segment `providerId:apiModelId:method` into its model
  * (`providerId:apiModelId`, kept intact for `processMessage`) and the trailing
  * method. The model itself contains a colon, so the method is taken off the LAST
- * colon. Returns `null` when there is no method separator.
+ * colon. Returns `null` when there is no method separator. The model may carry the
+ * gemini-cli sentinel suffix (see `GEMINI_GATEWAY_MODEL_SUFFIX`) — strip it here so
+ * routing sees the real gateway address.
  */
 function parseModelMethod(raw: string): { model: string; method: string } | null {
   const lastColon = raw.lastIndexOf(':')
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
-  return { model: raw.slice(0, lastColon), method: raw.slice(lastColon + 1) }
+  return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
 }
 
 /** Best-effort token estimate over a Gemini request's text parts. */

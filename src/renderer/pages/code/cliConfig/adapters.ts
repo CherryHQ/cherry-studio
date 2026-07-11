@@ -1,5 +1,6 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import {
   CLAUDE_SETTINGS_PATH,
@@ -502,12 +503,19 @@ const geminiAdapter: CliConfigAdapter = {
     const envText = await readDraftFileText('gemini-env', args.files)
     const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files)
     const baseUrl = resolveGeminiBaseUrl(provider)
+    // Gateway addresses carry the sentinel suffix so gemini-cli's model
+    // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
+    // extractConnection strips it back off for connection matching.
+    const settingsModel = isApiGatewayProviderId(provider.id) ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
     return [
       await makeDraftFile(
         'gemini-env',
         renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl }), envText)
       ),
-      await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiSettingsConfig(settings, { model }, configBlob)))
+      await makeDraftFile(
+        'gemini-settings',
+        renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
+      )
     ]
   },
   assertCredentials(context) {
@@ -563,10 +571,11 @@ const geminiAdapter: CliConfigAdapter = {
   extractConnection(files) {
     const env = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+    const model = stringValue(asRecord(settings.model).name)
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model: stringValue(asRecord(settings.model).name)
+      model: model === undefined ? model : stripGeminiGatewayModelSuffix(model)
     }
   },
   extractConfig(files) {

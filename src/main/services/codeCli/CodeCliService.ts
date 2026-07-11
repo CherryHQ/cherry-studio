@@ -10,6 +10,7 @@ import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -466,9 +467,11 @@ export class CodeCliService extends BaseService {
       // default / "auto" model routing overrides it (google-gemini/gemini-cli#5373) — so the
       // model it actually calls must be passed on the command line, the one source it honors
       // verbatim. In gateway mode it needs the `providerId:modelId` address the gateway parses
-      // from the URL path; direct mode passes the bare model id.
+      // from the URL path, carrying the sentinel suffix so gemini-cli's model normalization
+      // can't rewrite a name ending in "flash" (see GEMINI_GATEWAY_MODEL_SUFFIX); direct mode
+      // passes the bare model id.
       if (normal) {
-        const modelArg = normal.gateway ? `${normal.providerId}:${normal.model}` : normal.model
+        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
         // Bare-concatenated into the launch command like OpenCode's model above, so reject a
         // model id carrying shell metacharacters rather than launch.
         if (!isShellSafeModelId(modelArg)) {

@@ -255,6 +255,18 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
+      // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
+      // normalization can't rewrite names ending in "flash"; the route must strip it.
+      await read(
+        await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash@cherry:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
     it('countTokens: returns a local estimate without calling processMessage', async () => {
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', geminiBody)

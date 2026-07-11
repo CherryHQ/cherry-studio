@@ -20,3 +20,26 @@ export function formatGatewayModelId(providerId: string, apiModelId: string): st
   }
   return `${providerId}:${apiModelId}`
 }
+
+/**
+ * Sentinel suffix on the gateway model id handed to gemini-cli (`--model` and
+ * `settings.model.name`). gemini-cli normalizes model names it thinks are its own:
+ * its `resolveModel` rewrites anything satisfying `endsWith("flash")` (or equal to
+ * aliases like `flash`/`auto`) to a default Gemini model, which corrupts any
+ * `providerId:apiModelId` address whose model happens to end in "flash" (e.g.
+ * `agent/deepseek-v4-flash` → sent as `gemini-3.5-flash`). The suffix makes the
+ * string unrecognizable to those checks and rides along verbatim in the request
+ * URL; the gateway's Gemini route (and the CLI-config connection readback) strip
+ * exactly one trailing sentinel via {@link stripGeminiGatewayModelSuffix}.
+ */
+export const GEMINI_GATEWAY_MODEL_SUFFIX = '@cherry'
+
+/** {@link formatGatewayModelId} plus the gemini-cli sentinel suffix (see above). */
+export function formatGeminiGatewayModelId(providerId: string, apiModelId: string): string {
+  return `${formatGatewayModelId(providerId, apiModelId)}${GEMINI_GATEWAY_MODEL_SUFFIX}`
+}
+
+/** Undo {@link formatGeminiGatewayModelId}: strip one trailing sentinel, if present. */
+export function stripGeminiGatewayModelSuffix(model: string): string {
+  return model.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX) ? model.slice(0, -GEMINI_GATEWAY_MODEL_SUFFIX.length) : model
+}
