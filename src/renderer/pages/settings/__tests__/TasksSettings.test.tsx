@@ -127,13 +127,17 @@ vi.mock('@renderer/components/ListItem', () => ({
   )
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    i18n: { language: 'en-US' },
-    t: (key: string) => key
-  })
-}))
+// Return a STABLE translation object: react-i18next's real `t` is stable across
+// renders, but a fresh `t` per call makes `loadData` (useCallback([t])) churn, so its
+// fetch effect re-runs every render and a post-click refetch resets the schedule form
+// mid-interaction — a race that made the schedule-type-swap test flaky.
+vi.mock('react-i18next', () => {
+  const translation = { i18n: { language: 'en-US' }, t: (key: string) => key }
+  return {
+    initReactI18next: { type: '3rdParty', init: vi.fn() },
+    useTranslation: () => translation
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext<{
@@ -544,6 +548,11 @@ describe('TasksSettings task logs', () => {
     render(<TasksSettings />)
 
     await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
+
+    // Drain any still-pending task-load/auto-select updates: `findBy` resolves as
+    // soon as the interval input mounts, but a late one could re-render (and briefly
+    // unmount) the detail panel right after the click, dropping the schedule input.
+    await act(async () => {})
 
     // Interval is the task's initial type.
     expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
