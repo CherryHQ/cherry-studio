@@ -3,7 +3,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, ensureDir, read, remove } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import { type FilePath, FilePathSchema } from '@shared/types/file'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets } from '@shared/utils/cliConfig'
 
@@ -21,7 +21,7 @@ interface FileSnapshot {
 /** Spec paths are all `~/…`; resolve against the OS home dir (matches the renderer's App_ResolvePath view). */
 function resolveTargetPath(target: CliConfigTarget): FilePath {
   const specPath = CLI_CONFIG_FILE_SPECS[target].path
-  return path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, '')) as FilePath
+  return FilePathSchema.parse(path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, '')))
 }
 
 async function readOrNull(absPath: FilePath): Promise<string | null> {
@@ -63,7 +63,7 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
       const absPath = resolveTargetPath(file.target)
       const previousContent = await readOrNull(absPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
-      await ensureDir(path.dirname(absPath) as FilePath)
+      await ensureDir(FilePathSchema.parse(path.dirname(absPath)))
       await atomicWriteFile(absPath, file.content, { mode: CLI_CONFIG_FILE_MODE })
       logger.info(`Applied ${cliTool} config to ${absPath}`)
     }
