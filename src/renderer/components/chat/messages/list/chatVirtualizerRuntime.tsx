@@ -467,10 +467,22 @@ export function useChatVirtualizerRuntime<T>({
   }, [clearFreeze])
 
   const releaseUserControlIfAtBottomAfterLayout = useCallback(() => {
+    const requestedScroller = scrollerRef.current
+    // Local disclosures request recovery in the same event that schedules their
+    // React update. Capture eligibility now, before a shrink can move the real
+    // bottom above a preserved reading position and make negative distance look
+    // like "already at bottom". The tracker covers non-interaction transitions
+    // (for example stream completion) that request recovery after their commit.
+    const shouldRecoverAfterLayout =
+      atBottom.isAtBottom() ||
+      (requestedScroller !== null &&
+        Math.abs(getRealBottom(requestedScroller, bottomFollowInsetRef.current) - requestedScroller.scrollTop) <=
+          FREEZE_REASSERT_TOLERANCE_PX)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const el = scrollerRef.current
         if (!el || scrollDriverRef.current !== 'user') return
+        if (!shouldRecoverAfterLayout) return
         if (preserveScrollAnchorRef.current && anchor.spacerHeight > FREEZE_REASSERT_TOLERANCE_PX) return
         const realBottom = getRealBottom(el, bottomFollowInsetRef.current)
         // Freeze slack can hold scrollTop below the natural content edge after
@@ -918,10 +930,18 @@ export function useChatVirtualizerRuntime<T>({
             handBackToRuntime()
           }
         }
+      } else {
+        // A content shrink can clamp scrollTop before this runtime's
+        // ResizeObserver runs, and virtua may apply its own remeasure
+        // compensation after that observer. Close both ordering windows at the
+        // scroll boundary: restore any lost range, then re-assert the viewport
+        // anchor synchronously before the browser paints the drift.
+        maintainFreezeScrollRange()
+        reassertFreeze()
+        updateScrollToBottomButtonVisibility()
+        saveScrollPosition()
+        return
       }
-      // Programmatic scrolls while frozen (virtua remeasure compensation) don't
-      // touch the tracker; the ResizeObserver pass re-asserts the freeze if they
-      // actually drifted the viewport.
     } else {
       // A scroll during a preserve turn whose pin is gone (it just released, or
       // there never was one) hands governance to the at-bottom tracker, so
@@ -953,7 +973,9 @@ export function useChatVirtualizerRuntime<T>({
     getNaturalScrollHeight,
     handBackToRuntime,
     isBottomFollowSuppressed,
+    maintainFreezeScrollRange,
     maybeNotifyReachTop,
+    reassertFreeze,
     saveScrollPosition,
     smoothScroll,
     stickToEffectiveBottom,

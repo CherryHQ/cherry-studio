@@ -11,7 +11,7 @@ export interface PartEntry {
 
 export interface LiveProcessLayoutItem {
   kind: 'process'
-  /** Original index of the first visible reasoning/tool part in this run. */
+  /** Original index of the first visible entry in this process history. */
   key: number
   entries: readonly PartEntry[]
 }
@@ -136,22 +136,39 @@ function isVisibleProcessPart(part: CherryMessagePart, standaloneToolCallIds?: R
 /**
  * Projects an active message into stable, ordered layout items.
  *
- * Hidden transport markers are discarded without splitting a process run.
- * Every other non-process part is a hard boundary.
+ * Hidden transport markers are discarded without splitting process history.
+ * Within each region bounded by an interactive or side-channel tool, visible
+ * content through the last reasoning/tool part belongs to one process item.
+ * Only the trailing content remains outside as the current result candidate.
  */
 export function projectLiveMessageParts(
   entries: readonly PartEntry[],
   standaloneToolCallIds?: ReadonlySet<string>
 ): LiveMessagePartLayoutItem[] {
   const items: LiveMessagePartLayoutItem[] = []
-  let processEntries: PartEntry[] = []
-  let processKey: number | null = null
+  let regionEntries: PartEntry[] = []
 
-  const flushProcess = () => {
-    if (processKey === null) return
-    items.push({ kind: 'process', key: processKey, entries: processEntries })
-    processEntries = []
-    processKey = null
+  const flushRegion = () => {
+    let lastProcessPosition = -1
+    for (let position = regionEntries.length - 1; position >= 0; position--) {
+      if (isVisibleProcessPart(regionEntries[position].part, standaloneToolCallIds)) {
+        lastProcessPosition = position
+        break
+      }
+    }
+
+    if (lastProcessPosition >= 0) {
+      const processEntries = regionEntries.slice(0, lastProcessPosition + 1)
+      items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+    }
+
+    const resultStart = lastProcessPosition + 1
+    for (let position = resultStart; position < regionEntries.length; position++) {
+      const entry = regionEntries[position]
+      items.push({ kind: 'part', key: entry.index, entry })
+    }
+
+    regionEntries = []
   }
 
   for (let position = 0; position < entries.length; position++) {
@@ -165,26 +182,21 @@ export function projectLiveMessageParts(
       standaloneToolCallIds?.has(entry.part.toolCallId) &&
       isFoldableToolPart(entry.part)
     ) {
-      flushProcess()
+      flushRegion()
       items.push({ kind: 'process', key: entry.index, entries: [entry] })
       continue
     }
 
-    if (isVisibleProcessPart(entry.part, standaloneToolCallIds)) {
-      if (processKey === null) {
-        processKey = entry.index
-        processEntries = [entry]
-      } else {
-        processEntries.push(entry)
-      }
+    if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part, standaloneToolCallIds)) {
+      flushRegion()
+      items.push({ kind: 'part', key: entry.index, entry })
       continue
     }
 
-    flushProcess()
-    items.push({ kind: 'part', key: entry.index, entry })
+    regionEntries.push(entry)
   }
 
-  flushProcess()
+  flushRegion()
   return items
 }
 

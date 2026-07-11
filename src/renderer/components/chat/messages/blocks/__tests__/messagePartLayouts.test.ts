@@ -17,7 +17,7 @@ function indexes(items: readonly PartEntry[]): number[] {
 }
 
 describe('projectLiveMessageParts', () => {
-  it('forms maximal process runs and keys them by the first visible process part', () => {
+  it('forms one process history through intermediate text and keys it by the first visible entry', () => {
     const layout = projectLiveMessageParts(
       entries([
         { type: 'step-start' },
@@ -30,12 +30,9 @@ describe('projectLiveMessageParts', () => {
       ])
     )
 
-    expect(layout).toHaveLength(3)
+    expect(layout).toHaveLength(1)
     expect(layout[0]).toMatchObject({ kind: 'process', key: 1 })
-    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([1, 3])
-    expect(layout[1]).toMatchObject({ kind: 'part', key: 4 })
-    expect(layout[2]).toMatchObject({ kind: 'process', key: 6 })
-    expect(layout[2].kind === 'process' ? indexes(layout[2].entries) : []).toEqual([6])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([1, 3, 4, 6])
   })
 
   it('treats AskUserQuestion as a hard boundary between ordinary tool runs', () => {
@@ -159,14 +156,11 @@ describe('projectLiveMessageParts', () => {
       ])
     )
 
-    expect(layout.map((item) => [item.kind, item.key])).toEqual([
-      ['part', 0],
-      ['part', 1],
-      ['process', 2]
-    ])
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
   })
 
-  it('preserves visible text/tool order across hard boundaries', () => {
+  it('keeps intermediate text inside process history and only the trailing result outside', () => {
     const layout = projectLiveMessageParts(
       entries([
         { type: 'text', text: 'Before' },
@@ -177,11 +171,10 @@ describe('projectLiveMessageParts', () => {
     )
 
     expect(layout.map((item) => [item.kind, item.key])).toEqual([
-      ['part', 0],
-      ['process', 1],
+      ['process', 0],
       ['part', 3]
     ])
-    expect(layout[1].kind === 'process' ? indexes(layout[1].entries) : []).toEqual([1, 2])
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 1, 2])
   })
 })
 

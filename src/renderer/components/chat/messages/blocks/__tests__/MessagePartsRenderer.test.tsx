@@ -716,7 +716,7 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('active layout', () => {
-    it('keeps active text outside process runs when later tools arrive', () => {
+    it('moves intermediate text into the stable process run when a later tool arrives', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
       const initialParts = [
@@ -728,13 +728,16 @@ describe('MessagePartsRenderer', () => {
       const answer = screen.getByText('answer in progress')
       expect(answer.closest('[data-live-process-run]')).toBeNull()
       expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(1)
+      const processRun = document.querySelector<HTMLElement>('[data-live-process-run]')
+      fireEvent.click(within(processRun!).getByRole('button'))
 
       const laterParts = [...initialParts, toolPart('edit', 'input-available')] as CherryMessagePart[]
       rerender(renderPartsTree(laterParts, pendingMessage))
 
-      expect(screen.getByText('answer in progress')).toBe(answer)
-      expect(answer.closest('[data-live-process-run]')).toBeNull()
-      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(2)
+      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(1)
+      expect(document.querySelector('[data-live-process-run]')).toBe(processRun)
+      expect(within(processRun!).getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('answer in progress').closest('[data-live-process-run]')).toBe(processRun)
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
     })
 
@@ -807,7 +810,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveAttribute('data-header-status', 'error')
     })
 
-    it('uses text, AskUserQuestion, approval tools, and report tools as hard process boundaries', () => {
+    it('folds intermediate text while keeping interactive and side-channel tools as hard boundaries', () => {
       activateTurn()
       renderParts(
         [
@@ -833,8 +836,10 @@ describe('MessagePartsRenderer', () => {
         msg({ status: 'pending' })
       )
 
-      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(6)
-      expect(screen.getByText('status text').closest('[data-live-process-run]')).toBeNull()
+      const runs = document.querySelectorAll<HTMLElement>('[data-live-process-run]')
+      expect(runs).toHaveLength(5)
+      fireEvent.click(within(runs[0]).getByRole('button'))
+      expect(screen.getByText('status text').closest('[data-live-process-run]')).toBe(runs[0])
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     })
 
@@ -843,7 +848,7 @@ describe('MessagePartsRenderer', () => {
       renderParts(
         [
           toolPart('read'),
-          { type: 'text', text: 'between runs' },
+          toolPart('ask', 'output-available', 'AskUserQuestion'),
           toolPart('edit', 'input-available')
         ] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
