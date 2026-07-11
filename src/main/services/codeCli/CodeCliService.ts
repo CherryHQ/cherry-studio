@@ -330,8 +330,6 @@ export class CodeCliService extends BaseService {
   async run(input: CodeCliRunInput): Promise<OperationResult> {
     const { cliTool, directory } = input
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
-    const env: Record<string, string> = { ...getBinaryExecutionEnv() }
-    logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
@@ -378,8 +376,10 @@ export class CodeCliService extends BaseService {
     // Only install when neither source has the executable.
     const binaryManager = application.get('BinaryManager')
     let executablePath: string | undefined
+    let isCherryManaged = false
     if (await isBinaryExists(executableName)) {
       executablePath = await getBinaryPath(executableName)
+      isCherryManaged = true
     } else {
       executablePath = (await binaryManager.probeSystem([executableName]))[executableName]
     }
@@ -401,7 +401,14 @@ export class CodeCliService extends BaseService {
         return { success: false, message }
       }
       executablePath = await getBinaryPath(executableName)
+      isCherryManaged = true
     }
+
+    // Cherry's MISE_* variables are required only by Cherry-managed shims. Injecting
+    // them while launching a system mise shim redirects that shim to Cherry's
+    // isolated data directory, where the user's installed tool does not exist.
+    const env: Record<string, string> = isCherryManaged ? { ...getBinaryExecutionEnv() } : {}
+    logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
     const platform = process.platform

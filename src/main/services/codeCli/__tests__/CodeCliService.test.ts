@@ -291,7 +291,9 @@ describe('CodeCliService', () => {
       expect(result.success).toBe(true)
       expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
       expect(binaryManagerMock.probeSystem).toHaveBeenCalledWith(['claude'])
-      expect((vi.mocked(spawn).mock.calls.at(-1)?.[1] as string[]).join(' ')).toContain('/usr/local/bin/claude')
+      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] as string[]).join(' ')
+      expect(launchArgs).toContain('/usr/local/bin/claude')
+      expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })
 
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {
