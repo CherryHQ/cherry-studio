@@ -17,7 +17,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getMcpServerById: vi.fn(),
+  findMcpServer: vi.fn(),
   applicationGet: vi.fn(),
   listMcpTools: vi.fn()
 }))
@@ -28,7 +28,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { getById: mocks.getMcpServerById } }))
+vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mocks.findMcpServer } }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 
@@ -51,7 +51,7 @@ function createDeferred<T>() {
 describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getMcpServerById.mockReturnValue({ id: 'mcp-1', name: 'server' })
+    mocks.findMcpServer.mockReturnValue({ id: 'mcp-1', name: 'server' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
@@ -105,6 +105,52 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       id: 'mcp__server__searchDocs',
       name: 'search_docs'
     })
+  })
+
+  it('resolves an MCP entry referenced by server name, not only by id', async () => {
+    // `agent.mcps` may hold a server name; findByIdOrName resolves it where the old getById(id) threw.
+    // The arg-sensitive mock (returns undefined for anything but the name) proves the name is passed through.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'server' ? { id: 'mcp-1', name: 'server' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['server']))
+
+    expect(mocks.findMcpServer).toHaveBeenCalledWith('server')
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+  })
+
+  it('drops a server that becomes unknown on a later update instead of carrying it forward', async () => {
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+    expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Server deleted → resolver returns undefined. Unlike a transient listTools failure, a genuinely
+    // missing server must drop its descriptor, not resurrect it via the carry-forward path.
+    mocks.findMcpServer.mockReturnValue(undefined)
+    await snapshot.update(makeAgent([], ['mcp-1']))
+
+    expect(snapshot.resolve('mcp__server__searchDocs')).toBeUndefined()
+  })
+
+  it('preserves prior descriptors of a name-referenced server on a transient failure', async () => {
+    // agent.mcps holds the server NAME; failedMcpIds must be keyed by the resolved server.id so the
+    // carry-forward (which matches against prior descriptors' sourceId = server.id) still fires.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'docs' ? { id: 'mcp-1', name: 'docs' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['docs']))
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Transient catalog failure on the same (name-referenced) server must not drop its descriptor.
+    mocks.listMcpTools.mockImplementationOnce(() => {
+      throw new Error('catalog unavailable')
+    })
+    await snapshot.update(makeAgent([], ['docs']))
+
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
   it('keeps the newest policy when an older rebuild completes late', async () => {
