@@ -38,10 +38,15 @@ vi.mock('../danglingCache', () => ({
   danglingCache: { onFsEvent: vi.fn() }
 }))
 
-const { createDirectoryWatcher } = await import('../watcher')
+const loadCreateDirectoryWatcher = async (isWin: boolean) => {
+  vi.doMock('@main/core/platform', () => ({ isWin }))
+  const { createDirectoryWatcher } = await import('../watcher')
+  return createDirectoryWatcher
+}
 
 describe('DirectoryWatcher error recovery', () => {
   beforeEach(() => {
+    vi.resetModules()
     vi.clearAllMocks()
     mocks.watchers.length = 0
   })
@@ -51,7 +56,7 @@ describe('DirectoryWatcher error recovery', () => {
   })
 
   it('falls back to polling instead of reporting a fatal error after a native Windows EPERM', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
     const watcher = createDirectoryWatcher('C:/Notes' as FilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))
@@ -67,7 +72,7 @@ describe('DirectoryWatcher error recovery', () => {
   })
 
   it('reports EPERM as fatal on non-Windows platforms', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
     const watcher = createDirectoryWatcher('/notes' as FilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))
@@ -82,7 +87,7 @@ describe('DirectoryWatcher error recovery', () => {
   })
 
   it('reports a second EPERM as fatal after the Windows watcher has fallen back to polling', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
     const watcher = createDirectoryWatcher('C:/Notes' as FilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))

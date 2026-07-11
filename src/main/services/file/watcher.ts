@@ -37,6 +37,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import type { FilePath } from '@shared/types/file'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
@@ -136,7 +137,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
 
   private handleError(err: Error): void {
     const code = (err as NodeJS.ErrnoException).code
-    const isWindowsEperm = process.platform === 'win32' && (code === 'EPERM' || err.message.includes('EPERM'))
+    const isWindowsEperm = isWin && (code === 'EPERM' || err.message.includes('EPERM'))
     const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsEperm
     if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
       logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
