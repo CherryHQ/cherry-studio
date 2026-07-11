@@ -169,7 +169,7 @@ export function KnowledgeBaseAvatar({
   className?: string
 }) {
   return (
-    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)', color: 'rgb(124, 58, 237)' }}>
       <Database size={14} strokeWidth={1.4} />
     </span>
   )

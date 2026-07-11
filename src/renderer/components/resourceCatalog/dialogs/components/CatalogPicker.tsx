@@ -231,7 +231,8 @@ export const AddCatalogPopover: FC<{
             value={search}
             onValueChange={setSearch}
             placeholder={searchPlaceholder}
-            className="h-8 text-xs"
+            wrapperClassName="mx-2 mt-2 mb-1 h-7 rounded-full border-[0.5px] border-border-subtle px-2.5"
+            className="h-7 text-xs placeholder:text-muted-foreground/40"
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
@@ -251,7 +252,7 @@ export const AddCatalogPopover: FC<{
                     }}>
                     {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-foreground/90">{option.item.name}</div>
+                      <div className="truncate text-foreground/70">{option.item.name}</div>
                       {option.item.description ? (
                         <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
                       ) : null}

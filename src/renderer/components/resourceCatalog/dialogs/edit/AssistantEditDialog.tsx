@@ -650,7 +650,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="temperature"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full max-w-xl">
+            <div className="-mb-2 mt-3 w-full">
               <Slider
                 min={0}
                 max={2}
@@ -675,7 +675,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="topP"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full max-w-xl">
+            <div className="-mb-2 mt-3 w-full">
               <Slider
                 min={0}
                 max={1}
@@ -810,7 +810,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground/80 text-sm">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-muted-foreground/60 text-xs">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
