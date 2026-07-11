@@ -146,7 +146,7 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 - **`isScheduleOverdue` has three branches** (relevant when picking `catchUpPolicy: 'after-startup'`):
   - **`cron`** triggers compare `nextRun ≤ now()` from the persisted column.
   - **`interval`** triggers compare `lastRun + intervalMs ≤ now()` (SchedulerService does not maintain `nextRun` for interval schedules — `lastRun` is the canonical anchor).
-  - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally.
+  - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally. Startup recovery enforces the complementary invariant: natural `once` fires persist `lastRun` clamped to no earlier than `trigger.at` (the once timer elapses on the monotonic clock, so an unclamped wall-clock read can land at `at - 1`), and `armSchedule` skips rows with `lastRun >= trigger.at` instead of re-arming them, while a never-fired past-due `once` still re-arms and fires immediately. This is a recovery-side guard, not strict exactly-once delivery — a crash between a fire's enqueue and its `markFired` write can still replay the one-shot on the next startup.
 
 ## 5. Error codes (renderer maps via i18next)
 
