@@ -552,7 +552,7 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated assistant description' } })
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
-    expect(modelTrigger).toHaveClass('h-8', 'rounded-md', 'border-input', 'bg-background')
+    expect(modelTrigger).toHaveClass('h-8', 'rounded-lg', 'bg-muted/50')
     expect(screen.getByText(/Old Model/)).toBeInTheDocument()
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
@@ -576,7 +576,7 @@ describe('edit dialogs', () => {
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     const clearButton = screen.getByRole('button', { name: 'Model Clear' })
 
-    expect(modelTrigger).toHaveClass('hover:bg-background')
+    expect(modelTrigger).toHaveClass('hover:bg-muted')
     expect(modelTrigger).not.toHaveClass('pr-7')
     expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
 

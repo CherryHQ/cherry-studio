@@ -84,7 +84,12 @@ export const CatalogToggleGrid: FC<{
 
         const info = (
           <div className="min-w-0">
-            <div className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
+            <div
+              className={cn(
+                'flex min-w-0 items-center gap-1.5',
+                variant === 'checkbox' ? 'text-sm' : 'text-[13px]',
+                toggleDisabled && 'text-muted-foreground'
+              )}>
               <span className="truncate" title={item.name}>
                 {item.name}
               </span>
@@ -121,7 +126,9 @@ export const CatalogToggleGrid: FC<{
         }
 
         return (
-          <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1">
+          <div
+            key={item.id}
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted px-3 py-2">
             {info}
             <Tooltip
               content={disabledReason}

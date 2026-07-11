@@ -77,14 +77,14 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
 ]
 
 const EDIT_DIALOG_TAB_TRIGGER_CLASS =
-  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
+  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-0 text-left font-normal text-muted-foreground text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
 
 const EDIT_DIALOG_GROUP_BUTTON_CLASS =
-  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-0 text-left font-normal text-muted-foreground text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
 
-export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '200px'
+export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '260px'
 export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '42vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
@@ -144,9 +144,9 @@ export function FieldLabelWithHelp({
 }) {
   const { t } = useTranslation()
   const labelContent = formLabel ? (
-    <FormLabel>{label}</FormLabel>
+    <FormLabel className="font-normal">{label}</FormLabel>
   ) : (
-    <span className="font-medium text-foreground text-sm leading-none">{label}</span>
+    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
   )
 
   return (
@@ -368,7 +368,7 @@ export function EditDialogShell<TValues extends FieldValues>({
         closeOnOverlayClick={!isSubmitting}
         className="flex h-[min(600px,70vh)] flex-col gap-4 sm:max-w-180 lg:max-w-200"
         onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
-        <DialogTitle className="text-xl">{title}</DialogTitle>
+        <DialogTitle className="text-lg">{title}</DialogTitle>
 
         <Form {...form}>
           <form
@@ -485,7 +485,7 @@ export function AvatarField({
       name="avatar"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{t('common.avatar')}</FormLabel>
+          <FormLabel className="font-normal">{t('common.avatar')}</FormLabel>
           <EmojiAvatarPicker
             value={avatar}
             fallback={fallback}
@@ -527,7 +527,7 @@ export function TextInputField({
       rules={required ? { validate: (value) => value.trim().length > 0 || t('common.required_field') } : undefined}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel className="font-normal">{label}</FormLabel>
           <FormControl>
             {name === 'description' ? (
               <Textarea.Input
@@ -596,7 +596,7 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel className="font-normal">{label}</FormLabel>
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
@@ -621,10 +621,7 @@ export function CompactModelField({
                     model={triggerModel}
                     displayLabel={displayLabel}
                     providerLabel={selectorValue ? providerLabel || parsedModelId?.providerId : undefined}
-                    className={cn(
-                      'w-full hover:bg-background',
-                      triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground'
-                    )}
+                    className={cn('w-full', triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground')}
                     chevronClassName={
                       allowClear && value
                         ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
