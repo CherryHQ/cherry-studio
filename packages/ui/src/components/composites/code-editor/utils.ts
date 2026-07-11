@@ -1,8 +1,17 @@
-import * as cmThemes from '@uiw/codemirror-themes-all'
+import type * as CmThemes from '@uiw/codemirror-themes-all'
 import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 
 import type { CodeMirrorTheme, LanguageConfig } from './types'
+
+let cmThemesPromise: Promise<typeof CmThemes> | undefined
+
+// Loaded on demand so the full themes-all package (and the @codemirror/*
+// packages it drags in) stays out of every window's first-screen static graph.
+function loadCmThemes(): Promise<typeof CmThemes> {
+  cmThemesPromise ??= import('@uiw/codemirror-themes-all')
+  return cmThemesPromise
+}
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.
@@ -234,7 +243,8 @@ export async function getNormalizedExtension(language: string, languageConfig?: 
  * A more robust approach might be to hardcode the theme list
  * @returns theme name list
  */
-export function getCmThemeNames(): string[] {
+export async function getCmThemeNames(): Promise<string[]> {
+  const cmThemes = await loadCmThemes()
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
     .filter((item) => typeof (cmThemes as any)[item] !== 'function')
@@ -246,7 +256,9 @@ export function getCmThemeNames(): string[] {
  * @param name theme name
  * @returns theme object
  */
-export function getCmThemeByName(name: string): CodeMirrorTheme {
+export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
+  const cmThemes = await loadCmThemes()
+
   // 1. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
   const candidate = (cmThemes as Record<string, unknown>)[name]
   if (

@@ -14,8 +14,10 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -48,11 +50,11 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -81,9 +83,11 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
+  ComposerToolMenuButton,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
@@ -149,10 +153,11 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    icon: <Sparkles size={16} />,
+    icon: <Zap size={16} />,
     suffix: options.skillLabel,
-    // Skills match by name only in the root panel search.
+    // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
+    searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
     }
@@ -173,8 +178,7 @@ type Props = {
   sessionOverride?: AgentComposerSessionSnapshot
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
-  onNewSessionDraft?: () => void | Promise<void>
-  onCreateEmptySession?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   workspaceId?: string | null
@@ -197,7 +201,6 @@ const AgentComposerRoot = ({
   sessionOverride,
   sendMessage,
   stop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -214,21 +217,12 @@ const AgentComposerRoot = ({
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
   const { agent } = useAgent(agentId)
-  const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
+  const { model: sessionModel } = useModelById(agent?.model)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
-  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (isClassicSessionLayout && onCreateEmptySession) {
-      void onCreateEmptySession()
-      return
-    }
-
-    void onNewSessionDraft?.()
-  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
-  const hasNewSessionShortcutAction = isClassicSessionLayout
-    ? Boolean(onCreateEmptySession || onNewSessionDraft)
-    : Boolean(onNewSessionDraft)
+    void onCreateEmptySession?.()
+  }, [onCreateEmptySession])
+  const hasNewSessionShortcutAction = Boolean(onCreateEmptySession)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -268,7 +262,7 @@ const AgentComposerRoot = ({
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         addNewTopic: () => {
-          void onNewSessionDraft?.()
+          void onCreateEmptySession?.()
         }
       }}>
       <AgentComposerInner
@@ -281,7 +275,6 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -308,7 +301,6 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
-  onNewSessionDraft?: Props['onNewSessionDraft']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
@@ -645,18 +637,76 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
+  leadingControl?: React.ReactNode
+  renderQuickPanelShortcuts?: (args: {
+    inputAdapter?: AgentComposerInputAdapter
+    unifiedPanelControl?: AgentComposerUnifiedPanelControl
+  }) => React.ReactNode
   renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'> & {
-  placesWorkspaceInBelowControls?: boolean
-}
+type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+type AgentComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
 
 const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const AgentComposerQuickPanelShortcuts = ({
+  reasoningLabel,
+  reasoningLauncher,
+  skillLabel,
+  unifiedPanelControl
+}: {
+  reasoningLabel: string
+  reasoningLauncher?: ComposerToolLauncher
+  skillLabel: string
+  unifiedPanelControl?: AgentComposerUnifiedPanelControl
+}) => {
+  const panelDisabled = !unifiedPanelControl?.available
+  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
+  const reasoningTooltip =
+    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
+  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
+
+  return (
+    <>
+      <Tooltip content={reasoningTooltip} placement="top">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(
+            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+            'disabled:pointer-events-none disabled:opacity-40',
+            reasoningLauncher?.active && 'bg-accent'
+          )}
+          aria-label={reasoningLabel}
+          aria-haspopup="menu"
+          disabled={reasoningDisabled}
+          data-active={reasoningLauncher?.active || undefined}
+          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
+          {reasoningIcon}
+        </Button>
+      </Tooltip>
+      <Tooltip content={skillLabel} placement="top">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
+          aria-label={skillLabel}
+          aria-haspopup="menu"
+          disabled={panelDisabled}
+          onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
+          <Zap size={18} aria-hidden />
+        </Button>
+      </Tooltip>
+    </>
+  )
 }
 
 const AgentComposerContextControlsWithAutoFocus = ({
@@ -671,35 +721,57 @@ const AgentComposerContextControlsWithAutoFocus = ({
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <ComposerToolbarControls
-        inputAdapter={inputAdapter}
-        unifiedPanelControl={unifiedPanelControl}
-        toolMenuPlacement="beforeContext"
-        renderContextControls={({ side, iconOnly }) => (
-          <>
-            <AgentComposerContextControlsWithAutoFocus
-              {...props}
-              side={side}
-              iconOnly={iconOnly}
-              agentTriggerMode="edit"
-              inputAdapter={inputAdapter}
-            />
-            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
-          </>
-        )}
-      />
-    )
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <ComposerToolbarControls
+          inputAdapter={inputAdapter}
+          leading={
+            <>
+              {props.leadingControl}
+              {quickPanelShortcuts}
+            </>
+          }
+          showToolMenu={false}
+          unifiedPanelControl={unifiedPanelControl}
+          toolMenuPlacement="beforeContext"
+          renderContextControls={({ side, iconOnly }) => (
+            <>
+              <AgentComposerContextControlsWithAutoFocus
+                {...props}
+                side={side}
+                iconOnly={iconOnly}
+                agentTriggerMode={props.agentTriggerMode ?? 'edit'}
+                inputAdapter={inputAdapter}
+              />
+              <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+              {props.renderWorkspaceControl?.({ side, iconOnly })}
+            </>
+          )}
+        />
+      )
+    }
   }
 }
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-      </div>
-    ),
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <div className={COMPOSER_TOOLBAR_CLASS}>
+          {props.leadingControl}
+          {quickPanelShortcuts}
+          <ComposerToolMenuControls
+            inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
+            showToolMenu={false}
+          />
+        </div>
+      )
+    },
     renderBelowControls: (inputAdapter) => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
@@ -711,16 +783,11 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
               inputAdapter={inputAdapter}
             />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+            {props.renderWorkspaceControl?.({ side, iconOnly })}
           </>
         )}
-        trailing={
-          props.renderWorkspaceControl
-            ? ({ iconOnly }) => props.renderWorkspaceControl?.({ side: 'bottom', iconOnly })
-            : undefined
-        }
       />
-    ),
-    placesWorkspaceInBelowControls: true
+    )
   }
 }
 
@@ -734,7 +801,6 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -762,6 +828,7 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionDisplayMode] = usePreference('agent.session.display_mode')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
+  const shouldShowWorkspaceSelector = Boolean(showWorkspaceSelector && sessionDisplayMode !== 'workdir')
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -889,6 +956,11 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
+  const reasoningLauncher = useMemo(() => {
+    void toolLaunchersVersion
+    return getLaunchers().find((launcher) => launcher.id === 'thinking')
+  }, [getLaunchers, toolLaunchersVersion])
+
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
@@ -919,44 +991,26 @@ const AgentComposerInner = ({
   const handleCreateEmptySession = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
+  const hasNewSessionAction = Boolean(agentBase && onCreateEmptySession)
 
   const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
-    if (!agentBase) return []
+    if (!hasNewSessionAction) return []
 
     const label = t('agent.session.new')
-
-    if (isClassicSessionLayout) {
-      if (!onCreateEmptySession) return []
-
-      return [
-        {
-          id: 'composer:new-session',
-          label,
-          icon: <MessageSquarePlus size={16} />,
-          filterText: label,
-          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
-          action: () => {
-            handleCreateEmptySession()
-          }
-        }
-      ]
-    }
-
-    if (!onNewSessionDraft) return []
 
     return [
       {
         id: 'composer:new-session',
         label,
-        icon: <MessageSquarePlus size={16} />,
+        icon: <NewConversationIcon size={16} />,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
-          void onNewSessionDraft()
+          handleCreateEmptySession()
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
+  }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -1137,7 +1191,7 @@ const AgentComposerInner = ({
     enabled: enableMentionModelTrigger
   })
 
-  const renderWorkspaceControl = showWorkspaceSelector
+  const renderWorkspaceControl = shouldShowWorkspaceSelector
     ? ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
         <AgentComposerWorkspaceControl
           workspace={workspace}
@@ -1152,7 +1206,33 @@ const AgentComposerInner = ({
       )
     : undefined
 
-  const renderedControlSlots = renderControls({
+  const newSessionControl = hasNewSessionAction ? (
+    <Tooltip content={t('agent.session.new')} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        aria-label={t('agent.session.new')}
+        onClick={handleCreateEmptySession}>
+        <NewConversationIcon size={18} aria-hidden />
+      </Button>
+    </Tooltip>
+  ) : undefined
+
+  const renderQuickPanelShortcuts = useCallback(
+    ({ unifiedPanelControl }: { unifiedPanelControl?: AgentComposerUnifiedPanelControl }) => (
+      <AgentComposerQuickPanelShortcuts
+        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
+        reasoningLauncher={reasoningLauncher}
+        skillLabel={t('plugins.skills')}
+        unifiedPanelControl={unifiedPanelControl}
+      />
+    ),
+    [reasoningLauncher, t]
+  )
+
+  const controlSlots = renderControls({
     agent: agentBase,
     model,
     modelProviderName,
@@ -1164,16 +1244,17 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
+    leadingControl: newSessionControl,
+    renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
   })
-  const { placesWorkspaceInBelowControls, ...controlSlots } = renderedControlSlots
 
-  const sendAccessory = (
-    <div className="flex items-center gap-1.5">
-      {!placesWorkspaceInBelowControls ? renderWorkspaceControl?.({ side: 'top' }) : null}
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
+    <>
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
-    </div>
+      <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+    </>
   )
 
   return (
@@ -1268,6 +1349,7 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1294,7 +1376,7 @@ const MissingAgentHomeComposerInner = ({
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
   })
-  const controlSlots = renderAgentHomeControls({
+  const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
@@ -1303,9 +1385,23 @@ const MissingAgentHomeComposerInner = ({
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
     showAgentTrigger: !isClassicSessionLayout,
+    agentTriggerMode: 'selector',
     canChangeModel: false,
     onAgentChange: handleAgentChange,
-    onModelSelect: () => undefined
+    onModelSelect: () => undefined,
+    // Show the workspace/folder selector as a disabled placeholder (no session to bind yet);
+    // it becomes live once an agent is picked and the real composer mounts. Mirror the docked
+    // composer's rule of hiding it in workdir mode.
+    renderWorkspaceControl:
+      sessionDisplayMode === 'workdir'
+        ? undefined
+        : ({ side, iconOnly = false }) => (
+            <AgentComposerWorkspaceControl
+              selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+              side={side}
+              iconOnly={iconOnly}
+            />
+          )
   })
 
   return (
@@ -1332,7 +1428,7 @@ const MissingAgentHomeComposerInner = ({
         enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode
+        narrowMode={narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

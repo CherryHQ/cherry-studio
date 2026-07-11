@@ -19,6 +19,7 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 }
 
 type SessionListOptionsMenuProps = {
+  historyRecordsActive?: boolean
   manageAgentsActive?: boolean
   manageSkillsActive?: boolean
   manageSkillsIcon?: ReactNode
@@ -31,6 +32,7 @@ type SessionListOptionsMenuProps = {
 }
 
 export function SessionListOptionsMenu({
+  historyRecordsActive,
   manageAgentsActive,
   manageSkillsActive,
   manageSkillsIcon,
@@ -98,6 +100,7 @@ export function SessionListOptionsMenu({
               size="sm"
               icon={<History size={16} />}
               label={t('history.records.shortTitle')}
+              active={historyRecordsActive}
               onClick={() => {
                 setOpen(false)
                 onOpenHistoryRecords()

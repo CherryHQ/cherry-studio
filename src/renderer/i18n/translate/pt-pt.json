@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspeciona e gerencia esta configuração do agente e canais",
+          "label": "Configuração do Agente"
         },
         "CherryCron": {
           "description": "Gerencia o agendador dentro do aplicativo",
@@ -891,8 +891,8 @@
           "label": "Pesquisa de Conhecimento"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envia uma notificação através de um canal conectado",
+          "label": "Notificar"
         },
         "CherryWebFetch": {
           "description": "Busca e lê uma página da web",
@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Adicione fornecedor em Configurações → Serviço de Modelo",
+    "add_provider_hint_anthropic_messages": "Configure um endpoint de Mensagens da Anthropic em Configurações → Serviço de Modelo",
+    "add_provider_hint_gemini": "Configure um endpoint Gemini em Configurações → Serviço de Modelo",
+    "add_provider_hint_openai_responses": "Configure um endpoint de Respostas da OpenAI em Configurações → Serviço de Modelo",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Desativar Contexto de 1M",
+        "disable_attribution_header": "Desativar Cabeçalho de Atribuição",
+        "disable_auto_upgrade": "Desativar atualização automática",
+        "disable_bundled_skills": "Desativar Habilidades Agrupadas",
+        "disable_compact": "Desativar Compactação",
+        "disable_extra_usage_command": "Desativar Comando de Uso Extra",
+        "disable_nonessential_traffic": "Desativar Tráfego Não Essencial",
+        "disable_terminal_title": "Desativar Título do Terminal",
+        "effort_level_hint": "Nível de Esforço",
+        "enable_teammates": "Ativar Companheiros de Equipa",
+        "enable_tool_search": "Ativar Pesquisa de Ferramentas",
+        "fable_model": "Fábula",
+        "haiku_model": "Haiku",
+        "hide_attribution": "Ocultar Atribuição de IA",
+        "max_context_tokens_hint": "Tokens Máximos de Contexto",
+        "max_output_tokens_hint": "Máximo de Tokens de Saída",
+        "model_column": "Modelo de Solicitação",
+        "model_roles": "Mapeamento de Funções do Modelo",
+        "model_roles_hint": "Substituir modelos usados para subtarefas em segundo plano (por exemplo, compactação, títulos). Deixe vazio para seguir o modelo principal.",
+        "options": "Opções Rápidas",
+        "opus_model": "Opus",
+        "permissions_allow": "Permitir (separado por vírgulas)",
+        "permissions_deny": "Negar (separado por vírgulas)",
+        "permissions_hint": "Pré-aprovar ou negar padrões de ferramentas. Suporta curingas como Read(secrets-*/config.json).",
+        "role_column": "Função",
+        "sonnet_model": "Soneto"
+      },
+      "codex": {
+        "disable_response_storage": "Desativar Armazenamento de Respostas",
+        "goal_mode": "Ativar Modo de Objetivo",
+        "remote_compaction": "Habilitar Compactação Remota"
+      },
+      "gemini": {
+        "checkpointing": "Ativar Checkpointing",
+        "disable_usage_stats": "Desativar Estatísticas de Uso",
+        "hide_banner": "Ocultar Banner de Inicialização",
+        "vim_mode": "Ativar Modo Vim"
+      },
+      "kimi": {
+        "disable_telemetry": "Desativar Telemetria",
+        "keep_background_tasks": "Manter Tarefas em Segundo Plano ao Sair",
+        "micro_compaction": "Ativar Micro Compactação",
+        "plan_mode": "Modo de Plano Padrão",
+        "thinking": "Ativar Pensamento"
+      },
+      "opencode": {
+        "auto_compact": "Compactação Automática",
+        "enable_reasoning": "Ativar Raciocínio"
+      },
+      "permission_mode": "Aprovação de Permissão",
+      "permission_modes": {
+        "accept_edits": "Aceitar Edições",
+        "ask": "Perguntar",
+        "auto": "Automático",
+        "auto_edit": "Edição Automática",
+        "bypass_high_risk": "Permissões de Bypass (Alto Risco)",
+        "default": "Padrão",
+        "default_allow_all": "Padrão (Permitir Todos)",
+        "deny": "Negar",
+        "full_access_high_risk": "Acesso Total (Alto Risco)",
+        "manual": "Manual",
+        "plan": "Plano",
+        "read_only": "Somente Leitura",
+        "workspace": "Espaço de trabalho",
+        "yolo_high_risk": "YOLO (Alto Risco)"
+      },
+      "qwen": {
+        "classify_all_shell": "Classificar Todos os Comandos do Shell",
+        "disable_auto_update": "Desativar Atualização Automática",
+        "disable_usage_stats": "Desativar Estatísticas de Uso",
+        "hide_banner": "Ocultar Banner de Inicialização",
+        "vim_mode": "Ativar Modo Vim"
+      },
+      "reasoning_effort": "Esforço de Raciocínio",
+      "reasoning_efforts": {
+        "default": "Padrão",
+        "high": "Alto",
+        "low": "Baixo",
+        "medium": "Médio",
+        "minimal": "Mínimo",
+        "xhigh": "Extra Alto"
+      },
+      "select_placeholder": "Selecionar…"
+    },
+    "apply_failed": "Falha ao escrever a configuração da CLI no arquivo do sistema",
     "auto_update_to_latest": "Verificar atualizações e instalar a versão mais recente",
     "bun_required_message": "Executar a ferramenta CLI requer a instalação do ambiente Bun",
+    "can_upgrade": "Atualização disponível",
+    "clear_config_failed": "Falha ao limpar a configuração da CLI. Suas credenciais ainda podem estar nos arquivos de configuração da ferramenta.",
+    "cli_config": {
+      "format_failed": "Falha na formatação. Verifique a sintaxe do arquivo.",
+      "hint": "Este é o conteúdo que será escrito no arquivo de configuração da CLI do sistema. As chaves de API não são salvas nas preferências.",
+      "title": "Arquivo de Configuração da CLI",
+      "unknown_model": "Modelo desconhecido",
+      "unknown_provider": "Provedor Desconhecido"
+    },
     "cli_tool": "Ferramenta de linha de comando",
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "CLI do Gemini",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "Colapso",
+    "config_json_hint": "Cole ou edite JSON bruto; ele permanece sincronizado com os campos acima",
+    "configure": "Configurar",
+    "configuring_provider": "Configurar {{provider}}",
     "count_one": "{{count}} item",
     "count_other": "{{count}} itens",
+    "current_config": "Atual",
+    "current_config_settings": "Configuração Atual",
     "custom_path": "Caminho personalizado",
     "custom_path_error": "Falha ao definir caminho de terminal personalizado",
     "custom_path_required": "Este terminal requer a definição de um caminho personalizado",
     "custom_path_set": "Configuração personalizada do caminho do terminal bem-sucedida",
     "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
+    "disable": "Desativar",
+    "edit_config": "Editar Config",
+    "enable": "Ativar",
+    "enabled": "Ativado",
+    "endpoint_default": "Usando o provedor padrão",
+    "endpoint_hint": "Endpoint / Key in Model Service",
     "env_vars_help": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
     "environment_variables": "variáveis de ambiente",
     "folder_placeholder": "Selecionar diretório de trabalho",
+    "format_json": "Formato",
     "hero_tagline": "Escolha uma ferramenta CLI para configurar",
+    "install": "Instalar",
     "install_bun": "Instalar o Bun",
+    "install_error": "Falha na instalação",
+    "install_success": "Instalação bem-sucedida",
+    "install_tool_first": "Instale {{toolName}} primeiro para selecionar um provedor",
+    "installing": "Instalando…",
     "installing_bun": "Instalando...",
+    "latest": "Último",
     "launch": {
       "bun_required": "Instale o ambiente Bun antes de iniciar a ferramenta de linha de comando",
       "error": "Falha ao iniciar, tente novamente",
       "label": "iniciar",
       "launched": "Lançado",
       "success": "Início bem-sucedido",
+      "title": "Iniciar {{tool}}",
       "validation_error": "Preencha todos os campos obrigatórios: ferramenta CLI, modelo e diretório de trabalho"
     },
     "launching": "Iniciando...",
     "model": "modelo",
     "model_hint": "Escolha qual modelo de IA a ferramenta CLI deve usar",
+    "model_hint_config": "Selecione o modelo a usar",
+    "model_mode": {
+      "common": "Geral",
+      "detailed": "Detalhado"
+    },
     "model_placeholder": "Selecione o modelo a ser utilizado",
+    "model_providers": "Provedores de Modelos",
     "model_required": "Selecione o modelo",
+    "model_selection": "Seleção de Modelo",
+    "more": "Mais",
+    "no_matching_providers": "Nenhum provedor correspondente encontrado",
+    "no_model_for_provider": "Nenhum modelo disponível para este provedor",
+    "no_providers_description": "Ative um provedor compatível em Configurações → Serviço de Modelo",
+    "no_providers_title": "Nenhum provedor habilitado",
+    "no_tools": "Nenhuma ferramenta disponível",
+    "not_installed": "Não instalado",
+    "open_provider_settings": "Abrir configurações do provedor",
+    "own_login": {
+      "title": "{{toolName}} Oficial"
+    },
+    "providerless_hint": "Esta ferramenta autentica-se através do seu próprio fluxo de login — basta escolher um diretório de trabalho e iniciá-la. Execute a ferramenta uma vez para fazer login.",
+    "providers": "Provedores",
+    "raw_config": "Configuração Bruta (JSON)",
+    "search_provider_placeholder": "Provedores de pesquisa…",
     "select_folder": "Selecionar pasta",
+    "select_provider_before_launch": "Selecione um provedor antes de iniciar {{toolName}}",
+    "select_tool_to_start": "Selecione uma ferramenta de CLI à esquerda para começar a configurar",
     "set_custom_path": "Definir caminho personalizado do terminal",
     "supported_providers": "Provedores de serviço suportados",
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicativo de terminal executar a CLI",
     "terminal_placeholder": "Selecionar aplicativo de terminal",
     "title": "Ferramenta de código",
-    "tool_description": {
-      "claude_code": "Assistente oficial de codificação com IA em linha de comando da Anthropic",
-      "gemini_cli": "Assistente oficial de linha de comando Gemini da Google",
-      "github_copilot_cli": "Companheiro oficial de linha de comando do Copilot do GitHub",
-      "kimi_cli": "Assistente de linha de comando Kimi da Moonshot",
-      "openai_codex": "CLI oficial de geração de código da OpenAI",
-      "opencode": "Agente de codificação multi-modelo de código aberto",
-      "qoder_cli": "Ferramenta de codificação em linha de comando agentiva do Alibaba Qoder",
-      "qwen_code": "Ferramenta de codificação CLI de código aberto da Tongyi da Alibaba"
-    },
+    "tool_parameters": "Configurações de Parâmetros",
+    "up_to_date": "Atualizado",
     "update_options": "Opções de atualização",
+    "upgrade": "Upgrade",
+    "upgrade_error": "A atualização falhou",
+    "upgrade_success": "Upgrade bem-sucedido",
     "working_directory": "diretório de trabalho",
     "working_directory_hint": "O diretório de trabalho em que a ferramenta CLI é iniciada"
   },
@@ -2128,6 +2279,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Edição de Imagem (OpenAI)",
     "image-generation": "Geração de Imagens (OpenAI)",
     "jina-rerank": "Jina Reordenar",
     "openai": "OpenAI",
@@ -2435,9 +2587,7 @@
       "message": "Localizar mensagem"
     },
     "records": {
-      "agentSubtitle": "{{count}} tarefas",
       "agentTitle": "Histórico do Agente",
-      "assistantSubtitle": "{{count}} conversas",
       "bulkDelete": "Exclusão em Lote",
       "bulkDeleteSessions": {
         "description": "Excluir {{count}} tarefa(s) selecionada(s)?",
@@ -2459,11 +2609,19 @@
         "target": "Assistente-alvo",
         "title": "Mover conversas selecionadas"
       },
+      "clearSearch": "Limpar pesquisa",
       "empty": {
         "description": "Nenhuma conversa para os filtros atuais.",
         "sessionsDescription": "Nenhuma tarefa para os filtros atuais.",
         "sessionsTitle": "Sem tarefas",
         "title": "Sem conversas"
+      },
+      "filter": {
+        "selectAgent": "Selecionar um agente",
+        "selectAssistant": "Selecionar um assistente",
+        "statusLabel": "Estado",
+        "statusPlaceholder": "Selecionar estado",
+        "unlinkedAssistant": "Assistente desvinculado"
       },
       "loading": {
         "description": "Carregando lista de conversas.",
@@ -2471,15 +2629,9 @@
         "sessionsTitle": "Carregando tarefas",
         "title": "Carregando conversas"
       },
-      "resultCount": "{{count}} resultados",
       "searchSession": "Pesquisar tarefas...",
       "searchTopic": "Pesquisar conversas...",
       "shortTitle": "História",
-      "sidebar": {
-        "searchAssistant": "Assistentes de pesquisa...",
-        "status": "Estado",
-        "unknownAssistant": "Assistente desvinculado"
-      },
       "status": {
         "completed": "Concluído",
         "failed": "Falhou",
@@ -2487,11 +2639,10 @@
       },
       "table": {
         "actions": "Ações",
+        "conversation": "Conversa",
         "emptyValue": "—",
-        "messages": "Mensagens",
         "session": "Tarefa",
-        "time": "Tempo",
-        "title": "Título"
+        "time": "Tempo"
       },
       "title": "Histórico de Conversa"
     },
@@ -2738,6 +2889,8 @@
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
       "document_count": "Contagem de Documentos",
+      "download_local_embedding": "Baixar Modelo Local",
+      "download_local_embedding_failed": "Falha ao baixar o modelo de embedding local",
       "embedding_model": "Modelo de Incorporação",
       "embedding_model_select": "Seleção de Modelo",
       "file_processing": "Processamento de Arquivos",
@@ -2764,7 +2917,8 @@
       "separator_rule": "Regra Separadora",
       "smart_chunking": "Fragmentação Inteligente",
       "threshold": "Limite de Similaridade",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Usar Modelo Local"
     },
     "recall": {
       "collapse": "Recolher Chunk",
@@ -4160,6 +4314,7 @@
       "select_provider_model": "Por favor, selecione primeiro um provedor e um modelo."
     },
     "gateway": {
+      "open_dashboard": "Abrir OpenClaw",
       "port": "Porto",
       "restart": "Reiniciar",
       "start": "Iniciar Gateway",
@@ -4173,7 +4328,6 @@
       "hint": "macOS: brew install git | Windows: Baixe em git-scm.com (certifique-se de adicionar o Git ao PATH durante a instalação)",
       "title": "Git Necessário"
     },
-    "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
     "migration": {
       "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
@@ -4234,7 +4388,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Tem certeza de que deseja desinstalar o OpenClaw? Pressione OK para confirmar.",
-    "uninstall_progress": "Progresso de Desinstalação",
     "uninstalled": {
       "description": "OpenClaw foi desinstalado com sucesso.",
       "title": "Desinstalação concluída"
@@ -4681,6 +4834,7 @@
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5344,7 +5498,8 @@
       },
       "backup": {
         "skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
-        "skip_file_data_title": "Backup simplificado"
+        "skip_file_data_title": "Backup simplificado",
+        "v2_unavailable": "Backup & restore V2 ainda não está disponível. Em breve."
       },
       "clear_cache": {
         "button": "Limpar cache",
@@ -5937,6 +6092,30 @@
       "installError": "Failed to install tool",
       "installing": "Instalando...",
       "invalidTool": "Nome ou chave de ferramenta inválida",
+      "localModels": {
+        "cancel": "Cancelar",
+        "description": "Modelos que executam localmente no seu dispositivo — baixe uma vez e use offline sem chave de API.",
+        "download": "Download",
+        "embedding": {
+          "name": "Embedding Local",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "Falha no download. Verifique sua conexão e tente novamente.",
+          "inUse": "Ainda utilizado por uma base de conhecimento; os pesos foram mantidos.",
+          "removeFailed": "Falha na remoção. Verifique os registos para mais detalhes."
+        },
+        "ocr": {
+          "name": "OCR Local",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Remover",
+        "status": {
+          "downloading": "A descarregar…",
+          "ready": "Pronto"
+        },
+        "title": "Modelos Locais"
+      },
       "notInstalled": "Não instalado",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6533,7 +6712,8 @@
         },
         "model_id": {
           "label": "ID do modelo",
-          "placeholder": "Obrigatório Exemplo: gpt-3.5-turbo",
+          "placeholder": "Exemplo: gpt-5.5",
+          "required": "Introduza o ID do modelo",
           "select": {
             "placeholder": "Selecionar modelo"
           },
@@ -6541,7 +6721,7 @@
         },
         "model_name": {
           "label": "Nome do modelo",
-          "placeholder": "Exemplo: GPT-3.5",
+          "placeholder": "Exemplo: GPT-5.5",
           "tooltip": "Por exemplo, GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6790,17 @@
       },
       "group_disable": "Desativar este grupo",
       "group_enable": "Ativar este grupo",
-      "list_title": "Model list",
+      "list_title": "Modelos",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
-          "label": "Adicionar modelo da lista"
+          "label": "Adicionar todos os modelos"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "clean_stale_models": "Limpar modelos obsoletos",
+        "clean_stale_success": "{{count}} modelo(s) obsoleto(s) limpo(s)",
+        "default_model_cannot_remove": "O modelo predefinido não pode ser eliminado.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6822,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Obter novamente a lista de modelos",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Remover modelo da lista",
+        "remove_listed": "Remover todos os modelos",
         "remove_model": "Remover Modelo",
+        "remove_skipped_default_in_use": "Ignorados {{count}} modelo(s) predefinido(s)",
         "remove_whole_group": "Remover todo o grupo",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsoleto",
+        "stale_filter": "Obsoleto",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6889,7 @@
         "custom_add": "Personalizado",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Adicionar"
+        "pull_short": "Obter lista de modelos"
       },
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
@@ -6795,6 +6981,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Adicionar fornecedor",
         "name": {
           "label": "Nome do Fornecedor",
           "placeholder": "Exemplo OpenAI",
@@ -7341,6 +7528,13 @@
           "doc2x": {
             "description": "Motor avançado de restauração de arquivos.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) em execução em processo — totalmente offline, sem chave de API, com reconhecimento em uma thread em segundo plano para manter a interface responsiva. Baixe o modelo (~140MB) em Dependências de Ambiente antes do primeiro uso.",
+            "name": "PaddleOCR Local",
+            "status": {
+              "local": "Funciona totalmente no seu dispositivo"
+            }
           },
           "mineru": {
             "description": "Ferramenta de extração de PDF de alta qualidade de código aberto do OpenDataLab.",

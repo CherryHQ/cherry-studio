@@ -104,11 +104,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
                 <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
                   <span>
                     {option.label}{' '}
-                    <a
-                      href={option.apiKeyWebsite}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline-offset-4 hover:underline">
+                    <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer" className="text-primary">
                       ({t('settings.provider.get_api_key')})
                     </a>
                   </span>

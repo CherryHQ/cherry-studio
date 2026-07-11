@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspecte et gère cette configuration d'agent et ses canaux",
+          "label": "Configuration de l'agent"
         },
         "CherryCron": {
           "description": "Gère le planificateur intégré à l'application",
@@ -891,8 +891,8 @@
           "label": "Recherche de connaissances"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envoie une notification via un canal connecté",
+          "label": "Notifier"
         },
         "CherryWebFetch": {
           "description": "Récupère et lit une page web",
@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Ajouter un fournisseur dans Paramètres → Service de modèle",
+    "add_provider_hint_anthropic_messages": "Configurer un point de terminaison Anthropic Messages dans Paramètres → Service de modèle",
+    "add_provider_hint_gemini": "Configurez un point de terminaison Gemini dans Paramètres → Service de modèle",
+    "add_provider_hint_openai_responses": "Configurez un point de terminaison OpenAI Responses dans Paramètres → Service de modèle",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Désactiver le contexte 1M",
+        "disable_attribution_header": "Désactiver l'en-tête d'attribution",
+        "disable_auto_upgrade": "Désactiver la mise à niveau automatique",
+        "disable_bundled_skills": "Désactiver les compétences groupées",
+        "disable_compact": "Désactiver la compaction",
+        "disable_extra_usage_command": "Désactiver la commande d'utilisation supplémentaire",
+        "disable_nonessential_traffic": "Désactiver le trafic non essentiel",
+        "disable_terminal_title": "Désactiver le titre du terminal",
+        "effort_level_hint": "Niveau d'effort",
+        "enable_teammates": "Activer les coéquipiers",
+        "enable_tool_search": "Activer la recherche d'outils",
+        "fable_model": "Fable",
+        "haiku_model": "Haïku",
+        "hide_attribution": "Masquer l'attribution IA",
+        "max_context_tokens_hint": "Jetons de contexte maximum",
+        "max_output_tokens_hint": "Jetons de sortie maximum",
+        "model_column": "Modèle de requête",
+        "model_roles": "Mappage des rôles du modèle",
+        "model_roles_hint": "Remplacer les modèles utilisés pour les sous-tâches en arrière-plan (par exemple, compaction, titres). Laisser vide pour suivre le modèle principal.",
+        "options": "Options rapides",
+        "opus_model": "Opus",
+        "permissions_allow": "Autoriser (séparés par des virgules)",
+        "permissions_deny": "Refuser (séparé par des virgules)",
+        "permissions_hint": "Pré-approuver ou refuser les modèles d'outils. Prend en charge les caractères génériques comme Read(secrets-*/config.json).",
+        "role_column": "Rôle",
+        "sonnet_model": "Sonnet"
+      },
+      "codex": {
+        "disable_response_storage": "Désactiver le stockage des réponses",
+        "goal_mode": "Activer le Mode Objectif",
+        "remote_compaction": "Activer la compaction à distance"
+      },
+      "gemini": {
+        "checkpointing": "Activer les points de contrôle",
+        "disable_usage_stats": "Désactiver les statistiques d'utilisation",
+        "hide_banner": "Masquer la bannière de démarrage",
+        "vim_mode": "Activer le mode Vim"
+      },
+      "kimi": {
+        "disable_telemetry": "Désactiver la télémétrie",
+        "keep_background_tasks": "Conserver les tâches en arrière-plan à la sortie",
+        "micro_compaction": "Activer la micro-compaction",
+        "plan_mode": "Mode Plan par défaut",
+        "thinking": "Activer la réflexion"
+      },
+      "opencode": {
+        "auto_compact": "Compactage automatique",
+        "enable_reasoning": "Activer le raisonnement"
+      },
+      "permission_mode": "Approbation des autorisations",
+      "permission_modes": {
+        "accept_edits": "Accepter les modifications",
+        "ask": "Demander",
+        "auto": "Auto",
+        "auto_edit": "Édition automatique",
+        "bypass_high_risk": "Contournement des autorisations (risque élevé)",
+        "default": "Par défaut",
+        "default_allow_all": "Par défaut (Tout autoriser)",
+        "deny": "Refuser",
+        "full_access_high_risk": "Accès complet (Haut risque)",
+        "manual": "Manuel",
+        "plan": "Plan",
+        "read_only": "Lecture seule",
+        "workspace": "Espace de travail",
+        "yolo_high_risk": "YOLO (Haut Risque)"
+      },
+      "qwen": {
+        "classify_all_shell": "Classer Toutes les Commandes Shell",
+        "disable_auto_update": "Désactiver la mise à jour automatique",
+        "disable_usage_stats": "Désactiver les statistiques d'utilisation",
+        "hide_banner": "Masquer la bannière de démarrage",
+        "vim_mode": "Activer le mode Vim"
+      },
+      "reasoning_effort": "Effort de raisonnement",
+      "reasoning_efforts": {
+        "default": "Par défaut",
+        "high": "Élevé",
+        "low": "Faible",
+        "medium": "Moyen",
+        "minimal": "Minimal",
+        "xhigh": "Extra Haut"
+      },
+      "select_placeholder": "Sélectionner…"
+    },
+    "apply_failed": "Échec de l'écriture de la configuration CLI dans le fichier système",
     "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
     "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
+    "can_upgrade": "Mise à niveau disponible",
+    "clear_config_failed": "Échec de l'effacement de la configuration CLI. Vos informations d'identification peuvent toujours se trouver dans les fichiers de configuration de l'outil.",
+    "cli_config": {
+      "format_failed": "Le formatage a échoué. Vérifiez la syntaxe du fichier.",
+      "hint": "Voici le contenu qui sera écrit dans le fichier de configuration CLI du système. Les clés API ne sont pas enregistrées dans les préférences.",
+      "title": "Fichier de configuration CLI",
+      "unknown_model": "Modèle inconnu",
+      "unknown_provider": "Fournisseur inconnu"
+    },
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "CLI GitHub Copilot",
+      "kimi_code": "Code Kimi",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "Réduire",
+    "config_json_hint": "Collez ou modifiez le JSON brut ; il reste synchronisé avec les champs ci-dessus",
+    "configure": "Configurer",
+    "configuring_provider": "Configurer {{provider}}",
     "count_one": "{{count}} article",
     "count_other": "{{count}} articles",
+    "current_config": "Actuel",
+    "current_config_settings": "Configuration actuelle",
     "custom_path": "Chemin personnalisé",
     "custom_path_error": "Échec de la définition du chemin de terminal personnalisé",
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "disable": "Désactiver",
+    "edit_config": "Modifier la configuration",
+    "enable": "Activer",
+    "enabled": "Activé",
+    "endpoint_default": "Utilisant le fournisseur par défaut",
+    "endpoint_hint": "Point de terminaison / Clé dans le Service de modèle",
     "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
     "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
+    "format_json": "Format",
     "hero_tagline": "Choisissez un outil CLI à configurer",
+    "install": "Installer",
     "install_bun": "Installer Bun",
+    "install_error": "L'installation a échoué",
+    "install_success": "Installation réussie",
+    "install_tool_first": "Installez d'abord {{toolName}} pour sélectionner un fournisseur",
+    "installing": "Installation…",
     "installing_bun": "Installation en cours...",
+    "latest": "Dernier",
     "launch": {
       "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
       "error": "Échec du démarrage, veuillez réessayer",
       "label": "Démarrer",
       "launched": "Lancé",
       "success": "Démarrage réussi",
+      "title": "Lancer {{outil}}",
       "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
     },
     "launching": "En cours de démarrage...",
     "model": "modèle",
     "model_hint": "Choisis quel modèle d’IA l’outil CLI doit utiliser",
+    "model_hint_config": "Sélectionnez le modèle à utiliser",
+    "model_mode": {
+      "common": "Général",
+      "detailed": "Détaillé"
+    },
     "model_placeholder": "Sélectionnez le modèle à utiliser",
+    "model_providers": "Fournisseurs de modèles",
     "model_required": "Veuillez sélectionner le modèle",
+    "model_selection": "Sélection de modèle",
+    "more": "Plus",
+    "no_matching_providers": "Aucun fournisseur correspondant",
+    "no_model_for_provider": "Aucun modèle disponible pour ce fournisseur",
+    "no_providers_description": "Activez un fournisseur pris en charge dans Paramètres → Service de modèle",
+    "no_providers_title": "Aucun fournisseur activé",
+    "no_tools": "Aucun outil disponible",
+    "not_installed": "Non installé",
+    "open_provider_settings": "Ouvrir les paramètres du fournisseur",
+    "own_login": {
+      "title": "{{toolName}} Officiel"
+    },
+    "providerless_hint": "Cet outil s'authentifie via son propre processus de connexion — il suffit de choisir un répertoire de travail et de le lancer. Exécutez l'outil une fois pour vous connecter.",
+    "providers": "Fournisseurs",
+    "raw_config": "Configuration brute (JSON)",
+    "search_provider_placeholder": "Fournisseurs de recherche…",
     "select_folder": "Sélectionner le dossier",
+    "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
+    "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
     "terminal_placeholder": "Choisir une application de terminal",
     "title": "Outils de code",
-    "tool_description": {
-      "claude_code": "Assistant de codage IA en ligne de commande officiel d'Anthropic",
-      "gemini_cli": "Assistant en ligne de commande officiel Gemini de Google",
-      "github_copilot_cli": "Compagnon officiel de ligne de commande de GitHub Copilot",
-      "kimi_cli": "Assistant en ligne de commande Kimi de Moonshot",
-      "openai_codex": "CLI officiel de génération de code d’OpenAI",
-      "opencode": "Agent de codage multi-modèle open-source",
-      "qoder_cli": "L'outil de codage en ligne de commande agentique d'Alibaba Qoder",
-      "qwen_code": "L'outil de codage CLI open source d'Alibaba Tongyi"
-    },
+    "tool_parameters": "Paramètres",
+    "up_to_date": "À jour",
     "update_options": "Options de mise à jour",
+    "upgrade": "Mise à niveau",
+    "upgrade_error": "La mise à niveau a échoué",
+    "upgrade_success": "Mise à niveau réussie",
     "working_directory": "répertoire de travail",
     "working_directory_hint": "Le répertoire de travail dans lequel l'outil CLI se lance"
   },
@@ -2128,6 +2279,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Édition d'images (OpenAI)",
     "image-generation": "Génération d'images (OpenAI)",
     "jina-rerank": "Reclassement Jina",
     "openai": "OpenAI",
@@ -2435,9 +2587,7 @@
       "message": "Localiser le message"
     },
     "records": {
-      "agentSubtitle": "{{count}} tâches",
       "agentTitle": "Historique de l'agent",
-      "assistantSubtitle": "{{count}} conversations",
       "bulkDelete": "Suppression par lots",
       "bulkDeleteSessions": {
         "description": "Supprimer {{count}} tâche(s) sélectionnée(s) ?",
@@ -2459,11 +2609,19 @@
         "target": "Assistant cible",
         "title": "Déplacer les conversations sélectionnées"
       },
+      "clearSearch": "Effacer la recherche",
       "empty": {
         "description": "Aucune conversation pour les filtres actuels.",
         "sessionsDescription": "Aucune tâche pour les filtres actuels.",
         "sessionsTitle": "Aucune tâche",
         "title": "Aucune conversation"
+      },
+      "filter": {
+        "selectAgent": "Sélectionner un agent",
+        "selectAssistant": "Sélectionner un assistant",
+        "statusLabel": "Statut",
+        "statusPlaceholder": "Sélectionner un statut",
+        "unlinkedAssistant": "Assistant non lié"
       },
       "loading": {
         "description": "Chargement de la liste des conversations.",
@@ -2471,15 +2629,9 @@
         "sessionsTitle": "Chargement des tâches",
         "title": "Chargement des conversations"
       },
-      "resultCount": "{{count}} résultats",
       "searchSession": "Rechercher des tâches...",
       "searchTopic": "Rechercher des conversations...",
       "shortTitle": "Histoire",
-      "sidebar": {
-        "searchAssistant": "Rechercher des assistants...",
-        "status": "Statut",
-        "unknownAssistant": "Assistant non lié"
-      },
       "status": {
         "completed": "Terminé",
         "failed": "Échoué",
@@ -2487,11 +2639,10 @@
       },
       "table": {
         "actions": "Actions",
+        "conversation": "Conversation",
         "emptyValue": "—",
-        "messages": "Messages",
         "session": "Tâche",
-        "time": "Temps",
-        "title": "Titre"
+        "time": "Temps"
       },
       "title": "Historique de conversation"
     },
@@ -2738,6 +2889,8 @@
       "chunking": "Fragmentation",
       "default_separator": "Auto (recommandé)",
       "document_count": "Nombre de documents",
+      "download_local_embedding": "Télécharger le modèle local",
+      "download_local_embedding_failed": "Échec du téléchargement du modèle d'embedding local",
       "embedding_model": "Modèle d'embedding",
       "embedding_model_select": "Sélection de modèle",
       "file_processing": "Traitement de fichiers",
@@ -2764,7 +2917,8 @@
       "separator_rule": "Règle de séparateur",
       "smart_chunking": "Découpage intelligent",
       "threshold": "Seuil de similarité",
-      "tokens_unit": "jetons"
+      "tokens_unit": "jetons",
+      "use_local_embedding": "Utiliser le modèle local"
     },
     "recall": {
       "collapse": "Réduire le bloc",
@@ -4160,6 +4314,7 @@
       "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle"
     },
     "gateway": {
+      "open_dashboard": "Ouvrir OpenClaw",
       "port": "Port",
       "restart": "Redémarrer",
       "start": "Démarrer la passerelle",
@@ -4173,7 +4328,6 @@
       "hint": "macOS : brew install git | Windows : Télécharger depuis git-scm.com (assurez-vous d’ajouter Git au PATH pendant l’installation)",
       "title": "Git requis"
     },
-    "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
     "migration": {
       "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
@@ -4234,7 +4388,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Êtes-vous sûr de vouloir désinstaller OpenClaw ? Appuyez sur OK pour confirmer.",
-    "uninstall_progress": "Progression de la désinstallation",
     "uninstalled": {
       "description": "OpenClaw a été désinstallé avec succès.",
       "title": "Désinstallation terminée"
@@ -4681,6 +4834,7 @@
     "jina": "Jina",
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5344,7 +5498,8 @@
       },
       "backup": {
         "skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
-        "skip_file_data_title": "Sauvegarde réduite"
+        "skip_file_data_title": "Sauvegarde réduite",
+        "v2_unavailable": "La sauvegarde et la restauration V2 n'est pas encore disponible. Bientôt disponible."
       },
       "clear_cache": {
         "button": "Effacer le cache",
@@ -5937,6 +6092,30 @@
       "installError": "Failed to install tool",
       "installing": "Installation en cours...",
       "invalidTool": "Nom d'outil ou clé invalide",
+      "localModels": {
+        "cancel": "Annuler",
+        "description": "Les modèles qui s'exécutent localement sur votre appareil — téléchargez une fois, puis utilisez hors ligne sans clé API.",
+        "download": "Télécharger",
+        "embedding": {
+          "name": "Intégration locale",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 Mo"
+        },
+        "notice": {
+          "downloadFailed": "Échec du téléchargement. Vérifiez votre connexion et réessayez.",
+          "inUse": "Toujours utilisé par une base de connaissances ; les poids ont été conservés.",
+          "removeFailed": "La suppression a échoué. Consultez les journaux pour plus de détails."
+        },
+        "ocr": {
+          "name": "OCR local",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 Mo"
+        },
+        "remove": "Supprimer",
+        "status": {
+          "downloading": "Téléchargement…",
+          "ready": "Prêt"
+        },
+        "title": "Modèles locaux"
+      },
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6533,7 +6712,8 @@
         },
         "model_id": {
           "label": "ID du modèle",
-          "placeholder": "Obligatoire, par exemple gpt-3.5-turbo",
+          "placeholder": "Par exemple gpt-5.5",
+          "required": "Saisissez l’identifiant du modèle",
           "select": {
             "placeholder": "Sélectionner un modèle"
           },
@@ -6541,7 +6721,7 @@
         },
         "model_name": {
           "label": "Nom du modèle",
-          "placeholder": "Par exemple, GPT-3.5",
+          "placeholder": "Par exemple, GPT-5.5",
           "tooltip": "Par exemple GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6790,17 @@
       },
       "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",
-      "list_title": "Model list",
+      "list_title": "Modèles",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
+          "label": "Ajouter tous les modèles"
         },
         "add_whole_group": "Ajouter tout le groupe",
+        "clean_stale_models": "Nettoyer les modèles obsolètes",
+        "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
+        "default_model_cannot_remove": "Le modèle par défaut ne peut pas être supprimé.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6822,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Supprimer un modèle de la liste",
+        "remove_listed": "Supprimer tous les modèles",
         "remove_model": "Supprimer le modèle",
+        "remove_skipped_default_in_use": "{{count}} modèle(s) par défaut ignoré(s)",
         "remove_whole_group": "Supprimer tout le groupe",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Obsolète",
+        "stale_filter": "Obsolète",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6889,7 @@
         "custom_add": "Personnalisé",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Ajouter"
+        "pull_short": "Récupérer la liste des modèles"
       },
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
@@ -6795,6 +6981,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Ajouter un fournisseur",
         "name": {
           "label": "Nom du fournisseur",
           "placeholder": "Par exemple OpenAI",
@@ -7341,6 +7528,13 @@
           "doc2x": {
             "description": "Moteur de restauration de fichiers avancé.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) fonctionnant en processus — entièrement hors ligne, sans clé API, avec une reconnaissance sur un thread en arrière-plan pour que l'interface utilisateur reste réactive. Téléchargez le modèle (~140 Mo) dans les dépendances d'environnement avant la première utilisation.",
+            "name": "PaddleOCR local",
+            "status": {
+              "local": "Fonctionne entièrement sur votre appareil"
+            }
           },
           "mineru": {
             "description": "Outil d'extraction PDF open-source et de haute qualité d'OpenDataLab.",

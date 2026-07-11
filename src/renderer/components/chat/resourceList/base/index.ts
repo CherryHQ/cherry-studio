@@ -53,12 +53,14 @@ export {
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
-  sortByResourceGroupRank
+  sortByResourceGroupRank,
+  sortRankedResourceItems
 } from './resourceListGrouping'
 export { RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS, RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
 export type { ResourceListOrderAnchor } from './resourceListReorder'

@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "このエージェント設定とチャネルの検査と管理",
+          "label": "エージェント設定"
         },
         "CherryCron": {
           "description": "アプリ内スケジューラを管理します",
@@ -891,8 +891,8 @@
           "label": "ナレッジ検索"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "接続されたチャンネル経由で通知を送信します",
+          "label": "通知"
         },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "設定 → モデルサービス でプロバイダーを追加",
+    "add_provider_hint_anthropic_messages": "設定 → モデルサービスでAnthropic Messagesエンドポイントを構成する",
+    "add_provider_hint_gemini": "設定 → モデルサービス で Gemini エンドポイントを設定する",
+    "add_provider_hint_openai_responses": "設定 → モデルサービスでOpenAI Responsesエンドポイントを設定する",
+    "adv": {
+      "claude": {
+        "context_column": "100万",
+        "disable_1m_context": "1Mコンテキストを無効にする",
+        "disable_attribution_header": "アトリビューションヘッダーを無効にする",
+        "disable_auto_upgrade": "自動アップグレードを無効にする",
+        "disable_bundled_skills": "バンドルされたスキルを無効にする",
+        "disable_compact": "コンパクションを無効にする",
+        "disable_extra_usage_command": "追加使用コマンドを無効にする",
+        "disable_nonessential_traffic": "不要なトラフィックを無効化",
+        "disable_terminal_title": "ターミナルタイトルを無効にする",
+        "effort_level_hint": "努力レベル",
+        "enable_teammates": "チームメイトを有効にする",
+        "enable_tool_search": "ツール検索を有効にする",
+        "fable_model": "寓話",
+        "haiku_model": "俳句",
+        "hide_attribution": "AI帰属を非表示にする",
+        "max_context_tokens_hint": "最大コンテキストトークン数",
+        "max_output_tokens_hint": "最大出力トークン数",
+        "model_column": "リクエストモデル",
+        "model_roles": "モデルロールマッピング",
+        "model_roles_hint": "バックグラウンドサブタスク（例：圧縮、タイトル）に使用するモデルを上書きします。メインモデルに従わせる場合は空のままにしてください。",
+        "options": "クイックオプション",
+        "opus_model": "Opus",
+        "permissions_allow": "許可（カンマ区切り）",
+        "permissions_deny": "拒否（カンマ区切り）",
+        "permissions_hint": "ツールパターンを事前承認または拒否します。ワイルドカード（例：Read(secrets-*/config.json)）をサポートします。",
+        "role_column": "役割",
+        "sonnet_model": "ソネット"
+      },
+      "codex": {
+        "disable_response_storage": "応答の保存を無効にする",
+        "goal_mode": "ゴールモードを有効にする",
+        "remote_compaction": "リモートコンパクションを有効にする"
+      },
+      "gemini": {
+        "checkpointing": "チェックポイント機能を有効にする",
+        "disable_usage_stats": "使用状況統計を無効にする",
+        "hide_banner": "スタートアップバナーを非表示にする",
+        "vim_mode": "Vimモードを有効化"
+      },
+      "kimi": {
+        "disable_telemetry": "テレメトリを無効にする",
+        "keep_background_tasks": "終了時にバックグラウンドタスクを維持",
+        "micro_compaction": "マイクロコンパクションを有効にする",
+        "plan_mode": "デフォルトプラン モード",
+        "thinking": "思考を有効にする"
+      },
+      "opencode": {
+        "auto_compact": "オートコンパクト",
+        "enable_reasoning": "推論を有効にする"
+      },
+      "permission_mode": "承認許可",
+      "permission_modes": {
+        "accept_edits": "編集を承認",
+        "ask": "尋ねる",
+        "auto": "オート",
+        "auto_edit": "自動編集",
+        "bypass_high_risk": "権限のバイパス（高リスク）",
+        "default": "デフォルト",
+        "default_allow_all": "デフォルト（すべて許可）",
+        "deny": "拒否",
+        "full_access_high_risk": "フルアクセス（高リスク）",
+        "manual": "マニュアル",
+        "plan": "計画",
+        "read_only": "読み取り専用",
+        "workspace": "ワークスペース",
+        "yolo_high_risk": "YOLO（高リスク）"
+      },
+      "qwen": {
+        "classify_all_shell": "すべてのシェルコマンドを分類する",
+        "disable_auto_update": "自動更新を無効にする",
+        "disable_usage_stats": "使用統計を無効にする",
+        "hide_banner": "起動バナーを非表示にする",
+        "vim_mode": "Vimモードを有効にする"
+      },
+      "reasoning_effort": "推論の労力",
+      "reasoning_efforts": {
+        "default": "デフォルト",
+        "high": "高",
+        "low": "低",
+        "medium": "ミディアム",
+        "minimal": "最小限",
+        "xhigh": "エクストラハイ"
+      },
+      "select_placeholder": "選択…"
+    },
+    "apply_failed": "システムファイルへのCLI設定の書き込みに失敗しました",
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
+    "can_upgrade": "アップグレードが利用可能です",
+    "clear_config_failed": "CLI設定のクリアに失敗しました。認証情報がツールの設定ファイルに残っている可能性があります。",
+    "cli_config": {
+      "format_failed": "フォーマットに失敗しました。ファイルの構文を確認してください。",
+      "hint": "これはシステムCLI設定ファイルに書き込まれる内容です。APIキーは設定に保存されません。",
+      "title": "CLI設定ファイル",
+      "unknown_model": "不明なモデル",
+      "unknown_provider": "不明なプロバイダ"
+    },
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "崩壊",
+    "config_json_hint": "生のJSONを貼り付けたり編集したりできます。上のフィールドと同期します",
+    "configure": "設定",
+    "configuring_provider": "{{provider}}を設定する",
     "count_one": "{{count}}個のアイテム",
     "count_other": "{{count}}個のアイテム",
+    "current_config": "現在",
+    "current_config_settings": "現在の設定",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "disable": "無効にする",
+    "edit_config": "設定を編集",
+    "enable": "有効化",
+    "enabled": "有効",
+    "endpoint_default": "プロバイダーdefaultを使用",
+    "endpoint_hint": "エンドポイント / モデルサービスのキー",
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
+    "format_json": "形式",
     "hero_tagline": "CLIツールを選択して設定してください",
+    "install": "インストール",
     "install_bun": "Bun をインストール",
+    "install_error": "インストールに失敗しました",
+    "install_success": "インストール成功",
+    "install_tool_first": "{{toolName}}を先にインストールして、プロバイダーを選択してください",
+    "installing": "インストール中…",
     "installing_bun": "インストール中...",
+    "latest": "最新",
     "launch": {
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
       "launched": "開始されました",
       "success": "起動成功",
+      "title": "{{tool}}を起動",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
     "model_hint": "CLIツールが使用するAIモデルを選択してください",
+    "model_hint_config": "使用するモデルを選択してください",
+    "model_mode": {
+      "common": "一般",
+      "detailed": "詳細な"
+    },
     "model_placeholder": "使用するモデルを選択してください",
+    "model_providers": "モデルプロバイダー",
     "model_required": "モデルを選択してください",
+    "model_selection": "モデル選択",
+    "more": "もっと",
+    "no_matching_providers": "一致するプロバイダーがありません",
+    "no_model_for_provider": "このプロバイダーには利用可能なモデルがありません",
+    "no_providers_description": "設定 → モデルサービスで対応しているプロバイダーを有効にする",
+    "no_providers_title": "有効なプロバイダがありません",
+    "no_tools": "ツールは利用できません",
+    "not_installed": "インストールされていません",
+    "open_provider_settings": "プロバイダー設定を開く",
+    "own_login": {
+      "title": "{{toolName}} 公式"
+    },
+    "providerless_hint": "このツールは独自のログインフローで認証を行います。作業ディレクトリを選択して起動するだけです。サインインするためにツールを一度実行してください。",
+    "providers": "プロバイダー",
+    "raw_config": "Raw Config (JSON)",
+    "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダを選択",
+    "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
+    "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
-    "tool_description": {
-      "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
-      "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
-      "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
-      "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
-      "openai_codex": "OpenAIの公式コード生成CLI",
-      "opencode": "オープンソースのマルチモデルコーディングエージェント",
-      "qoder_cli": "Alibaba Qoderの自律型コマンドラインコーディングツール",
-      "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
-    },
+    "tool_parameters": "パラメータ設定",
+    "up_to_date": "最新の状態",
     "update_options": "更新オプション",
+    "upgrade": "アップグレード",
+    "upgrade_error": "アップグレードに失敗しました",
+    "upgrade_success": "アップグレード成功",
     "working_directory": "作業ディレクトリ",
     "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
   },
@@ -2128,6 +2279,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "画像編集 (OpenAI)",
     "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -2435,9 +2587,7 @@
       "message": "メッセージを探す"
     },
     "records": {
-      "agentSubtitle": "{{count}}件のタスク",
       "agentTitle": "エージェント履歴",
-      "assistantSubtitle": "{{count}}件の会話",
       "bulkDelete": "バッチ削除",
       "bulkDeleteSessions": {
         "description": "選択したタスク {{count}} 件を削除しますか？",
@@ -2459,11 +2609,19 @@
         "target": "ターゲットアシスタント",
         "title": "選択した会話を移動"
       },
+      "clearSearch": "検索をクリア",
       "empty": {
         "description": "現在のフィルターに該当する会話はありません。",
         "sessionsDescription": "現在のフィルターに該当するタスクはありません。",
         "sessionsTitle": "タスクなし",
         "title": "会話はありません"
+      },
+      "filter": {
+        "selectAgent": "エージェントを選択",
+        "selectAssistant": "アシスタントを選択",
+        "statusLabel": "ステータス",
+        "statusPlaceholder": "ステータスを選択",
+        "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
         "description": "会話リストを読み込んでいます。",
@@ -2471,15 +2629,9 @@
         "sessionsTitle": "タスクを読み込んでいます",
         "title": "会話を読み込んでいます"
       },
-      "resultCount": "{{count}}件の結果",
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "歴史",
-      "sidebar": {
-        "searchAssistant": "検索アシスタント...",
-        "status": "ステータス",
-        "unknownAssistant": "リンクされていないアシスタント"
-      },
       "status": {
         "completed": "完了",
         "failed": "失敗",
@@ -2487,11 +2639,10 @@
       },
       "table": {
         "actions": "アクション",
+        "conversation": "会話",
         "emptyValue": "—",
-        "messages": "メッセージ",
         "session": "タスク",
-        "time": "時間",
-        "title": "タイトル"
+        "time": "時間"
       },
       "title": "会話履歴"
     },
@@ -2738,6 +2889,8 @@
       "chunking": "チャンキング",
       "default_separator": "自動（推奨）",
       "document_count": "文書数",
+      "download_local_embedding": "ローカルモデルをダウンロード",
+      "download_local_embedding_failed": "ローカル埋め込みモデルのダウンロードに失敗しました",
       "embedding_model": "埋め込みモデル",
       "embedding_model_select": "モデル選択",
       "file_processing": "ファイル処理",
@@ -2764,7 +2917,8 @@
       "separator_rule": "セパレータルール",
       "smart_chunking": "スマートチャンキング",
       "threshold": "類似度閾値",
-      "tokens_unit": "トークン"
+      "tokens_unit": "トークン",
+      "use_local_embedding": "ローカルモデルを使用"
     },
     "recall": {
       "collapse": "折りたたみチャンク",
@@ -4160,6 +4314,7 @@
       "select_provider_model": "プロバイダーとモデルをまず選択してください"
     },
     "gateway": {
+      "open_dashboard": "Open OpenClaw",
       "port": "ポート",
       "restart": "再起動",
       "start": "スタートゲートウェイ",
@@ -4173,7 +4328,6 @@
       "hint": "macOS: brew install git | Windows: git-scm.com からダウンロード（インストール時に Git を PATH に追加するよう設定してください）",
       "title": "Gitが必要"
     },
-    "install_progress": "インストール進行状況",
     "installed_at": "OpenClawのインストール先",
     "migration": {
       "description": "npm経由でインストールされた古いバージョンのOpenClawが検出されました。最新の公式バージョンを入手するために、再インストールをお願いします。",
@@ -4234,7 +4388,6 @@
     },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
-    "uninstall_progress": "アンインストールの進行状況",
     "uninstalled": {
       "description": "OpenClawは正常にアンインストールされました。",
       "title": "アンインストール完了"
@@ -4681,6 +4834,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
     "mineru": "MinerU",
@@ -5344,7 +5498,8 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ"
+        "skip_file_data_title": "精簡バックアップ",
+        "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",
@@ -5937,6 +6092,30 @@
       "installError": "Failed to install tool",
       "installing": "インストール中...",
       "invalidTool": "無効なツール名またはキー",
+      "localModels": {
+        "cancel": "キャンセル",
+        "description": "デバイス上でローカルに動作するモデル — 一度ダウンロードすれば、APIキーなしでオフラインで使用できます。",
+        "download": "ダウンロード",
+        "embedding": {
+          "name": "ローカル埋め込み",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "ダウンロードに失敗しました。接続を確認して、もう一度お試しください。",
+          "inUse": "ナレッジベースによってまだ使用されている; ウェイトは保持された。",
+          "removeFailed": "削除に失敗しました。詳細についてはログを確認してください。"
+        },
+        "ocr": {
+          "name": "ローカルOCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "削除",
+        "status": {
+          "downloading": "ダウンロード中…",
+          "ready": "準備完了"
+        },
+        "title": "ローカルモデル"
+      },
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6533,7 +6712,8 @@
         },
         "model_id": {
           "label": "モデルID",
-          "placeholder": "必須 例：gpt-3.5-turbo",
+          "placeholder": "例：gpt-5.5",
+          "required": "モデル ID を入力してください",
           "select": {
             "placeholder": "モデルを選択"
           },
@@ -6541,7 +6721,7 @@
         },
         "model_name": {
           "label": "モデル名",
-          "placeholder": "例：GPT-4",
+          "placeholder": "例：GPT-5.5",
           "tooltip": "例：GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6790,17 @@
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",
-      "list_title": "Model list",
+      "list_title": "モデル",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
-          "label": "リストにモデルを追加"
+          "label": "すべてのモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
+        "clean_stale_models": "無効なモデルをクリーンアップ",
+        "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
+        "default_model_cannot_remove": "デフォルトモデルは削除できません。",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6822,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",
-        "remove_listed": "リストからモデルを削除",
+        "remove_listed": "すべてのモデルを削除",
         "remove_model": "モデルを削除",
+        "remove_skipped_default_in_use": "{{count}} 個のデフォルトモデルをスキップしました",
         "remove_whole_group": "グループ全体を削除",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "無効",
+        "stale_filter": "無効",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6889,7 @@
         "custom_add": "カスタム",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "追加"
+        "pull_short": "モデル一覧を取得"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",
@@ -6795,6 +6981,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "プロバイダーを追加",
         "name": {
           "label": "プロバイダー名",
           "placeholder": "例：OpenAI",
@@ -7341,6 +7528,13 @@
           "doc2x": {
             "description": "高度なファイル復元エンジン。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) をインプロセスで実行 — 完全オフライン、APIキー不要、認識処理はバックグラウンドスレッドで実行されるためUIが応答性を保ちます。初回使用前に環境依存関係でモデル（約140MB）をダウンロードしてください。",
+            "name": "ローカルPaddleOCR",
+            "status": {
+              "local": "お使いのデバイス上で完全に動作"
+            }
           },
           "mineru": {
             "description": "OpenDataLabのオープンソース高品質PDF抽出ツール",

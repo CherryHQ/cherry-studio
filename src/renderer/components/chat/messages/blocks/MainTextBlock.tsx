@@ -42,7 +42,13 @@ const composerTokenIcon: Partial<
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
 
-const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>(['file', 'knowledge', 'quote', 'skill'])
+const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
+  'file',
+  'folder',
+  'knowledge',
+  'quote',
+  'skill'
+])
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
