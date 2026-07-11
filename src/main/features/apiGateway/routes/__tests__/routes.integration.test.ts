@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // over them without a TDZ error.
 const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn(
+  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
@@ -221,6 +221,110 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.type).toBe('server_error')
       // NODE_ENV !== 'development' under test → internal messages are not leaked.
       expect(body.error.message).toBe('Internal server error')
+    })
+  })
+
+  describe('Gemini (/v1beta) routes', () => {
+    const geminiBody = { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }
+    const GOOG_AUTH = { 'content-type': 'application/json', 'x-goog-api-key': 'test-key' }
+
+    it('generateContent: model + non-streaming derived from the URL, routed with gemini formats', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody)
+      )
+      expect(status).toBe(200)
+      expect(body.ok).toBe(true)
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'deepseek:deepseek-chat',
+        streaming: false,
+        inputFormat: 'gemini',
+        outputFormat: 'gemini'
+      })
+    })
+
+    it('streamGenerateContent: preserves a slashed apiModelId and sets streaming=true', async () => {
+      // The gateway model addressing "providerId:apiModelId" can contain both a
+      // colon and a slash (aggregator ids like `agent/deepseek-v4-flash`); the
+      // wildcard route must keep the whole model intact and split off only the method.
+      await read(await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash:streamGenerateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
+    it('countTokens: returns a local estimate without calling processMessage', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', geminiBody)
+      )
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
+      expect(body.totalTokens).toBeGreaterThan(0)
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('unsupported method → 400 Google INVALID_ARGUMENT envelope', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:embedContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects unauthenticated /v1beta requests with 401', async () => {
+      const { status } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, {
+          'content-type': 'application/json'
+        })
+      )
+      expect(status).toBe(401)
+    })
+
+    it('authenticates via the x-goog-api-key header', async () => {
+      const { status } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, GOOG_AUTH)
+      )
+      expect(status).toBe(200)
+    })
+
+    it('authenticates via the ?key= query param', async () => {
+      const { status } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent?key=test-key', geminiBody, {
+          'content-type': 'application/json'
+        })
+      )
+      expect(status).toBe(200)
+    })
+
+    it('missing `contents` → 400 Google envelope (not OpenAI/Anthropic dialect)', async () => {
+      const { status, body } = await read(await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', {}))
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(body.error.code).toBe(400)
+      // Not the OpenAI/Anthropic shapes.
+      expect(body.type).toBeUndefined()
+      expect(body.error.type).toBeUndefined()
+    })
+
+    it('a thrown 429 provider error → Google RESOURCE_EXHAUSTED envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({ name: 'Error', message: 'rate limited', stack: null, statusCode: 429 })
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody)
+      )
+      expect(status).toBe(429)
+      expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+      expect(body.error.message).toBe('rate limited')
+    })
+
+    it('GET /v1beta/models returns the Gemini list shape', async () => {
+      const { status, body } = await read(await get(app, '/v1beta/models'))
+      expect(status).toBe(200)
+      expect(Array.isArray(body.models)).toBe(true)
+      expect(body.models[0].name).toBe('models/openai:gpt-4')
+      expect(body.models[0].supportedGenerationMethods).toContain('generateContent')
     })
   })
 })

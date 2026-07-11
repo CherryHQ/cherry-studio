@@ -1,0 +1,188 @@
+import type { Provider } from '@shared/data/types/provider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Control which provider-family branch the thinking mapper takes.
+vi.mock('@shared/utils/provider', () => ({
+  isAnthropicProvider: vi.fn(() => false),
+  isGeminiProvider: vi.fn(() => false),
+  isOpenAIProvider: vi.fn(() => false),
+  isAwsBedrockProvider: vi.fn(() => false)
+}))
+
+import { isGeminiProvider } from '@shared/utils/provider'
+
+import { type GeminiGenerateContentRequest, GeminiMessageConverter } from '../converters/GeminiMessageConverter'
+
+const converter = new GeminiMessageConverter()
+const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>
+const provider = (id = 'p'): Provider => ({ id }) as Provider
+
+const request = (overrides: Partial<GeminiGenerateContentRequest>): GeminiGenerateContentRequest => ({
+  contents: [],
+  ...overrides
+})
+
+beforeEach(() => {
+  asMock(isGeminiProvider).mockReturnValue(false)
+})
+
+describe('GeminiMessageConverter.toUIMessages', () => {
+  it('emits a leading system message from a string systemInstruction', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        systemInstruction: 'Be terse.',
+        contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+      })
+    )
+    expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'Be terse.' }] })
+    expect(msgs[1]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'hi' }] })
+  })
+
+  it('joins a structured (parts) systemInstruction', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        systemInstruction: { parts: [{ text: 'A' }, { text: 'B' }] },
+        contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+      })
+    )
+    expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
+  })
+
+  it('maps text, inlineData and fileData parts', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: 'look' },
+              { inlineData: { mimeType: 'image/png', data: 'AAAA' } },
+              { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: 'look' },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+      { type: 'file', mediaType: 'application/pdf', url: 'gs://bucket/f.pdf' }
+    ])
+  })
+
+  it('maps a thought part to a reasoning part', () => {
+    const msgs = converter.toUIMessages(
+      request({ contents: [{ role: 'model', parts: [{ text: 'hmm', thought: true }] }] })
+    )
+    expect(msgs[0]).toMatchObject({ role: 'assistant', parts: [{ type: 'reasoning', text: 'hmm' }] })
+  })
+
+  it('folds a functionResponse into the matching functionCall (matched by name)', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          { role: 'model', parts: [{ functionCall: { name: 'get_weather', args: { city: 'SF' } } }] },
+          { role: 'user', parts: [{ functionResponse: { name: 'get_weather', response: { temp: 20 } } }] }
+        ]
+      })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({
+      type: 'dynamic-tool',
+      toolName: 'get_weather',
+      state: 'output-available',
+      input: { city: 'SF' },
+      output: JSON.stringify({ temp: 20 })
+    })
+    // The user message held only the absorbed functionResponse → no message emitted.
+    expect(msgs).toHaveLength(1)
+  })
+
+  it('emits an input-available tool part when the call has no response yet', () => {
+    const msgs = converter.toUIMessages(
+      request({ contents: [{ role: 'model', parts: [{ functionCall: { name: 'search', args: { q: 'x' } } }] }] })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({ type: 'dynamic-tool', toolName: 'search', state: 'input-available' })
+  })
+})
+
+describe('GeminiMessageConverter.toAiSdkTools', () => {
+  it('returns undefined when there are no tools', () => {
+    expect(converter.toAiSdkTools(request({}))).toBeUndefined()
+  })
+
+  it('builds a ToolSet from functionDeclarations (parametersJsonSchema)', () => {
+    const tools = converter.toAiSdkTools(
+      request({
+        tools: [
+          {
+            functionDeclarations: [
+              {
+                name: 'get_weather',
+                description: 'Get weather',
+                parametersJsonSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] }
+              }
+            ]
+          }
+        ]
+      })
+    )
+    expect(tools && Object.keys(tools)).toEqual(['get_weather'])
+  })
+
+  it('normalizes Gemini `parameters` (UPPERCASE type) into a usable tool', () => {
+    const tools = converter.toAiSdkTools(
+      request({
+        tools: [
+          {
+            functionDeclarations: [
+              { name: 'lookup', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } } } }
+            ]
+          }
+        ]
+      })
+    )
+    expect(tools && Object.keys(tools)).toEqual(['lookup'])
+  })
+
+  it('skips built-in tools that carry no functionDeclarations', () => {
+    const tools = converter.toAiSdkTools(request({ tools: [{} as never] }))
+    expect(tools).toBeUndefined()
+  })
+})
+
+describe('GeminiMessageConverter.extractStreamOptions', () => {
+  it('reads sampling options from generationConfig', () => {
+    expect(
+      converter.extractStreamOptions(
+        request({
+          generationConfig: { temperature: 0.5, topP: 0.9, topK: 40, maxOutputTokens: 128, stopSequences: ['x'] }
+        })
+      )
+    ).toEqual({ temperature: 0.5, topP: 0.9, topK: 40, maxOutputTokens: 128, stopSequences: ['x'] })
+  })
+
+  it('returns undefined fields when generationConfig is absent', () => {
+    expect(converter.extractStreamOptions(request({}))).toEqual({
+      temperature: undefined,
+      topP: undefined,
+      topK: undefined,
+      maxOutputTokens: undefined,
+      stopSequences: undefined
+    })
+  })
+})
+
+describe('GeminiMessageConverter.extractProviderOptions', () => {
+  it('returns undefined when there is no thinkingConfig', () => {
+    expect(converter.extractProviderOptions(provider(), request({}))).toBeUndefined()
+  })
+
+  it('maps an enabled thinkingConfig via the shared thinking mapper', () => {
+    asMock(isGeminiProvider).mockReturnValue(true)
+    const options = converter.extractProviderOptions(
+      provider(),
+      request({ generationConfig: { thinkingConfig: { includeThoughts: true, thinkingBudget: 512 } } })
+    )
+    expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } } })
+  })
+})

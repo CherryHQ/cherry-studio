@@ -1,0 +1,132 @@
+import { bearer } from '@elysia/bearer'
+import { Elysia } from 'elysia'
+import { approximateTokenSize } from 'tokenx'
+
+import { authorizeApiRequest } from '../middleware/auth'
+import { processMessage } from '../proxyStream'
+import { getModels } from '../utils/models'
+import { GeminiGenerateContentBodySchema } from './schemas'
+
+/** Generation methods the gateway serves under `/v1beta/models/{model}:{method}`. */
+const GENERATE_METHODS = new Set(['generateContent', 'streamGenerateContent'])
+
+/**
+ * Split the wildcard path segment `providerId:apiModelId:method` into its model
+ * (`providerId:apiModelId`, kept intact for `processMessage`) and the trailing
+ * method. The model itself contains a colon, so the method is taken off the LAST
+ * colon. Returns `null` when there is no method separator.
+ */
+function parseModelMethod(raw: string): { model: string; method: string } | null {
+  const lastColon = raw.lastIndexOf(':')
+  if (lastColon <= 0 || lastColon >= raw.length - 1) return null
+  return { model: raw.slice(0, lastColon), method: raw.slice(lastColon + 1) }
+}
+
+/** Best-effort token estimate over a Gemini request's text parts. */
+function estimateGeminiTokens(body: unknown): number {
+  const request = (body ?? {}) as {
+    contents?: Array<{ parts?: Array<{ text?: unknown }> }>
+    systemInstruction?: unknown
+  }
+  let total = 0
+
+  const addContentText = (parts: Array<{ text?: unknown }> | undefined) => {
+    if (!Array.isArray(parts)) return
+    for (const part of parts) {
+      if (typeof part.text === 'string') total += approximateTokenSize(part.text)
+    }
+  }
+
+  if (Array.isArray(request.contents)) {
+    for (const content of request.contents) addContentText(content.parts)
+    // Every content message carries a small structural overhead.
+    total += request.contents.length * 3
+  }
+
+  const system = request.systemInstruction
+  if (typeof system === 'string') {
+    total += approximateTokenSize(system)
+  } else if (system && typeof system === 'object') {
+    addContentText((system as { parts?: Array<{ text?: unknown }> }).parts)
+  }
+
+  return total
+}
+
+/** Google `invalid_argument` (400) envelope for in-handler request errors. */
+const invalidArgument = (message: string) => ({
+  error: { code: 400, message, status: 'INVALID_ARGUMENT' }
+})
+
+/**
+ * Google Generative Language routes (`/v1beta`).
+ *
+ * Self-contained: the auth guard is `local` (it does NOT export to the app scope,
+ * so it never leaks onto `/v1`), and Gemini clients present the key via
+ * `x-goog-api-key` or the `?key=` query param (`x-api-key` / Bearer are still
+ * accepted for parity). See the mount-order note in `app.ts` for why this group is
+ * registered before `v1Routes`.
+ *
+ * `POST /v1beta/models/{model}:generateContent` (JSON) and
+ * `:streamGenerateContent` (SSE with `?alt=sse`) both stream through
+ * `AiStreamManager`; the model and the streaming flag come from the URL, not the
+ * body. `:countTokens` returns a local estimate. `GET /v1beta/models` lists the
+ * gateway-addressable models in Gemini's list shape. Errors are shaped into the
+ * Google envelope by the app's root `onError` (path-based → `googleErrorHandler`).
+ */
+export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
+  .use(bearer())
+  .guard({
+    as: 'local',
+    beforeHandle: ({ bearer, headers, query, set }) => {
+      const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
+      const failure = authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey)
+      if (!failure) return undefined
+      set.status = failure.status
+      return { error: failure.error }
+    }
+  })
+  .post(
+    '/models/*',
+    ({ params, body, request, status }) => {
+      const parsed = parseModelMethod(params['*'])
+      if (!parsed) {
+        return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
+      }
+      const { model, method } = parsed
+
+      if (method === 'countTokens') {
+        return { totalTokens: estimateGeminiTokens(body) }
+      }
+      if (!GENERATE_METHODS.has(method)) {
+        return status(400, invalidArgument(`Unsupported method: "${method}".`))
+      }
+
+      return processMessage({
+        params: body,
+        modelString: model,
+        streaming: method === 'streamGenerateContent',
+        inputFormat: 'gemini',
+        outputFormat: 'gemini',
+        signal: request.signal
+      })
+    },
+    {
+      body: GeminiGenerateContentBodySchema,
+      detail: { tags: ['Gemini'], summary: 'Generate content (Gemini dialect)' }
+    }
+  )
+  .get(
+    '/models',
+    async () => {
+      const { data } = await getModels()
+      return {
+        models: data.map((model) => ({
+          name: `models/${model.id}`,
+          displayName: model.id,
+          supportedGenerationMethods: ['generateContent', 'streamGenerateContent', 'countTokens']
+        }))
+      }
+    },
+    { detail: { tags: ['Gemini'], summary: 'List available models (Gemini dialect)' } }
+  )
