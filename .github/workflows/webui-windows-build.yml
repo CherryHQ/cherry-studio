@@ -1,0 +1,104 @@
+name: Build Cherry Studio WebUI Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - webui
+    paths:
+      - webui/**
+      - src/main/**
+      - src/renderer/pages/settings/ChannelsSettings/**
+      - src/shared/data/preference/**
+      - src/shared/data/cache/**
+      - electron-builder.yml
+      - package.json
+      - pnpm-lock.yaml
+      - .node-version
+      - .github/workflows/webui-windows-build.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      CI: true
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NODE_OPTIONS: --max-old-space-size=8192
+      MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+      MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+      RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+      RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: pwsh
+        run: |
+          "STORE_PATH=$(pnpm store path --silent)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-webui-windows-${{ hashFiles('pnpm-lock.yaml', 'webui/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-webui-windows-
+            ${{ runner.os }}-pnpm-
+
+      - name: Install desktop dependencies
+        run: pnpm install
+
+      - name: Install WebUI dependencies
+        working-directory: webui
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck WebUI
+        working-directory: webui
+        run: pnpm typecheck
+
+      - name: Build WebUI
+        working-directory: webui
+        run: pnpm build
+
+      - name: Verify WebUI dist
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath "webui/dist/index.html")) {
+            throw "webui/dist/index.html was not generated."
+          }
+          $assetCount = (Get-ChildItem -LiteralPath "webui/dist/assets" -File -ErrorAction Stop | Measure-Object).Count
+          if ($assetCount -eq 0) {
+            throw "webui/dist/assets is empty."
+          }
+
+      - name: Remove WebUI build dependencies
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath "webui/node_modules" -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Build Windows WebUI package
+        run: pnpm build:win:x64
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cherry-studio-webui-windows
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/*.blockmap
+          if-no-files-found: error
