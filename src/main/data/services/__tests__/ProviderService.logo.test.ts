@@ -18,7 +18,7 @@ describe('ProviderService logo (key/file columns)', () => {
   const dbh = setupTestDatabase()
 
   it('round-trips a preset-key logo set on create', async () => {
-    const created = await providerService.create({
+    const created = providerService.create({
       providerId: 'p-logo',
       name: 'P',
       logo: { kind: 'key', key: 'icon:openai' }
@@ -30,7 +30,7 @@ describe('ProviderService logo (key/file columns)', () => {
   })
 
   it('leaves the logo null when create omits it', async () => {
-    const created = await providerService.create({ providerId: 'p-nologo', name: 'P' })
+    const created = providerService.create({ providerId: 'p-nologo', name: 'P' })
 
     expect(created.logo).toBeUndefined()
     const [row] = await rowFor(dbh, 'p-nologo')
@@ -40,7 +40,7 @@ describe('ProviderService logo (key/file columns)', () => {
   it('sets a key logo on update', async () => {
     await dbh.db.insert(userProviderTable).values({ providerId: 'p-set', name: 'P', orderKey: 'a0' })
 
-    const updated = await providerService.update('p-set', { logo: { kind: 'key', key: 'icon:openai' } })
+    const updated = providerService.update('p-set', { logo: { kind: 'key', key: 'icon:openai' } })
 
     expect(updated.logo).toBe('icon:openai')
     const [row] = await rowFor(dbh, 'p-set')
@@ -52,7 +52,7 @@ describe('ProviderService logo (key/file columns)', () => {
       .insert(userProviderTable)
       .values({ providerId: 'p-default', name: 'P', orderKey: 'a0', logoKey: 'icon:old' })
 
-    const updated = await providerService.update('p-default', { logo: { kind: 'default' } })
+    const updated = providerService.update('p-default', { logo: { kind: 'default' } })
 
     expect(updated.logo).toBeUndefined()
     const [row] = await rowFor(dbh, 'p-default')
@@ -64,7 +64,7 @@ describe('ProviderService logo (key/file columns)', () => {
       .insert(userProviderTable)
       .values({ providerId: 'p-keep', name: 'P', orderKey: 'a0', logoKey: 'icon:keep' })
 
-    await providerService.update('p-keep', { name: 'Renamed' })
+    providerService.update('p-keep', { name: 'Renamed' })
 
     const [row] = await rowFor(dbh, 'p-keep')
     expect(row.logoKey).toBe('icon:keep')
@@ -90,9 +90,9 @@ describe('ProviderService logo (key/file columns)', () => {
 
     it('binds an uploaded logo to the slot ref, nulls logoKey, and resolves logoSrc on read-back', async () => {
       await seedFileEntry(FILE_ID)
-      await providerService.create({ providerId: 'p-file', name: 'P' })
+      providerService.create({ providerId: 'p-file', name: 'P' })
 
-      const updated = await providerService.update('p-file', { logo: { kind: 'file', fileId: FILE_ID } })
+      const updated = providerService.update('p-file', { logo: { kind: 'file', fileId: FILE_ID } })
 
       // The file id lives only in the ref row; the owner row keeps no key.
       const [row] = await rowFor(dbh, 'p-file')
@@ -113,10 +113,10 @@ describe('ProviderService logo (key/file columns)', () => {
 
     it('switching an uploaded logo to a preset key clears the slot ref and preserves the file_entry', async () => {
       await seedFileEntry(FILE_ID)
-      await providerService.create({ providerId: 'p-file2key', name: 'P' })
-      await providerService.update('p-file2key', { logo: { kind: 'file', fileId: FILE_ID } })
+      providerService.create({ providerId: 'p-file2key', name: 'P' })
+      providerService.update('p-file2key', { logo: { kind: 'file', fileId: FILE_ID } })
 
-      const updated = await providerService.update('p-file2key', { logo: { kind: 'key', key: 'icon:openai' } })
+      const updated = providerService.update('p-file2key', { logo: { kind: 'key', key: 'icon:openai' } })
 
       const [row] = await rowFor(dbh, 'p-file2key')
       expect(row.logoKey).toBe('icon:openai')
@@ -132,10 +132,10 @@ describe('ProviderService logo (key/file columns)', () => {
     it('replacing one uploaded logo with another repoints the slot ref', async () => {
       await seedFileEntry(FILE_ID)
       await seedFileEntry(FILE_ID_2)
-      await providerService.create({ providerId: 'p-refile', name: 'P' })
-      await providerService.update('p-refile', { logo: { kind: 'file', fileId: FILE_ID } })
+      providerService.create({ providerId: 'p-refile', name: 'P' })
+      providerService.update('p-refile', { logo: { kind: 'file', fileId: FILE_ID } })
 
-      await providerService.update('p-refile', { logo: { kind: 'file', fileId: FILE_ID_2 } })
+      providerService.update('p-refile', { logo: { kind: 'file', fileId: FILE_ID_2 } })
 
       expect(getLogoFileId(logoSlot('p-refile'))).toBe(FILE_ID_2)
       const refs = await logoRefs('p-refile')

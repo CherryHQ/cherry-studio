@@ -472,7 +472,7 @@ describe('ProviderModelMigrator', () => {
         .from(providerLogoFileRefTable)
         .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
       expect(refs).toHaveLength(1)
-      const logoFileId = refs[0]!.fileEntryId
+      const logoFileId = refs[0].fileEntryId
 
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
       expect(entry?.origin).toBe('internal')
