@@ -12,6 +12,7 @@ import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/Agent
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -46,6 +47,11 @@ type JoinedSessionRow = {
   workspace: AgentWorkspaceRow
 }
 
+export interface AgentSessionWorkspaceChangedEvent {
+  sessionId: string
+  workspaceId: string
+}
+
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   const clean = nullsToUndefined(row.session)
   return {
@@ -70,6 +76,9 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  private readonly _onWorkspaceChanged = new Emitter<AgentSessionWorkspaceChangedEvent>()
+  readonly onWorkspaceChanged: Event<AgentSessionWorkspaceChangedEvent> = this._onWorkspaceChanged.event
+
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -343,33 +352,38 @@ export class AgentSessionService {
    * generic PATCH because it creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
-    withSqliteErrors(
+    const changed = withSqliteErrors(
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    return this.getById(id)
+    const session = this.getById(id)
+    if (changed) {
+      this._onWorkspaceChanged.fire({ sessionId: id, workspaceId: session.workspaceId })
+    }
+    return session
   }
 
-  setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
+  setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): boolean {
     const current = this.getJoinedSessionRowTx(tx, id)
     // The workspace binding is locked the moment a session has any message.
     this.assertSessionHasNoMessagesTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
-      if (workspace.id === current.session.workspaceId) return
+      if (workspace.id === current.session.workspaceId) return false
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
       }
-      return
+      return true
     }
 
     // Target is a system workspace; an existing system workspace is already correct.
-    if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
+    if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return false
     const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+    return true
   }
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {

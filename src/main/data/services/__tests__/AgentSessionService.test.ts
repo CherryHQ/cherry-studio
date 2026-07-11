@@ -324,6 +324,29 @@ describe('AgentSessionService', () => {
     expect(updated.workspace.path).toBe(secondWorkspace.path)
   })
 
+  it('emits a workspace change only when the session binding actually changes', async () => {
+    const firstWorkspace = await createWorkspace('event-first')
+    const secondWorkspace = await createWorkspace('event-second')
+    const session = await createSession('Workspace event', firstWorkspace.id)
+    const events: Array<{ sessionId: string; workspaceId: string }> = []
+    const disposable = agentSessionService.onWorkspaceChanged((event) => events.push(event))
+
+    try {
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: secondWorkspace.id
+      })
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: secondWorkspace.id
+      })
+
+      expect(events).toEqual([{ sessionId: session.id, workspaceId: secondWorkspace.id }])
+    } finally {
+      disposable.dispose()
+    }
+  })
+
   it('deletes the previous system workspace row when switching to a user workspace', async () => {
     const userWorkspace = await createWorkspace('system-to-user')
     const session = agentSessionService.create({

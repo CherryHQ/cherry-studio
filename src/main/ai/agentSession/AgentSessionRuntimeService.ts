@@ -95,6 +95,8 @@ type AgentSessionTurn = {
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
+  /** Connection-baked configuration revision captured when this turn was created. */
+  configurationRevision: number
   admitted: boolean
   abortController: AbortController
   terminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -111,15 +113,20 @@ type AgentSessionRuntimeEntry = {
   agentId: string
   agentType: string
   modelId: UniqueModelId
+  /** Advances whenever connection-baked session/agent configuration changes. */
+  configurationRevision: number
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   /** Model the current connection was opened with. A model edit invalidates reuse. */
   connectionModelId?: UniqueModelId
+  /** Configuration revision the current connection was opened with. */
+  connectionConfigurationRevision?: number
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
   connectingModelId?: UniqueModelId
+  connectingConfigurationRevision?: number
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -199,6 +206,11 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      agentSessionService.onWorkspaceChanged(({ sessionId }) => {
+        this.invalidateSessionConnectionConfiguration(sessionId)
+      })
+    )
   }
 
   private reconcileStalePendingMessages(): void {
@@ -216,11 +228,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const existing = this.entries.get(input.sessionId)
+    const configurationRevision = existing?.configurationRevision ?? 0
     const turn: AgentSessionTurn = {
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
+      configurationRevision,
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -228,9 +242,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (existing?.status === 'idle') {
-      // A warm connection is always safe to reuse: per-turn headless enforcement lives in `canUseTool`
-      // and PreToolUse hooks (resolved by session id at fire-time via `isCurrentTurnHeadless`), so the
-      // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
+      // Reuse the idle entry; `ensureConnection` still verifies its captured model/config revision before
+      // admitting the turn. Per-turn headless enforcement lives in `canUseTool` / PreToolUse hooks
+      // (resolved by session id at fire-time via `isCurrentTurnHeadless`), so headless mode itself does not
+      // require a rebuild.
       this.clearIdleTimer(existing)
       existing.pendingTurns = []
       existing.topicId = input.topicId
@@ -261,6 +276,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
+      configurationRevision,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -326,6 +342,7 @@ export class AgentSessionRuntimeService extends BaseService {
         agentId: session.agentId,
         agentType: agent.type,
         modelId: agent.model,
+        configurationRevision: 0,
         status: 'idle',
         pendingTurns: []
       }
@@ -429,16 +446,27 @@ export class AgentSessionRuntimeService extends BaseService {
 
       if (entry.modelId === modelId) continue
       entry.modelId = modelId
+      this.invalidateConnectionConfiguration(entry)
+    }
+  }
 
-      // Treat a steer roll as a live turn: at a `steer-boundary` A1a is marked terminal but `entry.rolling`
-      // stays true while the same SDK query keeps streaming the post-steer response into A2. Closing the
-      // connection in that gap would drop the continuation. Deferring is safe — the roll continuation keeps
-      // A1a's captured model, and the next fresh turn reconnects to the new model via `ensureConnection`.
-      const turn = entry.currentTurn
-      const hasLiveTurn = (turn && !turn.terminalStatus) || entry.rolling === true
-      if (!hasLiveTurn) {
-        this.closeConnectionAsync(entry)
-      }
+  private invalidateSessionConnectionConfiguration(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+    this.invalidateConnectionConfiguration(entry)
+  }
+
+  private invalidateConnectionConfiguration(entry: AgentSessionRuntimeEntry): void {
+    entry.configurationRevision += 1
+
+    // Treat a steer roll as a live turn: at a `steer-boundary` A1a is marked terminal but `entry.rolling`
+    // stays true while the same SDK query keeps streaming the post-steer response into A2. Closing the
+    // connection in that gap would drop the continuation. The live turn keeps its captured model/config
+    // revision; the next fresh turn reconnects against the advanced entry revision.
+    const turn = entry.currentTurn
+    const hasLiveTurn = (turn && !turn.terminalStatus) || entry.rolling === true
+    if (!hasLiveTurn) {
+      this.closeConnectionAsync(entry)
     }
   }
 
@@ -678,37 +706,44 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Model the session's connection should serve right now. A live turn runs on the model captured
-   * when it was created — its assistant row, persistence and trace are already stamped with it, so
-   * a model edit landing between turn creation and its stream opening must NOT retarget the
-   * connection (the turn would execute on a different model than it records). A steer roll counts as
-   * live too: at a `steer-boundary` A1a is already terminal while `entry.rolling` stays true and the
-   * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
-   * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
-   * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model.
+   * Connection identity the session should serve right now. A live turn keeps the model and
+   * connection-baked configuration revision captured when it was created; otherwise the target follows
+   * the entry's latest values. A steer roll counts as live so re-prime cannot close its continuing SDK query.
    */
-  private connectionTargetModelId(entry: AgentSessionRuntimeEntry): UniqueModelId {
+  private connectionTarget(entry: AgentSessionRuntimeEntry): {
+    modelId: UniqueModelId
+    configurationRevision: number
+  } {
     const turn = entry.currentTurn
     const live = turn && (!turn.terminalStatus || entry.rolling === true)
-    return live ? turn.modelId : entry.modelId
+    return live
+      ? { modelId: turn.modelId, configurationRevision: turn.configurationRevision }
+      : { modelId: entry.modelId, configurationRevision: entry.configurationRevision }
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
-      const targetModelId = this.connectionTargetModelId(entry)
+      const target = this.connectionTarget(entry)
       if (entry.connection) {
-        if (entry.connectionModelId === targetModelId) return true
+        if (
+          entry.connectionModelId === target.modelId &&
+          (entry.connectionConfigurationRevision ?? 0) === target.configurationRevision
+        ) {
+          return true
+        }
         this.closeConnectionAsync(entry)
         continue
       }
 
       // Share a single in-flight connect across concurrent callers so two streams opening at once
-      // can't each spin up a connection (the second would leak/clobber the first). If the target
-      // model changed while that connect was in flight, wait for the stale attempt to self-discard,
-      // then loop and open the new model.
+      // can't each spin up a connection (the second would leak/clobber the first). If the target model
+      // or configuration revision changed while that connect was in flight, wait for the stale attempt
+      // to self-discard, then loop and open the current target.
       if (entry.connecting) {
-        if (entry.connectingModelId === targetModelId) {
+        if (
+          entry.connectingModelId === target.modelId &&
+          (entry.connectingConfigurationRevision ?? 0) === target.configurationRevision
+        ) {
           // Don't hand the shared promise straight back: it resolves false when the attempt
           // self-discards on a mid-flight model edit, and a caller surfacing that false while the
           // entry is still current would leave its turn stream waiting forever. Loop and retry.
@@ -719,15 +754,18 @@ export class AgentSessionRuntimeService extends BaseService {
         continue
       }
 
-      const connectingModelId = targetModelId
-      const connecting = this.connect(entry, connectingModelId).finally(() => {
+      const connectingModelId = target.modelId
+      const connectingConfigurationRevision = target.configurationRevision
+      const connecting = this.connect(entry, connectingModelId, connectingConfigurationRevision).finally(() => {
         if (entry.connecting === connecting) {
           entry.connecting = undefined
           entry.connectingModelId = undefined
+          entry.connectingConfigurationRevision = undefined
         }
       })
       entry.connecting = connecting
       entry.connectingModelId = connectingModelId
+      entry.connectingConfigurationRevision = connectingConfigurationRevision
       const connected = await connecting
       if (connected) return true
     }
@@ -735,7 +773,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
-  private async connect(entry: AgentSessionRuntimeEntry, modelId: UniqueModelId): Promise<boolean> {
+  private async connect(
+    entry: AgentSessionRuntimeEntry,
+    modelId: UniqueModelId,
+    configurationRevision: number
+  ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
@@ -749,7 +791,12 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, modelId)
     })
-    if (!this.isCurrentEntry(entry) || this.connectionTargetModelId(entry) !== modelId) {
+    const target = this.connectionTarget(entry)
+    if (
+      !this.isCurrentEntry(entry) ||
+      target.modelId !== modelId ||
+      target.configurationRevision !== configurationRevision
+    ) {
       void Promise.resolve(connection.close()).catch((error) =>
         logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
       )
@@ -758,12 +805,14 @@ export class AgentSessionRuntimeService extends BaseService {
 
     entry.connection = connection
     entry.connectionModelId = modelId
+    entry.connectionConfigurationRevision = configurationRevision
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
         entry.connection = undefined
         entry.connectionModelId = undefined
+        entry.connectionConfigurationRevision = undefined
       }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
@@ -1081,6 +1130,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
+      configurationRevision: entry.configurationRevision,
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -1141,6 +1191,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
+    const configurationRevision = entry.currentTurn?.configurationRevision ?? entry.configurationRevision
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
@@ -1177,6 +1228,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: steerMessage,
       modelId,
+      configurationRevision,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
       abortController: new AbortController(),
@@ -1373,6 +1425,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = entry.connection
     entry.connection = undefined
     entry.connectionModelId = undefined
+    entry.connectionConfigurationRevision = undefined
     entry.connectionLoop = undefined
     return connection
   }

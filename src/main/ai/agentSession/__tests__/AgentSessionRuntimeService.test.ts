@@ -17,11 +17,16 @@ const mocks = vi.hoisted(() => ({
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
-  ensureTraceId: vi.fn()
+  ensureTraceId: vi.fn(),
+  onWorkspaceChanged: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: {
+    getById: mocks.getSessionById,
+    ensureTraceId: mocks.ensureTraceId,
+    onWorkspaceChanged: mocks.onWorkspaceChanged
+  }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -135,6 +140,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
+    mocks.onWorkspaceChanged.mockReturnValue({ dispose: () => {} })
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -536,6 +542,55 @@ describe('AgentSessionRuntimeService', () => {
     await secondReader.cancel().catch(() => undefined)
   })
 
+  it('reconnects a primed runtime after the session workspace changes', async () => {
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      getSupportedCommands: vi.fn().mockResolvedValue([])
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      getSupportedCommands: vi.fn().mockResolvedValue([])
+    }
+    const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+    const service = new AgentSessionRuntimeService()
+    await service._doInit()
+    await service.primeConnection('session-1')
+
+    const onWorkspaceChanged = mocks.onWorkspaceChanged.mock.calls[0]?.[0]
+    expect(onWorkspaceChanged).toBeTypeOf('function')
+    onWorkspaceChanged({ sessionId: 'session-1', workspaceId: 'workspace-next' })
+
+    const turn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: turn.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
+
+    expect(firstConnection.close).toHaveBeenCalledOnce()
+    expect(connect).toHaveBeenCalledTimes(2)
+    await reader.cancel().catch(() => undefined)
+  })
+
   it('retries callers sharing an in-flight connect when a mid-flight model edit discards it', async () => {
     const firstConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
     const secondConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
@@ -613,7 +668,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
     expect(connection.close).not.toHaveBeenCalled()
     // The next turn (idle entry, no live turn) targets the edited model again.
-    expect((service as any).connectionTargetModelId({ ...getEntry(service), currentTurn: undefined })).toBe(
+    expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined }).modelId).toBe(
       switchedModelId
     )
 
