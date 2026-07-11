@@ -27,7 +27,6 @@ function makeOptions(
       name: 'AiHubMix',
       apiHost: 'https://aihubmix.com',
       isEnabled: true,
-      authOptional: false,
       getApiKey: async () => 'sk'
     },
     signal,

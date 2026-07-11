@@ -7,8 +7,6 @@ export interface PaintingProviderRuntime {
   name: string
   presetProviderId?: string
   isEnabled: boolean
-  /** Registry `authOptional`: credential-free local server (e.g. OVMS) — skip the enable/key gate. */
-  authOptional: boolean
   apiHost: string
   getApiKey: () => Promise<string>
 }
@@ -99,7 +97,6 @@ export function createPaintingProviderRuntime(
     name: provider?.name || providerId,
     presetProviderId: provider?.presetProviderId,
     isEnabled: provider?.isEnabled ?? false,
-    authOptional: provider?.authOptional ?? false,
     apiHost: resolvePaintingApiHost(provider),
     getApiKey: async () => apiKey
   }

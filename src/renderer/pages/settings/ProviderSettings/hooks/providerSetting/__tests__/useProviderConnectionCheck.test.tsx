@@ -118,7 +118,7 @@ describe('useProviderConnectionCheck', () => {
 
   it('opens the connection drawer without API keys for no-key providers', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false, authOptional: true },
       updateProvider: updateProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
@@ -138,7 +138,13 @@ describe('useProviderConnectionCheck', () => {
 
   it('opens the connection drawer without API keys for providers derived from no-key presets', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'custom-ollama', presetProviderId: 'ollama', name: 'Custom Ollama', isEnabled: false },
+      provider: {
+        id: 'custom-ollama',
+        presetProviderId: 'ollama',
+        name: 'Custom Ollama',
+        isEnabled: false,
+        authOptional: true
+      },
       updateProvider: updateProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
@@ -180,7 +186,7 @@ describe('useProviderConnectionCheck', () => {
 
   it('runs no-key provider checks without an API key override', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', isEnabled: false },
+      provider: { id: 'ollama', name: 'Ollama', isEnabled: false, authOptional: true },
       updateProvider: updateProviderMock
     })
     useAuthenticationApiKeyMock.mockReturnValue({
