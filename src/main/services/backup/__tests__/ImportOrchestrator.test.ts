@@ -211,4 +211,22 @@ describe('ImportOrchestrator spine', () => {
     ).rejects.toThrow(BackupCancelledError)
     expect(readRestoreJournal().kind).toBe('none')
   })
+
+  it('aborts if the signal fires during the 2nd fingerprint (no journal written)', async () => {
+    // The 2nd fingerprint is the last async before the synchronous journal write — an abort
+    // during/after it must NOT proceed to write the journal + relaunch.
+    const ac = new AbortController()
+    const orch = new ImportOrchestrator(makeDeps())
+    await expect(
+      orch.importBackup({
+        archivePath: '/tmp/fake.cbu',
+        restoreId: 'rst-007',
+        signal: ac.signal,
+        onProgress: (u) => {
+          if (u.phase === 'verify') ac.abort()
+        }
+      })
+    ).rejects.toThrow(BackupCancelledError)
+    expect(readRestoreJournal().kind).toBe('none')
+  })
 })

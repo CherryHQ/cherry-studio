@@ -17,12 +17,12 @@
 //
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
-// ImportOrchestrator spine (snapshot → fingerprint → merge → migrate → seal → journal →
-// relaunch) but is FAIL-CLOSED until the write-quiesce (#16849/#16850) and merge-engine
-// tracks land — quiesce + merge throw, so no staged journal is ever written without them.
-// preflightDisk guards export; performRestoreRecovery at startup GCs staging residue from
-// a crashed prior restore (prod-usable, not dev-gated). cancel/progress/validate channels
-// and the restore progress UI land in follow-up slices.
+// ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
+// stage → 2nd fingerprint → journal → relaunch) but is FAIL-CLOSED until the write-quiesce
+// (#16849/#16850) and merge-engine tracks land — quiesce + merge throw, so no staged journal
+// is ever written without them. preflightDisk guards export; performRestoreRecovery at startup
+// GCs staging residue from a crashed prior restore (prod-usable, not dev-gated).
+// cancel/progress/validate channels and the restore progress UI land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -55,6 +55,14 @@ import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 
 const logger = loggerService.withContext('BackupService')
+
+/**
+ * Boot-once guard for staging-residue GC. `onInit` can re-run on a service restart (stop→start
+ * on the same instance), and `onStop` only signals abort without awaiting an in-flight restore —
+ * so a restart could otherwise re-run `gcStagingResidue` and delete an active restore's tree.
+ * The residue GC is a crash-recovery step that only makes sense once per process boot.
+ */
+let stagingResidueGcDone = false
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -334,13 +342,18 @@ export class BackupService extends BaseService {
    * half-built work.sqlite + staged files are unrecoverable garbage (the preboot gate
    * returns early on journal=none and never touches the tree).
    *
-   * INVARIANT: this runs only from onInit (single-threaded, before any startRestore can
-   * reserve activeOperation). It MUST NOT run once restores can span a stop→start lifecycle
-   * boundary or while an orphan sweep is concurrent — either could make it delete a tree
-   * a live restore / sweep is using. The spine restore runs within one boot → relaunch, so
-   * this is safe today; revisit if that changes.
+   * INVARIANT: boot-once (`stagingResidueGcDone`) + refused while `activeOperation` exists.
+   * `onInit` can re-run on a service restart while an in-flight restore from the prior cycle
+   * is still settling (`onStop` only signals abort, does not await) — without these guards the
+   * whole-root GC would delete that active tree. Revisit if restores ever span a stop→start
+   * boundary or an orphan sweep runs concurrently.
    */
   private gcStagingResidue(): void {
+    if (stagingResidueGcDone) return
+    // Refuse if an operation is in flight on this instance (restart-while-restoring race).
+    if (this.activeOperation) return
+    // At-most-once per boot — set before the work so a restart mid-GC doesn't re-enter.
+    stagingResidueGcDone = true
     const stagingRoot = application.getPath('feature.backup.restore.staging')
     if (!existsSync(stagingRoot)) return
     let entries: string[]
