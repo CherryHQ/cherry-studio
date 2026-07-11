@@ -946,10 +946,12 @@ describe('BinaryManager', () => {
 
       expect(result.version).toBe('1.0.0')
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
+      // Installs may download a runtime (node/python) — they get the long
+      // budget, unlike query commands which keep the 120s default.
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:ntn@1.0.0'], {
         cwd: '/tmp',
         env: {},
-        timeout: 120_000
+        timeout: 900_000
       })
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['reshim'], {
         cwd: '/tmp',
@@ -1095,6 +1097,41 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
 
       await expect((service as any).runMise(['which', 'fd'])).rejects.toThrow('mise binary not available')
+    })
+
+    it('rewrites a timeout kill into a readable message, keeping stderr as detail', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      // execFile timeout kill: killed=true, stderr stuck on a progress line.
+      mockExecFileAsync.mockRejectedValueOnce(
+        Object.assign(new Error('Command failed: /mock/mise use -g node@22 npm:openclaw@latest'), {
+          killed: true,
+          signal: 'SIGTERM',
+          stderr: 'mise npm:openclaw@2026.6.11   [1/3] install\n'
+        })
+      )
+
+      const error = await (service as any)
+        .runMise(['use', '-g', 'node@22', 'npm:openclaw@latest'], { timeoutMs: 0 })
+        .catch((caught: Error) => caught)
+      expect(error.message).toContain('mise use timed out after 0s')
+      expect(error.message).toContain('[1/3] install')
+      expect(error.message).not.toContain('Command failed')
+    })
+
+    it('does not rewrite a kill that happened before the timeout elapsed', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      // killed=true but rejection is immediate (elapsed < timeout): an external
+      // kill, not our timeout — the original message must survive.
+      mockExecFileAsync.mockRejectedValueOnce(
+        Object.assign(new Error('Command failed: /mock/mise use -g fd'), { killed: true, signal: 'SIGKILL' })
+      )
+
+      const error = await (service as any).runMise(['use', '-g', 'fd']).catch((caught: Error) => caught)
+      expect(error.message).toBe('Command failed: /mock/mise use -g fd')
     })
   })
 

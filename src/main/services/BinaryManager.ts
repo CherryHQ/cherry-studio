@@ -81,6 +81,13 @@ function isFloatingVersion(v?: string): boolean {
 
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
+// Query commands (which/ls/registry/latest) finish in seconds. Installs are a
+// different budget entirely: `use` may download a full runtime (node, python)
+// plus the package, which routinely exceeds two minutes on slow networks —
+// killing it mid-download surfaces as a bogus "install failed".
+const MISE_COMMAND_TIMEOUT_MS = 120_000
+const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
+
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
@@ -480,7 +487,7 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  private async runMise(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  private async runMise(args: string[], opts?: { timeoutMs?: number }): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
       // used for the env would have silently fallen back to `process.env`,
@@ -490,15 +497,26 @@ export class BinaryManager extends BaseService {
       throw new Error('mise binary not available')
     }
     const env = await this.getIsolatedEnv()
+    const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
+    const startedAt = Date.now()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
     try {
-      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
+      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: timeoutMs })
     } catch (error) {
-      const stderr = (error as { stderr?: unknown }).stderr
-      if (error instanceof Error && typeof stderr === 'string' && stderr.trim()) {
-        const detail = stderr.trim()
-        if (!error.message.includes(detail)) error.message = `${error.message}\n${detail}`
+      if (error instanceof Error) {
+        // A timeout kill leaves stderr at whatever progress line mise printed
+        // last — worthless as an error headline. Rewrite it; the elapsed check
+        // distinguishes our timeout kill from an external kill (OOM, user).
+        const killed = (error as { killed?: boolean }).killed === true
+        if (killed && Date.now() - startedAt >= timeoutMs) {
+          error.message = `mise ${args[0]} timed out after ${Math.round(timeoutMs / 1000)}s — a slow network or a runtime download can exceed the budget; retry or configure a mirror in install settings`
+        }
+        const stderr = (error as { stderr?: unknown }).stderr
+        if (typeof stderr === 'string' && stderr.trim()) {
+          const detail = stderr.trim()
+          if (!error.message.includes(detail)) error.message = `${error.message}\n${detail}`
+        }
       }
       throw error
     }
@@ -529,7 +547,7 @@ export class BinaryManager extends BaseService {
     const toolSpec = `${tool.tool}@${requested}`
     const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
 
-    await this.runMise(args)
+    await this.runMise(args, { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
     await this.runMise(['reshim'])
 
     try {
