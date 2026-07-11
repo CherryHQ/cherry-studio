@@ -300,7 +300,11 @@ export class FileManager extends BaseService implements IFileManager {
   protected async onInit() {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    // No auto-sweep at startup; an explicit cleanup UI/caller triggers `runSweep` via IPC.
+    // Auto-policy reaper: a non-awaited startup pass + an idle-gated interval
+    // (file-entry-cleanup.md §5.5). The on-demand orphan `runSweep` is separate —
+    // it never auto-triggers; an explicit cleanup UI/caller invokes it via IPC.
+    void this.runEntryCleanup()
+    this.registerInterval(() => this.entryCleanupTick(), CLEANUP_INTERVAL_MS)
   }
 }
 ```

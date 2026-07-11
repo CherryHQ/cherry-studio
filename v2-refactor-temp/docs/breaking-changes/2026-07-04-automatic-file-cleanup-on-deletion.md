@@ -2,7 +2,7 @@
 title: Deleting a chat, topic, or painting now reclaims its files
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#16727'
 date: 2026-07-04
 ---
 

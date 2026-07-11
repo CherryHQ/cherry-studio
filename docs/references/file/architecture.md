@@ -945,11 +945,14 @@ WhenReady (after app.whenReady(), Electron API available)
        ordering handles it automatically per the lifecycle decorator
        rules; WindowManager dep lands together with the §3.6 broadcast
        pipeline in Phase 2)
-      onInit(): awaits DanglingCache.initFromDb(). Legacy File_* compatibility
-                handlers may still be registered here during migration, but
-                new File IPC responsibility belongs to the IpcApi adapter layer.
-                No startup auto-sweep — an explicit cleanup UI/caller
-                triggers `runSweep` via IPC on demand.
+      onInit(): awaits DanglingCache.initFromDb(), then fires the entry-cleanup
+                reaper (auto-policy reclamation) — a non-awaited startup pass
+                (`runEntryCleanup`) plus an idle-gated interval (see
+                file-entry-cleanup.md §5.5). Legacy File_* compatibility handlers
+                may still be registered here during migration, but new File IPC
+                responsibility belongs to the IpcApi adapter layer. The on-demand
+                orphan `runSweep` is separate — it never auto-triggers; an
+                explicit cleanup UI/caller invokes it via IPC.
 
 On-Demand (user-triggered via File_RunSweep IPC)
 +-- FileManager.runSweep -- runs two concurrent passes and returns one
@@ -995,6 +998,9 @@ Data Services (not lifecycle, managed by DataApiService):
                           handlers that have not yet moved to IpcApi
                           (version cache constructs at field-init time;
                            §3.6 broadcast wiring is deferred to Phase 2)
+                       3. fire the entry-cleanup reaper (auto-policy reclamation):
+                          a non-awaited `runEntryCleanup` startup pass + an
+                          idle-gated interval (file-entry-cleanup.md §5.5)
                                    │
                           (ready signal emitted immediately)
                           │
@@ -1010,7 +1016,7 @@ Data Services (not lifecycle, managed by DataApiService):
                   orphan sweep regex is version-agnostic)
 ```
 
-**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). No sweep runs at startup; the cleanup UI is the sole trigger for `runSweep` via the `File_RunSweep` IPC channel.
+**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). The entry-cleanup reaper (`delete_when_unreferenced` reclamation, file-entry-cleanup.md) *does* fire at startup — a non-awaited `runEntryCleanup` pass plus an idle-gated interval — but it is distinct from the on-demand orphan `runSweep` (FS orphan unlink + `manual` orphan report), which never runs automatically: the cleanup UI/caller is its sole trigger via the `File_RunSweep` IPC channel.
 
 ### 6.3 Dependency Declarations for Business Services
 
