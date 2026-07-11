@@ -1,15 +1,22 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { formatGatewayModelId } from '@shared/types/apiGateway'
 import { CodeCli } from '@shared/types/codeCli'
 import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import type { CliConfigDraftBuildArgs, CliConfigFileDraft, CliConfigWriteArgs, ResolvedCliConfigContext } from './types'
+import type {
+  CliConfigDraftBuildArgs,
+  CliConfigFileDraft,
+  CliConfigGatewayContext,
+  CliConfigWriteArgs,
+  ResolvedCliConfigContext
+} from './types'
 import { firstApiKey } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
@@ -38,6 +45,27 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     throw new Error(`Invalid model id: ${args.modelId}`)
   }
   const { providerId, modelId: model } = parseUniqueModelId(args.modelId)
+
+  // Cherry gateway: resolve against the synthetic gateway provider + gateway key instead of the
+  // real provider, and write the gateway-addressed model id ("providerId:apiModelId"). The real
+  // provider key is never fetched, so it can't land in the CLI config file. Model metadata is still
+  // read by the real model id (for contextWindow etc.); a failed read degrades to the raw model id.
+  if (args.gateway) {
+    const modelRecord = await dataApiService
+      .get(`/models/${args.modelId}`)
+      .then((record) => record as Model | null)
+      .catch((error) => {
+        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+        return null
+      })
+    return {
+      provider: args.gateway.provider,
+      apiKey: args.gateway.apiKey,
+      model: formatGatewayModelId(providerId, modelRecord?.apiModelId ?? model),
+      modelRecord,
+      configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
+    }
+  }
   // The three reads are independent; run them concurrently (this resolver reruns
   // on every advanced-field keystroke in the edit panel).
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
@@ -112,6 +140,7 @@ export async function writeCliConfigDraft(args: {
   configBlob?: Record<string, unknown>
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
+  gateway?: CliConfigGatewayContext
 }): Promise<unknown> {
   let files = args.files
   if (args.modelId) {
@@ -119,7 +148,8 @@ export async function writeCliConfigDraft(args: {
       cliTool: args.cliTool,
       modelId: args.modelId,
       configBlob: args.configBlob,
-      writePrimaryModel: args.writePrimaryModel
+      writePrimaryModel: args.writePrimaryModel,
+      gateway: args.gateway
     }
     const context = await resolveContext(writeArgs)
     if (!context) return

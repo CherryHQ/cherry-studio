@@ -146,6 +146,10 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => useCodeCliMock()
 }))
 
+vi.mock('../hooks/useApiGatewayProvider', () => ({
+  useApiGatewayProvider: () => null
+}))
+
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
 }))

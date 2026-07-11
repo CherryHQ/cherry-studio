@@ -1,8 +1,9 @@
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
+  gatewayExpectedModel,
   getClaudeContextModelId,
   safeCreateUniqueModelId,
   sanitizeCliConfigBlob,
@@ -12,7 +13,7 @@ import {
 } from '@renderer/pages/code/cliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +34,10 @@ interface ConfigDraftControllerOptions
   extends Pick<ConfigEditPanelProps, 'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'> {
   apiKeys?: Parameters<typeof cliConfigConnectionMatchesProvider>[3]
   onClose: () => void
+  /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */
+  gateway?: CliConfigGatewayContext
+  /** Enabled models by unique id, used to resolve the gateway model's `apiModelId` for matching. */
+  models?: Map<UniqueModelId, Model>
 }
 
 interface ConfigDraftController {
@@ -56,6 +61,8 @@ export function useConfigDraftController({
   providerConfig,
   isCurrentProvider,
   apiKeys,
+  gateway,
+  models,
   onSubmit
 }: ConfigDraftControllerOptions): ConfigDraftController {
   const { t } = useTranslation()
@@ -114,11 +121,16 @@ export function useConfigDraftController({
 
   const connectionMatchesProvider = useCallback(
     (connection: CliConfigConnection | null, expectedModelId = draftRef.current.modelId): boolean => {
-      const expectedModel =
-        expectedModelId && isUniqueModelId(expectedModelId) ? parseUniqueModelId(expectedModelId).modelId : undefined
+      // The gateway writes the gateway-addressed id ("providerId:apiModelId"); match against the
+      // same string (via the shared helper) so the stored config lights up as active, not foreign.
+      const expectedModel = gateway
+        ? gatewayExpectedModel(expectedModelId, expectedModelId ? models?.get(expectedModelId)?.apiModelId : undefined)
+        : expectedModelId && isUniqueModelId(expectedModelId)
+          ? parseUniqueModelId(expectedModelId).modelId
+          : undefined
       return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
     },
-    [cliTool, provider]
+    [cliTool, provider, gateway, models]
   )
 
   const resolveManagedOptions = useCallback(
@@ -139,9 +151,10 @@ export function useConfigDraftController({
         modelId: nextModelId,
         config: nextConfig,
         files,
-        options
+        options,
+        gateway
       }),
-    [cliTool]
+    [cliTool, gateway]
   )
 
   const loadManagedDraft = useCallback(

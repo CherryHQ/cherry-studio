@@ -26,6 +26,8 @@ export interface ConfigEditDialogBodyProps {
   provider: Provider
   providerName: string
   providerIcon: ComponentProps<typeof ProviderAvatarPrimitive>['logo']
+  /** Settings route opened from the header link (real provider page, or the gateway settings page). */
+  providerSettingsPath: `/settings/${string}`
   theme: ComponentProps<typeof SettingContainer>['theme']
   isClaudeTool: boolean
   claudeModelMode: ClaudeModelMode
@@ -50,6 +52,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
   provider,
   providerName,
   providerIcon,
+  providerSettingsPath,
   theme,
   isClaudeTool,
   claudeModelMode,
@@ -95,7 +98,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               title={t('code.open_provider_settings')}
               onClick={() => {
                 onClose()
-                openSettingsTab(`/settings/provider?id=${provider.id}`)
+                openSettingsTab(providerSettingsPath)
               }}>
               <ExternalLink className="size-3.5" />
             </Button>

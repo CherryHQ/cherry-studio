@@ -137,7 +137,8 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: UniqueModelId | null | undefined) => ({
     model: id ? { id, name: id === 'anthropic::claude-old' ? 'Claude Old' : 'Claude New' } : undefined
-  })
+  }),
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({

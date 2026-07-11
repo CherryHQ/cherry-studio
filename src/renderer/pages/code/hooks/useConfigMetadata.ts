@@ -2,9 +2,10 @@ import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
@@ -39,6 +40,13 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     (providerId: string) =>
       (model: Model): boolean => {
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+        // The gateway does dialect conversion, so any chat model of any enabled provider is usable
+        // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
+        // keeping only the models the gateway itself can't route (its managed CherryAI default).
+        if (isApiGatewayProviderId(providerId)) {
+          const { modelId: rawModelId } = parseUniqueModelId(model.id)
+          return !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? rawModelId)
+        }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },

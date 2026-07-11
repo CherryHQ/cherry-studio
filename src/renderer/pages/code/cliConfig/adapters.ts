@@ -89,6 +89,7 @@ import type {
 } from './types'
 import {
   asRecord,
+  cliProviderKeyName,
   dropFeatureGoalsIfEmpty,
   dropSecurityAuthSelectedTypeIfEmpty,
   findCherryProviderKey,
@@ -96,7 +97,6 @@ import {
   normalizeUrl,
   numberValue,
   omitKeysByPrefix,
-  sanitizeProviderName,
   stringValue
 } from './values'
 
@@ -287,7 +287,7 @@ const codexAdapter: CliConfigAdapter = {
     }
     const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files)
     const auth = await readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files)
-    const providerName = sanitizeProviderName(provider.name, provider.id)
+    const providerName = cliProviderKeyName(provider)
     return [
       await makeDraftFile(
         'codex-config',
@@ -653,7 +653,7 @@ const kimiAdapter: CliConfigAdapter = {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const baseUrl = resolveOpenAIBaseUrl(provider)
     const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow, args.files)
-    const providerName = sanitizeProviderName(provider.name, provider.id)
+    const providerName = cliProviderKeyName(provider)
     return [
       await makeDraftFile(
         'kimi-config',

@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { formatGatewayModelId } from '@shared/types/apiGateway'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -66,7 +67,7 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
 function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   const apiModelId = model.apiModelId ?? model.id
   return {
-    id: `${model.providerId}:${apiModelId}`,
+    id: formatGatewayModelId(model.providerId, apiModelId),
     object: 'model',
     created: Math.floor(Date.now() / 1000),
     owned_by: model.ownedBy || provider?.name || model.providerId

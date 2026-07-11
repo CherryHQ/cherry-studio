@@ -1961,6 +1961,10 @@
       },
       "select_placeholder": "Select…"
     },
+    "api_gateway": {
+      "requires_running": "Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "Cherry Gateway"
+    },
     "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
