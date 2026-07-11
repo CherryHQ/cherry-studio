@@ -1,6 +1,6 @@
 import { Input, Popover, PopoverContent, PopoverTrigger, Switch, usePortalContainer } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Plus, Search } from 'lucide-react'
+import { AtSign, Search } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   isValidElement,
@@ -488,7 +488,7 @@ export function SelectorShell({
                           : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                       )}
                       onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                      <Plus className="size-3.5" aria-hidden="true" />
+                      <AtSign className="size-3.5" aria-hidden="true" />
                     </button>
                   ) : null}
                 </div>
