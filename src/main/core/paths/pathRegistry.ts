@@ -141,6 +141,16 @@ export function buildPathRegistry() {
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
+    // Backup restore promotion — the journal sidecar is owned by
+    // src/main/data/db/restore/ (see its README.md); the staging tree's
+    // content is owned by BackupService.
+    // INVARIANT: the journal file must stay in the SAME directory as
+    // 'app.database.file' — every journal write fsyncs their shared parent,
+    // which is what makes a commit-step marker imply the DB rename is
+    // durable (see restoreJournal.ts). Never relocate the two independently.
+    'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
+    'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
