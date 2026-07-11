@@ -281,6 +281,8 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    const uvCard = screen.getByText('uv').closest('[role="listitem"]') as HTMLElement
+    expect(uvCard).not.toHaveTextContent('settings.dependencies.install')
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 

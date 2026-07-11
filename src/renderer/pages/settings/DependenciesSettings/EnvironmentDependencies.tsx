@@ -523,7 +523,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {(source === 'none' || source === 'bundled') && (
+      {source === 'none' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
