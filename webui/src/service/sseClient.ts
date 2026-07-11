@@ -55,7 +55,7 @@ export const createWebUiSseClient = ({
       eventSource = undefined
     },
 
-    subscribe<TData = unknown>(event, handler: WebUiSseHandler<TData>) {
+    subscribe<TData = unknown>(event: WebUiSseEventName, handler: WebUiSseHandler<TData>) {
       const eventHandlers = handlers.get(event) ?? new Set<WebUiSseHandler>()
       eventHandlers.add(handler as WebUiSseHandler)
       handlers.set(event, eventHandlers)
