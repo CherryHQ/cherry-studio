@@ -90,7 +90,7 @@ export function PromptEditorField({
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground/80 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>

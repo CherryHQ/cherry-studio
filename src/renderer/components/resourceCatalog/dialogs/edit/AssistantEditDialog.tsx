@@ -481,7 +481,7 @@ function AssistantPromptField({
           variant="outline"
           aria-label={t('common.undo')}
           onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground/80 transition-colors hover:text-foreground focus-visible:ring-0">
+          className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
           <Undo2 size={10} />
         </Button>
       ) : null}
@@ -491,7 +491,7 @@ function AssistantPromptField({
         aria-label={t('library.config.prompt.generate')}
         onClick={handleGeneratePrompt}
         disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground/80 transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+        className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
         {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
       </Button>
     </>
@@ -708,6 +708,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
+                className="h-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -762,6 +763,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
+                className="h-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)

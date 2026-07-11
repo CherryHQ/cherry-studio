@@ -241,6 +241,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               disabled={isLoading}
               align="end"
               triggerPosition="end"
+              triggerClassName="border border-border bg-transparent"
               portalContainer={portalContainer}
             />
           </div>
