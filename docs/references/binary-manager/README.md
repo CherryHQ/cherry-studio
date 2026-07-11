@@ -37,7 +37,7 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
 | Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.get_latest_versions` | Renderer → main |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.probe_system`, `binary.get_latest_versions` | Renderer → main |
 | IPC events | `binary.state_changed`, `binary.reconcile_failed` | Main → renderer |
 | Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
@@ -63,13 +63,16 @@ BinaryManager state is operational cache for installed shim metadata, not user-a
 
 ## State contract: bundled vs mise-managed
 
-Three sources for a tool to be available, in order of precedence:
+Four sources for a tool to be available, in order of precedence:
 
 | State | Detected by | UI label |
 |---|---|---|
 | **managed (mise)** | `BinaryState.tools[name]` is set after `mise use -g` | "v1.2.3" version chip |
-| **available (bundled)** | `binary:probe-bundled` finds the binary in `cherry.bin` after extraction | "bundled" chip + "Install via mise" CTA |
-| **not installed** | Neither of the above | "Install" CTA |
+| **available (bundled)** | `binary.probe_bundled` finds the binary in `cherry.bin` after extraction | "bundled" chip + "Install via mise" CTA |
+| **available (system)** | `binary.probe_system` resolves the name on the user's login-shell PATH outside Cherry's dirs | "system" chip, with the path on hover |
+| **not installed** | None of the above | "Install" CTA |
+
+`binary.probe_system` uses `getShellEnv` and `findCommandInShellEnv`, so it sees the PATH a terminal would rather than a truncated GUI-launch PATH. Cherry-owned resolutions are excluded to retain the more specific managed or bundled source.
 
 **Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The probe-bundled IPC keeps the two sources orthogonal: BinaryState answers "what did the user install?", the filesystem probe answers "what shipped in the box?".
 
@@ -95,6 +98,10 @@ export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail wi
 - `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
 
 These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per app launch and applies to all `npm:` / `pipx:` backends without per-tool configuration.
+
+## Advanced install settings
+
+**Settings → Dependencies → Advanced install settings** persists `feature.binary.install_settings`. These settings affect only BinaryManager's isolated mise install subprocess, never the execution environment of installed CLIs. Empty URL/token fields preserve the existing behavior; signature verification defaults to enabled. URL presets live in `src/shared/data/presets/binaryInstallPresets.ts`.
 
 ## Adding a new managed binary
 

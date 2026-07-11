@@ -12,6 +12,7 @@ const binaryManager = {
   searchRegistry: vi.fn(),
   getToolDir: vi.fn(),
   probeBundled: vi.fn(),
+  probeSystem: vi.fn(),
   getLatestVersions: vi.fn()
 }
 
@@ -62,6 +63,13 @@ describe('binaryHandlers', () => {
     binaryManager.probeBundled.mockReturnValue({ uv: '1.0.0', bun: null })
     const result = await binaryHandlers['binary.probe_bundled'](undefined, ctx)
     expect(result).toEqual({ uv: '1.0.0', bun: null })
+  })
+
+  it('probe_system forwards names and returns their resolved paths', async () => {
+    binaryManager.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
+    const result = await binaryHandlers['binary.probe_system'](['fd'], ctx)
+    expect(binaryManager.probeSystem).toHaveBeenCalledWith(['fd'])
+    expect(result).toEqual({ fd: '/usr/local/bin/fd' })
   })
 
   it('get_latest_versions forwards force and returns the manager latest-version map', async () => {

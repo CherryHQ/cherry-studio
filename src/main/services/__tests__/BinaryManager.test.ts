@@ -18,7 +18,14 @@ const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
     renameSync: vi.fn(),
     constants: { F_OK: 0, X_OK: 1 }
   },
-  mockPreferenceService: { get: vi.fn(() => []) }
+  mockPreferenceService: {
+    get: vi.fn((key: string) =>
+      key === 'feature.binary.install_settings'
+        ? { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
+        : []
+    ),
+    subscribeMultipleChanges: vi.fn(() => () => {})
+  }
 }))
 
 vi.mock('@application', async () => {
@@ -74,12 +81,21 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: vi.fn(async () => null)
+}))
+
 vi.mock('node:util', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...(actual as object), promisify: () => mockExecFileAsync }
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
+const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -111,6 +127,11 @@ describe('BinaryManager', () => {
     mockExecFileAsync.mockReset()
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    mockPreferenceService.get.mockImplementation((key: string) =>
+      key === 'feature.binary.install_settings'
+        ? { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
+        : []
+    )
   })
 
   describe('decorators', () => {
@@ -822,6 +843,32 @@ describe('BinaryManager', () => {
       expect(getBinaryExecutionEnv()['MISE_PIPX_UVX']).toBeUndefined()
     })
 
+    it('applies configured registries, GitHub mirror/token, and verification override only to the install env', async () => {
+      mockPreferenceService.get.mockImplementation((key: string) =>
+        key === 'feature.binary.install_settings'
+          ? {
+              githubMirror: 'https://ghfast.top/',
+              githubToken: 'ghp_settings',
+              npmRegistry: 'https://registry.example',
+              pipIndexUrl: 'https://pypi.example/simple',
+              verifySignatures: false
+            }
+          : []
+      )
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const env = await (service as any).buildIsolatedEnv()
+
+      expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
+      expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')
+      expect(env['GITHUB_TOKEN']).toBe('ghp_settings')
+      expect(JSON.parse(env['MISE_URL_REPLACEMENTS'])['https://github.com']).toBe(
+        'https://ghfast.top/https://github.com'
+      )
+      expect(env['MISE_AQUA_COSIGN']).toBe('false')
+      expect(getBinaryExecutionEnv()['GITHUB_TOKEN']).toBeUndefined()
+    })
+
     it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1085,6 +1132,20 @@ describe('BinaryManager', () => {
       await (service as any).extractBundledBinaries()
 
       expect(mockFsp.copyFile).toHaveBeenCalled()
+    })
+  })
+
+  describe('probeSystem', () => {
+    it('returns tools resolved on the login-shell PATH and excludes Cherry-owned paths', async () => {
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) => {
+        if (name === 'fd') return '/usr/local/bin/fd'
+        if (name === 'uv') return '/mock/cherry.bin/uv'
+        return null
+      })
+
+      await expect(new BinaryManager().probeSystem(['fd', 'uv', 'missing'])).resolves.toEqual({
+        fd: '/usr/local/bin/fd'
+      })
     })
   })
 

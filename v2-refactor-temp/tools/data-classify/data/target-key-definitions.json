@@ -238,6 +238,19 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
+      "targetKey": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
+      "status": "classified",
+      "description": "User-configurable mise install settings for BinaryManager"
+    },
+    {
       "targetKey": "feature.binary.tools",
       "type": "PreferenceTypes.ManagedBinary[]",
       "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",

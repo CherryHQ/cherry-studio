@@ -379,3 +379,12 @@ export interface ToolInstallState {
 export interface BinaryState {
   tools: Record<string, ToolInstallState>
 }
+
+/** User-configurable, install-only mise settings. */
+export interface BinaryInstallSettings {
+  githubMirror: string
+  npmRegistry: string
+  pipIndexUrl: string
+  githubToken: string
+  verifySignatures: boolean
+}

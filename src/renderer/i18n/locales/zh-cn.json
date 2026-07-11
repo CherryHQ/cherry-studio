@@ -6091,6 +6091,37 @@
       "install": "安装",
       "installError": "工具安装失败",
       "installErrorHint": "安装命令执行失败。复制下方日志以便排查或寻求帮助。",
+      "installSettings": {
+        "description": "微调内置 CLI 工具的安装方式。所有字段均为可选，留空则保持默认。",
+        "githubMirror": {
+          "help": "GitHub 下载与 GitHub API 的代理前缀（如 https://ghfast.top）。留空则直连。",
+          "label": "GitHub 镜像",
+          "placeholder": "https://ghfast.top（留空则直连）"
+        },
+        "githubToken": {
+          "help": "提高工具查询时的 GitHub API 速率限制。以明文保存在本地。留空则使用 CHERRY_GITHUB_TOKEN 环境变量。",
+          "hide": "隐藏令牌",
+          "label": "GitHub 令牌",
+          "show": "显示令牌"
+        },
+        "invalidUrl": "请输入包含 https:// 的合法 URL",
+        "npmRegistry": {
+          "help": "npm: 类工具使用的镜像源。留空则在中国大陆自动选择镜像。",
+          "label": "npm 镜像源",
+          "placeholder": "留空则自动（中国镜像）"
+        },
+        "pipIndexUrl": {
+          "help": "pipx: 类工具使用的索引地址。留空则在中国大陆自动选择镜像。",
+          "label": "pip 索引地址",
+          "placeholder": "留空则自动（中国镜像）"
+        },
+        "presets": "预设",
+        "title": "高级安装设置",
+        "verifySignatures": {
+          "help": "校验 aqua 类工具的 Sigstore/SLSA 签名。仅当你的网络无法完成校验时才关闭——关闭会跳过供应链校验。",
+          "label": "校验工具签名"
+        }
+      },
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
@@ -6125,7 +6156,8 @@
       "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "source": {
-        "bundled": "内置"
+        "bundled": "内置",
+        "system": "系统"
       },
       "title": "环境依赖",
       "tools": {

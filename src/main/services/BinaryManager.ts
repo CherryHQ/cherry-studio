@@ -12,6 +12,8 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
+import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'
@@ -128,6 +130,16 @@ export class BinaryManager extends BaseService {
 
   protected override onAllReady() {
     const prefService = application.get('PreferenceService')
+    this.registerDisposable(
+      prefService.subscribeMultipleChanges(
+        ['feature.binary.install_settings', 'app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'],
+        () => {
+          this.isolatedEnv = null
+          this.isolatedEnvPromise = null
+        }
+      )
+    )
+
     const predefinedNames = new Set(PRESETS_BINARY_TOOLS.map((t) => t.name))
     const tools = prefService.get('feature.binary.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
@@ -184,6 +196,23 @@ export class BinaryManager extends BaseService {
       result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
     }
     return result
+  }
+
+  /**
+   * Probe which tools resolve on the user's login-shell PATH outside Cherry's
+   * managed and bundled directories.
+   */
+  public async probeSystem(names: string[]): Promise<Record<string, string>> {
+    const shellEnv = await getShellEnv()
+    const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
+    const entries = await Promise.all(
+      names.map(async (name): Promise<[string, string] | null> => {
+        const resolved = await findCommandInShellEnv(name, shellEnv)
+        if (!resolved || cherryDirs.some((dir) => resolved.startsWith(dir))) return null
+        return [name, resolved]
+      })
+    )
+    return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
   }
 
   private async extractBundledBinaries(): Promise<void> {
@@ -284,6 +313,10 @@ export class BinaryManager extends BaseService {
       }
     }
 
+    const installSettings = application.get('PreferenceService').get('feature.binary.install_settings')
+    if (installSettings.npmRegistry) env['NPM_CONFIG_REGISTRY'] = installSettings.npmRegistry
+    if (installSettings.pipIndexUrl) env['PIP_INDEX_URL'] = installSettings.pipIndexUrl
+
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
     // raise it to 5000 req/hr. We deliberately do NOT pick up the ambient
@@ -293,10 +326,24 @@ export class BinaryManager extends BaseService {
     if (cherryGhToken) {
       env['GITHUB_TOKEN'] = cherryGhToken
     }
+    if (installSettings.githubToken) env['GITHUB_TOKEN'] = installSettings.githubToken
 
     // mise only defaults this when uv is already on PATH. Force bundled uv/uvx
     // for pipx tools so installs do not depend on a separate pipx executable.
     env['MISE_PIPX_UVX'] = '1'
+
+    if (installSettings.githubMirror) {
+      const prefix = installSettings.githubMirror.replace(/\/+$/, '')
+      env['MISE_URL_REPLACEMENTS'] = JSON.stringify({
+        'https://github.com': `${prefix}/https://github.com`
+      })
+    }
+
+    if (!installSettings.verifySignatures) {
+      env['MISE_AQUA_COSIGN'] = 'false'
+      env['MISE_AQUA_SLSA'] = 'false'
+      env['MISE_AQUA_MINISIGN'] = 'false'
+    }
 
     const inChina = await regionService.isInChina().catch(() => false)
     if (inChina) {
@@ -349,16 +396,17 @@ export class BinaryManager extends BaseService {
       return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
-      this.isolatedEnvPromise = this.buildIsolatedEnv().then(
+      const building = this.buildIsolatedEnv().then(
         (env) => {
-          this.isolatedEnv = env
+          if (this.isolatedEnvPromise === building) this.isolatedEnv = env
           return env
         },
         (err) => {
-          this.isolatedEnvPromise = null
+          if (this.isolatedEnvPromise === building) this.isolatedEnvPromise = null
           throw err
         }
       )
+      this.isolatedEnvPromise = building
     }
     return this.isolatedEnvPromise
   }

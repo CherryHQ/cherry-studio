@@ -2,13 +2,22 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  DescriptionSwitch,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  SelectDropdown
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
@@ -17,7 +26,13 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { BinaryInstallSettings, BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import {
+  GITHUB_MIRROR_PRESETS,
+  type InstallSettingPreset,
+  NPM_REGISTRY_PRESETS,
+  PIP_INDEX_PRESETS
+} from '@shared/data/presets/binaryInstallPresets'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -26,10 +41,13 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderOpen,
   Loader2,
   Plus,
   RefreshCw,
+  Settings2,
   SquareArrowOutUpRight,
   Terminal,
   Trash2,
@@ -62,7 +80,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
-type ToolSource = 'managed' | 'bundled' | 'none'
+type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -72,11 +90,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [binaryStateReady, setBinaryStateReady] = useState(false)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
+  const [systemTools, setSystemTools] = useState<Record<string, string>>({})
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
   // Retain the last target name so the confirm dialog keeps its message during the close animation.
@@ -96,18 +116,21 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const refreshState = useCallback(async () => {
     try {
-      const [state, bundledMap] = await Promise.all([
+      const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
+      const [state, bundledMap, systemMap] = await Promise.all([
         ipcApi.request('binary.get_state'),
-        ipcApi.request('binary.probe_bundled')
+        ipcApi.request('binary.probe_bundled'),
+        ipcApi.request('binary.probe_system', names)
       ])
       if (!mountedRef.current) return
       setBinaryState(state)
       setBundled(bundledMap)
+      setSystemTools(systemMap)
       setBinaryStateReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
     }
-  }, [])
+  }, [customTools])
 
   const fetchLatestVersions = useCallback(
     async (force = false): Promise<Record<string, string> | null> => {
@@ -148,10 +171,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     // previously fetched latest-version hints are stale. Next explicit refresh
     // (header button or per-tool Update) will repopulate per-tool results.
     setLatestVersions(null)
-    // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
-    void ipcApi.request('binary.probe_bundled').then((b) => {
-      if (mountedRef.current) setBundled(b)
-    })
+    // mise install may shadow a bundled or system binary; re-probe both sources.
+    const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
+    void Promise.all([ipcApi.request('binary.probe_bundled'), ipcApi.request('binary.probe_system', names)]).then(
+      ([bundledMap, systemMap]) => {
+        if (!mountedRef.current) return
+        setBundled(bundledMap)
+        setSystemTools(systemMap)
+      }
+    )
   })
   useIpcOn('binary.reconcile_failed', (names) => {
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
@@ -256,6 +284,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               <RefreshCw className="size-3" />
             )}
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground/50 hover:text-foreground"
+            onClick={() => setShowInstallSettings(true)}
+            title={t('settings.dependencies.installSettings.title')}>
+            <Settings2 className="size-3" />
+          </Button>
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
@@ -264,7 +300,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
-          const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
+          const source: ToolSource = installed
+            ? 'managed'
+            : tool.name in bundled
+              ? 'bundled'
+              : tool.name in systemTools
+                ? 'system'
+                : 'none'
           const installedVersion = installed?.version ?? bundledVersion ?? undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
@@ -273,6 +315,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               key={tool.name}
               tool={tool}
               source={source}
+              systemPath={systemTools[tool.name]}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
@@ -329,6 +372,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       {!mini && <LocalModelsSection />}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
+      <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
 
       <InstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
 
@@ -349,6 +393,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
+  systemPath?: string
   installedVersion?: string
   latestVersion?: string
   installing: boolean
@@ -356,11 +401,23 @@ const BinaryToolPresetCard: FC<{
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({
+  tool,
+  source,
+  systemPath,
+  installedVersion,
+  latestVersion,
+  installing,
+  onInstall,
+  onUpdate,
+  onOpenPath,
+  onRemove
+}) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
   const isBundled = source === 'bundled'
+  const isSystem = source === 'system'
 
   return (
     <div
@@ -399,6 +456,11 @@ const BinaryToolPresetCard: FC<{
                 {isBundled && (
                   <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
                     {t('settings.dependencies.source.bundled')}
+                  </Badge>
+                )}
+                {isSystem && (
+                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
+                    {t('settings.dependencies.source.system')}
                   </Badge>
                 )}
               </div>
@@ -735,6 +797,147 @@ function AddToolDialog({
             {t('common.add')}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const isValidUrl = (value: string): boolean => {
+  try {
+    return Boolean(new URL(value))
+  } catch {
+    return false
+  }
+}
+
+const UrlPresetField: FC<{
+  label: string
+  description: string
+  invalidHint: string
+  placeholder: string
+  presetLabel: string
+  value: string
+  presets: InstallSettingPreset[]
+  onChange: (value: string) => void
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
+  const invalid = value.trim() !== '' && !isValidUrl(value.trim())
+  const items = presets.map((preset) => ({ id: preset.url, url: preset.url, label: preset.label }))
+
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-2">
+        <Input
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn('min-w-0 flex-1', invalid && 'border-destructive')}
+        />
+        <div className="w-44 shrink-0">
+          <SelectDropdown
+            items={items}
+            selectedId={null}
+            onSelect={onChange}
+            placeholder={presetLabel}
+            renderSelected={() => null}
+            renderItem={(item) => (
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-foreground text-sm">{item.label}</span>
+                <span className="break-all text-muted-foreground text-xs">{item.url}</span>
+              </div>
+            )}
+          />
+        </div>
+      </div>
+      <FieldDescription className={cn(invalid && 'text-destructive')}>
+        {invalid ? invalidHint : description}
+      </FieldDescription>
+    </Field>
+  )
+}
+
+const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) => void }> = ({
+  open,
+  onOpenChange
+}) => {
+  const { t } = useTranslation()
+  const [settings, setSettings] = usePreference('feature.binary.install_settings')
+  const [showToken, setShowToken] = useState(false)
+  const update = <K extends keyof BinaryInstallSettings>(key: K, value: BinaryInstallSettings[K]) => {
+    void setSettings({ ...settings, [key]: value })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('settings.dependencies.installSettings.title')}</DialogTitle>
+          <DialogDescription>{t('settings.dependencies.installSettings.description')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-2">
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.githubMirror.label')}
+            description={t('settings.dependencies.installSettings.githubMirror.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.githubMirror.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.githubMirror}
+            presets={GITHUB_MIRROR_PRESETS}
+            onChange={(value) => update('githubMirror', value)}
+          />
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.npmRegistry.label')}
+            description={t('settings.dependencies.installSettings.npmRegistry.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.npmRegistry.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.npmRegistry}
+            presets={NPM_REGISTRY_PRESETS}
+            onChange={(value) => update('npmRegistry', value)}
+          />
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
+            description={t('settings.dependencies.installSettings.pipIndexUrl.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.pipIndexUrl.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.pipIndexUrl}
+            presets={PIP_INDEX_PRESETS}
+            onChange={(value) => update('pipIndexUrl', value)}
+          />
+          <Field>
+            <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
+            <InputGroup>
+              <InputGroupInput
+                type={showToken ? 'text' : 'password'}
+                autoComplete="off"
+                placeholder="ghp_…"
+                value={settings.githubToken}
+                onChange={(event) => update('githubToken', event.target.value)}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  onClick={() => setShowToken((current) => !current)}
+                  aria-label={t(
+                    showToken
+                      ? 'settings.dependencies.installSettings.githubToken.hide'
+                      : 'settings.dependencies.installSettings.githubToken.show'
+                  )}>
+                  {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            <FieldDescription>{t('settings.dependencies.installSettings.githubToken.help')}</FieldDescription>
+          </Field>
+          <DescriptionSwitch
+            size="sm"
+            label={t('settings.dependencies.installSettings.verifySignatures.label')}
+            description={t('settings.dependencies.installSettings.verifySignatures.help')}
+            checked={settings.verifySignatures}
+            onCheckedChange={(checked) => update('verifySignatures', checked)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   )

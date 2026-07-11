@@ -6,10 +6,15 @@ import EnvironmentDependencies from '../EnvironmentDependencies'
 
 const customToolsRef = vi.hoisted(() => ({ value: [] as Array<{ name: string; tool: string; version?: string }> }))
 const setCustomToolsMock = vi.hoisted(() => vi.fn())
+const installSettingsRef = vi.hoisted(() => ({
+  value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
+}))
+const setInstallSettingsMock = vi.hoisted(() => vi.fn())
 
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
+  probeSystem: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
@@ -26,6 +31,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.getState()
         case 'binary.probe_bundled':
           return ipcMocks.probeBundled()
+        case 'binary.probe_system':
+          return ipcMocks.probeSystem(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
         case 'binary.remove_tool':
@@ -60,7 +67,10 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [customToolsRef.value, setCustomToolsMock]
+  usePreference: (key: string) =>
+    key === 'feature.binary.install_settings'
+      ? [installSettingsRef.value, setInstallSettingsMock]
+      : [customToolsRef.value, setCustomToolsMock]
 }))
 
 vi.mock('semver', () => ({
@@ -104,7 +114,16 @@ vi.mock('@cherrystudio/ui', () => {
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    Input: passthrough('input')
+    DescriptionSwitch: passthrough('button'),
+    Field: passthrough('div'),
+    FieldDescription: passthrough('div'),
+    FieldLabel: passthrough('label'),
+    Input: passthrough('input'),
+    InputGroup: passthrough('div'),
+    InputGroupAddon: passthrough('div'),
+    InputGroupButton: passthrough('button'),
+    InputGroupInput: passthrough('input'),
+    SelectDropdown: passthrough('select')
   }
 })
 
@@ -113,8 +132,16 @@ describe('EnvironmentDependencies', () => {
     vi.clearAllMocks()
     ipcEventHandlers.clear()
     customToolsRef.value = []
+    installSettingsRef.value = {
+      githubMirror: '',
+      githubToken: '',
+      npmRegistry: '',
+      pipIndexUrl: '',
+      verifySignatures: true
+    }
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
+    ipcMocks.probeSystem.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
@@ -130,6 +157,15 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
     // No custom tools → empty-state hint.
     expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
+  })
+
+  it('marks a system-PATH preset as available and shows its resolved path on the source badge', async () => {
+    ipcMocks.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
+    render(<EnvironmentDependencies />)
+
+    const fdCard = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+    expect(fdCard).toHaveTextContent('settings.dependencies.source.system')
+    expect(fdCard.querySelector('[title="/usr/local/bin/fd"]')).toBeInTheDocument()
   })
 
   it('renders a persisted custom tool instead of the empty state', async () => {

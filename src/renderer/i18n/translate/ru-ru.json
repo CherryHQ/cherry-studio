@@ -6091,6 +6091,37 @@
       "install": "Установить",
       "installError": "Failed to install tool",
       "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Установка...",
       "invalidTool": "Неверное имя или ключ инструмента",
       "localModels": {
@@ -6125,7 +6156,8 @@
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Зависимости окружения",
       "tools": {
