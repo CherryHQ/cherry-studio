@@ -46,8 +46,9 @@ export const CLI_API_GATEWAY_PROVIDER_ID = 'cherry:api-gateway'
 
 /**
  * Fixed ASCII provider-name segment for the gateway in CLI config keys (`cherry-gateway`).
- * The synthetic provider's card title is the localized "Cherry 网关", which would sanitize
- * to an ugly `Cherry-`; this stable name keeps the on-disk key clean and locale-independent.
+ * The synthetic provider's card title is the localized "统一网关" (Unified Gateway), which would
+ * sanitize to an empty/garbled segment; this stable name keeps the on-disk key clean and
+ * locale-independent.
  */
 export const CLI_API_GATEWAY_PROVIDER_NAME = 'gateway'
 

@@ -1962,8 +1962,9 @@
       "select_placeholder": "請選擇…"
     },
     "api_gateway": {
+      "description": "任意 CLI，暢用全部模型",
       "requires_running": "啟用後請保持 Cherry Studio 執行，外部 CLI 才能連線到它託管的閘道。",
-      "title": "Cherry 網關"
+      "title": "統一網關"
     },
     "apply_failed": "寫入 CLI 設定到系統檔案失敗",
     "auto_update_to_latest": "檢查更新並安裝最新版本",

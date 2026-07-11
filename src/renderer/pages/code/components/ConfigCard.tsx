@@ -1,7 +1,9 @@
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
+import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +12,8 @@ export interface ProviderCardProps {
   provider: Provider
   providerName: string
   modelName?: string
+  /** Optional one-line blurb shown under the name — used to promote the unified gateway. */
+  description?: string
   isCurrent: boolean
   dragging?: boolean
   onConfigure: (provider: Provider) => void
@@ -22,12 +26,14 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   provider,
   providerName,
   modelName,
+  description,
   isCurrent,
   dragging,
   onConfigure,
   onToggleCurrent
 }) => {
   const { t } = useTranslation()
+  const isGateway = isApiGatewayProviderId(provider.id)
   const providerIcon = resolveProviderIcon(provider.id)
 
   return (
@@ -46,13 +52,20 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         />
 
         <span aria-hidden className="shrink-0">
-          <ProviderAvatarPrimitive
-            providerId={provider.id}
-            providerName={providerName}
-            logo={providerIcon}
-            size={24}
-            className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
-          />
+          {isGateway ? (
+            // The unified gateway wears a broadcast-tower glyph (relay/hub metaphor) instead of a brand logo.
+            <span className="flex size-6 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+              <GatewayIcon width={15} height={15} />
+            </span>
+          ) : (
+            <ProviderAvatarPrimitive
+              providerId={provider.id}
+              providerName={providerName}
+              logo={providerIcon}
+              size={24}
+              className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+            />
+          )}
         </span>
 
         <div className="min-w-0 flex-1">
@@ -67,6 +80,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
               </>
             )}
           </div>
+          {description && <p className="mt-0.5 truncate text-muted-foreground/60 text-xs">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
