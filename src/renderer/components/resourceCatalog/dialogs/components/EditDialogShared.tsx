@@ -374,8 +374,8 @@ export function EditDialogShell<TValues extends FieldValues>({
             id="resource-edit-dialog-form"
             onSubmit={onSubmit}
             className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* pt-3 centers the 24px-tall title line on the absolute top-4 close icon. */}
-            <DialogTitle className="px-4 pt-3 pb-2 text-base">{title}</DialogTitle>
+            {/* Titlebar-style header: pt-3.5 centers the 20px-tall title line on the absolute top-4 close icon. */}
+            <DialogTitle className="px-4 pt-3.5 pb-2 text-sm">{title}</DialogTitle>
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
