@@ -1,10 +1,11 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConfigEditDialogBodyProps } from './ConfigEditDialogBody'
@@ -28,13 +29,7 @@ export function useConfigEditPanelBodyProps({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const providerName = getProviderDisplayName(provider)
   const providerIcon = resolveProviderIcon(provider.id)
-  const onSettingsNavigate = useCallback(
-    (navigate: () => void) => {
-      onClose()
-      window.requestAnimationFrame(navigate)
-    },
-    [onClose]
-  )
+  const onSettingsNavigate = useCloseBeforeAction(onClose)
 
   const {
     draft,

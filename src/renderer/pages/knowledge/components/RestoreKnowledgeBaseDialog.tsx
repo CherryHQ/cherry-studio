@@ -1,10 +1,11 @@
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
@@ -54,13 +55,7 @@ const RestoreKnowledgeBaseDialog = ({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
-  const handleSettingsNavigate = useCallback(
-    (navigate: () => void) => {
-      onOpenChange(false)
-      window.requestAnimationFrame(navigate)
-    },
-    [onOpenChange]
-  )
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))

@@ -21,6 +21,7 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
@@ -51,8 +52,7 @@ import {
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
-  TextInputField,
-  useCloseBeforeAction
+  TextInputField
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { TagSelector } from '../components/TagSelector'

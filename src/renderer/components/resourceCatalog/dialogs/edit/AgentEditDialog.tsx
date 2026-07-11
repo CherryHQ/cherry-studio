@@ -17,6 +17,7 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
@@ -49,8 +50,7 @@ import {
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
-  TextInputField,
-  useCloseBeforeAction
+  TextInputField
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 
