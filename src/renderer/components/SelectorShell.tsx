@@ -481,11 +481,11 @@ export function SelectorShell({
                       title={multiSelect.ariaLabel}
                       data-testid={multiSelect.dataTestId}
                       className={cn(
-                        'inline-flex size-6 shrink-0 items-center justify-center rounded-md border p-0 transition-colors',
+                        'inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-0 transition-colors',
                         'disabled:cursor-not-allowed disabled:opacity-50',
                         multiSelect.checked
                           ? 'border-border-active bg-accent text-foreground'
-                          : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                       )}
                       onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
                       <AtSign className="size-3.5" aria-hidden="true" />
