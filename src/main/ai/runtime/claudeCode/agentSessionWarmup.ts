@@ -75,6 +75,11 @@ export interface ToolPolicyFacts {
   mcps: string[]
 }
 
+export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): boolean {
+  // Arrays are sorted at derivation, so JSON equality is order-insensitive here.
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned

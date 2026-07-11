@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
+  deriveConfig: vi.fn(),
+  getAgent: vi.fn(),
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
@@ -22,7 +24,15 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 }))
 
 vi.mock('../agentSessionWarmup', () => ({
-  buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest
+  buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest,
+  deriveConnectionConfig: mocks.deriveConfig,
+  // Mirror the real implementation (sorted-array JSON compare) — importing the actual module would
+  // drag the unmocked data-service graph into this test file.
+  toolPolicyFactsEqual: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mocks.getAgent }
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
@@ -148,6 +158,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1' })
+    mocks.deriveConfig.mockResolvedValue({
+      ok: true,
+      config: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      }
     })
   })
 
@@ -1271,5 +1289,133 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
     expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
     expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  describe('reconcile', () => {
+    function makeConfig(overrides: { signature?: string; permissionMode?: string | null; disabledTools?: string[] }) {
+      return {
+        ok: true as const,
+        config: {
+          rebuildSignature: overrides.signature ?? 'sig-1',
+          live: {
+            toolPolicy: {
+              permissionMode: overrides.permissionMode ?? null,
+              disabledTools: overrides.disabledTools ?? [],
+              mcps: []
+            }
+          }
+        }
+      }
+    }
+
+    async function connectWithSnapshot() {
+      const queryQueue = createAsyncQueue<any>()
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
+      const toolPolicySnapshot = {
+        update: vi.fn().mockResolvedValue(undefined),
+        getPermissionMode: vi.fn(() => undefined),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      mocks.buildRequest.mockResolvedValue({
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot },
+        sdkModelId: 'sonnet-sdk'
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any
+      })
+      return { connection, query, toolPolicySnapshot }
+    }
+
+    it('returns current when the derived config matches the connect-time baseline', async () => {
+      const { connection, query } = await connectWithSnapshot()
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('current')
+      expect(query.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('hot-patches live tool-policy facts and advances the baseline', async () => {
+      const { connection, query, toolPolicySnapshot } = await connectWithSnapshot()
+
+      mocks.deriveConfig.mockResolvedValue(makeConfig({ permissionMode: 'acceptEdits' }))
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('patched')
+      // SDK first, snapshot second — the fail-closed ordering applyPolicyUpdate established.
+      expect(toolPolicySnapshot.update).toHaveBeenCalled()
+      expect(query.setPermissionMode).toHaveBeenCalledWith('acceptEdits')
+      expect(toolPolicySnapshot.setPermissionMode).toHaveBeenCalledWith('acceptEdits')
+
+      // Baseline advanced: the same desired config is now 'current', not re-patched.
+      query.setPermissionMode.mockClear()
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('current')
+      expect(query.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('applies a permission tighten BEFORE reporting rebuild for a combined update', async () => {
+      const { connection, query } = await connectWithSnapshot()
+
+      // One agent edit changed both a baked input (signature) and the permission mode.
+      mocks.deriveConfig.mockResolvedValue(makeConfig({ signature: 'sig-2', permissionMode: 'plan' }))
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      // The tighten must not be deferred behind the rebuild a live turn may postpone.
+      expect(query.setPermissionMode).toHaveBeenCalledWith('plan')
+    })
+
+    it('fails closed when the live patch cannot be applied', async () => {
+      const { connection, query, toolPolicySnapshot } = await connectWithSnapshot()
+
+      query.setPermissionMode.mockRejectedValue(new Error('control channel down'))
+      mocks.deriveConfig.mockResolvedValue(makeConfig({ permissionMode: 'acceptEdits' }))
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('failed')
+      // Snapshot untouched — mutating it before SDK confirmation would fork local policy.
+      expect(toolPolicySnapshot.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('returns invalid when the desired config can no longer be derived', async () => {
+      const { connection } = await connectWithSnapshot()
+
+      mocks.deriveConfig.mockResolvedValue({ ok: false, reason: 'unroutable' })
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('invalid')
+    })
+
+    it('serializes concurrent reconciles instead of interleaving them', async () => {
+      const { connection } = await connectWithSnapshot()
+
+      let firstStarted = false
+      let secondStarted = false
+      let releaseFirst: () => void = () => {}
+      const gate = new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+      mocks.deriveConfig
+        .mockImplementationOnce(async () => {
+          firstStarted = true
+          await gate
+          return makeConfig({})
+        })
+        .mockImplementationOnce(async () => {
+          secondStarted = true
+          return makeConfig({})
+        })
+
+      const first = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
+      const second = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
+      await vi.waitFor(() => expect(firstStarted).toBe(true))
+
+      // Push and pull overlapping on the same connection must queue — an interleaved
+      // setPermissionMode/snapshot write pair could leave the gate and the subprocess split.
+      expect(secondStarted).toBe(false)
+
+      releaseFirst()
+      await expect(first).resolves.toBe('current')
+      await expect(second).resolves.toBe('current')
+      expect(secondStarted).toBe(true)
+    })
   })
 })
