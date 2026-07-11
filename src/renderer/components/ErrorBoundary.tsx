@@ -1,9 +1,12 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
@@ -37,12 +40,22 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
 
 const ErrorBoundaryCustomized = ({
   children,
-  fallbackComponent
+  fallbackComponent,
+  onError
 }: {
   children: ReactNode
   fallbackComponent?: ComponentType<FallbackProps>
+  onError?: (error: Error, info: ErrorInfo) => void
 }) => {
-  return <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
+  const handleError = (error: Error, info: ErrorInfo) => {
+    logger.error('Caught a render error', error)
+    onError?.(error, info)
+  }
+  return (
+    <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback} onError={handleError}>
+      {children}
+    </ErrorBoundary>
+  )
 }
 
 export { ErrorBoundaryCustomized as ErrorBoundary }

@@ -471,9 +471,12 @@ export class PreferenceService {
 
   /**
    * Load all preferences from main process at once for optimal performance
-   * @returns Promise resolving to all preference values
+   *
+   * Fire-and-forget warm-up: failures are swallowed after logging — the cache
+   * degrades to defaults plus lazy per-key self-heal in get().
+   * @returns Promise that resolves when preloading completes
    */
-  public async preloadAll(): Promise<UnifiedPreferenceType> {
+  public async preloadAll(): Promise<void> {
     try {
       const allPreferences = await window.api.preference.getAll()
 
@@ -489,11 +492,8 @@ export class PreferenceService {
 
       this.fullCacheLoaded = true
       logger.info(`Loaded all ${Object.keys(allPreferences).length} preferences into cache`)
-
-      return allPreferences
     } catch (error) {
       logger.error('Failed to load all preferences:', error as Error)
-      throw error
     }
   }
 
