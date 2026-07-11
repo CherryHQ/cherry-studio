@@ -4063,7 +4063,7 @@
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
-      "label": "多模型同時回答"
+      "label": "多模型回答"
     },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",

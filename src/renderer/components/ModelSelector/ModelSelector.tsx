@@ -4,10 +4,10 @@ import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
 import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -38,6 +38,8 @@ const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
+const MODEL_SELECTOR_CONTENT_HEIGHT = 392
+const MODEL_SELECTOR_WIDTH = 410
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
@@ -266,7 +268,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -477,11 +478,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
-        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
-      })
+      openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
     },
-    [navigate, setOpen]
+    [setOpen]
   )
 
   const handleTogglePin = useCallback(
@@ -611,7 +610,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
-            <span className="truncate">{groupTitle}</span>
+            <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -619,12 +618,12 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
                     handleNavigateToProviderSettings(item.settingsProviderId ?? item.provider!.id)
                   }}>
-                  <Settings2 className="size-3" />
+                  <Settings2 className="block size-3" />
                 </Button>
               </Tooltip>
             )}
@@ -696,21 +695,20 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     return (
       <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
             tag={tag}
             size={FILTER_TAG_SIZE}
-            showTooltip
+            showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="transition-colors"
+            className="h-5 items-center transition-colors"
           />
         ))}
       </>
     )
-  }, [availableTags, showTagFilter, t, tagSelection, toggleTag])
+  }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(
     () =>
@@ -718,6 +716,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         ? {
             label: t('models.multi_select.label'),
             checked: multiSelectMode,
+            placement: 'filter-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,
             dataTestId: 'model-selector-multi-select-switch',
             rowTestId: 'model-selector-multi-select-row'
@@ -726,7 +725,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
+  const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
@@ -738,13 +737,14 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
+        width={MODEL_SELECTOR_WIDTH}
         side={side}
         align={align}
         sideOffset={sideOffset}
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

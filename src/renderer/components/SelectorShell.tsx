@@ -48,6 +48,7 @@ export type SelectorShellMultiSelect = {
   hint?: ReactNode
   checked: boolean
   disabled?: boolean
+  placement?: 'row' | 'search-badge' | 'filter-badge'
   onCheckedChange: (checked: boolean) => void
   dataTestId?: string
   rowTestId?: string
@@ -200,8 +201,12 @@ export function SelectorShell({
   const [hasOpened, setHasOpened] = useState(open)
   const pagePortalContainer = usePortalContainer()
   const hasSearch = Boolean(search)
-  const hasFilterContent = Boolean(filterContent)
-  const hasMultiSelect = Boolean(multiSelect)
+  const renderMultiSelectAsFilterBadge = Boolean(multiSelect?.placement === 'filter-badge')
+  const hasFilterContent = Boolean(filterContent || renderMultiSelectAsFilterBadge)
+  const renderMultiSelectAsSearchBadge = Boolean(search && multiSelect?.placement === 'search-badge')
+  const renderMultiSelectRow = Boolean(
+    multiSelect && !renderMultiSelectAsSearchBadge && !renderMultiSelectAsFilterBadge
+  )
   const resolvedBottomActions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
   const hasBottomAction = resolvedBottomActions.length > 0
 
@@ -366,11 +371,11 @@ export function SelectorShell({
     contentHeight,
     hasBottomAction,
     hasFilterContent,
-    hasMultiSelect,
     hasSearch,
     maxContentHeight,
     measureAvailableListHeight,
-    open
+    open,
+    renderMultiSelectRow
   ])
 
   useLayoutEffect(() => {
@@ -445,9 +450,9 @@ export function SelectorShell({
               {search ? (
                 <div
                   ref={setSearchElement}
-                  className="flex items-center gap-2 border-border border-b px-3 py-1"
+                  className="flex h-9 items-center gap-2 border-border border-b px-3"
                   data-selector-shell-chrome="search">
-                  <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
+                  <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/55" />
                   <Input
                     ref={search.inputRef}
                     value={search.value}
@@ -457,28 +462,62 @@ export function SelectorShell({
                     aria-activedescendant={search.activeDescendant}
                     aria-controls={search.ariaControls}
                     className={cn(
-                      'h-[var(--cs-size-xs)] flex-1 border-0 bg-transparent p-0 shadow-none transition-none',
-                      'text-xs md:text-xs',
+                      'h-7 flex-1 rounded-none border-0 bg-transparent! p-0 shadow-none transition-none dark:bg-transparent!',
+                      'text-xs leading-7 md:text-xs',
                       'focus-visible:border-transparent focus-visible:ring-0',
-                      'placeholder:text-muted-foreground/40'
+                      'placeholder:text-muted-foreground/50'
                     )}
                     data-testid={search.dataTestId}
                     onChange={(event) => search.onChange(event.target.value)}
                     onKeyDown={search.onKeyDown}
                   />
+                  {renderMultiSelectAsSearchBadge && multiSelect ? (
+                    <button
+                      type="button"
+                      disabled={multiSelect.disabled}
+                      aria-pressed={multiSelect.checked}
+                      data-testid={multiSelect.dataTestId}
+                      className={cn(
+                        'inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-2.5 py-0 text-[11px] leading-none transition-colors',
+                        'disabled:cursor-not-allowed disabled:opacity-50',
+                        multiSelect.checked
+                          ? 'border-border-active bg-accent text-foreground'
+                          : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      )}
+                      onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
+                      <span className="max-w-24 truncate">{multiSelect.label}</span>
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
-              {filterContent ? (
+              {hasFilterContent ? (
                 <div
                   ref={setFilterElement}
-                  className="flex flex-wrap items-center gap-1.5 border-border border-b px-3 py-2"
+                  className="flex items-center justify-between gap-2 border-border border-b px-3 py-2"
                   data-selector-shell-chrome="filter">
-                  {filterContent}
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
+                  {renderMultiSelectAsFilterBadge && multiSelect ? (
+                    <button
+                      type="button"
+                      disabled={multiSelect.disabled}
+                      aria-pressed={multiSelect.checked}
+                      data-testid={multiSelect.dataTestId}
+                      className={cn(
+                        'inline-flex h-6 shrink-0 items-center justify-center rounded-full border px-2.5 py-0 text-[11px] leading-none transition-colors',
+                        'disabled:cursor-not-allowed disabled:opacity-50',
+                        multiSelect.checked
+                          ? 'border-border-active bg-accent text-foreground'
+                          : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      )}
+                      onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
+                      <span className="max-w-24 truncate">{multiSelect.label}</span>
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
-              {multiSelect ? (
+              {renderMultiSelectRow && multiSelect ? (
                 <div
                   ref={setMultiSelectElement}
                   className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
