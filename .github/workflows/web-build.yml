@@ -15,17 +15,32 @@ permissions:
 jobs:
   build-webui:
     runs-on: ubuntu-latest
+    env:
+      CI: true
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Check out Git repository
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
+      - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: .node-version
+          node-version-file: '.node-version'
 
-      - name: Setup pnpm
+      - name: Install pnpm
         uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-webui-${{ hashFiles('webui/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-webui-
 
       - name: Install WebUI dependencies
         working-directory: webui
