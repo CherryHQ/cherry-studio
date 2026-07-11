@@ -16,7 +16,7 @@ import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolv
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
-import type { BinaryResolution, BinaryResolutions } from '@shared/types/binary'
+import type { BinaryInstallState, BinaryInstallStates, BinaryResolution, BinaryResolutions } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 
@@ -153,6 +153,9 @@ export class BinaryManager extends BaseService {
   // concurrent callers can't clobber state.json or each other's mise mutations.
   private readonly stateMutex = new Mutex()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
+  // Session-only install activity (see BinaryInstallState). Deliberately not
+  // persisted: a stale "installing" after a crash would be a lie.
+  private installStates: BinaryInstallStates = {}
 
   protected async onInit() {
     await this.extractBundledBinaries()
@@ -700,30 +703,56 @@ export class BinaryManager extends BaseService {
     })
   }
 
+  getInstallStates(): BinaryInstallStates {
+    return { ...this.installStates }
+  }
+
+  private setInstallState(name: string, state: BinaryInstallState | null) {
+    if (state) {
+      this.installStates[name] = state
+    } else {
+      delete this.installStates[name]
+    }
+    application.get('IpcApiService').broadcast('binary.install_states_changed', this.getInstallStates())
+  }
+
   async installTool(tool: ManagedBinary): Promise<{ version: string }> {
     validateManagedBinary(tool)
     if (!this.miseBin) {
       throw new Error('Binary backend not available')
     }
 
-    return this.stateMutex.runExclusive(async () => {
-      const version = await this.installWithMise(tool)
-      // mise can report success while leaving the binary unrunnable (missing
-      // file, AV stripped the exec bit). Verify before persisting so we never
-      // record a phantom install — callers (CodeCliService, renderer toast)
-      // get the failure instead of a false success.
-      if (!(await this.isManagedBinaryReady(tool.name))) {
-        throw new Error(`Tool installed but not runnable: ${tool.name}`)
-      }
-      const state = this.loadState()
-      state.tools[tool.name] = {
-        tool: tool.tool,
-        version
-      }
-      this.saveState(state)
+    // Marked before the mutex so an install queued behind another already
+    // renders as installing instead of idling until its turn.
+    this.setInstallState(tool.name, { status: 'installing' })
+    try {
+      const result = await this.stateMutex.runExclusive(async () => {
+        const version = await this.installWithMise(tool)
+        // mise can report success while leaving the binary unrunnable (missing
+        // file, AV stripped the exec bit). Verify before persisting so we never
+        // record a phantom install — callers (CodeCliService, renderer toast)
+        // get the failure instead of a false success.
+        if (!(await this.isManagedBinaryReady(tool.name))) {
+          throw new Error(`Tool installed but not runnable: ${tool.name}`)
+        }
+        const state = this.loadState()
+        state.tools[tool.name] = {
+          tool: tool.tool,
+          version
+        }
+        this.saveState(state)
 
-      return { version }
-    })
+        return { version }
+      })
+      this.setInstallState(tool.name, null)
+      return result
+    } catch (err) {
+      this.setInstallState(tool.name, {
+        status: 'failed',
+        error: err instanceof Error ? err.message : String(err)
+      })
+      throw err
+    }
   }
 
   private async loadRegistry(): Promise<Array<{ name: string; tool: string }>> {
@@ -842,6 +871,10 @@ export class BinaryManager extends BaseService {
   }
 
   async removeTool(toolName: string): Promise<void> {
+    // Removing a tool retires any lingering failed-install banner for it.
+    if (this.installStates[toolName]?.status === 'failed') {
+      this.setInstallState(toolName, null)
+    }
     return this.stateMutex.runExclusive(async () => {
       const state = this.loadState()
       const existing = state.tools[toolName]

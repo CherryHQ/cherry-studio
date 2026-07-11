@@ -92,6 +92,7 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
+const { application: mockApplication } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
@@ -1049,6 +1050,75 @@ describe('BinaryManager', () => {
 
       const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
       expect(result.version).toBe('10.0.0')
+    })
+  })
+
+  describe('install state tracking', () => {
+    const mockSuccessfulInstall = (toolKey: string, binaryName: string) => {
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${binaryName}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+    }
+
+    it('broadcasts installing, then clears the entry on success', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockSuccessfulInstall('github:sharkdp/fd', 'fd')
+      const broadcast = mockApplication.get('IpcApiService').broadcast as ReturnType<typeof vi.fn>
+
+      const pending = service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
+      expect(service.getInstallStates()).toEqual({ fd: { status: 'installing' } })
+      await pending
+
+      expect(service.getInstallStates()).toEqual({})
+      const stateCalls = broadcast.mock.calls.filter(([event]) => event === 'binary.install_states_changed')
+      expect(stateCalls[0][1]).toEqual({ fd: { status: 'installing' } })
+      expect(stateCalls[stateCalls.length - 1][1]).toEqual({})
+    })
+
+    it('keeps a failed entry with the error message until retried', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockRejectedValue(Object.assign(new Error('mise use timed out after 900s'), {}))
+
+      await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd' })).rejects.toThrow('timed out')
+      expect(service.getInstallStates()).toEqual({
+        fd: { status: 'failed', error: expect.stringContaining('timed out') }
+      })
+
+      // A retry replaces failed with installing before the mutex work starts.
+      mockSuccessfulInstall('github:sharkdp/fd', 'fd')
+      await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
+      expect(service.getInstallStates()).toEqual({})
+    })
+
+    it('does not track state for a spec rejected by validation', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      await expect(service.installTool({ name: '../etc', tool: 'fd' })).rejects.toThrow('Invalid tool name')
+      expect(service.getInstallStates()).toEqual({})
+    })
+
+    it('removeTool clears a lingering failed entry', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockRejectedValue(new Error('boom'))
+      await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd' })).rejects.toThrow('boom')
+
+      mockFs.readFileSync.mockImplementation(() => JSON.stringify({ tools: {} }))
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
+      await service.removeTool('fd')
+
+      expect(service.getInstallStates()).toEqual({})
     })
   })
 

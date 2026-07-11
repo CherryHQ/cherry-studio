@@ -10,7 +10,8 @@ const binaryManager = {
   removeTool: vi.fn(),
   resolveTools: vi.fn(),
   searchRegistry: vi.fn(),
-  getLatestVersions: vi.fn()
+  getLatestVersions: vi.fn(),
+  getInstallStates: vi.fn()
 }
 
 beforeEach(() => {
@@ -55,5 +56,11 @@ describe('binaryHandlers', () => {
     const result = await binaryHandlers['binary.get_latest_versions'](false, ctx)
     expect(binaryManager.getLatestVersions).toHaveBeenCalledWith(false)
     expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
+  })
+
+  it('get_install_states returns the manager install-state map', async () => {
+    binaryManager.getInstallStates.mockReturnValue({ fd: { status: 'installing' } })
+    const result = await binaryHandlers['binary.get_install_states'](undefined, ctx)
+    expect(result).toEqual({ fd: { status: 'installing' } })
   })
 })
