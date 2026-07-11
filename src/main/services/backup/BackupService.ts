@@ -15,21 +15,25 @@
 // applied and the wired application paths resolve. Export can therefore never
 // snapshot a pre-migration DB.
 //
-// SLICE SCOPE: export-only, FULL + LITE presets, DB + file-blob archive. The
-// renderer triggers export via the backup.start_backup IpcApi route (filled
-// defaults: restoreId / producerAppVersion / schemaMigrationId). preflightDisk
-// guards the entry. Step 2.5 (SqliteBackupStripper) strips ALWAYS_STRIP + lite
-// excluded rows from the copy. cancel/progress/validate channels and the restore
-// side land in follow-up slices.
+// SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
+// spine. The renderer triggers export via backup.start_backup; restore runs the
+// ImportOrchestrator spine (snapshot → fingerprint → merge → migrate → seal → journal →
+// relaunch) but is FAIL-CLOSED until the write-quiesce (#16849/#16850) and merge-engine
+// tracks land — quiesce + merge throw, so no staged journal is ever written without them.
+// preflightDisk guards export; performRestoreRecovery at startup GCs staging residue from
+// a crashed prior restore (prod-usable, not dev-gated). cancel/progress/validate channels
+// and the restore progress UI land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { isPathInside } from '@main/utils/legacyFile'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
@@ -38,9 +42,19 @@ import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { contributorManager } from './contributors'
-import { BackupCancelledError, DiskFullError, InsufficientDiskSpaceError, OutputPathExistsError } from './errors'
+import {
+  BackupCancelledError,
+  DiskFullError,
+  InsufficientDiskSpaceError,
+  OutputPathExistsError,
+  RestoreMergeNotImplementedError,
+  RestoreQuiesceNotImplementedError
+} from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
+import { ImportOrchestrator } from './ImportOrchestrator'
+
+const logger = loggerService.withContext('BackupService')
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -49,13 +63,25 @@ export interface BackupV2StartOptions {
   readonly outputPath: string
 }
 
+/** Renderer-facing restore request (the .cbu path comes from an open dialog). */
+export interface BackupRestoreStartOptions {
+  readonly archivePath: string
+}
+
+/** Restore start result — restoreId is the cancel/progress routing key. */
+export interface BackupRestoreResult {
+  readonly restoreId: string
+}
+
 /**
- * In-flight export state. One active export at a time (a second startBackup while
- * one is running throws 'busy'); cancel aborts the AbortController, which the
- * orchestrator checks at each step boundary (BackupCancelledError).
+ * In-flight operation state. One active operation at a time — export and restore are
+ * mutually exclusive (a second startBackup/startRestore while one is running throws
+ * 'busy'); cancel aborts the AbortController, which the orchestrator checks at each
+ * step boundary (BackupCancelledError). `kind` lets cancel/progress route by type.
  */
-interface ActiveExport {
-  readonly backupId: string
+interface ActiveOperation {
+  readonly kind: 'export' | 'restore'
+  readonly id: string
   readonly abortController: AbortController
 }
 
@@ -68,8 +94,8 @@ export class BackupService extends BaseService {
   private schemaMigrationId?: string
   /** Progress event bus — re-created in onInit each (re)start so stop→start gets a fresh emitter. */
   private _onProgress?: Emitter<BackupProgressUpdate>
-  /** The single active export (null when idle). */
-  private activeExport: ActiveExport | null = null
+  /** The single active operation — export OR restore, mutually exclusive (null when idle). */
+  private activeOperation: ActiveOperation | null = null
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -88,6 +114,12 @@ export class BackupService extends BaseService {
         application.get('IpcApiService').broadcast('backup.progress', update)
       })
     )
+    // Restore recovery — runs in BOTH dev and packaged. The dev gate below only gates
+    // the export orchestrator + contributor finalize (export UI surface); restore
+    // recovery ownership (cleanup of a crashed prior restore's staging residue) MUST be
+    // production-usable so a crashed restore can't brick the install with stale staging.
+    this.performRestoreRecovery()
+
     // DEV-only gate: contributor finalize is startup validation (a bad registry throws
     // ContributorFinalizeError → @ErrorHandling('fail-fast') aborts bootstrap). The only
     // consumer today is the DEV Settings route — the prod V2 settings UI has not landed.
@@ -128,8 +160,8 @@ export class BackupService extends BaseService {
    * delegates here; the orchestrator checks the AbortSignal at the next step boundary.
    */
   cancel(backupId: string): { cancelled: boolean } {
-    if (this.activeExport?.backupId === backupId) {
-      this.activeExport.abortController.abort()
+    if (this.activeOperation?.id === backupId) {
+      this.activeOperation.abortController.abort()
       return { cancelled: true }
     }
     return { cancelled: false }
@@ -148,20 +180,20 @@ export class BackupService extends BaseService {
       // fail-fast. Guard anyway.
       throw new Error('BackupService: not initialized (onInit did not complete)')
     }
-    if (this.activeExport) {
-      throw new Error('BackupService: an export is already running (cancel it first)')
+    if (this.activeOperation) {
+      throw new Error('BackupService: an operation is already running (cancel it first)')
     }
     // Refuse unsafe output paths BEFORE any work: renderer must not overwrite the live
     // DB or other app-managed data, and must not clobber an existing file (no-clobber).
     this.validateOutputPath(outputPath)
     // Reserve the active slot BEFORE the preflight await so a concurrent startBackup
     // sees it as busy — two invokes that both pass the null check would otherwise
-    // both suspend in preflight, then both start (the second overwriting activeExport
+    // both suspend in preflight, then both start (the second overwriting activeOperation
     // and leaving the first uncancellable). Cleared in finally on any outcome.
     const backupId = randomUUID()
     const abortController = new AbortController()
-    const active: ActiveExport = { backupId, abortController }
-    this.activeExport = active
+    const active: ActiveOperation = { kind: 'export', id: backupId, abortController }
+    this.activeOperation = active
     try {
       // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
       // here rather than a mid-export SQLITE_FULL (disk budget).
@@ -184,7 +216,135 @@ export class BackupService extends BaseService {
       // IpcError instances through unchanged (IpcError.from returns the instance).
       throw this.toIpcError(e)
     } finally {
-      if (this.activeExport === active) this.activeExport = null
+      if (this.activeOperation === active) this.activeOperation = null
+    }
+  }
+
+  /**
+   * Restore from a .cbu archive (renderer-facing). Runs the ImportOrchestrator spine:
+   * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
+   * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
+   *
+   * Fail-closed until the write-quiesce (#16849/#16850) and merge-engine tracks land:
+   * the orchestrator's quiesce + merge deps throw, so NO staged journal is written and
+   * NO relaunch occurs — restore surfaces a clear NotImplemented error rather than
+   * promoting a half-restored state. Mutually exclusive with export (activeOperation).
+   */
+  async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
+    if (this.activeOperation) {
+      throw new Error('BackupService: an operation is already running (cancel it first)')
+    }
+    // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
+    // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
+    // must be reported/cleared first; this guard is the backstop behind the preboot gate.
+    const journal = readRestoreJournal()
+    if (journal.kind === 'ok') {
+      throw new IpcError(
+        'BACKUP_RESTORE_PENDING',
+        `backup: a prior restore is in state '${journal.journal.state}' — report or clear it before starting another`
+      )
+    }
+    if (journal.kind === 'corrupt') {
+      throw new IpcError('BACKUP_RESTORE_JOURNAL_CORRUPT', 'backup: restore journal is corrupt — see logs')
+    }
+
+    const restoreId = `rst-${randomUUID()}`
+    const abortController = new AbortController()
+    const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
+    this.activeOperation = active
+    try {
+      const importOrch = new ImportOrchestrator({
+        dbService: application.get('DbService'),
+        migrationsFolder: application.getPath('app.database.migrations'),
+        liveDbPath: application.getPath('app.database.file'),
+        restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
+        userData: application.getPath('app.userdata'),
+        journalPath: application.getPath('feature.backup.restore.file'),
+        // Fail-closed stubs — restore stays unavailable until quiesce + merge land.
+        quiesceWriters: async () => {
+          throw new RestoreQuiesceNotImplementedError()
+        },
+        mergeBackupIntoWork: async () => {
+          throw new RestoreMergeNotImplementedError()
+        },
+        stageFileResources: async () => []
+      })
+      await importOrch.importBackup({
+        archivePath,
+        restoreId,
+        signal: abortController.signal
+        // onProgress wiring to the renderer lands with the restore progress UI (plan (f)).
+      })
+      // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
+      // exits the current process (app.exit(0)) in both dev (after a dialog) and packaged —
+      // the gate runs at the next boot's preboot, before any service initializes.
+      this.triggerRelaunch()
+      return { restoreId }
+    } catch (e) {
+      throw this.toIpcError(e)
+    } finally {
+      if (this.activeOperation === active) this.activeOperation = null
+    }
+  }
+
+  /**
+   * Relaunch the app so the preboot restore gate runs. Dev mode shows a dialog + exits
+   * (no auto-restart); packaged re-execs + exits. The staged journal is picked up on
+   * the next boot. (application.relaunch, not raw app.relaunch — the latter doesn't
+   * exit the current process, so the gate would never run.)
+   */
+  private triggerRelaunch(): void {
+    application.relaunch()
+  }
+
+  /**
+   * Post-crash restore recovery at startup. Runs in dev AND packaged (the dev gate only
+   * gates the export orchestrator, not restore recovery ownership). Two concerns:
+   *  - staging residue: a restore that crashed mid-staging (before writing the journal)
+   *    leaves a half-built work.sqlite + staging tree with no journal to direct cleanup.
+   *    With no pending/terminal journal, GC the whole staging root (plan (h) MAJOR1).
+   *  - terminal/corrupt journal: kept for post-boot reporting; cleanup + aside GC land
+   *    with (h)/(i). For now, log so the state is visible at boot.
+   */
+  private performRestoreRecovery(): void {
+    const journal = readRestoreJournal()
+    if (journal.kind === 'none') {
+      this.gcStagingResidue()
+      return
+    }
+    // staged/promoting: the preboot gate (runs before services start) should have
+    // consumed these; reaching BackupService.onInit with one is unexpected — leave it
+    // for the gate on the next boot and warn. terminal/corrupt: reported above, cleanup TBD.
+    if (journal.kind === 'ok') {
+      logger.warn(`restore journal present at BackupService init: state=${journal.journal.state}`)
+    } else if (journal.kind === 'corrupt') {
+      logger.warn('corrupt restore journal present at BackupService init (gate will quarantine)')
+    }
+  }
+
+  /**
+   * GC the restore staging root when no journal directs its cleanup. Only safe at
+   * startup, before any new restore is accepted. A non-empty staging tree with a
+   * 'none' journal means a prior restore crashed before writing the journal — its
+   * half-built work.sqlite + staged files are unrecoverable garbage (the preboot gate
+   * returns early on journal=none and never touches the tree).
+   */
+  private gcStagingResidue(): void {
+    const stagingRoot = application.getPath('feature.backup.restore.staging')
+    if (!existsSync(stagingRoot)) return
+    let entries: string[]
+    try {
+      entries = readdirSync(stagingRoot)
+    } catch (e) {
+      logger.warn('restore staging root unreadable during residue GC', e as Error)
+      return
+    }
+    if (entries.length === 0) return
+    logger.info(`GC restore staging residue: ${entries.length} orphaned subtree(s)`)
+    try {
+      rmSync(stagingRoot, { recursive: true, force: true })
+    } catch (e) {
+      logger.warn('restore staging residue GC failed', e as Error)
     }
   }
 
@@ -366,10 +526,7 @@ export class BackupService extends BaseService {
       )
     }
     if (!parentStat.isDirectory()) {
-      throw new IpcError(
-        'BACKUP_OUTPUT_PATH_INVALID',
-        `backup: outputPath parent is not a directory: ${realParent}`
-      )
+      throw new IpcError('BACKUP_OUTPUT_PATH_INVALID', `backup: outputPath parent is not a directory: ${realParent}`)
     }
     const canonical = join(realParent, basename(resolve(outputPath)))
     // Refuse ANY app-managed writable path — the archive must never overwrite the live
@@ -386,20 +543,14 @@ export class BackupService extends BaseService {
         // managed root may not exist yet on a fresh install — lexical fallback
       }
       if (canonical === realRoot || isPathInside(canonical, realRoot)) {
-        throw new IpcError(
-          'BACKUP_UNSAFE_OUTPUT_PATH',
-          `backup: outputPath targets an app-managed path: ${outputPath}`
-        )
+        throw new IpcError('BACKUP_UNSAFE_OUTPUT_PATH', `backup: outputPath targets an app-managed path: ${outputPath}`)
       }
     }
     // No-clobber: refuse to overwrite an existing file. archive.ts publishes via link()
     // which also refuses (EEXIST), but the entry check gives an early, clear error and
     // bounds the TOCTOU window to the export duration.
     if (existsSync(canonical)) {
-      throw new IpcError(
-        'BACKUP_OUTPUT_PATH_EXISTS',
-        `backup: outputPath already exists (no-clobber): ${outputPath}`
-      )
+      throw new IpcError('BACKUP_OUTPUT_PATH_EXISTS', `backup: outputPath already exists (no-clobber): ${outputPath}`)
     }
   }
 
@@ -430,10 +581,10 @@ export class BackupService extends BaseService {
   }
 
   protected onStop(): void {
-    // Signal an in-flight export to abort so shutdown is not holding the snapshot
+    // Signal an in-flight operation to abort so shutdown is not holding the snapshot
     // copy + staging open. The orchestrator checks the abort signal at its next step
     // boundary + its finally cleans up temp + staging. (Sync stop cannot await the
     // async drain; abort is the bounded-shutdown lever.)
-    this.activeExport?.abortController.abort()
+    this.activeOperation?.abortController.abort()
   }
 }
