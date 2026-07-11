@@ -139,7 +139,11 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
-  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
+  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
+    installed: false,
+    source: 'none',
+    canUpgrade: false
+  }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
@@ -232,7 +236,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           resolveProviderMeta,
           onInstall: () => void install(selectedCliTool),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          onRemove: () => removeDialog.requestRemove(selectedCliTool),
+          onRemove: versionStatus.source === 'system' ? undefined : () => removeDialog.requestRemove(selectedCliTool),
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

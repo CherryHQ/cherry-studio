@@ -6,6 +6,7 @@ import { useCliVersionStatuses } from '../useCliVersionStatuses'
 
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
+  probeSystem: vi.fn(),
   latestVersions: vi.fn()
 }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
@@ -16,6 +17,8 @@ vi.mock('@renderer/ipc', () => ({
       switch (route) {
         case 'binary.get_state':
           return ipcMocks.getState()
+        case 'binary.probe_system':
+          return ipcMocks.probeSystem(input)
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         default:
@@ -41,6 +44,7 @@ describe('useCliVersionStatuses', () => {
     vi.clearAllMocks()
     ipcEventHandlers.clear()
     ipcMocks.getState.mockResolvedValue({ tools: {} })
+    ipcMocks.probeSystem.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
   })
 
@@ -69,6 +73,22 @@ describe('useCliVersionStatuses', () => {
       canUpgrade: false
     })
     expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true)
+  })
+
+  it('treats a system PATH tool as installed without offering managed upgrades', async () => {
+    ipcMocks.probeSystem.mockResolvedValue({ claude: '/usr/local/bin/claude' })
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current[CodeCli.CLAUDE_CODE]).toEqual({
+      installed: true,
+      source: 'system',
+      systemPath: '/usr/local/bin/claude',
+      canUpgrade: false
+    })
+    expect(ipcMocks.probeSystem).toHaveBeenCalledWith(['claude'])
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
   it('does not mark non-semver versions as upgradeable', async () => {

@@ -1,15 +1,16 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const binaryManagerMock = vi.hoisted(() => ({
+  installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
+  removeTool: vi.fn(() => Promise.resolve()),
+  probeSystem: vi.fn(() => Promise.resolve({}))
+}))
+
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
-      if (name === 'BinaryManager') {
-        return {
-          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
-          removeTool: vi.fn(() => Promise.resolve())
-        }
-      }
+      if (name === 'BinaryManager') return binaryManagerMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -122,6 +123,8 @@ describe('CodeCliService', () => {
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
+    binaryManagerMock.probeSystem.mockResolvedValue({})
+    binaryManagerMock.installTool.mockResolvedValue({ version: 'latest' })
   })
 
   it('should extend BaseService', async () => {
@@ -270,6 +273,25 @@ describe('CodeCliService', () => {
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('launches a system PATH binary without installing a managed copy', async () => {
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(false)
+      binaryManagerMock.probeSystem.mockResolvedValue({ claude: '/usr/local/bin/claude' })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
+      expect(binaryManagerMock.probeSystem).toHaveBeenCalledWith(['claude'])
+      expect((vi.mocked(spawn).mock.calls.at(-1)?.[1] as string[]).join(' ')).toContain('/usr/local/bin/claude')
     })
 
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {

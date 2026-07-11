@@ -35,7 +35,7 @@ interface CodeCliContentPanelProps {
   resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onInstall: () => void
   onUpgrade: () => void
-  onRemove: () => void
+  onRemove?: () => void
   onLaunch: () => void
   onStop: () => void
   onOpenDashboard: () => void

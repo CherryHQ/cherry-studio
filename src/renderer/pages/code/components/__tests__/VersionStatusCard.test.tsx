@@ -27,6 +27,30 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.install' })).toBeInTheDocument()
   })
 
+  it('treats a system PATH tool as launchable without install or remove actions', () => {
+    render(
+      <VersionStatusCard
+        toolId="claude-code"
+        toolName="Claude Code"
+        status={{
+          installed: true,
+          source: 'system',
+          systemPath: '/usr/local/bin/claude',
+          canUpgrade: false
+        }}
+        onInstall={vi.fn()}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    expect(screen.getByText('settings.dependencies.source.system')).toHaveAttribute('title', '/usr/local/bin/claude')
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+  })
+
   it('renders a disabled launch action when launch requirements are missing', () => {
     render(
       <VersionStatusCard

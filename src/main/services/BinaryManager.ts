@@ -12,7 +12,7 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
@@ -207,7 +207,9 @@ export class BinaryManager extends BaseService {
     const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
-        const resolved = await findCommandInShellEnv(name, shellEnv)
+        const resolved = isWin
+          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: shellEnv })
+          : await findCommandInShellEnv(name, shellEnv)
         if (!resolved || cherryDirs.some((dir) => resolved.startsWith(dir))) return null
         return [name, resolved]
       })

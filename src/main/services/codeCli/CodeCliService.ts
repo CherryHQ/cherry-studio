@@ -374,31 +374,33 @@ export class CodeCliService extends BaseService {
     logger.debug(`Executable name: ${executableName}`)
     logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Check if package is already installed
-    let isInstalled = await isBinaryExists(executableName)
+    // Prefer Cherry-managed/bundled binaries, then the user's login-shell PATH.
+    // Only install when neither source has the executable.
+    const binaryManager = application.get('BinaryManager')
+    let executablePath: string | undefined
+    if (await isBinaryExists(executableName)) {
+      executablePath = await getBinaryPath(executableName)
+    } else {
+      executablePath = (await binaryManager.probeSystem([executableName]))[executableName]
+    }
 
-    // Install via BinaryManager if not present
-    if (!isInstalled) {
+    if (!executablePath) {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await application.get('BinaryManager').installTool(spec)
-        isInstalled = true
+        await binaryManager.installTool(spec)
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Failed to install ${cliTool}:`, error as Error)
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
-    }
 
-    // Re-verify the binary is on disk before spawning. getBinaryPath() below
-    // silently falls back to the bare name when the file is missing, so without
-    // this guard we'd launch a phantom (or a same-named binary on PATH) and
-    // still report success.
-    if (!(await isBinaryExists(executableName))) {
-      const message = `${cliTool} is not available after install`
-      logger.error(message)
-      return { success: false, message }
+      if (!(await isBinaryExists(executableName))) {
+        const message = `${cliTool} is not available after install`
+        logger.error(message)
+        return { success: false, message }
+      }
+      executablePath = await getBinaryPath(executableName)
     }
 
     // Select different terminal based on operating system
@@ -446,8 +448,8 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const executablePath = await getBinaryPath(executableName)
-    let baseCommand = `"${executablePath}"`
+    const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+    let baseCommand = `${needsBatchCall ? 'call ' : ''}"${executablePath}"`
 
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.

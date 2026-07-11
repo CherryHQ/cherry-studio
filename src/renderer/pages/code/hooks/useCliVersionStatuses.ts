@@ -21,14 +21,27 @@ const isNewerVersion = (latest?: string, installed?: string): boolean => {
   }
 }
 
-const buildStatus = (state: BinaryState, binaryName: string | undefined, latest?: string): VersionStatus => {
-  const installed = binaryName ? state.tools[binaryName] : undefined
-  return {
-    installed: !!installed,
-    current: installed?.version,
-    latest,
-    canUpgrade: !!installed && isNewerVersion(latest, installed.version)
+const buildStatus = (
+  state: BinaryState,
+  systemTools: Record<string, string>,
+  binaryName: string | undefined,
+  latest?: string
+): VersionStatus => {
+  const managed = binaryName ? state.tools[binaryName] : undefined
+  if (managed) {
+    return {
+      installed: true,
+      source: 'managed',
+      current: managed.version,
+      latest,
+      canUpgrade: isNewerVersion(latest, managed.version)
+    }
   }
+
+  const systemPath = binaryName ? systemTools[binaryName] : undefined
+  return systemPath
+    ? { installed: true, source: 'system', systemPath, canUpgrade: false }
+    : { installed: false, source: 'none', canUpgrade: false }
 }
 
 /**
@@ -44,6 +57,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
   // Latest versions survive the `binary.state_changed` broadcast (which carries
   // installed state only) so canUpgrade stays accurate without a registry re-query.
   const latestRef = useRef<Record<string, string | undefined>>({})
+  const systemToolsRef = useRef<Record<string, string>>({})
   const toolKey = toolIds.join('|')
   const tools = useMemo(() => (toolKey ? (toolKey.split('|') as CodeCli[]) : []), [toolKey])
 
@@ -51,12 +65,20 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     let cancelled = false
 
     const refresh = async () => {
-      const state = await ipcApi.request('binary.get_state').catch((error) => {
-        logger.error('Failed to get binary state', error as Error)
-        return null
-      })
+      const binaryNames = tools.map((toolId) => CLI_BINARY_NAMES[toolId]).filter((name): name is string => !!name)
+      const [state, systemTools] = await Promise.all([
+        ipcApi.request('binary.get_state').catch((error) => {
+          logger.error('Failed to get binary state', error as Error)
+          return null
+        }),
+        ipcApi.request('binary.probe_system', binaryNames).catch((error) => {
+          logger.error('Failed to probe system CLI tools', error as Error)
+          return {}
+        })
+      ])
 
       if (cancelled || !state) return
+      systemToolsRef.current = systemTools
 
       const hasInstalledCli = tools.some((toolId) => {
         const binaryName = CLI_BINARY_NAMES[toolId]
@@ -77,7 +99,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
 
       const next: Record<string, VersionStatus> = {}
       for (const toolId of tools) {
-        next[toolId] = buildStatus(state, CLI_BINARY_NAMES[toolId], latestRef.current[toolId])
+        next[toolId] = buildStatus(state, systemToolsRef.current, CLI_BINARY_NAMES[toolId], latestRef.current[toolId])
       }
       setStatuses(next)
     }
@@ -91,7 +113,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
   useIpcOn('binary.state_changed', (state) => {
     const next: Record<string, VersionStatus> = {}
     for (const toolId of tools) {
-      next[toolId] = buildStatus(state, CLI_BINARY_NAMES[toolId], latestRef.current[toolId])
+      next[toolId] = buildStatus(state, systemToolsRef.current, CLI_BINARY_NAMES[toolId], latestRef.current[toolId])
     }
     setStatuses(next)
   })

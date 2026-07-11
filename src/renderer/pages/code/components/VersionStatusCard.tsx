@@ -53,10 +53,19 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
-            {isInstalled && !canUpgrade && (
-              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                {t('code.up_to_date')}
+            {status.source === 'system' ? (
+              <span
+                className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                title={status.systemPath}>
+                {t('settings.dependencies.source.system')}
               </span>
+            ) : (
+              isInstalled &&
+              !canUpgrade && (
+                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                  {t('code.up_to_date')}
+                </span>
+              )
             )}
           </div>
 
@@ -101,7 +110,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {isInstalled && onRemove && (
+          {isInstalled && status.source !== 'system' && onRemove && (
             <Button
               variant="ghost"
               size="icon-sm"
