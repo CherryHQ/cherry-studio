@@ -106,8 +106,10 @@ const serviceBarrelZones = serviceTopics.map((topic) => ({
     `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
     `src/renderer/services/*` // flat files at the services/ root
   ],
-  from: `src/renderer/services/${topic}/**/*`,
-  except: ['**/index.ts'], // the barrel itself stays importable
+  from: [
+    `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
+    `src/renderer/services/${topic}/!(index)/**/*`
+  ],
   message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
 }))
 
@@ -346,6 +348,67 @@ const barrelPlugin = {
         return {
           Program(node) {
             ctx.report({ node, message: 'Bucket roots (types/utils/services) carry no barrel — import the specific file/topic (naming-conventions.md §6.4 rule 3 / §4.8).' })
+          }
+        }
+      }
+    }
+  }
+}
+
+// --- directory & file naming rules (naming-conventions.md §3–§4, §6.6) ---
+// Inline custom plugin (like `barrel` above). ESLint is per-file, so a directory name is checked by
+// deriving each ancestor segment from the linted file's path (a dir with no linted file is thus
+// invisible — acceptable: every code dir has a .ts/.tsx). Only zones where path → role is
+// deterministic are enforced; the semantic splits left to review are bucket-vs-domain plural/singular
+// (§4.9) and class-file PascalCase vs function-file camelCase (§3.2). Acronym-internal casing (§6.1)
+// is also out of scope here.
+const isKebabName = (s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s)
+const isCamelName = (s) => /^[a-z][a-zA-Z0-9]*$/.test(s)
+const isPascalName = (s) => /^[A-Z][a-zA-Z0-9]*$/.test(s)
+const isRouteToken = (s) => s.startsWith('$') || s.startsWith('_') // $appId, $, __root, _pathless
+const isModuleFileStem = (s) => {
+  const b = s.replace(/^_+/, '') // _columnHelpers.ts: leading-underscore shared construct (§3.2)
+  return isCamelName(b) || isPascalName(b)
+}
+const NAMING_EXEMPT_DIRS = new Set(['__tests__', '__mocks__', '__snapshots__'])
+// First matching prefix wins; unmanaged zones bail before the generic renderer/src zones.
+const NAMING_ZONES = [
+  { prefix: 'packages/ui/', root: 2, label: 'packages/ui', dir: isKebabName, dirExpect: 'kebab-case', file: isKebabName, fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/routes/', root: 3, label: 'routes', dir: (s) => isKebabName(s) || isRouteToken(s), dirExpect: 'kebab-case', file: (s) => isKebabName(s) || isRouteToken(s), fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/assets/', unmanaged: true },
+  { prefix: 'src/renderer/', root: 2, label: 'src/renderer', dir: (s) => isCamelName(s) || isPascalName(s), dirExpect: 'camelCase (module) or PascalCase (component)', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/main/', root: 2, label: 'src/main', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/shared/', root: 2, label: 'src/shared', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/preload/', root: 2, label: 'src/preload', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' }
+]
+const namingReportedDirs = new Set()
+
+const namingPlugin = {
+  rules: {
+    'path-case': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const abs = ctx.filename ?? ctx.getFilename()
+        const rel = path.relative(RENDERER_DIRNAME, abs).split(path.sep).join('/')
+        const zone = NAMING_ZONES.find((z) => rel.startsWith(z.prefix))
+        if (!zone || zone.unmanaged) return {}
+        return {
+          Program(node) {
+            const parts = rel.split('/')
+            const fileName = parts[parts.length - 1]
+            const dirSegs = parts.slice(zone.root, parts.length - 1)
+            for (let i = 0; i < dirSegs.length; i++) {
+              const seg = dirSegs[i]
+              if (seg.startsWith('.') || NAMING_EXEMPT_DIRS.has(seg) || zone.dir(seg)) continue // dotdirs (.storybook, .github) are tool conventions
+              const dirRel = parts.slice(0, zone.root + i + 1).join('/')
+              if (namingReportedDirs.has(dirRel)) continue
+              namingReportedDirs.add(dirRel)
+              ctx.report({ node, message: `Directory \`${dirRel}\`: segment \`${seg}\` must be ${zone.dirExpect} under ${zone.label} (naming-conventions.md §4).` })
+            }
+            if (/^index\.tsx?$/.test(fileName) || /\.d\.ts$/.test(fileName)) return // index.* owned by barrel/*; *.d.ts by §3.5
+            const stem = fileName.split('.')[0]
+            if (!stem || zone.file(stem)) return
+            ctx.report({ node, message: `File \`${fileName}\`: name \`${stem}\` must be ${zone.fileExpect} under ${zone.label} (naming-conventions.md §3).` })
           }
         }
       }
@@ -694,11 +757,13 @@ export default defineConfig([
               from: ['src/renderer/components', 'src/renderer/hooks'],
               message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
             },
-            // @logger is a §2 primitive that physically lives under services/. `from` uses a glob, so `except` must also glob.
+            // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
             {
               target: 'src/renderer/utils',
-              from: ['src/renderer/services/**/*'],
-              except: ['**/LoggerService.ts'],
+              from: [
+                'src/renderer/services/!(LoggerService).{ts,tsx,js,jsx}',
+                'src/renderer/services/!(LoggerService)/**/*'
+              ],
               message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
             },
             ...serviceBarrelZones
@@ -765,6 +830,16 @@ export default defineConfig([
       'barrel/closed': 'error',
       'barrel/no-nesting': 'error',
       'barrel/no-bucket-root': 'error'
+    }
+  },
+  // Directory & file naming rules (naming-conventions.md §3–§4, §6.6) — inline custom plugin.
+  // Not tests-exempt (test file names follow the convention too); the __tests__/__mocks__/__snapshots__
+  // directory segments are allow-listed inside the rule.
+  {
+    files: ['src/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}'],
+    plugins: { naming: namingPlugin },
+    rules: {
+      'naming/path-case': 'error'
     }
   },
   // renderer legacy css var migration warnings

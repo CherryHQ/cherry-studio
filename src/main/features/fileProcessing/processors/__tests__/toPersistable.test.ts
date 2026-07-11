@@ -11,9 +11,9 @@ import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
-import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/handler'
-import { paddleDocumentToMarkdownHandler } from '../paddleocr/document-to-markdown/handler'
+import { doc2xDocumentToMarkdownHandler } from '../doc2x/documentToMarkdown/handler'
+import { mineruDocumentToMarkdownHandler } from '../mineru/documentToMarkdown/handler'
+import { paddleDocumentToMarkdownHandler } from '../paddleocr/documentToMarkdown/handler'
 import type { PreparedRemoteJob } from '../types'
 
 const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo => FileInfoSchema.parse(input)

@@ -38,6 +38,14 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('BashOutput')).toBe(true)
   })
 
+  it('honors user opt-outs for notify and config autonomy tools', () => {
+    const disallowed = new Set(
+      resolveDisallowedTools({ disabledTools: ['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'] })
+    )
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(true)
+    expect(disallowed.has('mcp__cherry-tools__config')).toBe(true)
+  })
+
   it('disabling the "Knowledge Search" toggle also revokes kb_list and kb_read (they dependsOn kb_search)', () => {
     // kb_read returns whole documents and kb_list browses every base — strictly more than kb_search's
     // chunks — so the visible kb_search toggle must honestly cover them, not leave read access reachable.
@@ -72,24 +80,26 @@ describe('resolveDisallowedTools', () => {
   it('treats predicate-gated tools as enabled when no ctx is supplied', () => {
     const disallowed = new Set(resolveDisallowedTools({}))
     expect(disallowed.has('EnterWorktree')).toBe(false)
-    expect(disallowed.has('mcp__claw__notify')).toBe(false)
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
   })
 
-  it('disables worktree without .git and claw notify/config without channels', () => {
+  it('disables worktree tools without .git but keeps notify available (self-degrades when no channels)', () => {
     existsSync.mockReturnValue(false) // no .git
-    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [] }))
+    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws' }))
     expect(disallowed.has('EnterWorktree')).toBe(true)
     expect(disallowed.has('ExitWorktree')).toBe(true)
-    expect(disallowed.has('mcp__claw__notify')).toBe(true)
-    expect(disallowed.has('mcp__claw__config')).toBe(true)
+    // notify is no longer channel-gated: it reports "no connected channels" at call time instead of
+    // being hard-disabled, so an agent can add its first channel and notify in the same session.
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
+    expect(disallowed.has('mcp__cherry-tools__config')).toBe(false)
   })
 
-  it('enables worktree with .git and claw notify/config with a channel', () => {
+  it('enables worktree tools with .git and keeps notify/config available', () => {
     existsSync.mockReturnValue(true) // .git present
-    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [{ id: 'c1' }] }))
+    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws' }))
     expect(disallowed.has('EnterWorktree')).toBe(false)
     expect(disallowed.has('ExitWorktree')).toBe(false)
-    expect(disallowed.has('mcp__claw__notify')).toBe(false)
-    expect(disallowed.has('mcp__claw__config')).toBe(false)
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
+    expect(disallowed.has('mcp__cherry-tools__config')).toBe(false)
   })
 })

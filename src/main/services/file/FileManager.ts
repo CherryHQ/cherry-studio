@@ -208,7 +208,9 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
         report.failedSamples.length > 0 ? ` (first: ${report.failedSamples[0]})` : ''
       }`
     case 'aborted':
-      return `FS sweep aborted by safety threshold (${report.abortReason})`
+      return report.abortReason === 'pending-restore'
+        ? 'FS sweep stood aside: a staged backup restore is pending promotion'
+        : `FS sweep aborted by safety threshold (${report.abortReason})`
     case 'failed':
       return `FS sweep failed: ${report.errorMessage}`
   }
@@ -804,6 +806,12 @@ export class FileManager extends BaseService implements IFileManager {
           ...(fsSweepIssue !== undefined && { fsSweepIssue }),
           lastRunAt
         }
+      case 'aborted':
+        // Deliberate stand-aside for a pending restore. Both branches check
+        // the same journal microseconds apart, so the FS half aborted too in
+        // every realistic run — surface it as an abort, not a degraded
+        // 'partial' (this is expected behavior, not a half-finished sweep).
+        return { ...counts, outcome: 'aborted', abortReason: dbReport.abortReason, lastRunAt }
       case 'failed':
         // DB-level collapse dominates: counts are meaningless either way,
         // so the FS sweep's status doesn't change the umbrella.

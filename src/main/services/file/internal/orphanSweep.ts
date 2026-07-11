@@ -39,6 +39,7 @@ import { readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -101,6 +102,7 @@ type DbSweepOutcome =
       readonly outcome: 'partial'
       readonly errorsByType: Partial<Record<FileRefSourceType, string>>
     }
+  | { readonly outcome: 'aborted'; readonly abortReason: 'pending-restore' }
   | { readonly outcome: 'failed'; readonly errorMessage: string }
 
 export type DbSweepReport = DbSweepStats & DbSweepOutcome
@@ -119,6 +121,21 @@ export type { OrphanReport } from '@shared/types/file'
  */
 export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   const startedAt = Date.now()
+  // A staged/promoting restore owns the file+DB surface — deleting "orphans"
+  // mid-restore would reclaim rows/files the promotion is about to reference.
+  if (hasPendingRestore()) {
+    const report: DbSweepReport = {
+      orphanRefsByType: {},
+      orphanRefsTotal: 0,
+      orphanEntriesByOrigin: {},
+      orphanEntriesTotal: 0,
+      scanDurationMs: Date.now() - startedAt,
+      outcome: 'aborted',
+      abortReason: 'pending-restore'
+    }
+    logDbSweep(report)
+    return report
+  }
   try {
     const prunedTempSessionRefs = deps.fileRefService.pruneMissingTempSessionRefs(deps.fileEntryService.listAllIds())
     const refsByType: Partial<Record<FileRefSourceType, number>> =
@@ -160,6 +177,10 @@ function logDbSweep(report: DbSweepReport): void {
       return
     case 'partial':
       logger.warn('orphan-sweep', payload)
+      return
+    case 'aborted':
+      // Deliberate stand-aside (pending restore), not an anomaly.
+      logger.info('orphan-sweep', payload)
       return
     case 'failed':
       logger.error('orphan-sweep', payload)
@@ -234,7 +255,7 @@ type FileSweepOutcome =
     }
   | {
       readonly outcome: 'aborted'
-      readonly abortReason: 'count-fraction' | 'byte-fraction'
+      readonly abortReason: 'count-fraction' | 'byte-fraction' | 'pending-restore'
     }
   | { readonly outcome: 'failed'; readonly errorMessage: string }
 
@@ -252,6 +273,17 @@ export type FileSweepReport = FileSweepStats & FileSweepOutcome
  * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
 export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+  // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
+  // not yet referenced by the live DB — exactly what this sweep would unlink.
+  if (hasPendingRestore()) {
+    const report: FileSweepReport = {
+      ...zeroStats(0, Date.now()),
+      outcome: 'aborted',
+      abortReason: 'pending-restore'
+    }
+    logFileSweep(report)
+    return report
+  }
   const report = await runFileSweepInner(deps)
   logFileSweep(report)
   return report
@@ -267,6 +299,11 @@ function logFileSweep(report: FileSweepReport): void {
       logger.warn('orphan-file-sweep', payload)
       return
     case 'aborted':
+      if (report.abortReason === 'pending-restore') {
+        // Deliberate stand-aside, not a tripped safety threshold.
+        logger.info('orphan-file-sweep', payload)
+        return
+      }
       logger.warn('orphan-file-sweep', payload)
       return
     case 'failed':

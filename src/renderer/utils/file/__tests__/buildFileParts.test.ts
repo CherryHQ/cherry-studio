@@ -29,7 +29,7 @@ describe('buildFilePartsForAttachments', () => {
     })
   })
 
-  it('creates the FileEntry at send time and emits a file:// url + fileEntryId + the disk MIME', async () => {
+  it('creates the FileEntry at send time and emits a file:// url + file identities + the disk MIME', async () => {
     const [part] = await buildFilePartsForAttachments([attachment()])
 
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/image.png' })
@@ -40,7 +40,7 @@ describe('buildFilePartsForAttachments', () => {
       url: 'file:///p/fe-1.png',
       mediaType: 'image/png',
       filename: 'image.png',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
     })
   })
 

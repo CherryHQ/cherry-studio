@@ -104,7 +104,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/Popups/ContentPopup', () => ({
+vi.mock('@renderer/components/popups/ContentPopup', () => ({
   default: {
     show: vi.fn()
   }

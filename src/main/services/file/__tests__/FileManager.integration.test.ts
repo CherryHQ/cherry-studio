@@ -32,6 +32,13 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// Both sweep branches consult hasPendingRestore before doing anything;
+// default false so every pre-existing scenario runs unguarded.
+const hasPendingRestoreMock = vi.fn((): boolean => false)
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
 const { fileRefService } = await import('@data/services/FileRefService')
@@ -61,6 +68,7 @@ describe('FileManager (integration)', () => {
     electronMocks.shell.showItemInFolder.mockReset()
     BaseService.resetInstances()
     danglingCache.clear()
+    hasPendingRestoreMock.mockReturnValue(false)
     fm = new FileManager()
   })
 
@@ -523,6 +531,21 @@ describe('FileManager (integration)', () => {
     }
     expect(typeof report.lastRunAt).toBe('number')
     spy.mockRestore()
+  })
+
+  it('INT-14c: a pending restore stands both sweeps aside — umbrella reports honest "aborted"', async () => {
+    // The deliberate stand-aside must surface as `aborted`, never disguised
+    // as `partial`/`completed` (a degraded-looking report over expected
+    // behavior, or an "all clear" over skipped work).
+    hasPendingRestoreMock.mockReturnValue(true)
+
+    const report = await fm.runSweep()
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(typeof report.lastRunAt).toBe('number')
   })
 
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {

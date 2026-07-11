@@ -153,6 +153,23 @@ describe('useProviderApiKey', () => {
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: expect.any(String), key: 'sk-now', isEnabled: true }])
   })
 
+  it('reports immediate commit failures without clearing pending sync state', async () => {
+    updateApiKeysMock.mockRejectedValueOnce(new Error('network down'))
+    const { result } = renderHook(() => useProviderApiKey('openai'))
+
+    act(() => {
+      result.current.setInputApiKey('sk-failing-now')
+    })
+
+    await act(async () => {
+      await expect(result.current.commitInputApiKeyNow()).rejects.toThrow('network down')
+    })
+
+    expect(toast.error).toHaveBeenCalled()
+    expect(result.current.inputApiKey).toBe('sk-failing-now')
+    expect(result.current.hasPendingSync).toBe(true)
+  })
+
   it('keeps api key input local to each store', () => {
     const first = renderHook(() => useProviderApiKey('openai'))
     const second = renderHook(() => useProviderApiKey('openai'))

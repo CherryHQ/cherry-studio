@@ -26,7 +26,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useAttachment', () => ({
+vi.mock('../useAttachment', () => ({
   useAttachment: () => ({ preview: mockPreview })
 }))
 

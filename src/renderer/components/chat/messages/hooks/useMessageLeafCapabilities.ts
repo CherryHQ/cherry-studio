@@ -1,7 +1,6 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
-import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
@@ -20,6 +19,7 @@ import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAttachment } from './useAttachment'
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
 
 const logger = loggerService.withContext('useMessageLeafCapabilities')
