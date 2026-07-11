@@ -374,8 +374,6 @@ export function EditDialogShell<TValues extends FieldValues>({
             id="resource-edit-dialog-form"
             onSubmit={onSubmit}
             className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Titlebar-style header: pt-3.5 centers the 20px-tall title line on the absolute top-4 close icon. */}
-            <DialogTitle className="px-4 pt-3.5 pb-2 text-sm">{title}</DialogTitle>
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
@@ -441,6 +439,8 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* Sits inside the content pane so the rail keeps one full-height color; pt-3.5 centers the 20px title line on the absolute top-4 close icon. */}
+                <DialogTitle className="px-5 pt-3.5 text-sm">{title}</DialogTitle>
                 <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 py-4">
                   {children}
                 </Scrollbar>
