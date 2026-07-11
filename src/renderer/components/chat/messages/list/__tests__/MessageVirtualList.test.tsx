@@ -175,6 +175,36 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps boundary wheel input in a contained nested scroller only while it has overflow', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => (
+          <div data-testid="nested-scroll-region" style={{ overflowY: 'auto', overscrollBehaviorY: 'contain' }}>
+            <span data-testid="nested-scroll-content">content</span>
+          </div>
+        )}
+      />
+    )
+
+    const region = screen.getByTestId('nested-scroll-region')
+    const content = screen.getByTestId('nested-scroll-content')
+    let scrollHeight = 300
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+
+    region.scrollTop = 200
+    fireEvent.wheel(content, { deltaY: 40 })
+    expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
+    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith(content)
+
+    scrollHeight = 100
+    region.scrollTop = 0
+    fireEvent.wheel(content, { deltaY: 40 })
+    expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores purely horizontal wheel input instead of taking scroll ownership', () => {
     render(
       <MessageVirtualList

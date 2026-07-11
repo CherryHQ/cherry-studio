@@ -169,6 +169,20 @@ describe('useProcessRunAutoScroll', () => {
     expect(fixture.outerScrollTopWrites).toEqual([])
   })
 
+  it('reports overflow only while the viewport has a meaningful scroll range', () => {
+    const fixture = createScrollFixture()
+    const hook = renderAutoScroll(fixture)
+
+    expect(hook.result.current.hasOverflow).toBe(false)
+    flushFrames()
+    expect(hook.result.current.hasOverflow).toBe(true)
+
+    fixture.setScrollHeight(100)
+    notifyResize()
+    flushFrames()
+    expect(hook.result.current.hasOverflow).toBe(false)
+  })
+
   it('pauses after a real scroll away and resumes after a real scroll back to the bottom', () => {
     const fixture = createScrollFixture()
     const onFollowRestored = vi.fn()

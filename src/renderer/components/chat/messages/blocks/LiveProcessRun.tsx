@@ -42,7 +42,7 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
   const contentId = useId()
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
-  const { contentRef, pauseForInteraction, viewportRef } = useProcessRunAutoScroll(requestFollowRecovery)
+  const { contentRef, hasOverflow, pauseForInteraction, viewportRef } = useProcessRunAutoScroll(requestFollowRecovery)
   const summary = toolCount > 0 ? t('message.tools.groupHeader', { count: toolCount }) : t('common.reasoning_content')
   const activityLabel = hasToolError
     ? undefined
@@ -102,7 +102,7 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
           ref={viewportRef}
           id={contentId}
           data-testid="live-process-run-content"
-          className="mt-1 ml-1 max-h-[min(30vh,180px)] overflow-y-auto border-border-muted border-l pl-3 [scrollbar-width:thin]"
+          className={`mt-1 ml-1 max-h-[min(30vh,180px)] overflow-y-auto border-border-muted border-l pl-3 [scrollbar-width:thin] ${hasOverflow ? 'overscroll-contain' : ''}`}
           onPointerDownCapture={pauseForInteraction}>
           <div ref={contentRef} className="flex min-w-0 flex-col gap-2 pb-1">
             {renderContent(pauseForInteraction, requestFollowRecovery)}

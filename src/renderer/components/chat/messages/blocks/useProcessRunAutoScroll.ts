@@ -6,6 +6,8 @@ const OVERFLOW_TOLERANCE_PX = 1
 export interface ProcessRunAutoScroll {
   viewportRef: (element: HTMLDivElement | null) => void
   contentRef: (element: HTMLDivElement | null) => void
+  /** Whether the bounded viewport currently has meaningful vertical overflow. */
+  hasOverflow: boolean
   /** Call immediately before an interaction that may change detail height. */
   pauseForInteraction: () => void
 }
@@ -19,7 +21,9 @@ export interface ProcessRunAutoScroll {
 export function useProcessRunAutoScroll(onFollowRestored?: () => void): ProcessRunAutoScroll {
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
   const [content, setContent] = useState<HTMLDivElement | null>(null)
+  const [hasOverflow, setHasOverflow] = useState(false)
   const viewportNodeRef = useRef<HTMLDivElement | null>(null)
+  const hasOverflowRef = useRef(false)
   const frameRef = useRef<number | null>(null)
   const shouldFollowRef = useRef(true)
   const expectedScrollTopRef = useRef<number | null>(null)
@@ -35,6 +39,10 @@ export function useProcessRunAutoScroll(onFollowRestored?: () => void): ProcessR
 
   const viewportRef = useCallback((element: HTMLDivElement | null) => {
     viewportNodeRef.current = element
+    if (!element && hasOverflowRef.current) {
+      hasOverflowRef.current = false
+      setHasOverflow(false)
+    }
     setViewport(element)
   }, [])
 
@@ -57,11 +65,15 @@ export function useProcessRunAutoScroll(onFollowRestored?: () => void): ProcessR
       if (!element) return
 
       const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight)
-      const hasOverflow = maxScrollTop > OVERFLOW_TOLERANCE_PX
+      const nextHasOverflow = maxScrollTop > OVERFLOW_TOLERANCE_PX
+      if (hasOverflowRef.current !== nextHasOverflow) {
+        hasOverflowRef.current = nextHasOverflow
+        setHasOverflow(nextHasOverflow)
+      }
 
       // A disclosure that still fits cannot create a meaningful reading
       // position, so interaction-paused following can safely resume.
-      if (!hasOverflow) {
+      if (!nextHasOverflow) {
         setShouldFollow(true)
       }
 
@@ -142,5 +154,5 @@ export function useProcessRunAutoScroll(onFollowRestored?: () => void): ProcessR
     }
   }, [cancelScheduledLayout, content, scheduleLayout, setShouldFollow, viewport])
 
-  return { viewportRef, contentRef, pauseForInteraction }
+  return { viewportRef, contentRef, hasOverflow, pauseForInteraction }
 }

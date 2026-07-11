@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import LiveProcessRun from '../LiveProcessRun'
 
+const autoScrollMockState = vi.hoisted(() => ({ hasOverflow: false }))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
@@ -40,13 +42,18 @@ vi.mock('../ToolBlockGroup', () => ({
 vi.mock('../useProcessRunAutoScroll', () => ({
   useProcessRunAutoScroll: () => ({
     contentRef: vi.fn(),
+    hasOverflow: autoScrollMockState.hasOverflow,
     pauseForInteraction: vi.fn(),
     viewportRef: vi.fn()
   })
 }))
 
 describe('LiveProcessRun', () => {
-  it('allows wheel input at the process viewport boundary to chain to the message list', () => {
+  it.each([
+    ['contains boundary wheel input while the viewport has overflow', true],
+    ['allows wheel input to reach the message list when the viewport has no overflow', false]
+  ])('%s', (_label, hasOverflow) => {
+    autoScrollMockState.hasOverflow = hasOverflow
     render(
       <LiveProcessRun
         id="run-1"
@@ -64,6 +71,10 @@ describe('LiveProcessRun', () => {
     )
 
     expect(screen.getByTestId('live-process-run-content')).toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('live-process-run-content')).not.toHaveClass('overscroll-contain')
+    if (hasOverflow) {
+      expect(screen.getByTestId('live-process-run-content')).toHaveClass('overscroll-contain')
+    } else {
+      expect(screen.getByTestId('live-process-run-content')).not.toHaveClass('overscroll-contain')
+    }
   })
 })

@@ -33,11 +33,16 @@ function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): bo
   return target === scroller || !target?.closest(KEYBOARD_ACTIVATION_SELECTOR)
 }
 
-function canConsumeVerticalWheel(element: HTMLElement, deltaY: number): boolean {
-  const overflowY = getComputedStyle(element).overflowY
+function ownsVerticalWheel(element: HTMLElement, deltaY: number): boolean {
+  const style = getComputedStyle(element)
+  const overflowY = style.overflowY
   if (overflowY !== 'auto' && overflowY !== 'scroll') return false
   const maxScrollTop = element.scrollHeight - element.clientHeight
   if (maxScrollTop <= 0) return false
+  // A contained viewport owns the whole wheel gesture, including its
+  // boundaries. Ordinary nested scrollers still chain once they run out of
+  // range, preserving their existing behavior.
+  if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
   return deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < maxScrollTop
 }
 
@@ -45,7 +50,7 @@ function isWheelOwnedByNestedScroller(event: WheelEvent, scroller: HTMLElement):
   const target = event.target instanceof Element ? event.target : null
   let element = target instanceof HTMLElement ? target : target?.parentElement
   while (element && element !== scroller) {
-    if (canConsumeVerticalWheel(element, event.deltaY)) return true
+    if (ownsVerticalWheel(element, event.deltaY)) return true
     element = element.parentElement
   }
   return false
