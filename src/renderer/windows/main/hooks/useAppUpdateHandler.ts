@@ -1,4 +1,4 @@
-import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
@@ -8,6 +8,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useAppUpdateHandler')
 
 // REFACTOR(window-runtime-init): copied from the old useUpdateHandler and adjusted
 // during the v2 data refactor — but it should NOT be a React hook at all. It is a
@@ -65,9 +67,17 @@ export function useAppUpdateHandler() {
           info: releaseInfo,
           downloaded: true
         })
-        // Auto show update dialog when download completes (only if user manually triggered the check)
+        // Auto show update dialog when download completes (only if user manually triggered the check).
+        // Dynamic import (S6c): the dialog drags the streamdown/remark markdown stack
+        // (~0.84 MB) along — imperative, rarely shown, so it must not sit in main's first paint.
         if (manualCheckRef.current) {
-          void UpdateDialogPopup.show({ releaseInfo })
+          import('@renderer/components/UpdateDialogPopup')
+            .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+            .catch((error) => {
+              // Update state stays `downloaded` — AboutSettings' static entry
+              // still lets the user open the dialog and install.
+              logger.error('Failed to load UpdateDialogPopup chunk:', error as Error)
+            })
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error?: Error) => {
