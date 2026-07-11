@@ -41,10 +41,9 @@ export function useProviderConnectionCheck(providerId: string) {
   const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
   const requiresApiKey = !isNoApiKeyProvider(provider)
-  const checkableApiKeySignature = JSON.stringify(checkableApiKeys)
 
   // AbortController + runId pair guards against stale callbacks landing on the
-  // new mount/credentials. When provider/apiHost/effective API keys change mid-flight
+  // new mount/credentials. When provider/apiHost/inputApiKey changes mid-flight
   // we abort the in-flight request and bump runId so any late then/catch from
   // the aborted run is dropped before touching state.
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -114,17 +113,19 @@ export function useProviderConnectionCheck(providerId: string) {
 
         if (runId !== runIdRef.current) return
 
-        // Enable the provider (if disabled) only after a successful check. This
-        // is part of the user-visible success path, so an enable failure must
-        // surface as a failed check instead of being hidden by a success state.
-        const enablement = await enableProviderWhenModelsAvailable(
-          provider,
-          enableProvider,
-          checkableModels.length,
-          'connection_check'
-        )
-        if (enablement.status === 'failed') {
-          throw enablement.error
+        // Connectivity has already succeeded. Provider enablement is a follow-up
+        // action, so report its failure separately without marking the probe failed.
+        try {
+          await enableProviderWhenModelsAvailable(provider, enableProvider, checkableModels.length, 'connection_check')
+        } catch (error) {
+          if (runId !== runIdRef.current || controller.signal.aborted) return
+
+          logger.error('Provider connection succeeded but enablement failed', {
+            providerId: provider.id,
+            modelId: model.id,
+            error
+          })
+          toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
         }
 
         // The enable await can interleave with a newer check; drop this run if it
@@ -210,7 +211,7 @@ export function useProviderConnectionCheck(providerId: string) {
     abortInFlightCheck()
     setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(false)
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, checkableApiKeySignature, provider?.id])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, inputApiKey, provider?.id])
 
   useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 

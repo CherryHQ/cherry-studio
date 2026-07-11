@@ -104,7 +104,7 @@ describe('useProviderModelPullReconcile', () => {
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])
-    enableProviderWhenModelsAvailableMock.mockResolvedValue({ status: 'enabled' })
+    enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
     fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
     resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
@@ -282,18 +282,17 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
-  it('shows an operation failure toast when provider enablement fails', async () => {
-    enableProviderWhenModelsAvailableMock.mockResolvedValueOnce({
-      status: 'failed',
-      error: new Error('enable failed')
-    })
+  it('warns that models were added when provider enablement fails', async () => {
+    enableProviderWhenModelsAvailableMock.mockRejectedValueOnce(new Error('enable failed'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
     await act(async () => {
       await result.current.addModels([fetchedModel as any])
     })
 
-    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(createModelsMock).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_success_enable_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('removes unique local model ids', async () => {

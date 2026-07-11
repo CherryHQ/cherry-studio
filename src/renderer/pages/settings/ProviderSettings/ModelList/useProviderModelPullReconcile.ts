@@ -179,18 +179,26 @@ export function useProviderModelPullReconcile(providerId: string) {
         await createModels(
           toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model)))
         )
-        const enablement = await enableProviderWhenModelsAvailable(
+      } catch (error) {
+        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
+        toast.error(t('settings.models.manage.operation_failed'))
+        return
+      }
+
+      try {
+        await enableProviderWhenModelsAvailable(
           provider,
           enableProvider,
           models.length + toAdd.length,
           'model_manage_add'
         )
-        if (enablement.status === 'failed') {
-          throw enablement.error
-        }
       } catch (error) {
-        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
-        toast.error(t('settings.models.manage.operation_failed'))
+        logger.error('Models were added but provider enablement failed', {
+          providerId,
+          count: toAdd.length,
+          error
+        })
+        toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
     },
     [createModels, enableProvider, models, provider, providerId, t]

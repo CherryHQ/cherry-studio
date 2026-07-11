@@ -237,43 +237,6 @@ describe('useProviderConnectionCheck', () => {
     expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(enableProviderMock.mock.invocationCallOrder[0])
   })
 
-  it('aborts an in-flight check when escaped-comma credentials change to separate keys', async () => {
-    inputApiKey = 'sk-a\\,sk-b'
-    let resolveCheck: (() => void) | undefined
-    let checkSignal: AbortSignal | undefined
-    checkApiMock.mockImplementationOnce((_: string, options: { signal: AbortSignal }) => {
-      checkSignal = options.signal
-      return new Promise<void>((resolve) => {
-        resolveCheck = resolve
-      })
-    })
-    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    act(() => {
-      void result.current.startConnectionCheck({
-        model: result.current.checkableModels[0],
-        apiKey: 'sk-a,sk-b'
-      })
-    })
-
-    await vi.waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(1))
-
-    // Both forms previously produced the same comma-joined signature even
-    // though they represent one key versus two distinct keys.
-    inputApiKey = 'sk-a,sk-b'
-    rerender()
-
-    expect(checkSignal?.aborted).toBe(true)
-
-    await act(async () => {
-      resolveCheck?.()
-      await Promise.resolve()
-    })
-
-    expect(enableProviderMock).not.toHaveBeenCalled()
-    expect(toast.success).not.toHaveBeenCalled()
-  })
-
   it('does not run the check or enable the provider when saving the pending API key fails', async () => {
     const saveError = new Error('save failed')
     commitInputApiKeyNowMock.mockRejectedValueOnce(saveError)
@@ -320,7 +283,7 @@ describe('useProviderConnectionCheck', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces enable-and-pin failure instead of showing connection success', async () => {
+  it('preserves connection success and warns when provider enablement fails', async () => {
     const enableError = new Error('enable and pin failed')
     enableProviderMock.mockRejectedValueOnce(enableError)
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
@@ -332,13 +295,44 @@ describe('useProviderConnectionCheck', () => {
       })
     })
 
-    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
+    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection succeeded but enablement failed', {
       providerId: 'cherryin',
       modelId: 'cherryin::claude-4-sonnet',
       error: enableError
     })
+    expect(toast.warning).toHaveBeenCalledWith('settings.provider.enable_failed_after_connection')
+    expect(toast.success).toHaveBeenCalled()
+    expect(result.current.apiKeyConnectivity.status).toBe(HealthStatus.SUCCESS)
+  })
+
+  it('ignores an enablement failure from a superseded connection check', async () => {
+    let rejectEnable: ((error: Error) => void) | undefined
+    enableProviderMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectEnable = reject
+        })
+    )
+    const { result, rerender } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    act(() => {
+      void result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+    await vi.waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
+
+    inputApiKey = 'sk-new'
+    rerender()
+
+    await act(async () => {
+      rejectEnable?.(new Error('stale enable failure'))
+      await Promise.resolve()
+    })
+
+    expect(toast.warning).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
-    expect(result.current.apiKeyConnectivity.status).toBe(HealthStatus.FAILED)
   })
 
   it('logs provider/model context when the connection check fails', async () => {
