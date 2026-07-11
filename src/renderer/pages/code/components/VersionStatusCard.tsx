@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,9 @@ interface VersionStatusCardProps {
   launching?: boolean
   running?: boolean
   stopping?: boolean
+  /** Failure message of the last install/upgrade attempt; renders a persistent failure row. */
+  installError?: string
+  onShowError?: () => void
 }
 
 export const VersionStatusCard: FC<VersionStatusCardProps> = ({
@@ -39,11 +43,14 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   canLaunch,
   launching,
   running,
-  stopping
+  stopping,
+  installError,
+  onShowError
 }) => {
   const { t } = useTranslation()
   const isInstalled = status.installed
   const canUpgrade = isInstalled && status.canUpgrade
+  const busy = isInstalling || isUpgrading
 
   return (
     <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
@@ -169,7 +176,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               ) : (
                 <>
                   <Download size={12} />
-                  {t('code.install')}
+                  {installError ? t('common.retry') : t('code.install')}
                 </>
               )}
             </Button>
@@ -188,6 +195,11 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           )}
         </div>
       </div>
+
+      {busy && <BinaryInstallingHint />}
+      {installError && !busy && onShowError && (
+        <BinaryInstallFailureRow error={installError} onShowError={onShowError} />
+      )}
     </div>
   )
 }

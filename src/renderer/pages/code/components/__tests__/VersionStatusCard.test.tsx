@@ -145,6 +145,44 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
   })
 
+  it('renders a persistent failure row with retry label and opens details on click', () => {
+    const onShowError = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: false, canUpgrade: false }}
+        onInstall={vi.fn()}
+        installError={'mise use timed out after 900s\nmise npm:openclaw   [1/3] install'}
+        onShowError={onShowError}
+      />
+    )
+
+    // Install button flips to retry; row shows only the error's first line.
+    expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
+    const row = screen.getByText('mise use timed out after 900s')
+    expect(screen.queryByText(/\[1\/3\] install/)).not.toBeInTheDocument()
+    fireEvent.click(row)
+    expect(onShowError).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the failure row and shows the duration hint while installing', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: false, canUpgrade: false }}
+        onInstall={vi.fn()}
+        isInstalling
+        installError="previous failure"
+        onShowError={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('previous failure')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
+  })
+
   it('omits the open-dashboard action when no handler is provided', () => {
     render(
       <VersionStatusCard

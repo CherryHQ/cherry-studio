@@ -105,6 +105,14 @@ vi.mock('@cherrystudio/ui', () => ({
         confirm remove
       </button>
     ) : null,
+  // Dialog family used by BinaryInstallErrorDialog (rendered by CodeCliContentPanel).
+  Dialog: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
+    open ? <div role="dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Select: ({
     children,
     value,
@@ -156,8 +164,11 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: vi.fn()
-  }
+    // Default impl (survives clearAllMocks): useBinaryInstallStates hydrates
+    // on mount and chains .then on the result.
+    request: vi.fn(async () => ({}))
+  },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -344,7 +355,13 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
-  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
+  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI]),
+  CLI_BINARY_NAMES: {
+    [CodeCli.CLAUDE_CODE]: 'claude',
+    [CodeCli.OPENAI_CODEX]: 'codex',
+    [CodeCli.OPEN_CODE]: 'opencode',
+    [CodeCli.QODER_CLI]: 'qoderclicn'
+  }
 }))
 
 vi.mock('../hooks/useAvailableTerminals', () => ({

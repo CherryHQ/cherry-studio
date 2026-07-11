@@ -21,12 +21,14 @@ export function useBinaryActions() {
   const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
 
   // install and upgrade share one body — both run the same `binary.install_tool`
-  // request; they differ only in the busy Set, the toast keys, and the log label.
+  // request; they differ only in the busy Set, the success toast, and the log
+  // label. Failures are not toasted here: the main process tracks them in the
+  // install-state map and the version card renders a persistent failure row.
   const runInstallTool = useCallback(
     async (
       toolId: CodeCli,
       setBusy: Dispatch<SetStateAction<Set<string>>>,
-      messages: { successKey: string; errorKey: string; logLabel: string },
+      messages: { successKey: string; logLabel: string },
       version?: string
     ) => {
       try {
@@ -42,7 +44,6 @@ export function useBinaryActions() {
         }
       } catch (error) {
         logger.error(messages.logLabel, error as Error)
-        toast.error(t(messages.errorKey))
       } finally {
         setBusy((prev) => {
           const next = new Set(prev)
@@ -58,7 +59,6 @@ export function useBinaryActions() {
     (toolId: CodeCli) =>
       runInstallTool(toolId, setInstallingTools, {
         successKey: 'code.install_success',
-        errorKey: 'code.install_error',
         logLabel: 'Failed to install:'
       }),
     [runInstallTool]
@@ -71,7 +71,6 @@ export function useBinaryActions() {
         setUpgradingTools,
         {
           successKey: 'code.upgrade_success',
-          errorKey: 'code.upgrade_error',
           logLabel: 'Failed to upgrade:'
         },
         latestVersion

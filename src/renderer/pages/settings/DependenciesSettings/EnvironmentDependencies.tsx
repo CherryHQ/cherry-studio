@@ -22,6 +22,12 @@ import {
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import {
+  BinaryInstallErrorDialog,
+  BinaryInstallFailureRow,
+  BinaryInstallingHint
+} from '@renderer/components/BinaryInstallErrorDialog'
+import { useBinaryInstallStates } from '@renderer/hooks/useBinaryInstallStates'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -32,8 +38,6 @@ import type { BinaryResolutions } from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
-  Check,
-  Copy,
   Download,
   ExternalLink,
   Eye,
@@ -100,7 +104,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [resolutionsReady, setResolutionsReady] = useState(false)
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
-  const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
+  const installStates = useBinaryInstallStates()
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
@@ -175,21 +179,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
-  const installTool = async (tool: ManagedBinary): Promise<boolean> => {
-    setInstallingTools((prev) => new Set(prev).add(tool.name))
+  // Installing/failed indication comes from the main-process install-state
+  // broadcast (useBinaryInstallStates) — shared with the Code CLI page and
+  // alive across navigation. Failed cards open the detail dialog on demand;
+  // only the add-tool flow surfaces it immediately (the tool is not persisted
+  // on failure, so there is no card to carry the error).
+  const installTool = async (tool: ManagedBinary, { surfaceErrorDialog = false } = {}): Promise<boolean> => {
     try {
       await ipcApi.request('binary.install_tool', tool)
       return true
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      setInstallError({ name: tool.name, message: formatErrorMessage(error) })
+      if (surfaceErrorDialog) setInstallError({ name: tool.name, message: formatErrorMessage(error) })
       return false
     } finally {
-      setInstallingTools((prev) => {
-        const next = new Set(prev)
-        next.delete(tool.name)
-        return next
-      })
       await refreshState()
     }
   }
@@ -208,7 +211,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    if (!(await installTool(tool))) throw new Error('install-failed')
+    if (!(await installTool(tool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
     await setCustomTools([...customTools, tool])
   }
 
@@ -299,6 +302,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             resolution.source === 'managed' || resolution.source === 'bundled' ? resolution.version : undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = resolution.source === 'managed' && isNewerVersion(latestVersion, installedVersion)
+          const installState = installStates[tool.name]
           return (
             <BinaryToolPresetCard
               key={tool.name}
@@ -307,7 +311,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
-              installing={installingTools.has(tool.name)}
+              installing={installState?.status === 'installing'}
+              installError={installState?.status === 'failed' ? installState.error : undefined}
+              onShowError={(message) => setInstallError({ name: tool.name, message })}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
@@ -339,6 +345,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             const installedVersion = managed ? resolution.version : undefined
             const latestVersion = latestVersions?.[tool.name]
             const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
+            const installState = installStates[tool.name]
             return (
               <CustomToolCard
                 key={tool.name}
@@ -347,7 +354,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                 systemPath={systemPath}
                 installedVersion={installedVersion}
                 latestVersion={hasUpdate ? latestVersion : undefined}
-                installing={installingTools.has(tool.name)}
+                installing={installState?.status === 'installing'}
+                installError={installState?.status === 'failed' ? installState.error : undefined}
+                onShowError={(message) => setInstallError({ name: tool.name, message })}
                 onInstall={() => installTool(tool)}
                 onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
                 onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
@@ -367,7 +376,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
 
-      <InstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
+      <BinaryInstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -390,6 +399,8 @@ const BinaryToolPresetCard: FC<{
   installedVersion?: string
   latestVersion?: string
   installing: boolean
+  installError?: string
+  onShowError: (message: string) => void
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
@@ -401,6 +412,8 @@ const BinaryToolPresetCard: FC<{
   installedVersion,
   latestVersion,
   installing,
+  installError,
+  onShowError,
   onInstall,
   onUpdate,
   onOpenPath,
@@ -523,6 +536,10 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
+      {installError && !installing && (
+        <BinaryInstallFailureRow error={installError} onShowError={() => onShowError(installError)} />
+      )}
+
       {source === 'none' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
@@ -535,10 +552,13 @@ const BinaryToolPresetCard: FC<{
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : isBundled
-                ? t('settings.dependencies.install')
-                : t('settings.mcp.install')}
+              : installError
+                ? t('common.retry')
+                : isBundled
+                  ? t('settings.dependencies.install')
+                  : t('settings.mcp.install')}
           </Button>
+          {installing && <BinaryInstallingHint />}
         </div>
       )}
     </div>
@@ -552,6 +572,8 @@ const CustomToolCard: FC<{
   installedVersion?: string
   latestVersion?: string
   installing: boolean
+  installError?: string
+  onShowError: (message: string) => void
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
@@ -563,6 +585,8 @@ const CustomToolCard: FC<{
   installedVersion,
   latestVersion,
   installing,
+  installError,
+  onShowError,
   onInstall,
   onUpdate,
   onOpenPath,
@@ -650,6 +674,10 @@ const CustomToolCard: FC<{
         </div>
       </div>
 
+      {installError && !installing && (
+        <BinaryInstallFailureRow error={installError} onShowError={() => onShowError(installError)} />
+      )}
+
       {!installed && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
@@ -660,8 +688,13 @@ const CustomToolCard: FC<{
             disabled={installing}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.dependencies.installing') : t('settings.mcp.install')}
+            {installing
+              ? t('settings.dependencies.installing')
+              : installError
+                ? t('common.retry')
+                : t('settings.mcp.install')}
           </Button>
+          {installing && <BinaryInstallingHint />}
         </div>
       )}
     </div>
@@ -986,44 +1019,6 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             }}>
             {t('common.save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-const InstallErrorDialog: FC<{
-  error: { name: string; message: string } | null
-  onOpenChange: (open: boolean) => void
-}> = ({ error, onOpenChange }) => {
-  const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-  const lastError = useRef({ name: '', message: '' })
-  if (error) lastError.current = error
-
-  const copyError = () => {
-    void navigator.clipboard.writeText(lastError.current.message).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <Dialog open={!!error} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{`${t('settings.dependencies.installError')}: ${lastError.current.name}`}</DialogTitle>
-          <DialogDescription>{t('settings.dependencies.installErrorHint')}</DialogDescription>
-        </DialogHeader>
-        <pre className="max-h-72 select-text overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 font-mono text-muted-foreground text-xs leading-5">
-          {lastError.current.message}
-        </pre>
-        <DialogFooter>
-          <Button variant="outline" onClick={copyError}>
-            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-            {copied ? t('common.copied') : t('common.copy')}
-          </Button>
-          <Button onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

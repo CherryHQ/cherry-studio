@@ -1,3 +1,4 @@
+import { useBinaryInstallStates } from '@renderer/hooks/useBinaryInstallStates'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
@@ -10,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
-import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { CLI_BINARY_NAMES, CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { useBinaryActions } from './useBinaryActions'
@@ -59,6 +60,17 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
+  const installStates = useBinaryInstallStates()
+  // Local busy Sets give instant feedback for installs started in this window;
+  // the main-process map covers installs started elsewhere (other window, a
+  // page mounted mid-install). Merge them, keyed back to CLI tool ids.
+  const mergedInstallingTools = useMemo(() => {
+    const merged = new Set<string>(installingTools)
+    for (const tool of CLI_TOOLS) {
+      if (installStates[CLI_BINARY_NAMES[tool.value]]?.status === 'installing') merged.add(tool.value)
+    }
+    return merged
+  }, [installingTools, installStates])
   const { providers } = useProviders()
   const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
     useConfigMetadata(selectedCliTool)
@@ -145,6 +157,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     canUpgrade: false
   }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+  const selectedInstallState = installStates[CLI_BINARY_NAMES[selectedCliTool]]
+  const installError = selectedInstallState?.status === 'failed' ? selectedInstallState.error : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
@@ -207,7 +221,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
       onSelectTool: selectTool,
       toMeta,
       statuses,
-      installingTools,
+      installingTools: mergedInstallingTools,
       upgradingTools,
       providerSummaries
     },
@@ -223,8 +237,9 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
             running: openClawGateway.running,
             stopping: openClawGateway.stopping
           },
-          installingTools,
+          installingTools: mergedInstallingTools,
           upgradingTools,
+          installError,
           providerState: {
             providerless: isProviderlessTool,
             showSelectionHint: showProviderSelectionHint

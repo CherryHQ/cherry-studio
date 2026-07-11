@@ -19,7 +19,8 @@ const ipcMocks = vi.hoisted(() => ({
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
-  getToolDir: vi.fn()
+  getToolDir: vi.fn(),
+  getInstallStates: vi.fn()
 }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 
@@ -38,6 +39,8 @@ vi.mock('@renderer/ipc', () => ({
           return Promise.resolve({ status: 'unsupported' })
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
+        case 'binary.get_install_states':
+          return ipcMocks.getInstallStates()
         default:
           throw new Error(`unexpected route: ${route}`)
       }
@@ -146,6 +149,7 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
+    ipcMocks.getInstallStates.mockResolvedValue({})
     ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
       const [state, bundled, system] = await Promise.all([
         ipcMocks.getState(),
@@ -389,18 +393,46 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
-  it('keeps the full install error visible in a persistent dialog', async () => {
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
-    ipcMocks.installTool.mockRejectedValue(new Error('mise failed\nnetwork timeout'))
-
+  it('renders a persistent failure row from the install-state broadcast and opens details on demand', async () => {
     render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
 
-    const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
-    fireEvent.click(updateButtons[0])
+    act(() => {
+      ipcEventHandlers.get('binary.install_states_changed')?.({
+        uv: { status: 'failed', error: 'mise failed\nnetwork timeout' }
+      })
+    })
 
+    // First-level notification: failure row on the card, no auto-popped dialog.
+    const failureRow = await screen.findByText('settings.dependencies.viewErrorDetails')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Retry label replaces the plain install label on the failed card.
+    expect(screen.getByText('common.retry')).toBeInTheDocument()
+
+    fireEvent.click(failureRow)
     expect(await screen.findByRole('dialog')).toHaveTextContent('mise failed')
     expect(screen.getByRole('dialog')).toHaveTextContent('network timeout')
     expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.installErrorHint')
+  })
+
+  it('shows installing state and the duration hint from the install-state broadcast', async () => {
+    render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+    act(() => {
+      ipcEventHandlers.get('binary.install_states_changed')?.({ uv: { status: 'installing' } })
+    })
+
+    expect(await screen.findByText('settings.dependencies.installing')).toBeInTheDocument()
+    expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
+  })
+
+  it('hydrates install states for a window mounted mid-install', async () => {
+    ipcMocks.getInstallStates.mockResolvedValue({ uv: { status: 'installing' } })
+
+    render(<EnvironmentDependencies />)
+
+    expect(await screen.findByText('settings.dependencies.installing')).toBeInTheDocument()
   })
 
   it('continues installing latest when update versions are not comparable semver', async () => {

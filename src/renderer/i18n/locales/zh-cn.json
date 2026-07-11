@@ -6133,6 +6133,7 @@
         }
       },
       "installing": "安装中...",
+      "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
         "cancel": "取消",
@@ -6187,7 +6188,8 @@
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
       "update": "更新到最新版本",
-      "updateCheckFailed": "检查更新失败"
+      "updateCheckFailed": "检查更新失败",
+      "viewErrorDetails": "查看详情"
     },
     "developer": {
       "enable_developer_mode": "启用开发者模式",

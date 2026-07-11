@@ -6133,6 +6133,7 @@
         }
       },
       "installing": "Installing...",
+      "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
         "cancel": "Cancel",
@@ -6187,7 +6188,8 @@
         "uv": "Python package manager for MCP services and dependency installation."
       },
       "update": "Update to latest version",
-      "updateCheckFailed": "Failed to check for updates"
+      "updateCheckFailed": "Failed to check for updates",
+      "viewErrorDetails": "View details"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
