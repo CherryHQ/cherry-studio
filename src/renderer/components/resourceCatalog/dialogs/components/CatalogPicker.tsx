@@ -128,7 +128,7 @@ export const CatalogToggleGrid: FC<{
         return (
           <div
             key={item.id}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted px-3 py-2">
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border-muted px-2.5 py-1.5">
             {info}
             <Tooltip
               content={disabledReason}

@@ -77,14 +77,14 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
 ]
 
 const EDIT_DIALOG_TAB_TRIGGER_CLASS =
-  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-0 text-left font-normal text-muted-foreground text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
+  'h-8 w-full flex-none justify-start rounded-md bg-transparent px-2 text-left font-normal text-foreground/70 text-sm shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
 
 const EDIT_DIALOG_GROUP_BUTTON_CLASS =
-  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-0 text-left font-normal text-muted-foreground text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+  'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-2 text-left font-normal text-foreground/70 text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
 
-export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '260px'
+export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '320px'
 export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '42vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
@@ -380,7 +380,7 @@ export function EditDialogShell<TValues extends FieldValues>({
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              <div className="w-36 shrink-0 border-border-muted border-r pr-2">
+              <div className="w-32 shrink-0 pr-2">
                 <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-0">
                   <MenuList>
                     {tabs.map((tab) => {
