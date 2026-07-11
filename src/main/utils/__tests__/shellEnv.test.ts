@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { getShellEnv, refreshShellEnv } from '../shellEnv'
+import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,6 +172,22 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   // -- Cherry Studio tool directories appended ------------------------------
+
+  it('should preserve the unmodified user environment for system tools', async () => {
+    process.env.MISE_DATA_DIR = 'C:\\Users\\TestUser\\mise-data'
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows;C:\\UserNode')
+      throw new Error('not found')
+    })
+
+    await refreshShellEnv()
+    const env = await getRawShellEnv()
+
+    expect(env.MISE_DATA_DIR).toBe('C:\\Users\\TestUser\\mise-data')
+    expect(env.Path).toBe('C:\\Windows;C:\\UserNode')
+    expect(env.Path).not.toContain('.cherrystudio')
+  })
 
   it('should append Cherry Studio tool directories to PATH', async () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {

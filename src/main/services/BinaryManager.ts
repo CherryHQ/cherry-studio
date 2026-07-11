@@ -13,7 +13,7 @@ import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'
@@ -85,6 +85,29 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
 const LATEST_VERSIONS_CONCURRENCY = 4
+
+function parseInstallUrl(value: string, setting: string): string | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error()
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    throw new Error(`${setting} must be a valid HTTP(S) URL`)
+  }
+}
+
+function toPipxRegistryUrl(indexUrl: string): string {
+  return `${indexUrl.replace(/\/+$/, '')}/{}/`
+}
+
+function isPathWithin(root: string, candidate: string): boolean {
+  const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
+  const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
+  const relative = path.relative(normalizedRoot, normalizedCandidate)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
 
 // Single source of truth for tools shipped inside the app and extracted at
 // boot. `internal` marks infrastructure (mise) excluded from the UI probe.
@@ -220,34 +243,15 @@ export class BinaryManager extends BaseService {
    * managed and bundled directories.
    */
   public async probeSystem(names: string[]): Promise<Record<string, string>> {
-    const shellEnv = await getShellEnv()
+    const shellEnv = await getRawShellEnv()
     const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
-    const pathSeparator = isWin ? ';' : ':'
-    const lookupEnv = { ...shellEnv }
-
-    // getShellEnv intentionally prepends Cherry's shims/bundled dirs for runtime
-    // execution. A system probe must remove those segments before command lookup;
-    // otherwise a stale Cherry shim shadows a valid executable later on the user's
-    // PATH, gets excluded below, and the real system installation is never seen.
-    for (const key of Object.keys(lookupEnv).filter((key) => key.toLowerCase() === 'path')) {
-      lookupEnv[key] = lookupEnv[key]
-        .split(pathSeparator)
-        .filter((segment) => {
-          const absolute = path.resolve(segment)
-          return !cherryDirs.some((dir) => {
-            const relative = path.relative(dir, absolute)
-            return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-          })
-        })
-        .join(pathSeparator)
-    }
 
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
         const resolved = isWin
-          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: lookupEnv })
-          : await findCommandInShellEnv(name, lookupEnv)
-        if (!resolved || cherryDirs.some((dir) => resolved.startsWith(dir))) return null
+          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: shellEnv })
+          : await findCommandInShellEnv(name, shellEnv)
+        if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
         return [name, resolved]
       })
     )
@@ -353,8 +357,16 @@ export class BinaryManager extends BaseService {
     }
 
     const installSettings = application.get('PreferenceService').getMultiple(BINARY_INSTALL_PREFERENCE_KEYS)
-    if (installSettings.npmRegistry) env['NPM_CONFIG_REGISTRY'] = installSettings.npmRegistry
-    if (installSettings.pipIndexUrl) env['PIP_INDEX_URL'] = installSettings.pipIndexUrl
+    const githubMirror = parseInstallUrl(installSettings.githubMirror, 'GitHub mirror')
+    const npmRegistry = parseInstallUrl(installSettings.npmRegistry, 'npm registry')
+    const pipIndexUrl = parseInstallUrl(installSettings.pipIndexUrl || env['PIP_INDEX_URL'] || '', 'pip index')
+    if (npmRegistry) env['NPM_CONFIG_REGISTRY'] = npmRegistry
+    if (pipIndexUrl) {
+      env['PIP_INDEX_URL'] = pipIndexUrl
+      // mise's pipx backend derives UV_INDEX/PIP_INDEX_URL from this setting,
+      // overriding ambient values before invoking uvx/pipx.
+      env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(pipIndexUrl)
+    }
 
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
@@ -371,8 +383,8 @@ export class BinaryManager extends BaseService {
     // for pipx tools so installs do not depend on a separate pipx executable.
     env['MISE_PIPX_UVX'] = '1'
 
-    if (installSettings.githubMirror) {
-      const prefix = installSettings.githubMirror.replace(/\/+$/, '')
+    if (githubMirror) {
+      const prefix = githubMirror
       env['MISE_URL_REPLACEMENTS'] = JSON.stringify({
         'https://github.com': `${prefix}/https://github.com`
       })
@@ -382,6 +394,7 @@ export class BinaryManager extends BaseService {
       env['MISE_AQUA_COSIGN'] = 'false'
       env['MISE_AQUA_SLSA'] = 'false'
       env['MISE_AQUA_MINISIGN'] = 'false'
+      env['MISE_AQUA_GITHUB_ATTESTATIONS'] = 'false'
     }
 
     const inChina = await regionService.isInChina().catch(() => false)
@@ -390,7 +403,9 @@ export class BinaryManager extends BaseService {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
       }
       if (!env['PIP_INDEX_URL']) {
-        env['PIP_INDEX_URL'] = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+        const chinaPipIndex = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+        env['PIP_INDEX_URL'] = chinaPipIndex
+        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(chinaPipIndex)
       }
     }
 
@@ -467,7 +482,8 @@ export class BinaryManager extends BaseService {
     } catch (error) {
       const stderr = (error as { stderr?: unknown }).stderr
       if (error instanceof Error && typeof stderr === 'string' && stderr.trim()) {
-        error.message = `${error.message}\n${stderr.trim()}`
+        const detail = stderr.trim()
+        if (!error.message.includes(detail)) error.message = `${error.message}\n${detail}`
       }
       throw error
     }

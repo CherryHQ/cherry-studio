@@ -9,7 +9,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
@@ -703,7 +703,7 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const processEnv = { ...process.env, ...env }
+    const processEnv = isCherryManaged ? { ...process.env, ...env } : { ...(await getRawShellEnv()), ...env }
     removeEnvProxy(processEnv as Record<string, string>)
 
     // Launch terminal process

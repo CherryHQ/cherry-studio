@@ -6094,15 +6094,16 @@
       "installSettings": {
         "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
-          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "help": "GitHub Release 下載的代理前綴（例如 https://ghfast.top）。GitHub API 仍會直連；遇到速率限制時請設定 Token。",
           "label": "[to be translated]:GitHub mirror",
           "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
         },
         "githubToken": {
           "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
           "hide": "[to be translated]:Hide token",
-          "label": "[to be translated]:GitHub token",
-          "show": "[to be translated]:Show token"
+          "label": "GitHub Token",
+          "placeholder": "ghp_…",
+          "show": "顯示 Token"
         },
         "invalidUrl": "[to be translated]:Enter a valid URL including https://",
         "npmRegistry": {
@@ -6115,7 +6116,16 @@
           "label": "[to be translated]:pip index URL",
           "placeholder": "[to be translated]:Auto (China mirror) if empty"
         },
-        "presets": "[to be translated]:Presets",
+        "presetLabels": {
+          "aliyun": "阿里雲（中國）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（官方）",
+          "npmmirror": "npmmirror（中國）",
+          "pypiOfficial": "PyPI（官方）",
+          "tsinghua": "清華大學（中國）"
+        },
+        "presets": "預設",
         "title": "[to be translated]:Advanced install settings",
         "verifySignatures": {
           "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",

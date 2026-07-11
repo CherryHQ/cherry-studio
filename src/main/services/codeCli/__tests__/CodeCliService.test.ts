@@ -36,7 +36,8 @@ const platformMock = vi.hoisted(() => ({
   isWin: false
 }))
 const shellEnvMock = vi.hoisted(() => ({
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  getRawShellEnv: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -59,7 +60,8 @@ vi.mock('@main/utils/processRunner', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: shellEnvMock.getShellEnv
+  getShellEnv: shellEnvMock.getShellEnv,
+  getRawShellEnv: shellEnvMock.getRawShellEnv
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -123,6 +125,7 @@ describe('CodeCliService', () => {
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
+    shellEnvMock.getRawShellEnv.mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     binaryManagerMock.probeSystem.mockResolvedValue({})
     binaryManagerMock.installTool.mockResolvedValue({ version: 'latest' })
   })
@@ -291,7 +294,9 @@ describe('CodeCliService', () => {
       expect(result.success).toBe(true)
       expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
       expect(binaryManagerMock.probeSystem).toHaveBeenCalledWith(['claude'])
-      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] as string[]).join(' ')
+      const launchCall = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launchCall).toBeDefined()
+      const launchArgs = (launchCall?.[1] ?? []).join(' ')
       expect(launchArgs).toContain('/usr/local/bin/claude')
       expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })

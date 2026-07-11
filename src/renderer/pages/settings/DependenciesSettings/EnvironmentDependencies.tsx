@@ -48,7 +48,7 @@ import {
   TriangleAlert
 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
@@ -246,7 +246,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
-  const openToolDir = (toolName: string) => {
+  const openToolDir = (toolName: string, systemPath?: string) => {
+    if (systemPath) {
+      const separator = Math.max(systemPath.lastIndexOf('/'), systemPath.lastIndexOf('\\'))
+      void window.api.openPath(separator > 0 ? systemPath.slice(0, separator) : systemPath)
+      return
+    }
     void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
   }
 
@@ -257,8 +262,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       return null
     }
 
-    const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled
-    const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled
+    const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled || 'uv' in systemTools
+    const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled || 'bun' in systemTools
     if (uvAvailable && bunAvailable) {
       return null
     }
@@ -267,6 +272,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <Button
         className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
         variant="ghost"
+        aria-label={t('settings.dependencies.title')}
+        title={t('settings.dependencies.title')}
         onClick={() => navigate({ to: '/settings/dependencies' })}>
         <TriangleAlert size={14} />
       </Button>
@@ -329,7 +336,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-              onOpenPath={() => openToolDir(tool.name)}
+              onOpenPath={() => openToolDir(tool.name, source === 'system' ? systemTools[tool.name] : undefined)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
           )
@@ -352,6 +359,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
             const installed = binaryState?.tools[tool.name]
+            const systemPath = installed ? undefined : systemTools[tool.name]
             const installedVersion = installed?.version
             const latestVersion = latestVersions?.[tool.name]
             const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
@@ -359,13 +367,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               <CustomToolCard
                 key={tool.name}
                 tool={tool}
-                installed={!!installed}
+                managed={!!installed}
+                systemPath={systemPath}
                 installedVersion={installedVersion}
                 latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
                 onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-                onOpenPath={() => openToolDir(tool.name)}
+                onOpenPath={() => openToolDir(tool.name, systemPath)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />
             )
@@ -538,7 +547,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {source !== 'managed' && (
+      {(source === 'none' || source === 'bundled') && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -562,7 +571,8 @@ const BinaryToolPresetCard: FC<{
 
 const CustomToolCard: FC<{
   tool: ManagedBinary
-  installed: boolean
+  managed: boolean
+  systemPath?: string
   installedVersion?: string
   latestVersion?: string
   installing: boolean
@@ -570,8 +580,20 @@ const CustomToolCard: FC<{
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, installed, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({
+  tool,
+  managed,
+  systemPath,
+  installedVersion,
+  latestVersion,
+  installing,
+  onInstall,
+  onUpdate,
+  onOpenPath,
+  onRemove
+}) => {
   const { t } = useTranslation()
+  const installed = managed || !!systemPath
 
   return (
     <div
@@ -596,6 +618,11 @@ const CustomToolCard: FC<{
                     v{installedVersion}
                   </Badge>
                 )}
+                {systemPath && (
+                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
+                    {t('settings.dependencies.source.system')}
+                  </Badge>
+                )}
                 {latestVersion && (
                   <Badge
                     variant="outline"
@@ -609,7 +636,7 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {installed && (
+          {managed && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -812,7 +839,8 @@ function AddToolDialog({
 
 const isValidUrl = (value: string): boolean => {
   try {
-    return Boolean(new URL(value))
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
   } catch {
     return false
   }
@@ -828,16 +856,22 @@ const UrlPresetField: FC<{
   presets: readonly InstallSettingPreset[]
   onChange: (value: string) => void
 }> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
+  const { t } = useTranslation()
+  const inputId = useId()
+  const descriptionId = useId()
   const invalid = value.trim() !== '' && !isValidUrl(value.trim())
-  const items = presets.map((preset) => ({ id: preset.url, url: preset.url, label: preset.label }))
+  const items = presets.map((preset) => ({ id: preset.url, url: preset.url, label: t(preset.labelKey) }))
 
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-2">
         <Input
+          id={inputId}
           value={value}
           placeholder={placeholder}
+          aria-invalid={invalid}
+          aria-describedby={descriptionId}
           onChange={(event) => onChange(event.target.value)}
           className={cn('min-w-0 flex-1', invalid && 'border-destructive')}
         />
@@ -857,7 +891,7 @@ const UrlPresetField: FC<{
           />
         </div>
       </div>
-      <FieldDescription className={cn(invalid && 'text-destructive')}>
+      <FieldDescription id={descriptionId} className={cn(invalid && 'text-destructive')}>
         {invalid ? invalidHint : description}
       </FieldDescription>
     </Field>
@@ -870,10 +904,28 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
 }) => {
   const { t } = useTranslation()
   const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS)
+  const [draft, setDraft] = useState(settings)
   const [showToken, setShowToken] = useState(false)
+  const tokenId = useId()
+  const tokenDescriptionId = useId()
+
+  useEffect(() => {
+    if (open) {
+      setDraft(settings)
+      setShowToken(false)
+    }
+  }, [open, settings])
+
+  const close = () => {
+    setShowToken(false)
+    onOpenChange(false)
+  }
+  const urlsValid = [draft.githubMirror, draft.npmRegistry, draft.pipIndexUrl].every(
+    (value) => !value.trim() || isValidUrl(value.trim())
+  )
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : close())}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('settings.dependencies.installSettings.title')}</DialogTitle>
@@ -886,9 +938,9 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
             placeholder={t('settings.dependencies.installSettings.githubMirror.placeholder')}
             presetLabel={t('settings.dependencies.installSettings.presets')}
-            value={settings.githubMirror}
+            value={draft.githubMirror}
             presets={GITHUB_MIRROR_PRESETS}
-            onChange={(value) => void setSettings({ githubMirror: value })}
+            onChange={(githubMirror) => setDraft((current) => ({ ...current, githubMirror }))}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.npmRegistry.label')}
@@ -896,9 +948,9 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
             placeholder={t('settings.dependencies.installSettings.npmRegistry.placeholder')}
             presetLabel={t('settings.dependencies.installSettings.presets')}
-            value={settings.npmRegistry}
+            value={draft.npmRegistry}
             presets={NPM_REGISTRY_PRESETS}
-            onChange={(value) => void setSettings({ npmRegistry: value })}
+            onChange={(npmRegistry) => setDraft((current) => ({ ...current, npmRegistry }))}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
@@ -906,19 +958,21 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
             placeholder={t('settings.dependencies.installSettings.pipIndexUrl.placeholder')}
             presetLabel={t('settings.dependencies.installSettings.presets')}
-            value={settings.pipIndexUrl}
+            value={draft.pipIndexUrl}
             presets={PIP_INDEX_PRESETS}
-            onChange={(value) => void setSettings({ pipIndexUrl: value })}
+            onChange={(pipIndexUrl) => setDraft((current) => ({ ...current, pipIndexUrl }))}
           />
           <Field>
-            <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
+            <FieldLabel htmlFor={tokenId}>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
             <InputGroup>
               <InputGroupInput
+                id={tokenId}
                 type={showToken ? 'text' : 'password'}
                 autoComplete="off"
-                placeholder="ghp_…"
-                value={settings.githubToken}
-                onChange={(event) => void setSettings({ githubToken: event.target.value })}
+                placeholder={t('settings.dependencies.installSettings.githubToken.placeholder')}
+                aria-describedby={tokenDescriptionId}
+                value={draft.githubToken}
+                onChange={(event) => setDraft((current) => ({ ...current, githubToken: event.target.value }))}
               />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton
@@ -933,16 +987,30 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
-            <FieldDescription>{t('settings.dependencies.installSettings.githubToken.help')}</FieldDescription>
+            <FieldDescription id={tokenDescriptionId}>
+              {t('settings.dependencies.installSettings.githubToken.help')}
+            </FieldDescription>
           </Field>
           <DescriptionSwitch
             size="sm"
             label={t('settings.dependencies.installSettings.verifySignatures.label')}
             description={t('settings.dependencies.installSettings.verifySignatures.help')}
-            checked={settings.verifySignatures}
-            onCheckedChange={(checked) => void setSettings({ verifySignatures: checked })}
+            checked={draft.verifySignatures}
+            onCheckedChange={(verifySignatures) => setDraft((current) => ({ ...current, verifySignatures }))}
           />
         </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            disabled={!urlsValid}
+            onClick={() => {
+              void setSettings(draft).then(close)
+            }}>
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

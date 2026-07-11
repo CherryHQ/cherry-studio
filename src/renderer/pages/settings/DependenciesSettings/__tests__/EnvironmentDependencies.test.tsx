@@ -152,6 +152,7 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
+    setInstallSettingsMock.mockResolvedValue(undefined)
   })
 
   it('writes advanced install settings to independent preferences', async () => {
@@ -168,14 +169,49 @@ describe('EnvironmentDependencies', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.pipIndexUrl.placeholder'), {
       target: { value: 'https://pypi.example/simple' }
     })
-    fireEvent.change(screen.getByPlaceholderText('ghp_…'), { target: { value: 'ghp_secret' } })
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubToken.placeholder'), {
+      target: { value: 'ghp_secret' }
+    })
     fireEvent.click(screen.getByText('settings.dependencies.installSettings.verifySignatures.label'))
+    expect(setInstallSettingsMock).not.toHaveBeenCalled()
 
-    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(1, { githubMirror: 'https://ghfast.top' })
-    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(2, { npmRegistry: 'https://registry.example' })
-    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(3, { pipIndexUrl: 'https://pypi.example/simple' })
-    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(4, { githubToken: 'ghp_secret' })
-    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(5, { verifySignatures: false })
+    fireEvent.click(screen.getByText('common.save'))
+    expect(setInstallSettingsMock).toHaveBeenCalledWith({
+      githubMirror: 'https://ghfast.top',
+      npmRegistry: 'https://registry.example',
+      pipIndexUrl: 'https://pypi.example/simple',
+      githubToken: 'ghp_secret',
+      verifySignatures: false
+    })
+  })
+
+  it('does not persist invalid install URLs', async () => {
+    render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
+      target: { value: 'javascript:alert(1)' }
+    })
+
+    expect(screen.getByText('common.save').closest('button')).toBeDisabled()
+    expect(setInstallSettingsMock).not.toHaveBeenCalled()
+  })
+
+  it('masks the token again when the settings dialog is reopened', async () => {
+    render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
+    const token = screen.getByPlaceholderText('settings.dependencies.installSettings.githubToken.placeholder')
+    fireEvent.click(screen.getByLabelText('settings.dependencies.installSettings.githubToken.show'))
+    expect(token).toHaveAttribute('type', 'text')
+
+    fireEvent.click(screen.getByText('common.cancel'))
+    fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
+    expect(
+      screen.getByPlaceholderText('settings.dependencies.installSettings.githubToken.placeholder')
+    ).toHaveAttribute('type', 'password')
   })
 
   it('renders preset tools and the empty custom-tools state', async () => {
@@ -196,6 +232,7 @@ describe('EnvironmentDependencies', () => {
     const fdCard = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
     expect(fdCard).toHaveTextContent('settings.dependencies.source.system')
     expect(fdCard.querySelector('[title="/usr/local/bin/fd"]')).toBeInTheDocument()
+    expect(fdCard).not.toHaveTextContent('settings.mcp.install')
   })
 
   it('renders a persisted custom tool instead of the empty state', async () => {
@@ -204,6 +241,16 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
     expect(screen.queryByText('settings.dependencies.customToolsEmpty')).not.toBeInTheDocument()
+  })
+
+  it('marks a custom system tool as available without offering installation', async () => {
+    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+    ipcMocks.probeSystem.mockResolvedValue({ mytool: '/usr/local/bin/mytool' })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('settings.dependencies.source.system')
+    expect(card).not.toHaveTextContent('settings.mcp.install')
   })
 
   it('shows an uninstall action for a mise-managed preset tool', async () => {
@@ -231,6 +278,14 @@ describe('EnvironmentDependencies', () => {
     expect(container).toBeEmptyDOMElement()
     await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('renders nothing in mini mode when core dependencies are system-installed', async () => {
+    ipcMocks.probeSystem.mockResolvedValue({ uv: '/usr/local/bin/uv', bun: '/usr/local/bin/bun' })
+    const { container } = render(<EnvironmentDependencies mini />)
+
+    await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('fetches latest versions on mount', async () => {

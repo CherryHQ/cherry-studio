@@ -79,7 +79,7 @@ vi.mock('@main/services/RegionService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
+  getRawShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
@@ -903,11 +903,13 @@ describe('BinaryManager', () => {
       })
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
       expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')
+      expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.example/simple/{}/')
       expect(env['GITHUB_TOKEN']).toBe('ghp_settings')
       expect(JSON.parse(env['MISE_URL_REPLACEMENTS'])['https://github.com']).toBe(
         'https://ghfast.top/https://github.com'
       )
       expect(env['MISE_AQUA_COSIGN']).toBe('false')
+      expect(env['MISE_AQUA_GITHUB_ATTESTATIONS']).toBe('false')
       expect(getBinaryExecutionEnv()['GITHUB_TOKEN']).toBeUndefined()
     })
 
@@ -1077,6 +1079,18 @@ describe('BinaryManager', () => {
       await expect((service as any).runMise(['use', '-g', 'fd'])).rejects.toThrow('Command failed\nnetwork timeout')
     })
 
+    it('does not append stderr when the command error already includes it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockRejectedValueOnce(
+        Object.assign(new Error('Command failed\nnetwork timeout'), { stderr: 'network timeout\n' })
+      )
+
+      const error = await (service as any).runMise(['use', '-g', 'fd']).catch((caught: Error) => caught)
+      expect(error.message).toBe('Command failed\nnetwork timeout')
+    })
+
     it('throws when mise binary is null', async () => {
       const service = new BinaryManager()
 
@@ -1178,11 +1192,9 @@ describe('BinaryManager', () => {
   })
 
   describe('probeSystem', () => {
-    it('removes Cherry-owned PATH segments before resolving system tools', async () => {
-      const { getShellEnv } = await import('@main/utils/shellEnv')
-      vi.mocked(getShellEnv).mockResolvedValueOnce({
-        PATH: '/mock/feature.binary.data/shims:/mock/cherry.bin:/usr/local/bin:/usr/bin'
-      })
+    it('resolves system tools against the raw login-shell PATH', async () => {
+      const { getRawShellEnv } = await import('@main/utils/shellEnv')
+      vi.mocked(getRawShellEnv).mockResolvedValueOnce({ PATH: '/usr/local/bin:/usr/bin' })
       vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
         name === 'gemini' ? '/usr/local/bin/gemini' : null
       )

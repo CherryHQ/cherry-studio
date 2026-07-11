@@ -4,21 +4,27 @@
  */
 export interface InstallSettingPreset {
   url: string
-  label: string
+  labelKey: string
 }
 
 export const GITHUB_MIRROR_PRESETS: readonly InstallSettingPreset[] = [
-  { url: 'https://ghfast.top', label: 'ghfast.top' },
-  { url: 'https://ghproxy.net', label: 'ghproxy.net' }
+  { url: 'https://ghfast.top', labelKey: 'settings.dependencies.installSettings.presetLabels.ghfast' },
+  { url: 'https://ghproxy.net', labelKey: 'settings.dependencies.installSettings.presetLabels.ghproxy' }
 ]
 
 export const NPM_REGISTRY_PRESETS: readonly InstallSettingPreset[] = [
-  { url: 'https://registry.npmmirror.com', label: 'npmmirror (China)' },
-  { url: 'https://registry.npmjs.org', label: 'npmjs (official)' }
+  { url: 'https://registry.npmmirror.com', labelKey: 'settings.dependencies.installSettings.presetLabels.npmmirror' },
+  { url: 'https://registry.npmjs.org', labelKey: 'settings.dependencies.installSettings.presetLabels.npmOfficial' }
 ]
 
 export const PIP_INDEX_PRESETS: readonly InstallSettingPreset[] = [
-  { url: 'https://pypi.tuna.tsinghua.edu.cn/simple', label: 'Tsinghua (China)' },
-  { url: 'https://mirrors.aliyun.com/pypi/simple/', label: 'Aliyun (China)' },
-  { url: 'https://pypi.org/simple', label: 'PyPI (official)' }
+  {
+    url: 'https://pypi.tuna.tsinghua.edu.cn/simple',
+    labelKey: 'settings.dependencies.installSettings.presetLabels.tsinghua'
+  },
+  {
+    url: 'https://mirrors.aliyun.com/pypi/simple/',
+    labelKey: 'settings.dependencies.installSettings.presetLabels.aliyun'
+  },
+  { url: 'https://pypi.org/simple', labelKey: 'settings.dependencies.installSettings.presetLabels.pypiOfficial' }
 ]

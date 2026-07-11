@@ -1,7 +1,7 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
@@ -38,7 +38,8 @@ const buildStatus = (
     }
   }
 
-  const systemPath = binaryName ? systemTools[binaryName] : undefined
+  const systemPath =
+    binaryName && binaryName !== CLI_BINARY_NAMES[CodeCli.OPENCLAW] ? systemTools[binaryName] : undefined
   return systemPath
     ? { installed: true, source: 'system', systemPath, canUpgrade: false }
     : { installed: false, source: 'none', canUpgrade: false }
@@ -65,7 +66,10 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     let cancelled = false
 
     const refresh = async () => {
-      const binaryNames = tools.map((toolId) => CLI_BINARY_NAMES[toolId]).filter((name): name is string => !!name)
+      const binaryNames = tools
+        .filter((toolId) => toolId !== CodeCli.OPENCLAW)
+        .map((toolId) => CLI_BINARY_NAMES[toolId])
+        .filter((name): name is string => !!name)
       const [state, systemTools] = await Promise.all([
         ipcApi.request('binary.get_state').catch((error) => {
           logger.error('Failed to get binary state', error as Error)

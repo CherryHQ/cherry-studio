@@ -6102,6 +6102,7 @@
           "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
           "hide": "[to be translated]:Hide token",
           "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
           "show": "[to be translated]:Show token"
         },
         "invalidUrl": "[to be translated]:Enter a valid URL including https://",
@@ -6114,6 +6115,15 @@
           "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
           "label": "[to be translated]:pip index URL",
           "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
         },
         "presets": "[to be translated]:Presets",
         "title": "[to be translated]:Advanced install settings",

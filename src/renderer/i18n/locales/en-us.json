@@ -6094,7 +6094,7 @@
       "installSettings": {
         "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
-          "help": "Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "help": "Proxy prefix for GitHub release downloads (e.g. https://ghfast.top). GitHub API requests remain direct; use a token if rate-limited.",
           "label": "GitHub mirror",
           "placeholder": "https://ghfast.top (direct if empty)"
         },
@@ -6102,6 +6102,7 @@
           "help": "Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
           "hide": "Hide token",
           "label": "GitHub token",
+          "placeholder": "ghp_…",
           "show": "Show token"
         },
         "invalidUrl": "Enter a valid URL including https://",
@@ -6114,6 +6115,15 @@
           "help": "Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
           "label": "pip index URL",
           "placeholder": "Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "Aliyun (China)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (official)",
+          "npmmirror": "npmmirror (China)",
+          "pypiOfficial": "PyPI (official)",
+          "tsinghua": "Tsinghua (China)"
         },
         "presets": "Presets",
         "title": "Advanced install settings",

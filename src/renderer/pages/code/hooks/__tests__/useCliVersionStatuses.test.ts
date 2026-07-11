@@ -91,6 +91,16 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
+  it('does not treat a system OpenClaw as installed because its service requires the managed binary', async () => {
+    ipcMocks.probeSystem.mockResolvedValue({ openclaw: '/usr/local/bin/openclaw' })
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.OPENCLAW]))
+
+    await waitFor(() => expect(result.current[CodeCli.OPENCLAW]).toBeDefined())
+    expect(result.current[CodeCli.OPENCLAW]).toEqual({ installed: false, source: 'none', canUpgrade: false })
+    expect(ipcMocks.probeSystem).toHaveBeenCalledWith([])
+  })
+
   it('does not mark non-semver versions as upgradeable', async () => {
     ipcMocks.getState.mockResolvedValue({
       tools: {
