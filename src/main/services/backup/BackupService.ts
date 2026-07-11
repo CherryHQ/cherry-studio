@@ -362,28 +362,22 @@ export class BackupService extends BaseService {
     } catch (e) {
       throw new IpcError(
         'BACKUP_OUTPUT_PATH_INVALID',
-        `backup: outputPath parent inaccessible (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${parent}`
+        `backup: outputPath parent inaccessible (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${realParent}`
       )
     }
     if (!parentStat.isDirectory()) {
       throw new IpcError(
         'BACKUP_OUTPUT_PATH_INVALID',
-        `backup: outputPath parent is not a directory: ${parent}`
+        `backup: outputPath parent is not a directory: ${realParent}`
       )
     }
     const canonical = join(realParent, basename(resolve(outputPath)))
-    // Refuse ANY app-managed writable root — the archive must never overwrite the live
-    // DB, managed data, or anything under the app's data home. The broad app.userdata
-    // root covers the narrow feature.* sub-roots; each root is realpath'd so a symlinked
-    // managed dir cannot dodge the check.
-    const managedRoots = [
-      application.getPath('app.userdata'),
-      application.getPath('app.database.file'),
-      application.getPath('feature.backup.temp'),
-      application.getPath('feature.files.data'),
-      application.getPath('feature.knowledgebase.data'),
-      application.getPath('feature.notes.data')
-    ]
+    // Refuse ANY app-managed writable path — the archive must never overwrite the live
+    // DB or managed data. app.userdata is the single broad root: every feature.* sub-root
+    // and the live DB file live under it (pathRegistry), so listing them separately would
+    // be dead code. realpath'd so a symlinked managed dir cannot dodge the check. Add a
+    // narrower entry only if a future managed path escapes userData.
+    const managedRoots = [application.getPath('app.userdata')]
     for (const root of managedRoots) {
       let realRoot = root
       try {
