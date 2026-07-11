@@ -6,13 +6,15 @@ Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [
 
 Import from `@data/hooks/useCache`.
 
-| Hook              | Tier    | Signature                                                                   |
-| ----------------- | ------- | --------------------------------------------------------------------------- |
-| `useCache`        | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V) => void]`               |
-| `useSharedCache`  | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V) => void]`            |
-| `usePersistCache` | Persist | `(key: RendererPersistCacheKey) => [V, (next: V) => void]`                  |
+| Hook              | Tier    | Signature                                                                            |
+| ----------------- | ------- | ------------------------------------------------------------------------------------ |
+| `useCache`        | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |
+| `useSharedCache`  | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`     |
+| `usePersistCache` | Persist | `(key: RendererPersistCacheKey) => [V, (next: V \| ((prev) => V)) => void]`           |
 
 Value type is inferred from the schema. Hooks pin the cache entry (refcounted) — the key cannot be `delete`d while any hook is mounted. Hooks do **not** accept a TTL option; using TTL under a hook logs a warning and is discouraged (see [Design Invariant #4](./cache-overview.md#design-invariants)).
+
+The setter accepts a concrete value **or a functional updater** `(prev) => next`, like React's `useState`. The updater resolves against the **latest stored value** at write time (not the render-time snapshot), so read-modify-write stays correct across an `await` — prefer it whenever the next value derives from the current one. `prev` is shallow-readonly: the updater MUST be pure and return a new value (mutating `prev` in place is short-circuited by `isEqual` and silently skips the re-render — see [Design Invariant #1](./cache-overview.md#design-invariants)). Keep it side-effect-free too: don't smuggle a derived value out of the updater (e.g. into an outer variable) to drive post-write work, and don't rely on how often or when it runs — to react to *what changed* (e.g. dispose resources for removed items), derive it in a `useEffect` that watches the value. For `useSharedCache` the updater resolves against the local window's value only; it is not cross-window atomic.
 
 ```typescript
 import { useCache, useSharedCache, usePersistCache } from '@data/hooks/useCache'
@@ -94,7 +96,7 @@ import { application } from '@application'
 const cacheService = application.get('CacheService')
 ```
 
-Main does not expose casual methods or Persist storage. Persist sync goes through Main as an IPC relay only.
+Main does not expose casual methods. Main has its own persist storage — an independent JSON file (`{userData}/cache.json`) accessed via `getPersist` / `setPersist` / `hasPersist`, separate from the renderer's `localStorage` persist and never shared with it. Renderer-origin persist sync still goes through Main as an IPC relay only.
 
 ### Internal and Shared Access
 
@@ -140,7 +142,7 @@ Fire semantics, re-entrance rules, and the placeholder / character-set contract 
 
 - Fires only on explicit `set` / `delete` / `setShared` / `deleteShared` and renderer-origin writes relayed via IPC
 - Never fires immediately on subscribe — call `get()` / `getShared()` yourself for initial state
-- Same-value writes are suppressed (`lodash.isEqual`)
+- Same-value writes are suppressed (`isEqual` from es-toolkit/compat)
 - Callback errors are caught; other subscribers still fire
 
 ## Shared Cache Ready State
@@ -181,9 +183,9 @@ function useExpensiveData(input: string) {
 ### Cross-window coordination
 
 ```typescript
-// Window A
+// Window A — functional updater derives from this window's latest local value
 const [active, setActive] = useSharedCache('chat.web_search.active_searches')
-setActive({ ...active, [searchId]: state })
+setActive((prev) => ({ ...prev, [searchId]: state }))
 
 // Window B re-renders automatically on next Main relay
 const [active] = useSharedCache('chat.web_search.active_searches')
@@ -193,8 +195,10 @@ const [active] = useSharedCache('chat.web_search.active_searches')
 
 ```typescript
 const [pinned, setPinned] = usePersistCache('ui.tab.pinned_tabs')
+// Functional updater derives from the latest stored value — correct even if
+// pin() races another write (e.g. fires after an await).
 const pin = (tab: Tab) =>
-  setPinned([tab, ...pinned.filter((t) => t.id !== tab.id)].slice(0, 10))
+  setPinned((prev) => [tab, ...prev.filter((t) => t.id !== tab.id)].slice(0, 10))
 ```
 
 ### Observe every instance of a template key (Main only)

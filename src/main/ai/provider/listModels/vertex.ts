@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
-import { withoutTrailingSlash } from '@shared/utils/api/utils'
+import { withoutTrailingSlash } from '@shared/utils/api'
 
 import { getBaseUrl } from '../../utils/provider'
 import { normalizeVertexCredentials } from '../config'
@@ -69,7 +69,7 @@ export async function createVertexModelListRequest(
     return undefined
   }
 
-  const authConfig = await providerService.getAuthConfig(provider.id)
+  const authConfig = providerService.getAuthConfig(provider.id)
   if (authConfig?.type !== 'iam-gcp') {
     return failOrSkip('provider is not configured with iam-gcp auth', {
       providerId: provider.id,

@@ -22,7 +22,7 @@ import {
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
 import { BrowserWindow } from 'electron'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
 
@@ -269,9 +269,15 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-      if (windowId) {
-        this.subscribeForWindow(windowId, keys)
+      if (windowId === undefined) {
+        // Push delivery requires a resolvable BrowserWindow — resolving here
+        // would leave the renderer marked subscribed but never receiving
+        // pushes. Load-bearing assumption: every preference reader is a
+        // BrowserWindow; a view-hosted renderer would reject on every read.
+        logger.warn('Preference subscribe rejected: sender is not attached to a BrowserWindow')
+        throw new Error('Preference subscribe requires a BrowserWindow sender')
       }
+      this.subscribeForWindow(windowId, keys)
     })
   }
 
@@ -327,14 +333,15 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      await application.get('DbService').withWriteTx((tx) =>
-        tx
-          .update(preferenceTable)
-          .set({
-            value: value as any
-          })
-          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-      )
+      application
+        .get('DbService')
+        .getDb()
+        .update(preferenceTable)
+        .set({
+          value: value as any
+        })
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+        .run()
 
       // Update memory cache immediately — safe after type guard + cache key check
       ;(this.cache as Record<string, unknown>)[key] = value
@@ -448,14 +455,14 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        await application.get('DbService').withWriteTx(async (tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           for (const [key, value] of Object.entries(actualUpdates)) {
-            await tx
-              .update(preferenceTable)
+            tx.update(preferenceTable)
               .set({
                 value
               })
               .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+              .run()
           }
         })
 

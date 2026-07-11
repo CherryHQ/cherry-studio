@@ -1,10 +1,10 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
+import { buildTopicMessageFlowLiveState, type TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
-  buildTopicMessageFlowLiveState,
-  type TopicMessageFlowLiveState
-} from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+  type TranslationOverlayEntry,
+  type TranslationOverlaySetter
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -162,8 +162,8 @@ export function useChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
   // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
   // torn-down turn's live card would otherwise override the finalized DB row.
-  // Refresh-then-dispose off the status edge; branch-rollback/bookkeeping stays
-  // in `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
+  // Refresh-then-reset off the status edge; branch bookkeeping stays in
+  // `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
   useTopicOverlayHandoffOnTerminal(topic.id, async () => {
     try {
       await refresh()
@@ -230,7 +230,8 @@ export function useChatRuntimeState({
       topicId: conversation.topicId,
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels
+      mentionedModelIds: options?.mentionedModels,
+      knowledgeBaseIds: options?.knowledgeBaseIds
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
@@ -300,20 +301,25 @@ export function useChatRuntimeState({
         try {
           if (isError || !message.parts?.length) {
             await cache.rollbackBranch()
-          } else {
-            await refresh()
           }
           await invalidateCache(treeCachePath)
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
         } finally {
           finishedBranchExecutionIdsRef.current.add(executionId)
-          disposeOverlay(message.id)
           setBranchLiveExecutions((current) => current.filter((execution) => execution.executionId !== executionId))
           const hasRemainingExecutions = branchActiveExecutions.some(
             (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
           )
           if (hasRemainingExecutions) {
+            if (!isError && message.parts?.length) {
+              try {
+                await refresh()
+              } catch (err) {
+                logger.warn('failed to refresh messages after branch execution finish', err as Error)
+              }
+            }
+            disposeOverlay(message.id)
             setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
           } else {
             setBranchLiveMessages([])

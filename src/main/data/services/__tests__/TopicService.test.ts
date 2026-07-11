@@ -1,20 +1,22 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
 
+import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { chatMessageSourceType, type FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
@@ -53,7 +55,7 @@ describe('TopicService', () => {
         }
       ])
 
-      const result = await service.search({ q: 'Needle', limit: 5 })
+      const result = service.search({ q: 'Needle', limit: 5 })
 
       expect(result).toEqual([
         {
@@ -80,11 +82,73 @@ describe('TopicService', () => {
   it('creates and reuses a topic-level trace id', async () => {
     await dbh.db.insert(topicTable).values({ id: 'topic-trace', name: 'Trace', orderKey: 'a0' })
 
-    const traceId = await topicService.ensureTraceId('topic-trace')
+    const traceId = topicService.ensureTraceId('topic-trace')
 
     expect(traceId).toMatch(/^[0-9a-f]{32}$/)
-    expect(await topicService.ensureTraceId('topic-trace')).toBe(traceId)
-    expect((await topicService.getById('topic-trace')).traceId).toBe(traceId)
+    expect(topicService.ensureTraceId('topic-trace')).toBe(traceId)
+    expect(topicService.getById('topic-trace').traceId).toBe(traceId)
+  })
+
+  it('treats name-only updates as manual topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-name-only',
+      name: 'Before name-only update',
+      isNameManuallyEdited: false,
+      orderKey: 'a0'
+    })
+
+    const updated = topicService.update('topic-name-only', {
+      name: 'Manual topic name'
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-name-only',
+      name: 'Manual topic name',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('routes topic updates through serialized write transactions', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-serialized-update',
+      name: 'Before serialized update',
+      orderKey: 'a0'
+    })
+
+    const withWriteTx = application.get('DbService').withWriteTx as Mock
+    withWriteTx.mockClear()
+
+    const updated = topicService.update('topic-serialized-update', {
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+
+    expect(withWriteTx).toHaveBeenCalledTimes(1)
+    expect(updated).toMatchObject({
+      id: 'topic-serialized-update',
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it('preserves explicit automatic topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-auto-name',
+      name: 'Before automatic update',
+      isNameManuallyEdited: false,
+      orderKey: 'a1'
+    })
+
+    const updated = topicService.update('topic-auto-name', {
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-auto-name',
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
   })
 
   describe('listByCursor', () => {
@@ -139,31 +203,30 @@ describe('TopicService', () => {
         updatedAt: 300
       })
 
-      const result = await service.listByCursor()
+      const result = service.listByCursor()
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't3'])
       expect(result.nextCursor).toBeUndefined()
     })
 
-    it('orders unpinned topics by updatedAt DESC with id tiebreaker', async () => {
-      // Default list-time sort is recency ("most recent activity first") —
-      // topic.orderKey is maintained on the row but not consulted here.
-      // Without the id tiebreaker, two topics tied on updatedAt would have
-      // an undefined relative order and could swap on revalidate.
+    it('orders unpinned topics by orderKey ASC with id tiebreaker', async () => {
+      // Default list order is the manual/creation `orderKey` (drag order), not
+      // recency. orderKey here disagrees with updatedAt so the assertion pins the
+      // key; the id tiebreak keeps rows tied on orderKey stable across revalidates.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
-        { id: 'older', name: 'older', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'first', name: 'first', orderKey: 'a0', createdAt: 1, updatedAt: 300 },
         { id: 'tied-b', name: 'tied-b', orderKey: 'a1', createdAt: 1, updatedAt: 200 },
-        { id: 'tied-a', name: 'tied-a', orderKey: 'a2', createdAt: 1, updatedAt: 200 },
-        { id: 'newest', name: 'newest', orderKey: 'a3', createdAt: 1, updatedAt: 300 }
+        { id: 'tied-a', name: 'tied-a', orderKey: 'a1', createdAt: 1, updatedAt: 100 },
+        { id: 'last', name: 'last', orderKey: 'a2', createdAt: 1, updatedAt: 250 }
       ])
 
-      const result = await service.listByCursor()
-      expect(result.items.map((t) => t.id)).toEqual(['newest', 'tied-a', 'tied-b', 'older'])
+      const result = service.listByCursor()
+      expect(result.items.map((t) => t.id)).toEqual(['first', 'tied-a', 'tied-b', 'last'])
     })
 
-    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by updatedAt DESC', async () => {
+    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by orderKey ASC', async () => {
       // Two pinned topics + two unpinned. Pin order follows pin.orderKey
-      // (user-controlled drag); unpinned section follows updatedAt DESC.
+      // (user-controlled drag); unpinned section follows topic.orderKey ASC.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't-pinned-1', name: 'P1', orderKey: 'a3', createdAt: 1, updatedAt: 1 },
@@ -176,7 +239,7 @@ describe('TopicService', () => {
         { id: 'pin-2', entityType: 'topic', entityId: 't-pinned-2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
 
-      const result = await service.listByCursor()
+      const result = service.listByCursor()
       expect(result.items.map((t) => t.id)).toEqual(['t-pinned-1', 't-pinned-2', 't-unpinned-1', 't-unpinned-2'])
       expect(result.nextCursor).toBeUndefined()
     })
@@ -199,17 +262,35 @@ describe('TopicService', () => {
         { id: 'pin-3', entityType: 'topic', entityId: 'p3', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
       ])
 
-      const page1 = await service.listByCursor({ limit: 2 })
+      const page1 = service.listByCursor({ limit: 2 })
       expect(page1.items.map((t) => t.id)).toEqual(['p1', 'p2'])
       expect(page1.nextCursor).toBeDefined()
 
-      const page2 = await service.listByCursor({ limit: 2, cursor: page1.nextCursor })
+      const page2 = service.listByCursor({ limit: 2, cursor: page1.nextCursor })
       expect(page2.items.map((t) => t.id)).toEqual(['p3', 'u1'])
       expect(page2.nextCursor).toBeDefined()
 
-      const page3 = await service.listByCursor({ limit: 2, cursor: page2.nextCursor })
+      const page3 = service.listByCursor({ limit: 2, cursor: page2.nextCursor })
       expect(page3.items.map((t) => t.id)).toEqual(['u2'])
       expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('does not skip pinned topics with the same orderKey across pages', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'p1', name: 'P1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'p2', name: 'P2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(pinTable).values([
+        { id: 'pin-1', entityType: 'topic', entityId: 'p1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'pin-2', entityType: 'topic', entityId: 'p2', orderKey: 'a0', createdAt: 1, updatedAt: 1 }
+      ])
+
+      const page1 = service.listByCursor({ limit: 1 })
+      const page2 = service.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+      expect(page1.items.map((topic) => topic.id)).toEqual(['p1'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['p2'])
     })
 
     it('spills partially-filled pin section into unpinned in the same page', async () => {
@@ -225,7 +306,7 @@ describe('TopicService', () => {
         .insert(pinTable)
         .values({ id: 'pin-1', entityType: 'topic', entityId: 'p1', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
 
-      const result = await service.listByCursor({ limit: 3 })
+      const result = service.listByCursor({ limit: 3 })
       expect(result.items.map((t) => t.id)).toEqual(['p1', 'u1', 'u2'])
       expect(result.nextCursor).toBeUndefined()
     })
@@ -242,7 +323,7 @@ describe('TopicService', () => {
         { id: 'a_b', name: 'a_b', orderKey: 'a3', createdAt: 1, updatedAt: 6 },
         { id: 'a-b', name: 'a-b', orderKey: 'a4', createdAt: 1, updatedAt: 5 } // would match 'a_b' if _ were a wildcard
       ])
-      const result = await service.listByCursor({ q })
+      const result = service.listByCursor({ q })
       expect(result.items.map((t) => t.id).sort()).toEqual([...expected].sort())
     })
 
@@ -259,7 +340,7 @@ describe('TopicService', () => {
         { id: 'pin-2', entityType: 'topic', entityId: 'p2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
 
-      const result = await service.listByCursor({ q: 'apple' })
+      const result = service.listByCursor({ q: 'apple' })
       expect(result.items.map((t) => t.id)).toEqual(['p1', 'u1'])
     })
 
@@ -278,30 +359,31 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      const result = await service.listByCursor()
+      const result = service.listByCursor()
       expect(result.items.map((t) => t.id)).toEqual(['t1'])
     })
 
     it.each([
       'gibberish',
-      'topic:not-a-number:id',
-      'topic:NaN:id',
+      'topic:123:legacy-id', // legacy pre-rename cursor → unknown section, safe fallback
+      'pin:a0', // legacy orderKey-only pin cursor → missing stable id, safe fallback
+      'entity:orphan-no-id', // malformed: entity section missing id separator
       'unknown-section:foo',
       'pin' // missing colon
     ])('falls back to first page when cursor is malformed (%s)', async (badCursor) => {
       // A renderer holding a stale cursor from a previous app version should
-      // not be locked out — the warn+fallback in decodeCursor returns the
-      // first page instead of throwing VALIDATION_ERROR.
+      // not be locked out — the warn+fallback in decodePinnedListCursor returns
+      // the first page instead of throwing VALIDATION_ERROR.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 't2', name: 'T2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
       ])
-      const result = await service.listByCursor({ cursor: badCursor })
+      const result = service.listByCursor({ cursor: badCursor })
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
 
-    it('stale pin cursor (anchor pin row deleted) advances to topic section, no duplicates', async () => {
+    it('stale pin cursor (anchor pin row deleted) advances to unpinned section, no duplicates', async () => {
       // Renderer paged into the pin section, the anchor pin was unpinned
       // before the next page. Without the empty-result guard, the unpinned
       // section would restart from the top and the renderer would see
@@ -311,13 +393,13 @@ describe('TopicService', () => {
         { id: 'u1', name: 'U1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 'u2', name: 'U2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
       ])
-      // Cursor points at a pin orderKey for a row that no longer exists.
-      const result = await service.listByCursor({ cursor: 'pin:a99' })
+      // Cursor points at a pin tuple for a row that no longer exists.
+      const result = service.listByCursor({ cursor: 'pin:a99:missing-topic-id' })
       expect(result.items).toHaveLength(0)
-      expect(result.nextCursor).toBe('topic:')
+      expect(result.nextCursor).toBe('entity:')
 
-      const next = await service.listByCursor({ cursor: result.nextCursor })
-      expect(next.items.map((t) => t.id)).toEqual(['u2', 'u1'])
+      const next = service.listByCursor({ cursor: result.nextCursor })
+      expect(next.items.map((t) => t.id)).toEqual(['u1', 'u2'])
     })
   })
 
@@ -349,7 +431,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await topicService.delete('topic-1')
+      topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
@@ -400,7 +482,7 @@ describe('TopicService', () => {
         ])
       )
 
-      await topicService.delete('topic-mm')
+      topicService.delete('topic-mm')
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
@@ -416,7 +498,7 @@ describe('TopicService', () => {
         .insert(pinTable)
         .values({ id: 'pin-1', entityType: 'topic', entityId: 'topic-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
 
-      await topicService.delete('topic-1')
+      topicService.delete('topic-1')
 
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
@@ -442,7 +524,13 @@ describe('TopicService', () => {
         ])
       )
 
-      await expect(topicService.deleteByIds(['topic-1', 'missing-topic'])).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.deleteByIds(['topic-1', 'missing-topic'])
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
 
@@ -500,7 +588,7 @@ describe('TopicService', () => {
         .insert(pinTable)
         .values({ id: 'pin-1', entityType: 'topic', entityId: 'topic-2', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
 
-      const result = await topicService.deleteByAssistantId('asst-1')
+      const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result.deletedIds.sort()).toEqual(['topic-1', 'topic-2'])
       expect(result.deletedCount).toBe(2)
@@ -518,7 +606,7 @@ describe('TopicService', () => {
         { id: 'topic-2', name: 'Topic 2', assistantId: 'asst-2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
 
-      const result = await topicService.deleteByAssistantId('asst-1')
+      const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result).toEqual({ deletedIds: ['topic-1'], deletedCount: 1 })
       const remaining = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
@@ -540,7 +628,7 @@ describe('TopicService', () => {
         }
       ])
 
-      const result = await topicService.deleteByAssistantId('asst-1')
+      const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result).toEqual({ deletedIds: ['topic-live'], deletedCount: 1 })
       // The soft-deleted row must remain untouched.
@@ -553,14 +641,20 @@ describe('TopicService', () => {
       // an assistant with zero (live) topics is a successful no-op delete.
       await seedAssistant('asst-empty', 'a0')
 
-      await expect(topicService.deleteByAssistantId('asst-empty')).resolves.toEqual({
+      expect(topicService.deleteByAssistantId('asst-empty')).toEqual({
         deletedIds: [],
         deletedCount: 0
       })
     })
 
     it('throws NOT_FOUND when the assistant does not exist', async () => {
-      await expect(topicService.deleteByAssistantId('missing-assistant')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.deleteByAssistantId('missing-assistant')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -578,7 +672,13 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await expect(topicService.deleteByAssistantId('asst-gone')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.deleteByAssistantId('asst-gone')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       // The topic must survive the rejected call.
@@ -606,31 +706,37 @@ describe('TopicService', () => {
 
     it('moves a topic to before its predecessor with anchor.before', async () => {
       await seedThree()
-      await topicService.reorder('t3', { before: 't1' })
+      topicService.reorder('t3', { before: 't1' })
       expect(await getOrderedIds()).toEqual(['t3', 't1', 't2'])
     })
 
     it('moves a topic to after a successor with anchor.after', async () => {
       await seedThree()
-      await topicService.reorder('t1', { after: 't2' })
+      topicService.reorder('t1', { after: 't2' })
       expect(await getOrderedIds()).toEqual(['t2', 't1', 't3'])
     })
 
     it("moves a topic to the head with position: 'first'", async () => {
       await seedThree()
-      await topicService.reorder('t3', { position: 'first' })
+      topicService.reorder('t3', { position: 'first' })
       expect(await getOrderedIds()).toEqual(['t3', 't1', 't2'])
     })
 
     it("moves a topic to the tail with position: 'last'", async () => {
       await seedThree()
-      await topicService.reorder('t1', { position: 'last' })
+      topicService.reorder('t1', { position: 'last' })
       expect(await getOrderedIds()).toEqual(['t2', 't3', 't1'])
     })
 
     it('throws NOT_FOUND when target id does not exist', async () => {
       await seedThree()
-      await expect(topicService.reorder('missing', { position: 'first' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.reorder('missing', { position: 'first' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         name: 'DataApiError',
         code: ErrorCode.NOT_FOUND
       })
@@ -638,15 +744,27 @@ describe('TopicService', () => {
 
     it('throws NOT_FOUND when anchor id does not exist in scope', async () => {
       await seedThree()
-      await expect(topicService.reorder('t1', { after: 'missing' })).rejects.toBeInstanceOf(DataApiError)
-      await expect(topicService.reorder('t1', { after: 'missing' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.reorder('t1', { after: 'missing' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(DataApiError)
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('throws VALIDATION_ERROR when anchor equals target', async () => {
       await seedThree()
-      await expect(topicService.reorder('t2', { after: 't2' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.reorder('t2', { after: 't2' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
@@ -671,11 +789,17 @@ describe('TopicService', () => {
         { id: 'g2', name: 'G2', groupId: 'grp', orderKey: 'a1', createdAt: 4, updatedAt: 4 }
       ])
       // Reorder within the null partition; anchoring against the grp partition must fail with NOT_FOUND.
-      await expect(topicService.reorder('n1', { after: 'g1' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.reorder('n1', { after: 'g1' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       // Same-scope reorder works.
-      await topicService.reorder('n1', { after: 'n2' })
+      topicService.reorder('n1', { after: 'n2' })
       const nullRows = await dbh.db
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -699,7 +823,13 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      await expect(topicService.reorder('gone', { position: 'first' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.reorder('gone', { position: 'first' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -707,7 +837,7 @@ describe('TopicService', () => {
 
   describe('create', () => {
     it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
-      const result = await topicService.create({ name: 'fresh' })
+      const result = topicService.create({ name: 'fresh' })
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
@@ -721,14 +851,14 @@ describe('TopicService', () => {
         { id: 'existing-2', name: 'Existing 2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
       ])
 
-      const result = await topicService.create({ name: 'fresh' })
+      const result = topicService.create({ name: 'fresh' })
 
       const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
       expect(rows.map((row) => row.id)).toEqual([result.id, 'existing-1', 'existing-2'])
     })
 
     it('inserts exactly one content-less virtual root and leaves activeNodeId null', async () => {
-      const result = await topicService.create({ name: 'fresh' })
+      const result = topicService.create({ name: 'fresh' })
 
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(topicRow.activeNodeId).toBeNull()
@@ -752,7 +882,6 @@ describe('TopicService', () => {
   describe('duplicate', () => {
     it('copies the root-to-node path into a new topic and prunes siblings and descendants', async () => {
       const fileEntryId = '019606a0-0000-7000-8000-00000000fb01' as FileEntryId
-      const previewEntryId = '019606a0-0000-7000-8000-00000000fb02' as FileEntryId
       await dbh.db.insert(topicTable).values({
         id: 'src-t',
         name: 'Source',
@@ -761,30 +890,17 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      await dbh.db.insert(fileEntryTable).values([
-        {
-          id: fileEntryId,
-          origin: 'internal',
-          name: 'duplicate-attachment',
-          ext: 'txt',
-          size: 1,
-          externalPath: null,
-          deletedAt: null,
-          createdAt: 1,
-          updatedAt: 1
-        },
-        {
-          id: previewEntryId,
-          origin: 'internal',
-          name: 'duplicate-preview',
-          ext: 'png',
-          size: 1,
-          externalPath: null,
-          deletedAt: null,
-          createdAt: 1,
-          updatedAt: 1
-        }
-      ])
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'duplicate-attachment',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('src-t', [
           {
@@ -844,28 +960,18 @@ describe('TopicService', () => {
           }
         ])
       )
-      await dbh.db.insert(fileRefTable).values([
+      await dbh.db.insert(chatMessageFileRefTable).values([
         {
           id: '11111111-1111-4111-8111-123456789abc',
           fileEntryId,
-          sourceType: chatMessageSourceType,
           sourceId: 'selected',
           role: 'attachment',
-          createdAt: 2,
-          updatedAt: 2
-        },
-        {
-          id: '11111111-1111-4111-8111-123456789abd',
-          fileEntryId: previewEntryId,
-          sourceType: chatMessageSourceType,
-          sourceId: 'selected',
-          role: 'preview',
           createdAt: 2,
           updatedAt: 2
         }
       ])
 
-      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+      const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
       expect(result.id).not.toBe('src-t')
       expect(result.name).toBe('Source')
@@ -898,33 +1004,19 @@ describe('TopicService', () => {
         providerMetadata: { cherry: { fileEntryId } }
       })
 
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, chatMessageSourceType))
-      expect(refs).toHaveLength(4)
+      const refs = await dbh.db.select().from(chatMessageFileRefTable)
+      expect(refs).toHaveLength(2)
       expect(refs).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             fileEntryId,
-            sourceType: chatMessageSourceType,
             sourceId: 'selected',
             role: 'attachment'
           }),
           expect.objectContaining({
             fileEntryId,
-            sourceType: chatMessageSourceType,
             sourceId: copiedLeaf?.id,
             role: 'attachment'
-          }),
-          expect.objectContaining({
-            fileEntryId: previewEntryId,
-            sourceType: chatMessageSourceType,
-            sourceId: 'selected',
-            role: 'preview'
-          }),
-          expect.objectContaining({
-            fileEntryId: previewEntryId,
-            sourceType: chatMessageSourceType,
-            sourceId: copiedLeaf?.id,
-            role: 'preview'
           })
         ])
       )
@@ -962,7 +1054,7 @@ describe('TopicService', () => {
         ])
       )
 
-      const result = await topicService.duplicate('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
+      const result = topicService.duplicate('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
 
       expect(result.name).toBe('Source (Copy)')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
@@ -989,7 +1081,7 @@ describe('TopicService', () => {
         ])
       )
 
-      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+      const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
       // The copied content row (the only non-virtual-root row) is normalized to error.
       const copiedRows = await dbh.db
@@ -1041,7 +1133,7 @@ describe('TopicService', () => {
         ])
       )
 
-      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+      const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
       expect(result.groupId).toBe('grp')
       expect(result.assistantId).toBe('asst')
@@ -1056,7 +1148,13 @@ describe('TopicService', () => {
     })
 
     it('rejects a missing source topic', async () => {
-      await expect(topicService.duplicate('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.duplicate('missing-topic', { nodeId: 'node-1' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1081,7 +1179,13 @@ describe('TopicService', () => {
         ])
       )
 
-      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.duplicate('src-t', { nodeId: 'selected' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1107,7 +1211,13 @@ describe('TopicService', () => {
         ])
       )
 
-      await expect(topicService.duplicate('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.duplicate('src-t', { nodeId: 'other-node' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1148,7 +1258,7 @@ describe('TopicService', () => {
         ])
       )
 
-      const result = await topicService.duplicate('src-t', { nodeId: 'orphan' })
+      const result = topicService.duplicate('src-t', { nodeId: 'orphan' })
 
       const copiedVirtualRoot = await dbh.db
         .select()
@@ -1188,7 +1298,13 @@ describe('TopicService', () => {
         ])
       )
 
-      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.duplicate('src-t', { nodeId: 'selected' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1209,7 +1325,7 @@ describe('TopicService', () => {
       const before = await dbh.db
         .select({ id: topicTable.id, orderKey: topicTable.orderKey, updatedAt: topicTable.updatedAt })
         .from(topicTable)
-      await topicService.reorderBatch([])
+      topicService.reorderBatch([])
       const after = await dbh.db
         .select({ id: topicTable.id, orderKey: topicTable.orderKey, updatedAt: topicTable.updatedAt })
         .from(topicTable)
@@ -1218,7 +1334,7 @@ describe('TopicService', () => {
 
     it('applies multiple moves sequentially in one transaction', async () => {
       await seedFour()
-      await topicService.reorderBatch([
+      topicService.reorderBatch([
         { id: 't4', anchor: { position: 'first' } },
         { id: 't1', anchor: { position: 'last' } }
       ])
@@ -1235,12 +1351,16 @@ describe('TopicService', () => {
         { id: 'a1', name: 'a1', groupId: 'g1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'b1', name: 'b1', groupId: 'g2', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
       ])
-      await expect(
+      let err: unknown
+      try {
         topicService.reorderBatch([
           { id: 'a1', anchor: { position: 'first' } },
           { id: 'b1', anchor: { position: 'first' } }
         ])
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
@@ -1253,24 +1373,32 @@ describe('TopicService', () => {
         { id: 'n1', name: 'n1', groupId: null, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'g1', name: 'g1', groupId: 'grp', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
       ])
-      await expect(
+      let err: unknown
+      try {
         topicService.reorderBatch([
           { id: 'n1', anchor: { position: 'first' } },
           { id: 'g1', anchor: { position: 'first' } }
         ])
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
     it('throws NOT_FOUND when any target id is missing', async () => {
       await seedFour()
-      await expect(
+      let err: unknown
+      try {
         topicService.reorderBatch([
           { id: 't1', anchor: { position: 'first' } },
           { id: 'missing', anchor: { position: 'first' } }
         ])
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1307,7 +1435,7 @@ describe('TopicService', () => {
 
     it('happy path: writes activeNodeId', async () => {
       await seedTopicWithMessages()
-      const result = await topicService.setActiveNode('t1', 'm2')
+      const result = topicService.setActiveNode('t1', 'm2')
       expect(result.activeNodeId).toBe('m2')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 't1'))
       expect(row?.activeNodeId).toBe('m2')
@@ -1315,7 +1443,13 @@ describe('TopicService', () => {
 
     it('rejects the virtual root as the active node', async () => {
       await seedTopicWithMessages()
-      await expect(topicService.setActiveNode('t1', 'vroot-t1')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('t1', 'vroot-t1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.INVALID_OPERATION
       })
     })
@@ -1338,20 +1472,38 @@ describe('TopicService', () => {
           }
         ])
       )
-      await expect(topicService.setActiveNode('t1', 'other')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('t1', 'other')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('throws NOT_FOUND when nodeId does not exist', async () => {
       await seedTopicWithMessages()
-      await expect(topicService.setActiveNode('t1', 'no-such')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('t1', 'no-such')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
     it('throws NOT_FOUND when topicId does not exist', async () => {
-      await expect(topicService.setActiveNode('no-such', 'm1')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('no-such', 'm1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1374,7 +1526,13 @@ describe('TopicService', () => {
           }
         ])
       )
-      await expect(topicService.setActiveNode('t1', 'm-gone')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('t1', 'm-gone')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1403,9 +1561,34 @@ describe('TopicService', () => {
           }
         ])
       )
-      await expect(topicService.setActiveNode('t-gone', 'm1')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        topicService.setActiveNode('t-gone', 'm1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+  })
+
+  describe('getLatestUpdated', () => {
+    it('returns the globally most-recently-updated non-deleted topic, independent of pin/order', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'old', name: 'old', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        // Highest updatedAt but soft-deleted → must be excluded.
+        { id: 'deleted-newest', name: 'deleted', orderKey: 'a1', deletedAt: 999, createdAt: 2, updatedAt: 900 },
+        { id: 'latest', name: 'latest', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
+        { id: 'mid', name: 'mid', orderKey: 'a3', createdAt: 4, updatedAt: 200 }
+      ])
+
+      expect(service.getLatestUpdated()?.id).toBe('latest')
+    })
+
+    it('returns null when there are no topics', () => {
+      expect(new TopicService().getLatestUpdated()).toBeNull()
     })
   })
 })

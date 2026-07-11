@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
+import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
-import { AgentToolsType, type ToolRendererProps } from './types'
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed'
 

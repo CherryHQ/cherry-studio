@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
 import { cn } from '@renderer/utils/style'
 import { Handle, type Node, type NodeProps, NodeResizer, Position } from '@xyflow/react'
 import { AlertTriangle, ImageIcon, RotateCcw } from 'lucide-react'
@@ -7,6 +6,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../../model/types/paintingData'
+import { getPaintingFileUrl } from '../../utils/paintingFileUrl'
 import { useCanvasActions } from './canvasActions'
 import NodeContextMenu from './NodeContextMenu'
 import NodeToolbar from './NodeToolbar'
@@ -28,7 +28,7 @@ const PaintingNodeComponent = ({ data, selected }: NodeProps<PaintingNodeType>) 
   const { onResize, onRetry } = useCanvasActions()
   const { t } = useTranslation()
   const file = painting.files[0]
-  const url = file ? FileManager.getFileUrl(file) : ''
+  const url = file ? getPaintingFileUrl(file) : undefined
   const extraCount = painting.files.length - 1
   // No image and not live-generating: a failed/canceled run → offer retry.
   // `status == null` is an empty board — either intentionally created or a new

@@ -4,7 +4,7 @@ import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } fro
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
@@ -38,7 +38,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement })
+  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming })
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]

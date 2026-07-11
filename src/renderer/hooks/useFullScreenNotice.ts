@@ -1,5 +1,6 @@
-import { isWin } from '@renderer/config/constant'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { isWin } from '@renderer/utils/platform'
 import { useTranslation } from 'react-i18next'
 
 export function useFullScreenNotice() {
@@ -7,7 +8,7 @@ export function useFullScreenNotice() {
 
   useIpcOn('window.fullscreen_changed', (isFullscreen) => {
     if (isWin && isFullscreen) {
-      window.toast.info({
+      toast.info({
         title: t('common.fullscreen'),
         timeout: 3000
       })

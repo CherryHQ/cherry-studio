@@ -2,9 +2,8 @@ import { loggerService } from '@logger'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { type FileURLString } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
-import { fileUrlToPath } from '@shared/utils/file/urlUtil'
+import { type FileUrlString } from '@shared/types/file'
+import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
 import {
@@ -21,7 +20,15 @@ export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-compos
 
 const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
-const COMPOSER_CLIPBOARD_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'reference', 'quote', 'promptVariable'] as const
+const COMPOSER_CLIPBOARD_TOKEN_KINDS = [
+  'skill',
+  'file',
+  'folder',
+  'knowledge',
+  'reference',
+  'quote',
+  'promptVariable'
+] as const
 const COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS = 30 * 60 * 1000
 
 type ComposerClipboardTokenKind = (typeof COMPOSER_CLIPBOARD_TOKEN_KINDS)[number]
@@ -112,6 +119,7 @@ interface ComposerClipboardDraft {
 const COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
   'file',
+  'folder',
   'knowledge',
   'reference',
   'quote'
@@ -138,7 +146,7 @@ function stripFileUrl(value: string | undefined): string | undefined {
   if (!value.startsWith('file://')) return value
 
   try {
-    return fileUrlToPath(value as FileURLString)
+    return fileUrlToPath(value as FileUrlString)
   } catch {
     return value.replace(/^file:\/\//, '')
   }
@@ -257,6 +265,44 @@ function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboar
   return typeof value === 'string' && COMPOSER_CLIPBOARD_TOKEN_KINDS.includes(value as ComposerClipboardTokenKind)
 }
 
+// Kinds whose promptText is restored verbatim from the fragment. Unlike file tokens
+// (handle-gated) or skill/knowledge (re-resolved from live markers), these trust the
+// clipboard's promptText directly. Since any app can forge our clipboard MIME, a short
+// visible label could hide an injected promptText that silently reaches the model on
+// send. We trust these only when the fragment carries a session-private nonce proving
+// this renderer wrote it; otherwise they degrade to their visible fallback text.
+const COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS = new Set<ComposerClipboardTokenKind>([
+  'folder',
+  'quote',
+  'promptVariable'
+])
+const COMPOSER_CLIPBOARD_PROMPT_NONCE_TTL_MS = 30 * 60 * 1000
+const trustedPromptFragmentNonces = new Map<string, number>()
+
+function isPromptRestorationTokenKind(kind: unknown): kind is ComposerClipboardTokenKind {
+  return isComposerClipboardTokenKind(kind) && COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS.has(kind)
+}
+
+function pruneExpiredPromptFragmentNonces(now = Date.now()) {
+  for (const [nonce, expiresAt] of trustedPromptFragmentNonces) {
+    if (expiresAt <= now) trustedPromptFragmentNonces.delete(nonce)
+  }
+}
+
+function registerTrustedPromptFragmentNonce(): string {
+  pruneExpiredPromptFragmentNonces()
+  const nonce = createComposerSecureRandomId('composer-prompt')
+  trustedPromptFragmentNonces.set(nonce, Date.now() + COMPOSER_CLIPBOARD_PROMPT_NONCE_TTL_MS)
+  return nonce
+}
+
+function isTrustedPromptFragmentNonce(nonce: unknown): boolean {
+  const value = readString(nonce)
+  if (!value) return false
+  pruneExpiredPromptFragmentNonces()
+  return trustedPromptFragmentNonces.has(value)
+}
+
 function hasUnsafeComposerClipboardFileTokenId(token: Pick<ComposerClipboardSourceToken, 'id' | 'kind'>) {
   if (token.kind !== 'file') return false
 
@@ -315,7 +361,10 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
   }
 }
 
-function sanitizeComposerClipboardSegment(segment: unknown): ComposerClipboardSegment | null {
+function sanitizeComposerClipboardSegment(
+  segment: unknown,
+  trustedPromptText: boolean
+): ComposerClipboardSegment | null {
   if (!isRecord(segment)) return null
 
   if (segment.type === 'text') {
@@ -333,6 +382,12 @@ function sanitizeComposerClipboardSegment(segment: unknown): ComposerClipboardSe
     return isUnsafeComposerClipboardFileToken(segment.token) ? { type: 'text', text: fallbackText } : null
   }
 
+  // Reject forged hidden prompts: only session-authored fragments may restore a
+  // promptText-bearing folder/quote/promptVariable token; others show visible text.
+  if (!trustedPromptText && isPromptRestorationTokenKind(token.kind) && token.promptText) {
+    return { type: 'text', text: fallbackText }
+  }
+
   return { type: 'token', token, fallbackText }
 }
 
@@ -346,10 +401,16 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
     return [{ type: 'token', token, fallbackText: segment.fallbackText }]
   })
 
+  const requiresPromptNonce = safeSegments.some(
+    (segment) =>
+      segment.type === 'token' && isPromptRestorationTokenKind(segment.token.kind) && segment.token.promptText
+  )
+
   return JSON.stringify({
     version: COMPOSER_CLIPBOARD_FRAGMENT_VERSION,
-    segments: safeSegments
-  } satisfies ComposerClipboardFragment)
+    segments: safeSegments,
+    ...(requiresPromptNonce && { nonce: registerTrustedPromptFragmentNonce() })
+  })
 }
 
 function getTokenFallbackText(
@@ -619,7 +680,8 @@ export function readComposerClipboardFragment(value: string): ComposerClipboardF
       return null
     }
 
-    const segments = parsed.segments.map(sanitizeComposerClipboardSegment)
+    const trustedPromptText = isTrustedPromptFragmentNonce(parsed.nonce)
+    const segments = parsed.segments.map((segment) => sanitizeComposerClipboardSegment(segment, trustedPromptText))
     if (segments.some((segment) => segment === null)) return null
 
     return {

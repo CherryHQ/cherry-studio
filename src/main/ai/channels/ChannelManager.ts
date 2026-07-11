@@ -74,7 +74,7 @@ export class ChannelManager extends BaseService {
   async start(): Promise<void> {
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
-      channels = await channelService.listChannels()
+      channels = channelService.listChannels()
     } catch (error) {
       logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
@@ -211,7 +211,7 @@ export class ChannelManager extends BaseService {
     await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
 
     // Re-read from DB and reconnect if active
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (channel && channel.isActive && channel.agentId) {
       await ensureAdapterLoaded(channel.type)
       await this.connectChannelFromRow(channel, { awaitConnect })
@@ -252,11 +252,11 @@ export class ChannelManager extends BaseService {
     channelId: string,
     creds: { appId: string; appSecret: string }
   ): Promise<void> {
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) return
 
     const config = channel.config as ChannelConfig & Record<string, unknown>
-    await channelService.updateChannel(channelId, {
+    channelService.updateChannel(channelId, {
       config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
     })
 
@@ -289,13 +289,15 @@ export class ChannelManager extends BaseService {
         if (hasAllowedIds) return
         if (adapter.notifyChatIds.includes(chatId)) return
         adapter.notifyChatIds.push(chatId)
-        channelService.addActiveChatId(row.id, chatId).catch((err) => {
+        try {
+          channelService.addActiveChatId(row.id, chatId)
+        } catch (err) {
           logger.warn('Failed to persist activeChatId', {
             channelId: row.id,
             chatId,
             error: err instanceof Error ? err.message : String(err)
           })
-        })
+        }
       }
 
       adapter.on('message', (msg) => {

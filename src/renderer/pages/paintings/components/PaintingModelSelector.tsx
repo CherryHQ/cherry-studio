@@ -1,13 +1,11 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { first } from 'lodash'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -95,7 +93,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, draf
                   <selectedIcon.Avatar size={18} className="shrink-0" />
                 ) : (
                   <Avatar className="size-[18px] shrink-0 items-center justify-center rounded-lg">
-                    <AvatarFallback className="rounded-lg text-[10px]">{first(selectedName) || 'M'}</AvatarFallback>
+                    <AvatarFallback className="rounded-lg text-[10px]">{selectedName?.[0] || 'M'}</AvatarFallback>
                   </Avatar>
                 )
               ) : null}

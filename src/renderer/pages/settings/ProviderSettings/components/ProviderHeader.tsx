@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { Bolt, BookOpen } from 'lucide-react'
+import { toast } from '@renderer/services/toast'
+import { Bolt } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,7 +30,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
       try {
         await toggleProviderEnabled(enabled)
       } catch {
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       } finally {
         setIsTogglingEnabled(false)
       }
@@ -45,31 +45,23 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="min-w-0 self-center">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
-              <h1 className="truncate font-semibold text-[16px] text-foreground leading-tight">
-                {meta.fancyProviderName}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate font-bold text-[15px] text-foreground leading-tight">
+                {meta.officialWebsite ? (
+                  <a
+                    href={meta.officialWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate"
+                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.api.official_website')}`}>
+                    {meta.fancyProviderName}
+                  </a>
+                ) : (
+                  meta.fancyProviderName
+                )}
               </h1>
-              {meta.docsWebsite && (
-                <Tooltip content={t('common.docs')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-accent/40 hover:text-foreground">
-                    <a
-                      href={meta.docsWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
-                      <BookOpen className="size-3.5" aria-hidden />
-                    </a>
-                  </Button>
-                </Tooltip>
-              )}
               {meta.showApiOptionsButton && (
                 <Tooltip content={t('settings.provider.api.options.label')}>
                   <Button

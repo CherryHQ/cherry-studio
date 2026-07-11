@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,14 +51,12 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.trim()
+  return result.startsWith('\n') ? result.slice(1) : result
 }
 
 /**
- * Right-click menu for any text region: copy the current selection or quote it
- * back to the main window. Items are disabled when there is no live selection
- * so a non-text right-click still surfaces the menu (discoverability) but the
- * actions remain inert until the user selects something.
+ * Right-click menu for selected text regions: copy the current selection or quote it
+ * back to the main window. No selection means no selection-specific actions.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
@@ -83,10 +82,10 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
     (text: string) => {
       navigator.clipboard
         .writeText(text)
-        .then(() => window.toast.success(t('message.copied')))
+        .then(() => toast.success(t('message.copied')))
         .catch((error) => {
           logger.error('clipboard write failed', error as Error)
-          window.toast.error(t('message.copy.failed'))
+          toast.error(t('message.copy.failed'))
         })
     },
     [t]
@@ -98,20 +97,19 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
 
   const getMenuItems = useCallback(
     (text: string): CommandContextMenuExtraItem[] => {
-      const hasSelection = text.length > 0
+      if (text.length === 0) return []
+
       return [
         {
           type: 'item',
           id: 'selection.copy',
           label: t('common.copy'),
-          enabled: hasSelection,
           onSelect: () => handleCopy(text)
         },
         {
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          enabled: hasSelection,
           onSelect: () => handleQuote(text)
         }
       ]

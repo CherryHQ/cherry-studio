@@ -38,12 +38,13 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
   )
 }
 
-type DialogContentSize = 'sm' | 'default' | 'lg'
+type DialogContentSize = 'sm' | 'default' | 'lg' | 'xl'
 
 const dialogContentSizeClass: Record<DialogContentSize, string> = {
   sm: 'sm:max-w-sm',
   default: 'sm:max-w-lg',
-  lg: 'sm:max-w-xl'
+  lg: 'sm:max-w-xl',
+  xl: 'sm:max-w-[720px]'
 }
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
@@ -53,10 +54,18 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
   size?: DialogContentSize
 }
 
+/**
+ * Close-animation duration (ms) of DialogContent. The `duration-200` Tailwind class below
+ * cannot be interpolated (Tailwind needs a literal class name), so this constant mirrors it
+ * and a co-located test asserts they stay equal. Imperative popup hosts import this to delay
+ * unmount until the close animation finishes (renderer services/popup POPUP_EXIT_MS).
+ */
+export const DIALOG_CLOSE_DURATION_MS = 200
+
 function DialogContent({
   className,
   children,
-  closeOnOverlayClick = false,
+  closeOnOverlayClick = true,
   showCloseButton = true,
   overlayClassName,
   onPointerDown,
@@ -87,6 +96,11 @@ function DialogContent({
         <DialogOverlay className={overlayClassName} />
       )}
       <PortalContainerProvider container={contentElement}>
+        {/*
+          The `duration-200` close animation below must equal DIALOG_CLOSE_DURATION_MS
+          (above); a test enforces it. Imperative hosts delay unmount by that long so the
+          animation finishes (see renderer services/popup POPUP_EXIT_MS).
+        */}
         <DialogPrimitive.Content
           ref={handleRef}
           data-slot="dialog-content"

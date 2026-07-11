@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   adapterInstances: [] as any[]
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
 }))
 
@@ -71,7 +71,7 @@ vi.mock('../streamAdapter', () => ({
   }
 }))
 
-const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
+const { ClaudeCodeRuntimeDriver, buildAgentUserContent } = await import('../ClaudeCodeRuntimeDriver')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -148,7 +148,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       resumeToken: 'resume-1'
     })
 
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1')
+    // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
+    // the model captured at its creation even if the agent was edited since.
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -232,7 +234,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'chunk',
         chunk: {
           type: 'message-metadata',
-          messageMetadata: { totalTokens: 20, promptTokens: 15, completionTokens: 5 }
+          messageMetadata: {
+            totalTokens: 20,
+            promptTokens: 15,
+            completionTokens: 5,
+            noCacheTokens: 10,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 3
+          }
         }
       }
     })
@@ -288,6 +297,29 @@ describe('ClaudeCodeRuntimeDriver', () => {
           durationMs: 1234
         }
       }
+    })
+
+    void connection.close()
+  })
+
+  it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` → no adapter (the primed, turn-less case). The mid-session push must still surface so
+    // the catalog refreshes; `supportedCommands()` alone would miss it (captured once at init).
+    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands }
     })
 
     void connection.close()
@@ -477,6 +509,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     // Turn completes cleanly — no `error` event surfaced for the dropped stream.
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    void connection.close()
+  })
+
+  it('logs non-salvage SDK failures before surfacing the runtime error', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await events.next()
+    void connection.send({ message: userMessage() })
+    await events.next()
+
+    queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'finish' } } })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Claude Code query loop failed',
+      expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
+    )
     void connection.close()
   })
 
@@ -751,5 +810,78 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // Teardown is the only place that disposes.
     void connection.close()
     expect(dispose).toHaveBeenCalled()
+  })
+
+  it('runs the session teardown once — a late close after a query-loop error must not re-dispose', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const approvalEmitter: any = { dispose: vi.fn() }
+    const steerHolder = { pending: [] as unknown[], dispose: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { approvalEmitter, steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // The query loop dies (failed result) → first teardown disposes the session-scoped state.
+    void connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'error', session_id: 'resume-1' })
+    let evt = await events.next()
+    while (evt.value?.type !== 'error' && !evt.done) evt = await events.next()
+    expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
+
+    // Regression: by the time the host's close() lands, a successor connection for the same session
+    // (e.g. a model-edit reconnect) may have registered fresh session-keyed state — a second by-id
+    // teardown would dispose the successor's approvals/snapshot, so it must no-op.
+    void connection.close()
+    expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
+    expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('buildAgentUserContent', () => {
+  const messageWith = (parts: unknown[]) =>
+    ({ data: { parts } }) as unknown as Parameters<typeof buildAgentUserContent>[0]
+
+  it('returns plain text when there are no attachments', () => {
+    expect(buildAgentUserContent(messageWith([{ type: 'text', text: 'hello' }]))).toBe('hello')
+  })
+
+  it('appends absolute paths of file attachments below the text', () => {
+    const content = buildAgentUserContent(
+      messageWith([
+        { type: 'text', text: 'look at these' },
+        { type: 'file', url: 'file:///tmp/diagram.png', filename: 'diagram.png' },
+        { type: 'file', url: 'file:///tmp/spec.pdf', filename: 'spec.pdf' }
+      ])
+    )
+    expect(content).toBe(
+      'look at these\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.png\n- /tmp/spec.pdf'
+    )
+  })
+
+  it('emits only the attachment section when there is no text', () => {
+    const content = buildAgentUserContent(messageWith([{ type: 'file', url: 'file:///tmp/a.png' }]))
+    expect(content).toBe('Attached files (read them with your tools using these absolute paths):\n- /tmp/a.png')
+  })
+
+  it('ignores non-file parts and non-file:// urls', () => {
+    const content = buildAgentUserContent(
+      messageWith([
+        { type: 'text', text: 'hi' },
+        { type: 'file', url: 'https://example.com/x.png' },
+        { type: 'image', url: 'file:///tmp/nope.png' }
+      ])
+    )
+    expect(content).toBe('hi')
   })
 })

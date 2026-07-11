@@ -1,11 +1,11 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
-import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { providerBills, providerCharge } from '@renderer/utils/oauth'
+import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
+import { providerBills, providerCharge } from '@renderer/services/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
@@ -39,9 +39,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
     <Trans
       i18nKey="settings.provider.oauth.description"
       components={{
-        website: (
-          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
-        )
+        website: <a className="text-inherit" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
       }}
       values={{ provider: providerWebsite }}
     />

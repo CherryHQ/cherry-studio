@@ -1,5 +1,5 @@
 import { uuid } from '@renderer/utils/uuid'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import type { PaintingMode } from '@shared/data/types/painting'
 
 import type { PaintingData } from './types/paintingData'

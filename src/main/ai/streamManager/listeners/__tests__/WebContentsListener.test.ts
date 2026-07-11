@@ -61,6 +61,7 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
       topicId: 'topic-1',
       executionId: undefined,
+      anchorMessageId: undefined,
       chunk: { type: 'text-delta', id: 't1', delta: 'Hello, world' }
     })
   })
@@ -111,6 +112,48 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send.mock.calls[1][2]).toMatchObject({
       executionId: 'anthropic::claude',
       chunk: { delta: 'B' }
+    })
+  })
+
+  it('does not merge across different anchorMessageIds for the same model', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'A' }), 'openai::gpt-4o', 'assistant-1')
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'B' }), 'openai::gpt-4o', 'assistant-2')
+
+    expect(wc.send).toHaveBeenCalledTimes(1)
+    expect(wc.send.mock.calls[0][2]).toMatchObject({
+      executionId: 'openai::gpt-4o',
+      anchorMessageId: 'assistant-1',
+      chunk: { delta: 'A' }
+    })
+
+    vi.advanceTimersByTime(16)
+    expect(wc.send.mock.calls[1][2]).toMatchObject({
+      executionId: 'openai::gpt-4o',
+      anchorMessageId: 'assistant-2',
+      chunk: { delta: 'B' }
+    })
+  })
+
+  it('includes anchorMessageId on terminal events', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    l.onDone({
+      modelId: 'openai::gpt-4o',
+      anchorMessageId: 'assistant-1',
+      status: 'success',
+      isTopicDone: true
+    } as never)
+
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_done', {
+      topicId: 'topic-1',
+      executionId: 'openai::gpt-4o',
+      anchorMessageId: 'assistant-1',
+      status: 'success',
+      isTopicDone: true
     })
   })
 

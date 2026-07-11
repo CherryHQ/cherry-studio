@@ -1,30 +1,35 @@
-import { CloudServerOutlined, CloudSyncOutlined } from '@ant-design/icons'
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
+import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
+import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
-import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
-  SettingsContentColumn,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
+import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
+import NotionSettings from './NotionSettings'
 import NutstoreSettings from './NutstoreSettings'
+import ObsidianSettings from './ObsidianSettings'
 import S3Settings from './S3Settings'
+import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
+import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -35,9 +40,9 @@ const DataSettings: FC = () => {
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
-    { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
+    { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
     { key: 'nutstore', title: t('settings.data.nutstore.title'), icon: <NutstoreIcon /> },
-    { key: 's3', title: t('settings.data.s3.title.label'), icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
+    { key: 's3', title: t('settings.data.s3.title.label'), icon: <Server size={16} /> },
     { key: 'divider_2', isDivider: true, text: t('settings.data.divider.import_settings') },
     {
       key: 'import_settings',
@@ -54,7 +59,13 @@ const DataSettings: FC = () => {
       key: 'markdown_export',
       title: t('settings.data.markdown_export.title'),
       icon: <FileText size={16} />
-    }
+    },
+    { key: 'divider_note_export', isDivider: true, text: t('settings.data.divider.note_export') },
+    { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
+    { key: 'yuque', title: t('settings.data.yuque.title'), icon: <BookOpen size={16} /> },
+    { key: 'joplin', title: t('settings.data.joplin.title'), icon: <JoplinIcon /> },
+    { key: 'obsidian', title: t('settings.data.obsidian.title'), icon: <i className="iconfont icon-obsidian" /> },
+    { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> }
   ]
 
   return (
@@ -94,6 +105,11 @@ const DataSettings: FC = () => {
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
+        {menu === 'notion' && <NotionSettings />}
+        {menu === 'yuque' && <YuqueSettings />}
+        {menu === 'joplin' && <JoplinSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
+        {menu === 'siyuan' && <SiyuanSettings />}
       </SettingsContentColumn>
     </RowFlex>
   )

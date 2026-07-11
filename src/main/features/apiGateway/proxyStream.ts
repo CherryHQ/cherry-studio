@@ -16,12 +16,11 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
+import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { SseListener } from '@main/ai/streamManager'
-import type { StreamListener } from '@main/ai/streamManager/types'
-import type { CallOverrides } from '@main/ai/types/requests'
-import { application } from '@main/core/application'
+import { SseListener, type StreamListener } from '@main/ai/streamManager'
+import type { CallOverrides } from '@main/ai/types'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -124,7 +123,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // layer. Best-effort — if unavailable, proceed without provider options.
   let provider: Provider | undefined = config.provider
   if (!provider) {
-    provider = await providerService.getByProviderId(providerId).catch(() => undefined)
+    try {
+      provider = providerService.getByProviderId(providerId)
+    } catch {
+      provider = undefined
+    }
   }
   const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
 

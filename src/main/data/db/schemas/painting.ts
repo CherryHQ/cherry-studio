@@ -6,19 +6,17 @@ import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey 
  * Painting row — a completed image generation plus the recipe behind it.
  *
  * Output and input files are NOT stored on the row. Each painting has zero or
- * more `file_ref` rows with `sourceType='painting'`, `sourceId=painting.id`,
- * `role='output'|'input'`. PaintingService writes those refs on create and
- * derefs via `fileRefService.cleanupBySourceTx` on delete.
+ * more `painting_file_ref` rows with `sourceId=painting.id`,
+ * `role='output'|'input'`. PaintingService writes those refs on create/update;
+ * row deletion cascades refs at the database layer.
  *
- * The row carries a **generation snapshot** so a reloaded history item — or a
- * card on the canvas board — can re-run, spawn variations, and show "made
- * with": `mode` is the authoring mode (`generate`/`edit`/…) and `params` is
- * the canonical param bag (pre-split: size/seed/quality/negativePrompt/…).
- * `canvasX/Y/W` are the board placement; NULL means unplaced (auto-grid).
- *
- * `status` is the persisted generation outcome so an empty `files.output` is no
- * longer ambiguous: NULL = an empty board (no generation attempted), vs an
- * actually `failed`/`canceled` run (offer retry) vs a still-`generating` one.
+ * The row also carries a **generation snapshot** so a reloaded history item — or
+ * a card on the canvas board — can re-run, spawn variations, and show "made
+ * with": `mode` is the authoring mode (`generate`/`edit`/…), `params` is the
+ * canonical param bag (pre-split: size/seed/quality/negativePrompt/…),
+ * `canvasX/Y/W` are the board placement (NULL = unplaced → auto-grid), `status`
+ * is the persisted generation outcome (NULL = empty board, vs failed/canceled/
+ * generating), and `group_id` ties the N images of one multi-image generation.
  * All these columns are nullable — legacy rows have none.
  */
 export const paintingTable = sqliteTable(

@@ -1,4 +1,5 @@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -7,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useCreateKnowledgeBase,
   useDeleteKnowledgeBase,
+  useEnableKnowledgeBaseEmbedding,
   useKnowledgeBases,
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
@@ -44,11 +46,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -130,9 +130,7 @@ describe('useCreateKnowledgeBase', () => {
     mockIpcRequest.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
       name: '  Base 2  ',
-      groupId: 'group-2',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 2048
+      groupId: 'group-2'
     }
 
     const { result } = renderHook(() => useCreateKnowledgeBase())
@@ -146,9 +144,7 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
         name: 'Base 2',
-        groupId: 'group-2',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 2048
+        groupId: 'group-2'
       }
     })
     expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
@@ -166,9 +162,7 @@ describe('useCreateKnowledgeBase', () => {
     })
     mockIpcRequest.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
-      name: 'Base 3',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 1536
+      name: 'Base 3'
     }
 
     const { result } = renderHook(() => useCreateKnowledgeBase())
@@ -179,9 +173,7 @@ describe('useCreateKnowledgeBase', () => {
 
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
-        name: 'Base 3',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 1536
+        name: 'Base 3'
       }
     })
   })
@@ -190,9 +182,7 @@ describe('useCreateKnowledgeBase', () => {
     const createError = new Error('create failed')
     mockIpcRequest.mockRejectedValueOnce(createError)
     const input: CreateKnowledgeBaseInput = {
-      name: 'Base 4',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 1536
+      name: 'Base 4'
     }
     const { result } = renderHook(() => useCreateKnowledgeBase())
 
@@ -205,8 +195,46 @@ describe('useCreateKnowledgeBase', () => {
     expect(result.current.createError).toBe(createError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', createError, {
       name: 'Base 4',
-      groupId: undefined,
-      embeddingModelId: 'openai::text-embedding-3-small'
+      groupId: undefined
+    })
+  })
+
+  it('passes the embedding model and dimensions together when both are provided', async () => {
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 5',
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      dimensions: LOCAL_EMBEDDING_DIMENSIONS
+    }
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
+      base: {
+        name: 'Base 5',
+        embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+        dimensions: LOCAL_EMBEDDING_DIMENSIONS
+      }
+    })
+  })
+
+  it('omits the embedding model from the runtime IPC payload when its dimensions are missing', async () => {
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 6',
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+    }
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
+      base: {
+        name: 'Base 6'
+      }
     })
   })
 })
@@ -277,6 +305,103 @@ describe('useRestoreKnowledgeBase', () => {
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to restore knowledge base', restoreError, {
       sourceBaseId: 'source-base',
       name: 'Legacy KB_bak',
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+  })
+})
+
+describe('useEnableKnowledgeBaseEmbedding', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
+    mockInvalidateCache.mockResolvedValue(undefined)
+    mockIpcRequest.mockResolvedValue(createKnowledgeBase())
+  })
+
+  it('enables the embedding model through runtime IPC and refreshes the list', async () => {
+    const updatedBase = createKnowledgeBase({
+      id: 'base-1',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1536
+    })
+    mockIpcRequest.mockResolvedValueOnce(updatedBase)
+
+    const { result } = renderHook(() => useEnableKnowledgeBaseEmbedding())
+    let updated: KnowledgeBase | undefined
+
+    await act(async () => {
+      updated = await result.current.enableEmbedding('  base-1  ', {
+        embeddingModelId: '  openai::text-embedding-3-small  ',
+        dimensions: 1536,
+        chunkSize: 512
+      })
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.enable_embedding_model', {
+      baseId: 'base-1',
+      patch: {
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536,
+        chunkSize: 512
+      }
+    })
+    // Also refreshes the item list — enabling embedding flips every existing item back to
+    // processing/embedding, and the item list's own polling had already stopped.
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+    expect(updated).toEqual(updatedBase)
+    expect(result.current.isEnabling).toBe(false)
+    expect(result.current.enableError).toBeUndefined()
+  })
+
+  it('rejects before calling IPC when the embedding model is missing', async () => {
+    const { result } = renderHook(() => useEnableKnowledgeBaseEmbedding())
+
+    await act(async () => {
+      await expect(
+        result.current.enableEmbedding('base-1', { embeddingModelId: null, dimensions: 1536 })
+      ).rejects.toThrow('Knowledge base embedding model is required')
+    })
+
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects before calling IPC when dimensions are not a positive integer', async () => {
+    const { result } = renderHook(() => useEnableKnowledgeBaseEmbedding())
+
+    await act(async () => {
+      await expect(
+        result.current.enableEmbedding('base-1', {
+          embeddingModelId: 'openai::text-embedding-3-small',
+          dimensions: 0
+        })
+      ).rejects.toThrow('Knowledge base dimensions must be a positive integer')
+    })
+
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps enable rejected when runtime IPC fails without refreshing the list', async () => {
+    const enableError = new Error('enable failed')
+    mockIpcRequest.mockRejectedValueOnce(enableError)
+    const { result } = renderHook(() => useEnableKnowledgeBaseEmbedding())
+
+    await act(async () => {
+      await expect(
+        result.current.enableEmbedding('base-1', {
+          embeddingModelId: 'openai::text-embedding-3-small',
+          dimensions: 1536
+        })
+      ).rejects.toBe(enableError)
+    })
+
+    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(result.current.isEnabling).toBe(false)
+    expect(result.current.enableError).toBe(enableError)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to enable knowledge base embedding', enableError, {
+      baseId: 'base-1',
       embeddingModelId: 'openai::text-embedding-3-small'
     })
   })

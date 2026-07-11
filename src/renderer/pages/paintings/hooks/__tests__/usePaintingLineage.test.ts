@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'

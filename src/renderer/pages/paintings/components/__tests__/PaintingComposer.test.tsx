@@ -1,4 +1,5 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
+import i18n from '@renderer/i18n/resolver'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -156,8 +157,9 @@ describe('PaintingComposer', () => {
   })
 
   // The summary is folded into the params button's accessible name, so match on the
-  // stable settings prefix rather than the full label.
-  const paramsButton = () => screen.getByRole('button', { name: /common\.settings/ })
+  // (i18n-resolved) settings prefix rather than the full label. The renderer setup
+  // seeds a real i18n instance, so resolve the key through it to stay locale-agnostic.
+  const paramsButton = () => screen.getByRole('button', { name: new RegExp(i18n.t('common.settings')) })
 
   it('previews the selected size on the params button', () => {
     renderComposer({ draft: makeDraft({ params: { size: '1536x1024' } }) })
@@ -181,14 +183,13 @@ describe('PaintingComposer', () => {
     const button = paramsButton()
     expect(button).toHaveTextContent('6')
     expect(button).toHaveTextContent('1024×1024')
-    // i18next has no instance in tests, so option labels fall back to their keys.
-    expect(button).toHaveTextContent('paintings.quality_options.low')
-    expect(button).toHaveTextContent('paintings.background_options.auto')
+    expect(button).toHaveTextContent(i18n.t('paintings.quality_options.low'))
+    expect(button).toHaveTextContent(i18n.t('paintings.background_options.auto'))
   })
 
   it('folds the summary into the params button accessible name', () => {
     renderComposer({ draft: makeDraft({ params: { size: '1536x1024' } }) })
     // Summary (incl. registry defaults) is appended after the settings label.
-    expect(paramsButton()).toHaveAccessibleName(/^common\.settings: .*1536×1024/)
+    expect(paramsButton()).toHaveAccessibleName(new RegExp(`^${i18n.t('common.settings')}: .*1536×1024`))
   })
 })

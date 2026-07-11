@@ -89,6 +89,32 @@
   animation: animation-locate-highlight 2.5s ease-in-out;
 }
 
+@keyframes animation-provider-model-pull-guide {
+  0% {
+    transform: translate3d(-6px, -50%, 0);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate3d(0, -50%, 0);
+    opacity: 1;
+  }
+  70% {
+    transform: translate3d(-4px, -50%, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, -50%, 0);
+    opacity: 0;
+  }
+}
+
+.animation-provider-model-pull-guide {
+  animation: animation-provider-model-pull-guide 1.2s ease-in-out both;
+}
+
 @keyframes animation-chat-message-enter-inline {
   from {
     transform: translate3d(-6px, 14px, 0) scale(0.97);
@@ -195,6 +221,89 @@
   }
 }
 
+@keyframes animation-selector-shell-content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes animation-selector-shell-content-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes animation-selector-shell-panel-enter {
+  from {
+    transform: translate3d(var(--selector-shell-enter-x, 0), var(--selector-shell-enter-y, 0), 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes animation-selector-shell-panel-exit {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.95);
+  }
+}
+
+[data-selector-shell-content].animation-selector-shell-content {
+  --selector-shell-enter-x: 0;
+  --selector-shell-enter-y: 0;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-side='bottom'] {
+  --selector-shell-enter-y: -0.5rem;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-side='top'] {
+  --selector-shell-enter-y: 0.5rem;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-side='right'] {
+  --selector-shell-enter-x: -0.5rem;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-side='left'] {
+  --selector-shell-enter-x: 0.5rem;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-state='open'] {
+  animation: animation-selector-shell-content-fade-in 150ms ease-out both;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-state='closed'] {
+  animation: animation-selector-shell-content-fade-out 120ms ease-in both;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-state='open'] > .animation-selector-shell-panel {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: animation-selector-shell-panel-enter 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+[data-selector-shell-content].animation-selector-shell-content[data-state='closed'] > .animation-selector-shell-panel {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: animation-selector-shell-panel-exit 120ms ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-selector-shell-content].animation-selector-shell-content,
+  [data-selector-shell-content].animation-selector-shell-content > .animation-selector-shell-panel {
+    transform: none;
+    animation: none;
+  }
+}
+
 /* 流光动画 */
 @keyframes animation-shimmer {
   0% {
@@ -277,26 +386,6 @@
   .animated-reveal-text {
     filter: none;
     clip-path: inset(0 0 0 0);
-    animation: none;
-  }
-}
-
-@keyframes animation-migration-backup-progress-indeterminate {
-  0% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(360%);
-  }
-}
-
-.animation-migration-backup-progress-indeterminate {
-  animation: animation-migration-backup-progress-indeterminate 1.15s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animation-migration-backup-progress-indeterminate {
-    transform: translateX(100%);
     animation: none;
   }
 }

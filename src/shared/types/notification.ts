@@ -20,8 +20,6 @@ export interface Notification<T = any> {
   actionKey?: string
   /** 声音/声音开关标识，结合用户偏好决定是否播放 */
   silent?: boolean
-  /** 渠道：系统级（OS 通知）｜应用内（UI 通知） */
-  channel?: 'system' | 'in-app'
   /** 点击回调函数，仅在 type 为 'action' 时有效 */
   onClick?: () => void
   /** 通知源 */

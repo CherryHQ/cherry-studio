@@ -7,7 +7,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
+import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
@@ -78,7 +78,11 @@ export const aiRequestSchemas = {
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
   'ai.check_model': defineRoute({
-    input: z.strictObject({ ...aiBaseRequestShape, timeout: z.number().optional() }),
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
     output: z.object({ latency: z.number() })
   }),
   'ai.embed_many': defineRoute({
@@ -114,7 +118,8 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional(),
+        knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({

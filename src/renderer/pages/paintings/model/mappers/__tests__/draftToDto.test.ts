@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import type { ComposerDraft } from '../../composerDraft'

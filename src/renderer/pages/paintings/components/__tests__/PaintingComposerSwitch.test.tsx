@@ -1,5 +1,5 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

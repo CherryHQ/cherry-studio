@@ -1,4 +1,6 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { Paperclip } from 'lucide-react'
@@ -15,48 +17,52 @@ interface Props {
   disabled?: boolean
 }
 
-const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, files, setFiles, disabled }: Props) => {
+const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, setFiles, disabled }: Props) => {
   const { t } = useTranslation()
   const [selecting, setSelecting] = useState<boolean>(false)
 
-  const openFileSelectDialog = useCallback(async () => {
-    if (selecting) {
-      return
-    }
-    // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
-    const useAllFiles = extensions.length > 20
-
-    setSelecting(true)
-    const _files = await window.api.file.select({
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        {
-          name: 'Files',
-          extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
-        }
-      ]
-    })
-    setSelecting(false)
-
-    if (_files) {
-      if (!useAllFiles) {
-        setFiles([...files, ...toComposerAttachments(_files)])
+  const openFileSelectDialog = useCallback(
+    async (restoreFocus?: () => void) => {
+      if (selecting) {
         return
       }
-      const supportedFiles = await filterSupportedFiles(_files, extensions)
-      if (supportedFiles.length > 0) {
-        setFiles([...files, ...toComposerAttachments(supportedFiles)])
-      }
+      // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
+      const useAllFiles = extensions.length > 20
 
-      if (supportedFiles.length !== _files.length) {
-        window.toast.info(
-          t('chat.input.file_not_supported_count', {
-            count: _files.length - supportedFiles.length
-          })
-        )
+      setSelecting(true)
+      const _files = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: 'Files',
+            extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
+          }
+        ]
+      })
+      setSelecting(false)
+      window.requestAnimationFrame(() => restoreFocus?.())
+
+      if (_files) {
+        if (!useAllFiles) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
+          return
+        }
+        const supportedFiles = await filterSupportedFiles(_files, extensions)
+        if (supportedFiles.length > 0) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
+        }
+
+        if (supportedFiles.length !== _files.length) {
+          toast.info(
+            t('chat.input.file_not_supported_count', {
+              count: _files.length - supportedFiles.length
+            })
+          )
+        }
       }
-    }
-  }, [extensions, files, selecting, setFiles, t])
+    },
+    [extensions, selecting, setFiles, t]
+  )
 
   useEffect(() => {
     const isDocumentOnly = !couldAddImageFile
@@ -68,12 +74,13 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         order: 10,
         label: t('chat.input.upload.attachment'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
         tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
         icon: <Paperclip />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
         disabled,
-        action: () => {
-          void openFileSelectDialog()
+        action: ({ inputAdapter }) => {
+          void openFileSelectDialog(inputAdapter?.focus)
         }
       }
     ])

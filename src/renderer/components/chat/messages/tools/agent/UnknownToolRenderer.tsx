@@ -1,10 +1,9 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
+import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { ToolHeader } from './GenericTools'
 
 interface UnknownToolProps {
   toolName: string
@@ -73,7 +72,6 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
     label: (
       <ToolHeader
         toolName={getToolDisplayName(toolName)}
-        icon={<Wrench className="h-4 w-4" />}
         params={getToolDescription(toolName)}
         variant="collapse-label"
         showStatus={false}

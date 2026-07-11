@@ -9,6 +9,7 @@ interface ProviderFieldProps {
   help?: ReactNode
   children: ReactNode
   className?: string
+  layout?: 'vertical' | 'horizontal'
 }
 
 export default function ProviderField({
@@ -17,16 +18,24 @@ export default function ProviderField({
   action,
   help,
   children,
-  className
+  className,
+  layout = 'vertical'
 }: ProviderFieldProps) {
+  const isHorizontal = layout === 'horizontal'
+
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div className={cn('font-medium text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
+    <div
+      className={cn(
+        'space-y-2',
+        className,
+        isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 space-y-0'
+      )}>
+      <div className={cn('flex items-center justify-between gap-3', isHorizontal && 'min-h-8 justify-start')}>
+        <div className={cn('font-semibold text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
         {action}
       </div>
       {children}
-      {help}
+      {help && isHorizontal ? <div className="col-start-2">{help}</div> : help}
     </div>
   )
 }

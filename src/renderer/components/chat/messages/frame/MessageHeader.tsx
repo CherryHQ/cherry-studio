@@ -1,7 +1,7 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
-import { getModelLogo } from '@renderer/config/models'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
+import { getModelLogo } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -149,6 +149,7 @@ const MessageHeader: FC<Props> = memo(
         </div>
         {isMultiSelectMode && (
           <Checkbox
+            data-message-select-checkbox
             checked={isSelected}
             onCheckedChange={(checked) => actions.selectMessage?.(message.id, checked === true)}
             className="absolute top-0 right-0"

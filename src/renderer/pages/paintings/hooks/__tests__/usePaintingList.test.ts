@@ -16,6 +16,12 @@ vi.mock('@renderer/hooks/usePaintings', () => ({
   })
 }))
 
+// Error presentation (toast/popup) is out of scope here — the failure test only
+// asserts create returns undefined without throwing.
+vi.mock('../../errors/paintingGenerateError', () => ({
+  presentPaintingGenerateError: vi.fn()
+}))
+
 import { usePaintingList } from '../usePaintingList'
 
 describe('usePaintingList create*', () => {
@@ -23,8 +29,6 @@ describe('usePaintingList create*', () => {
     createPainting.mockReset().mockResolvedValue(undefined)
     updatePainting.mockReset().mockResolvedValue(undefined)
     refresh.mockReset().mockResolvedValue(undefined)
-    window.modal = { error: vi.fn() } as unknown as typeof window.modal
-    window.toast = { error: vi.fn(), warning: vi.fn() } as unknown as typeof window.toast
   })
 
   // A blank board carries no output and NO status — `null` status reads as an

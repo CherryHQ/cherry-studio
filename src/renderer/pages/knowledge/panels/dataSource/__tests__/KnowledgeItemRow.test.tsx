@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { toast } from '@renderer/services/toast'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -23,91 +24,86 @@ vi.mock('@renderer/utils/error', () => ({
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', () => ({
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+    'aria-label': ariaLabel
+  }: {
+    checked?: boolean | 'indeterminate'
+    onCheckedChange?: (checked: boolean | 'indeterminate') => void
+    'aria-label'?: string
+  }) => (
+    <input
+      type="checkbox"
+      aria-label={ariaLabel}
+      checked={checked === true}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
+  NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+    <span>
+      {children}
+      {content ? <span role="tooltip">{content}</span> : null}
+    </span>
+  )
+}))
+
+// The row's actions live behind a whole-row right-click menu (CommandContextMenu). Stub it as a
+// wrapper that opens on contextMenu and renders the `extraItems` as plain buttons so tests can
+// open the menu with a right-click and click an action.
+type StubExtraItem = {
+  type: 'item' | 'submenu' | 'separator'
+  id?: string
+  label?: string
+  destructive?: boolean
+  onSelect?: () => void
+}
+
+vi.mock('@renderer/components/command', async () => {
   const React = await import('react')
-  const PopoverContext = React.createContext<{
-    open: boolean
-    onOpenChange?: (open: boolean) => void
-  }>({
-    open: false
-  })
 
   return {
-    Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <button {...props}>{children}</button>
-    ),
-    Checkbox: ({
-      checked,
-      onCheckedChange,
-      'aria-label': ariaLabel
-    }: {
-      checked?: boolean | 'indeterminate'
-      onCheckedChange?: (checked: boolean | 'indeterminate') => void
-      'aria-label'?: string
-    }) => (
-      <input
-        type="checkbox"
-        aria-label={ariaLabel}
-        checked={checked === true}
-        onChange={(event) => onCheckedChange?.(event.target.checked)}
-      />
-    ),
-    MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
-      <button {...props}>
-        {icon}
-        {label}
-      </button>
-    ),
-    MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-      <span>
-        {children}
-        {content ? <span role="tooltip">{content}</span> : null}
-      </span>
-    ),
-    Popover: ({
+    CommandContextMenu: ({
       children,
-      open,
+      extraItems = [],
       onOpenChange
     }: {
       children: ReactNode
-      open?: boolean
+      extraItems?: StubExtraItem[]
       onOpenChange?: (open: boolean) => void
-    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
-    PopoverContent: ({ children }: { children: ReactNode }) => {
-      const { open } = React.use(PopoverContext)
-
-      return open ? <div>{children}</div> : null
-    },
-    PopoverTrigger: ({
-      children,
-      asChild,
-      onClick
-    }: {
-      children: ReactNode
-      asChild?: boolean
-      onClick?: (event: React.MouseEvent) => void
     }) => {
-      const { open, onOpenChange } = React.use(PopoverContext)
-
-      if (asChild && React.isValidElement(children)) {
-        const child = children as React.ReactElement<{
-          onClick?: (event: React.MouseEvent) => void
-        }>
-
-        return React.cloneElement(child, {
-          onClick: (event: React.MouseEvent) => {
-            child.props.onClick?.(event)
-            onClick?.(event)
-            onOpenChange?.(!open)
-          }
-        })
-      }
+      const [open, setOpen] = React.useState(false)
 
       return (
-        <button type="button" onClick={() => onOpenChange?.(!open)}>
-          {children}
-        </button>
+        <>
+          <div
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setOpen(true)
+              onOpenChange?.(true)
+            }}>
+            {children}
+          </div>
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                      onOpenChange?.(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
       )
     }
   }
@@ -165,11 +161,6 @@ describe('KnowledgeItemRow', () => {
       isLoading: false,
       error: undefined
     })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
-    })
   })
 
   it('renders the file title from the knowledge item path', () => {
@@ -220,7 +211,7 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
 
     // Re-indexing restores the index, but there are no chunks to view yet.
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
   })
@@ -328,7 +319,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('renders the more button', () => {
+  it('does not render a more button and only reveals actions on right-click', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
@@ -336,10 +327,15 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('row'))
+
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
   })
 
-  it('does not call onClick when the more button is clicked', () => {
+  it('does not open the row when it is right-clicked', () => {
     const handleClick = vi.fn()
 
     render(
@@ -350,12 +346,12 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
 
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('opens the more menu with placeholder actions', () => {
+  it('opens the context menu with placeholder actions', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
@@ -363,7 +359,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
 
     expect(screen.getByRole('button', { name: '预览原文' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
@@ -382,7 +378,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
     expect(handleClick).not.toHaveBeenCalled()
@@ -401,7 +397,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
     await waitFor(() => {
@@ -421,11 +417,11 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('预览原文失败: preview failed')
+      expect(toast.error).toHaveBeenCalledWith('预览原文失败: preview failed')
     })
   })
 
@@ -442,7 +438,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '查看 Chunks' }))
 
     expect(handleViewChunks).toHaveBeenCalledTimes(1)
@@ -454,7 +450,7 @@ describe('KnowledgeItemRow', () => {
     (status) => {
       render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
 
-      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+      fireEvent.contextMenu(screen.getByRole('row'))
 
       expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
@@ -474,7 +470,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
@@ -494,11 +490,11 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
   })
 
@@ -515,7 +511,7 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
@@ -535,18 +531,18 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('数据源重新索引失败: reindex failed')
+      expect(toast.error).toHaveBeenCalledWith('数据源重新索引失败: reindex failed')
     })
   })
 
   it.each(['completed', 'failed'] as const)('shows reindex for %s items', (status) => {
     render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByRole('row'))
 
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
   })
@@ -556,7 +552,7 @@ describe('KnowledgeItemRow', () => {
     (status) => {
       render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
 
-      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+      fireEvent.contextMenu(screen.getByRole('row'))
 
       expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()

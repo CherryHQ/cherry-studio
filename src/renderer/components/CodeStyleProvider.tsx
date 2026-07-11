@@ -1,0 +1,184 @@
+import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
+import { useMermaid } from '@renderer/hooks/useMermaid'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { shikiStreamService } from '@renderer/services/ShikiStreamService'
+import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type React from 'react'
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
+import type { BundledThemeInfo } from 'shiki/types'
+
+export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
+  const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
+  const [codeEditorThemeLight] = usePreference('chat.code.editor.theme_light')
+  const [codeEditorThemeDark] = usePreference('chat.code.editor.theme_dark')
+  const [codeViewerThemeLight] = usePreference('chat.code.viewer.theme_light')
+  const [codeViewerThemeDark] = usePreference('chat.code.viewer.theme_dark')
+
+  const { theme } = useTheme()
+  const [shikiThemesInfo, setShikiThemesInfo] = useState<BundledThemeInfo[]>([])
+  const [cmThemeNames, setCmThemeNames] = useState<string[]>([])
+  useMermaid()
+
+  useEffect(() => {
+    if (codeEditorEnabled) {
+      void getCmThemeNames().then(setCmThemeNames)
+    } else {
+      void getShiki().then(({ bundledThemesInfo }) => {
+        setShikiThemesInfo(bundledThemesInfo)
+      })
+    }
+  }, [codeEditorEnabled])
+
+  // 获取支持的主题名称列表
+  const themeNames = useMemo(() => {
+    // CodeMirror 主题（异步加载，到位前为空列表）
+    if (codeEditorEnabled) {
+      return cmThemeNames
+    }
+
+    // Shiki 主题，取出所有 BundledThemeInfo 的 id 作为主题名
+    return ['auto', ...shikiThemesInfo.map((info) => info.id)]
+  }, [codeEditorEnabled, cmThemeNames, shikiThemesInfo])
+
+  // 获取当前使用的 Shiki 主题名称（只用于代码预览）
+  const activeShikiTheme = useMemo(() => {
+    const codeStyle = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
+
+    if (!codeStyle || codeStyle === 'auto' || !themeNames.includes(codeStyle)) {
+      return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
+    }
+    return codeStyle
+  }, [theme, codeViewerThemeLight, codeViewerThemeDark, themeNames])
+
+  const isShikiThemeDark = useMemo(() => {
+    const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)
+    return themeInfo?.type === 'dark'
+  }, [activeShikiTheme, shikiThemesInfo])
+
+  // 获取当前使用的 CodeMirror 主题对象（只用于编辑器；异步解析，到位前用基础明暗主题）
+  const [activeCmTheme, setActiveCmTheme] = useState<CodeMirrorTheme>(() =>
+    theme === ThemeMode.light ? 'light' : 'dark'
+  )
+
+  useEffect(() => {
+    const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
+    let themeName = codeStyle
+    if (!themeName || themeName === 'auto' || !themeNames.includes(themeName)) {
+      themeName = theme === ThemeMode.light ? 'materialLight' : 'dark'
+    }
+
+    let cancelled = false
+    void getCmThemeByName(themeName).then((cmTheme) => {
+      if (!cancelled) {
+        setActiveCmTheme(cmTheme)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [theme, codeEditorThemeLight, codeEditorThemeDark, themeNames])
+
+  // 自定义 shiki 语言别名
+  const languageAliases = useMemo(() => {
+    return {
+      bash: 'shell',
+      'objective-c++': 'objective-cpp',
+      svg: 'xml',
+      vab: 'vb',
+      graphviz: 'dot'
+    } as Record<string, string>
+  }, [])
+
+  useEffect(() => {
+    // 在组件卸载时清理 Worker
+    return () => {
+      shikiStreamService.dispose()
+    }
+  }, [])
+
+  // 流式代码高亮，返回已高亮的 token lines
+  const highlightCodeChunk = useCallback(
+    async (trunk: string, language: string, callerId: string) => {
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.highlightCodeChunk(trunk, normalizedLang, activeShikiTheme, callerId)
+    },
+    [activeShikiTheme, languageAliases]
+  )
+
+  // 清理代码高亮资源
+  const cleanupTokenizers = useCallback((callerId: string) => {
+    shikiStreamService.cleanupTokenizers(callerId)
+  }, [])
+
+  // 高亮流式输出的代码
+  const highlightStreamingCode = useCallback(
+    async (fullContent: string, language: string, callerId: string) => {
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
+    },
+    [activeShikiTheme, languageAliases]
+  )
+
+  // 获取 Shiki pre 标签属性
+  const getShikiPreProperties = useCallback(
+    async (language: string) => {
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.getShikiPreProperties(normalizedLang, activeShikiTheme)
+    },
+    [activeShikiTheme, languageAliases]
+  )
+
+  const highlightCode = useCallback(
+    async (code: string, language: string) => {
+      const highlighter = await getHighlighter()
+      await loadLanguageIfNeeded(highlighter, language)
+      await loadThemeIfNeeded(highlighter, activeShikiTheme)
+      return highlighter.codeToHtml(code, { lang: language, theme: activeShikiTheme })
+    },
+    [activeShikiTheme]
+  )
+
+  // 使用 Shiki 和 Markdown-it 渲染代码
+  const shikiMarkdownIt = useCallback(
+    async (code: string) => {
+      const renderer = await getMarkdownIt(activeShikiTheme, code)
+      if (!renderer) {
+        return code
+      }
+      return renderer.render(code)
+    },
+    [activeShikiTheme]
+  )
+
+  const contextValue = useMemo(
+    () => ({
+      highlightCodeChunk,
+      highlightStreamingCode,
+      cleanupTokenizers,
+      getShikiPreProperties,
+      highlightCode,
+      shikiMarkdownIt,
+      themeNames,
+      activeShikiTheme,
+      isShikiThemeDark,
+      activeCmTheme
+    }),
+    [
+      highlightCodeChunk,
+      highlightStreamingCode,
+      cleanupTokenizers,
+      getShikiPreProperties,
+      highlightCode,
+      shikiMarkdownIt,
+      themeNames,
+      activeShikiTheme,
+      isShikiThemeDark,
+      activeCmTheme
+    ]
+  )
+
+  return <CodeStyleContext value={contextValue}>{children}</CodeStyleContext>
+}

@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
 import { cn } from '@renderer/utils/style'
 import {
   AlertTriangle,
@@ -17,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingEntry } from '../../model/groupPaintings'
 import type { PaintingData } from '../../model/types/paintingData'
+import { getPaintingFileUrl } from '../../utils/paintingFileUrl'
 
 export interface PaintingListEntryActions {
   onEdit: (source: PaintingData) => void
@@ -107,17 +107,20 @@ const PaintingListEntry: FC<PaintingListEntryProps> = ({
             </Button>
           </div>
         ) : (
-          files.map((file) => (
-            <img
-              key={file.id}
-              src={FileManager.getFileUrl(file)}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-              className="max-h-64 rounded-lg border border-border-subtle object-contain"
-            />
-          ))
+          files.map((file) => {
+            const url = getPaintingFileUrl(file)
+            return url ? (
+              <img
+                key={file.id}
+                src={url}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+                className="max-h-64 rounded-lg border border-border-subtle object-contain"
+              />
+            ) : null
+          })
         )}
       </div>
 

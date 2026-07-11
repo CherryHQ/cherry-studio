@@ -1,4 +1,3 @@
-import { FileTypeSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type {
   CherryProviderMetadata,
@@ -6,6 +5,7 @@ import type {
   ComposerMessageToken,
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
+import { FileTypeSchema } from '@shared/types/file'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
@@ -18,6 +18,7 @@ type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
   'file',
+  'folder',
   'command',
   'knowledge',
   'reference',

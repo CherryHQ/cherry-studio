@@ -36,6 +36,15 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 
 > No WM-level `setVisibleOnAllWorkspaces` is provided: its options differ per call in real usage (e.g. SelectionAction's full-screen show sequence), and WM has no state to maintain. Consumers call `window.setVisibleOnAllWorkspaces(enabled, options)` directly on the `BrowserWindow` instance. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter) for the decision rule.
 
+## Bounds Persistence
+
+Top-level primitives for the declarative `rememberBounds` capability (singleton-only). These are WindowManager methods, **not** part of `wm.behavior`. See [README → Bounds Persistence](./README.md#bounds-persistence).
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `setRememberBounds` | `(type: WindowType, enabled: boolean) => void` | Runtime toggle for the `rememberBounds` capability, orthogonal to the registry flag. `true` persists position/size on teardown and restores on the next open; `false` stops persisting AND drops the saved record immediately, so the next open uses the registry default. Affects restore on the next open; the live window keeps its geometry. |
+| `peekWindowBounds` | `(type: WindowType) => WindowBoundsState \| undefined` | Read a type's saved bounds without restoring them. Lets a consumer apply state WindowManager does not — e.g. MainWindowService re-applies the saved maximized flag on its own show schedule. `undefined` when nothing is saved. |
+
 ## Queries
 
 Naming convention: methods with `Info` in the name return serializable `WindowInfo` snapshots (safe across IPC); methods without it return live `BrowserWindow` instances.

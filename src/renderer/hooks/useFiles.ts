@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { useCallback, useMemo, useState } from 'react'
@@ -59,16 +60,16 @@ export const useFiles = (props?: Props) => {
 
       if (_files) {
         if (!useAllFiles) {
-          setFiles([...files, ..._files])
+          setFiles((currentFiles) => [...currentFiles, ..._files])
           return _files
         }
         const supportedFiles = await filterSupportedFiles(_files, extensions)
         if (supportedFiles.length > 0) {
-          setFiles([...files, ...supportedFiles])
+          setFiles((currentFiles) => [...currentFiles, ...supportedFiles])
         }
 
         if (supportedFiles.length !== _files.length) {
-          window.toast.info(
+          toast.info(
             t('chat.input.file_not_supported_count', {
               count: _files.length - supportedFiles.length
             })
@@ -79,7 +80,7 @@ export const useFiles = (props?: Props) => {
         return []
       }
     },
-    [extensions, files, selecting, t]
+    [extensions, selecting, t]
   )
 
   const clearFiles = useCallback(() => {

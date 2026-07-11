@@ -1,5 +1,5 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import FileManager from '@renderer/services/FileManager'
+import { toast } from '@renderer/services/toast'
 import { download } from '@renderer/utils/download'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,7 @@ import {
 } from '../model/composerDraft'
 import { resolvePaintingFileEntries } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'
+import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 import { usePaintingGenerationSubmit } from './usePaintingGenerationSubmit'
 import { usePaintingHistory } from './usePaintingHistory'
 import { usePaintingInitialProvider } from './usePaintingInitialProvider'
@@ -170,14 +171,17 @@ export function usePaintingWorkspace() {
   )
 
   const onDownload = useCallback((source: PaintingData) => {
-    for (const file of source.files) download(FileManager.getFileUrl(file))
+    for (const file of source.files) {
+      const url = getPaintingFileUrl(file)
+      if (url) download(url)
+    }
   }, [])
 
   const onCopyPrompt = useCallback(
     (source: PaintingData) => {
       if (!source.prompt) return
       void navigator.clipboard.writeText(source.prompt)
-      window.toast.success(t('paintings.canvas.menu.prompt_copied'))
+      toast.success(t('paintings.canvas.menu.prompt_copied'))
     },
     [t]
   )

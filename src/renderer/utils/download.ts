@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
 
 const logger = loggerService.withContext('Utils:download')
 
@@ -38,7 +37,7 @@ export const download = (url: string, filename?: string) => {
   }
 
   // 处理普通 URL
-  fetch(url)
+  return fetch(url)
     .then((response) => {
       let finalFilename = filename || 'download'
 
@@ -83,12 +82,10 @@ export const download = (url: string, filename?: string) => {
     })
     .catch((error) => {
       logger.error('Download failed:', error)
-      // 显示用户友好的错误提示
-      if (error.message) {
-        window.toast?.error(`${i18n.t('message.download.failed')}：${error.message}`)
-      } else {
-        window.toast?.error(i18n.t('message.download.failed'))
-      }
+      // Re-throw so the caller can surface the failure (utils must not toast — it
+      // would import the renderer services layer). useImageTools awaits this and
+      // toasts from the component side.
+      throw error
     })
 }
 
