@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag. Empty uses webui-${{ github.run_number }}"
+        description: "Release tag. Empty uses webui run number."
         required: false
         default: ""
   push:
@@ -14,6 +14,7 @@ on:
       - webui/**
       - src/main/**
       - src/renderer/pages/settings/ChannelsSettings/**
+      - src/renderer/i18n/**
       - src/shared/data/preference/**
       - src/shared/data/cache/**
       - electron-builder.yml
