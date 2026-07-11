@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react'
 import React, { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
+import { useRequestScrollFollowRecovery, useScrollViewportMaxHeight } from './ScrollOwnershipContext'
 import ThinkingEffect from './ThinkingEffect'
 import { ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import { useProcessRunAutoScroll } from './useProcessRunAutoScroll'
@@ -24,6 +24,10 @@ interface Props {
   toolCount: number
 }
 
+const PROCESS_VIEWPORT_BOTTOM_GAP_PX = 4
+const PROCESS_VIEWPORT_MAX_RATIO = 0.5
+const PROCESS_VIEWPORT_MIN_HEIGHT_PX = 120
+
 /** A single transparent disclosure for one uninterrupted live process run. */
 const LiveProcessRun = React.memo(function LiveProcessRun({
   id,
@@ -40,8 +44,16 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
 }: Props) {
   const { t } = useTranslation()
   const contentId = useId()
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const reserveViewportHeightRef = React.useRef(isExpanded && isLive)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
+  const processViewportMaxHeight = useScrollViewportMaxHeight(triggerRef, {
+    bottomGap: PROCESS_VIEWPORT_BOTTOM_GAP_PX,
+    enabled: isExpanded,
+    maxViewportRatio: PROCESS_VIEWPORT_MAX_RATIO,
+    minHeight: PROCESS_VIEWPORT_MIN_HEIGHT_PX
+  })
   const { contentRef, hasOverflow, pauseForInteraction, viewportRef } = useProcessRunAutoScroll(requestFollowRecovery)
   const summary = toolCount > 0 ? t('message.tools.groupHeader', { count: toolCount }) : t('common.reasoning_content')
   const activityLabel = hasToolError
@@ -54,10 +66,18 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
 
   const toggleExpanded = () => {
     const nextExpanded = !isExpanded
+    reserveViewportHeightRef.current = nextExpanded && isLive
     pauseForInteraction()
     withScrollAnchor(() => onExpandedChange(nextExpanded))
     if (!nextExpanded) requestFollowRecovery()
   }
+
+  const processViewportStyle =
+    processViewportMaxHeight === null
+      ? undefined
+      : reserveViewportHeightRef.current
+        ? { height: processViewportMaxHeight, maxHeight: processViewportMaxHeight }
+        : { maxHeight: processViewportMaxHeight }
 
   return (
     <div
@@ -68,6 +88,7 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
       data-run-id={id}
       data-run-phase={isLive ? 'active' : 'sealed'}>
       <Button
+        ref={triggerRef}
         type="button"
         variant="ghost"
         size="sm"
@@ -102,7 +123,8 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
           ref={viewportRef}
           id={contentId}
           data-testid="live-process-run-content"
-          className={`mt-1 ml-1 max-h-[min(30vh,180px)] overflow-y-auto border-border-muted border-l pl-3 [scrollbar-width:thin] ${hasOverflow ? 'overscroll-contain' : ''}`}
+          className={`mt-1 ml-1 max-h-[min(50vh,calc(100vh-12rem))] overflow-y-auto border-border-muted border-l pl-3 [scrollbar-width:thin] ${hasOverflow ? 'overscroll-contain' : ''}`}
+          style={processViewportStyle}
           onPointerDownCapture={pauseForInteraction}>
           <div ref={contentRef} className="flex min-w-0 flex-col gap-2 pb-1">
             {renderContent(pauseForInteraction, requestFollowRecovery)}

@@ -238,7 +238,8 @@ export function MessageVirtualList<T>({
         <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
-            requestFollowRecovery={runtime.releaseUserControlIfAtBottomAfterLayout}>
+            requestFollowRecovery={runtime.releaseUserControlIfAtBottomAfterLayout}
+            viewportBottomInset={bottomPadding}>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}

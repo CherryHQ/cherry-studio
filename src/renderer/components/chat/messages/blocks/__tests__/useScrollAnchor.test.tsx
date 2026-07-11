@@ -3,7 +3,11 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ScrollOwnershipProvider, useRequestScrollFollowRecovery } from '../ScrollOwnershipContext'
+import {
+  ScrollOwnershipProvider,
+  useRequestScrollFollowRecovery,
+  useScrollViewportMaxHeight
+} from '../ScrollOwnershipContext'
 import { useScrollAnchor } from '../useScrollAnchor'
 
 /**
@@ -198,5 +202,33 @@ describe('useScrollAnchor', () => {
     act(() => lifecycleRecovery.result.current())
 
     expect(requestFollowRecovery).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['caps to half of the viewport left after the bottom inset', 300, 200],
+    ['uses the real remaining space below the trigger', 550, 146]
+  ])('%s', (_label, triggerBottom, expectedHeight) => {
+    const { scroller, anchorEl, rectSpy } = setupScroller()
+    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue({ bottom: 800 } as DOMRect)
+    rectSpy.mockReturnValue({ bottom: triggerBottom } as DOMRect)
+    const scrollContainerRef = { current: scroller }
+    const triggerRef = { current: anchorEl }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} viewportBottomInset={100}>
+        {children}
+      </ScrollOwnershipProvider>
+    )
+    const { result } = renderHook(
+      () =>
+        useScrollViewportMaxHeight(triggerRef, {
+          bottomGap: 4,
+          enabled: true,
+          maxViewportRatio: 0.5,
+          minHeight: 120
+        }),
+      { wrapper }
+    )
+
+    expect(result.current).toBe(expectedHeight)
   })
 })
