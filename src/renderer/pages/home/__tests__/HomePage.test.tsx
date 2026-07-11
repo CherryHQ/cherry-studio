@@ -1,6 +1,7 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -777,6 +778,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
+    expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders the classic assistant layout for the new-user display default', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', DefaultPreferences.default['topic.tab.display_mode'])
+
+    render(<HomePage />)
+
+    expect(DefaultPreferences.default['topic.tab.display_mode']).toBe('assistant')
+    expect(screen.getByTestId('assistant-resource-list')).toBeInTheDocument()
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
