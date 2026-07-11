@@ -61,31 +61,34 @@ export class WebUiService extends BaseService implements Activatable {
   private desiredEnabled = false
   private desiredPort = WEBUI_DEFAULT_PORT
   private activePort?: number
-  private readonly reconciler: LatestReconciler<{ desiredEnabled: boolean; desiredPort: number; activePort?: number }> =
-    createLatestReconciler({
-      name: 'webUi',
-      getSnapshot: () => ({
-        desiredEnabled: this.desiredEnabled,
-        desiredPort: this.desiredPort,
-        activePort: this.activePort
-      }),
-      isSettled: ({ desiredEnabled, desiredPort, activePort }) =>
-        desiredEnabled === this.isActivated && (!desiredEnabled || desiredPort === activePort),
-      apply: async ({ desiredEnabled, desiredPort, activePort }) => {
-        if (desiredEnabled) {
-          if (this.isActivated && activePort !== desiredPort) {
-            await this.deactivate()
-          }
-          await this.activate()
-        } else {
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{
+    desiredEnabled: boolean
+    desiredPort: number
+    activePort?: number
+  }>({
+    name: 'webUi',
+    getSnapshot: () => ({
+      desiredEnabled: this.desiredEnabled,
+      desiredPort: this.desiredPort,
+      activePort: this.activePort
+    }),
+    isSettled: ({ desiredEnabled, desiredPort, activePort }) =>
+      desiredEnabled === this.isActivated && (!desiredEnabled || desiredPort === activePort),
+    apply: async ({ desiredEnabled, desiredPort, activePort }) => {
+      if (desiredEnabled) {
+        if (this.isActivated && activePort !== desiredPort) {
           await this.deactivate()
         }
-      },
-      onError: (error) => {
-        this.publishRunningState(false)
-        logger.error('Failed to reconcile WebUI service', error as Error)
+        await this.activate()
+      } else {
+        await this.deactivate()
       }
-    })
+    },
+    onError: (error) => {
+      this.publishRunningState(false)
+      logger.error('Failed to reconcile WebUI service', error as Error)
+    }
+  })
 
   get isRunning() {
     return Boolean(this.staticServer)
