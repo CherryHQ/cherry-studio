@@ -1,5 +1,5 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
@@ -18,6 +18,8 @@ interface Props {
 const ProviderOauth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, addApiKey } = useProvider(providerId)
+  // Resolved before the early return below — hooks must run unconditionally.
+  const Icon = useIcon(resolveProviderIconRef(providerId))
 
   const setApiKey = async (newKey: string) => {
     await addApiKey(newKey, 'OAuth')
@@ -32,8 +34,6 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
     providerWebsite = 'ppio.com'
   }
   const officialWebsite = provider.websites?.official
-
-  const Icon = resolveProviderIcon(provider.id)
 
   const serviceDescription = (
     <Trans

@@ -99,10 +99,14 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveProviderIcon: (id: string) =>
-    id === 'anthropic' ? () => <span data-testid="provider-icon-anthropic" /> : undefined
-}))
+vi.mock('@cherrystudio/ui/icons', () => {
+  const AnthropicIcon = () => <span data-testid="provider-icon-anthropic" />
+  return {
+    resolveProviderIconRef: (id: string) =>
+      id === 'anthropic' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+    useIcon: (ref: unknown) => (ref ? AnthropicIcon : undefined)
+  }
+})
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
