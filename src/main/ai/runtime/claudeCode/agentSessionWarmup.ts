@@ -82,8 +82,15 @@ export interface ToolPolicyFacts {
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` feeds BOTH groups on purpose — the policy gating side is live (snapshot
- * update), but the spawned `options.mcpServers` set is rebuild-only today, so an MCP set edit
- * live-heals the gating AND flags 'rebuild' for the servers themselves.
+ * update), but the spawned `options.mcpServers` set is rebuild-only, so an MCP set edit live-heals
+ * the gating AND flags 'rebuild' for the servers themselves.
+ *
+ * Spike result (SDK 0.3.185, why MCP servers are NOT a live key): `query.setMcpServers` manages a
+ * separate "dynamically managed" server layer in the CLI — it cannot remove servers baked into the
+ * spawn-time `options.mcpServers`, so MCP removal always needs a rebuild, and additions-only
+ * hot-plug would force reconcile to track a baked-vs-dynamic split plus mcpToolMetadata /
+ * toolPolicySnapshot sync. Rebuild-at-next-turn covers both directions with none of that; promote
+ * additions to a live key later if the reconnect cost ever matters.
  */
 export interface ConnectionConfig {
   rebuildSignature: string
