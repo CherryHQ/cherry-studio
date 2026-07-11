@@ -121,6 +121,51 @@ describe('projectLiveMessageParts', () => {
     expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 3])
   })
 
+  it('treats provider ellipsis fillers as transparent within a live process run', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: '...' },
+        { type: 'source-url', url: 'https://example.com' },
+        { type: 'text', text: '…' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'input-available' }
+      ])
+    )
+
+    expect(layout).toHaveLength(1)
+    expect(layout[0].kind === 'process' ? indexes(layout[0].entries) : []).toEqual([0, 4])
+  })
+
+  it('holds only a process-adjacent trailing ellipsis while the next live part is unknown', () => {
+    const processTail = projectLiveMessageParts(
+      entries([
+        { type: 'reasoning', text: 'Preparing tool call', state: 'done' },
+        { type: 'text', text: '...' }
+      ])
+    )
+    const standaloneEllipsis = projectLiveMessageParts(entries([{ type: 'text', text: '...' }]))
+
+    expect(processTail).toHaveLength(1)
+    expect(processTail[0].kind === 'process' ? indexes(processTail[0].entries) : []).toEqual([0])
+    expect(standaloneEllipsis.map((item) => [item.kind, item.key])).toEqual([['part', 0]])
+  })
+
+  it('preserves ordinary prose containing an ellipsis', () => {
+    const layout = projectLiveMessageParts(
+      entries([
+        { type: 'text', text: 'Wait...' },
+        { type: 'text', text: '.....' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'input-available' }
+      ])
+    )
+
+    expect(layout.map((item) => [item.kind, item.key])).toEqual([
+      ['part', 0],
+      ['part', 1],
+      ['process', 2]
+    ])
+  })
+
   it('preserves visible text/tool order across hard boundaries', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -258,6 +303,28 @@ describe('projectCompletedMessageParts', () => {
 
     expect(indexes(layout.historyEntries)).toEqual([0])
     expect(indexes(layout.resultEntries)).toEqual([1, 3])
+  })
+
+  it('removes only tool-bound ellipsis fillers from completed projection', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: '...' },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'output-available' },
+        { type: 'text', text: 'Final answer...' }
+      ])
+    )
+    const ellipsisAnswer = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: '...' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 2])
+    expect(indexes(layout.resultEntries)).toEqual([3])
+    expect(indexes(ellipsisAnswer.historyEntries)).toEqual([0])
+    expect(indexes(ellipsisAnswer.resultEntries)).toEqual([1])
   })
 
   it.each([

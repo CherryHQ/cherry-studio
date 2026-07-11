@@ -65,6 +65,48 @@ function isEmptyContentPart(part: CherryMessagePart): boolean {
   return !(part as { text?: string }).text?.trim()
 }
 
+function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
+  if ((part.type as string) !== 'text') return false
+  return /^(?:\.{3}|…)$/.test((part as { text?: string }).text?.trim() ?? '')
+}
+
+function findAdjacentMeaningfulPart(
+  entries: readonly PartEntry[],
+  position: number,
+  direction: -1 | 1
+): CherryMessagePart | undefined {
+  for (let index = position + direction; index >= 0 && index < entries.length; index += direction) {
+    const part = entries[index].part
+    if (isHiddenPart(part) || isEmptyContentPart(part) || isEllipsisOnlyTextPart(part)) continue
+    return part
+  }
+  return undefined
+}
+
+function isProcessContentPart(part: CherryMessagePart | undefined): boolean {
+  return !!part && (isToolUIPart(part) || (part.type as string) === 'reasoning')
+}
+
+/**
+ * Some providers emit a standalone ellipsis immediately before a tool call.
+ * Treat it as a projection-only process marker while keeping the raw part.
+ * During a live gap, hold a trailing candidate only when process content
+ * already precedes it; terminal projection preserves a genuine final "...".
+ */
+function isProcessFillerText(
+  entries: readonly PartEntry[],
+  position: number,
+  holdTrailingLiveCandidate: boolean
+): boolean {
+  if (!isEllipsisOnlyTextPart(entries[position].part)) return false
+
+  const nextPart = findAdjacentMeaningfulPart(entries, position, 1)
+  if (isProcessContentPart(nextPart)) return true
+  if (nextPart || !holdTrailingLiveCandidate) return false
+
+  return isProcessContentPart(findAdjacentMeaningfulPart(entries, position, -1))
+}
+
 function getPartToolName(part: CherryMessagePart): string {
   return isToolUIPart(part) ? getToolName(part).trim() : ''
 }
@@ -112,9 +154,11 @@ export function projectLiveMessageParts(
     processKey = null
   }
 
-  for (const entry of entries) {
+  for (let position = 0; position < entries.length; position++) {
+    const entry = entries[position]
     if (isIgnorableEmptyContentPart(entry.part)) continue
     if (isHiddenPart(entry.part)) continue
+    if (isProcessFillerText(entries, position, true)) continue
 
     if (
       isToolUIPart(entry.part) &&
@@ -186,10 +230,11 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   const reportEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
-  for (const entry of entries) {
+  for (let position = 0; position < entries.length; position++) {
+    const entry = entries[position]
     if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
-    } else if (!isEmptyContentPart(entry.part)) {
+    } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
       contentEntries.push(entry)
     }
   }

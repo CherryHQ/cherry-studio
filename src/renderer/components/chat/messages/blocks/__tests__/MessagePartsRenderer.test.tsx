@@ -670,6 +670,21 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getAllByTestId('mock-thinking-content')).toHaveLength(2)
     })
 
+    it('does not render provider ellipsis fillers or let them split live tools', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          toolPart('read'),
+          { type: 'text', text: '...' },
+          toolPart('edit', 'input-available')
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      expect(screen.queryByText('...')).toBeNull()
+      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(1)
+    })
+
     it('surfaces an earlier tool failure in the collapsed live process row', () => {
       activateTurn('streaming')
       renderParts(
@@ -830,6 +845,21 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(screen.getByRole('button', { name: '1 tool calls' }))
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
+    })
+
+    it('omits tool-bound ellipsis fillers from completed history details', () => {
+      renderParts([
+        toolPart('read'),
+        { type: 'text', text: '...' },
+        toolPart('edit'),
+        { type: 'text', text: 'Final answer' }
+      ] as unknown as CherryMessagePart[])
+
+      fireEvent.click(screen.getByRole('button', { name: '2 tool calls' }))
+
+      expect(screen.queryByText('...')).toBeNull()
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
+      expect(screen.getByText('Final answer')).toBeInTheDocument()
     })
 
     it('keeps an interleaved AskUser tool independent and ordered inside completed history', () => {
