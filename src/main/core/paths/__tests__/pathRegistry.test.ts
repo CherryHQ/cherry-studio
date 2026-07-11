@@ -69,12 +69,11 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.agents.skills')).toBe(true)
     })
 
-    it('returns true for the feature.backup.recovery.* keys (persistent restore paths)', () => {
-      // journal / snapshot / staging live under appUserDataData (same volume as
+    it('returns true for the feature.backup.restore.* keys (persistent restore paths)', () => {
+      // restore.file (journal) / restore.staging live under appUserData (same volume as
       // the live DB) and are Cherry-owned, writable, not opted out.
-      expect(shouldAutoEnsure('feature.backup.recovery.journal')).toBe(true)
-      expect(shouldAutoEnsure('feature.backup.recovery.snapshot')).toBe(true)
-      expect(shouldAutoEnsure('feature.backup.recovery.staging')).toBe(true)
+      expect(shouldAutoEnsure('feature.backup.restore.file')).toBe(true)
+      expect(shouldAutoEnsure('feature.backup.restore.staging')).toBe(true)
     })
   })
 
