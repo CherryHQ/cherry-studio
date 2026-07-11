@@ -487,6 +487,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
+      contextCompaction: 'auto',
       messageId,
       knowledgeBaseIds
     }

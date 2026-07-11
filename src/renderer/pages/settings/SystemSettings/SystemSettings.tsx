@@ -1,4 +1,4 @@
-import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
+import { Flex, InfoTooltip, Input, Slider, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
@@ -38,9 +38,20 @@ const SystemSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [contextCompactionEnabled, setContextCompactionEnabled] = usePreference('chat.context_compaction.enabled')
+  const [contextCompactionKeepRecentMessages, setContextCompactionKeepRecentMessages] = usePreference(
+    'chat.context_compaction.keep_recent_messages'
+  )
+  const [contextCompactionTriggerPercent, setContextCompactionTriggerPercent] = usePreference(
+    'chat.context_compaction.trigger_percent'
+  )
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const [contextCompactionTriggerDraft, setContextCompactionTriggerDraft] = useState(contextCompactionTriggerPercent)
+  const [contextCompactionKeepRecentDraft, setContextCompactionKeepRecentDraft] = useState(
+    contextCompactionKeepRecentMessages
+  )
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -138,6 +149,77 @@ const SystemSettings: FC = () => {
           <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
           <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.system.context_compaction.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <Flex className="items-center gap-1">
+            <SettingRowTitle>{t('settings.system.context_compaction.enabled')}</SettingRowTitle>
+            <InfoTooltip content={t('settings.system.context_compaction.enabled_tip')} />
+          </Flex>
+          <Switch
+            checked={contextCompactionEnabled}
+            onCheckedChange={(checked) => void setContextCompactionEnabled(checked)}
+          />
+        </SettingRow>
+        {contextCompactionEnabled ? (
+          <>
+            <SettingDivider />
+            <SettingRow className="flex-col items-stretch gap-3">
+              <Flex className="items-center justify-between gap-4">
+                <SettingRowTitle>{t('settings.system.context_compaction.trigger_percent')}</SettingRowTitle>
+                <span className="shrink-0 text-foreground-secondary text-sm tabular-nums">
+                  {contextCompactionTriggerDraft}%
+                </span>
+              </Flex>
+              <Slider
+                aria-label={t('settings.system.context_compaction.trigger_percent')}
+                value={[contextCompactionTriggerDraft]}
+                min={50}
+                max={95}
+                step={5}
+                marks={[
+                  { value: 50, label: '50%' },
+                  { value: 80, label: t('common.default') },
+                  { value: 95, label: '95%' }
+                ]}
+                onValueChange={(values) => setContextCompactionTriggerDraft(values[0])}
+                onValueCommit={(values) => void setContextCompactionTriggerPercent(values[0])}
+              />
+              <p className="m-0 text-foreground-muted text-xs leading-relaxed">
+                {t('settings.system.context_compaction.trigger_percent_tip')}
+              </p>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="flex-col items-stretch gap-3">
+              <Flex className="items-center justify-between gap-4">
+                <SettingRowTitle>{t('settings.system.context_compaction.keep_recent_messages')}</SettingRowTitle>
+                <span className="shrink-0 text-foreground-secondary text-sm tabular-nums">
+                  {contextCompactionKeepRecentDraft}
+                </span>
+              </Flex>
+              <Slider
+                aria-label={t('settings.system.context_compaction.keep_recent_messages')}
+                value={[contextCompactionKeepRecentDraft]}
+                min={2}
+                max={20}
+                step={2}
+                marks={[
+                  { value: 2, label: '2' },
+                  { value: 8, label: t('common.default') },
+                  { value: 20, label: '20' }
+                ]}
+                onValueChange={(values) => setContextCompactionKeepRecentDraft(values[0])}
+                onValueCommit={(values) => void setContextCompactionKeepRecentMessages(values[0])}
+              />
+              <p className="m-0 text-foreground-muted text-xs leading-relaxed">
+                {t('settings.system.context_compaction.keep_recent_messages_tip')}
+              </p>
+            </SettingRow>
+          </>
+        ) : null}
       </SettingGroup>
 
       <SettingGroup theme={theme}>

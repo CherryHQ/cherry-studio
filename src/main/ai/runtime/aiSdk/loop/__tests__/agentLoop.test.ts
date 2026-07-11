@@ -13,6 +13,36 @@ describe('Agent', () => {
     vi.clearAllMocks()
   })
 
+  it('uses caller-prepared model messages while preserving the original UI history', async () => {
+    const stream = vi.fn().mockResolvedValue({
+      toUIMessageStream: ({ originalMessages }: { originalMessages: unknown[] }) =>
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'data-test', data: originalMessages })
+            controller.close()
+          }
+        })
+    })
+    mockCreateAgent.mockResolvedValue({ stream })
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model'
+    })
+    const originalMessages = [{ id: 'u1', role: 'user' as const, parts: [{ type: 'text' as const, text: 'full' }] }]
+    const preparedMessages = [{ role: 'user' as const, content: 'compacted' }]
+
+    const reader = agent.stream(originalMessages, new AbortController().signal, preparedMessages).getReader()
+    const first = await reader.read()
+
+    expect(stream).toHaveBeenCalledWith({
+      messages: preparedMessages,
+      abortSignal: expect.any(AbortSignal)
+    })
+    expect(first.value).toEqual({ type: 'data-test', data: originalMessages })
+  })
+
   it('swallows hooks.onError exceptions so they do not become unhandled rejections', async () => {
     const apiError = new APICallError({
       message: 'Insufficient balance',

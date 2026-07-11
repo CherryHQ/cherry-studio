@@ -23,6 +23,9 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ai.default_model': 'gpt-4',
   'ai.temperature': 0.7,
   'ai.max_tokens': 2000,
+  'chat.context_compaction.enabled': false,
+  'chat.context_compaction.keep_recent_messages': 8,
+  'chat.context_compaction.trigger_percent': 80,
 
   // Feature flags
   'feature.web_search': true,

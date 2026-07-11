@@ -109,7 +109,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       trigger: 'submit-message',
       assistantId,
       uniqueModelId: model.id,
-      messages: history
+      messages: history,
+      contextCompaction: 'auto'
     }
 
     return {

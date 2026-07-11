@@ -75,5 +75,7 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
+  /** Main-authored marker: ordinary chat requests may use the global context-compaction policy. */
+  contextCompaction?: 'auto'
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
 }
