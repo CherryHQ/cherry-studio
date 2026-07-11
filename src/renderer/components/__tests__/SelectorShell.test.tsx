@@ -350,6 +350,27 @@ describe('SelectorShell', () => {
     expect(onCheckedChange).toHaveBeenCalledWith(true)
   })
 
+  it('shows a clear button when search has text', () => {
+    const onChange = vi.fn()
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: 'qwen', onChange, placeholder: 'Search', clearLabel: 'Clear model filter' }}>
+        <div />
+      </SelectorShell>
+    )
+
+    const clearButton = screen.getByRole('button', { name: 'Clear model filter' })
+    expect(clearButton.querySelector('svg')).not.toBeNull()
+
+    clearButton.click()
+
+    expect(onChange).toHaveBeenCalledWith('')
+  })
+
   it('can render multi-select as a filter-row badge', () => {
     const onCheckedChange = vi.fn()
 

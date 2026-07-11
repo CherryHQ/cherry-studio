@@ -1,6 +1,6 @@
 import { Input, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip, usePortalContainer } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { AtSign, Search } from 'lucide-react'
+import { AtSign, Search, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   isValidElement,
@@ -34,6 +34,7 @@ export type SelectorShellSearch = {
   value: string
   onChange: (value: string) => void
   placeholder: string
+  clearLabel?: string
   inputRef?: RefObject<HTMLInputElement | null>
   ariaControls?: string
   activeDescendant?: string
@@ -453,25 +454,40 @@ export function SelectorShell({
                   ref={setSearchElement}
                   className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
                   data-selector-shell-chrome="search">
-                  <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/55" />
-                  <Input
-                    ref={search.inputRef}
-                    value={search.value}
-                    autoFocus={search.autoFocus ?? true}
-                    spellCheck={search.spellCheck ?? false}
-                    placeholder={search.placeholder}
-                    aria-activedescendant={search.activeDescendant}
-                    aria-controls={search.ariaControls}
-                    className={cn(
-                      'h-7 flex-1 rounded-none border-0 bg-transparent! p-0 shadow-none transition-none dark:bg-transparent!',
-                      'text-xs leading-7 md:text-xs',
-                      'focus-visible:border-transparent focus-visible:ring-0',
-                      'placeholder:text-muted-foreground/50'
-                    )}
-                    data-testid={search.dataTestId}
-                    onChange={(event) => search.onChange(event.target.value)}
-                    onKeyDown={search.onKeyDown}
-                  />
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground/60" />
+                    <Input
+                      type="text"
+                      ref={search.inputRef}
+                      value={search.value}
+                      autoFocus={search.autoFocus ?? true}
+                      spellCheck={search.spellCheck ?? false}
+                      placeholder={search.placeholder}
+                      aria-activedescendant={search.activeDescendant}
+                      aria-controls={search.ariaControls}
+                      className={cn(
+                        'h-7 rounded-none border-0 bg-transparent! py-0 pr-6 pl-5 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
+                        'focus-visible:border-transparent focus-visible:ring-0',
+                        'placeholder:text-muted-foreground/50'
+                      )}
+                      data-testid={search.dataTestId}
+                      onChange={(event) => search.onChange(event.target.value)}
+                      onKeyDown={search.onKeyDown}
+                    />
+                    {search.value ? (
+                      <button
+                        type="button"
+                        aria-label={search.clearLabel ?? 'Clear search'}
+                        className="-translate-y-1/2 absolute top-1/2 right-0 flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          search.onChange('')
+                          search.inputRef?.current?.focus()
+                        }}>
+                        <X size={9} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
                   {renderMultiSelectAsSearchBadge && multiSelect ? (
                     <Tooltip content={multiSelect.ariaLabel ?? multiSelect.label}>
                       <button
