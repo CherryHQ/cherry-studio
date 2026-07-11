@@ -8,18 +8,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'
 
-const { mockGetModelSupportedReasoningEffortOptions, mockHoverCardContentProps, mockHoverCardOpenChange } = vi.hoisted(
-  () => ({
-    mockGetModelSupportedReasoningEffortOptions: vi.fn(),
-    mockHoverCardContentProps: [] as Array<{
-      className?: string
-      side?: string
-      align?: string
-      collisionPadding?: number
-    }>,
-    mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
-  })
-)
+const {
+  mockGetModelSupportedReasoningEffortOptions,
+  mockHoverCardContentProps,
+  mockHoverCardProps,
+  mockHoverCardOpenChange
+} = vi.hoisted(() => ({
+  mockGetModelSupportedReasoningEffortOptions: vi.fn(),
+  mockHoverCardContentProps: [] as Array<{
+    className?: string
+    side?: string
+    align?: string
+    collisionPadding?: number
+  }>,
+  mockHoverCardProps: [] as Array<{
+    openDelay?: number
+    closeDelay?: number
+  }>,
+  mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
+}))
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
@@ -55,7 +62,18 @@ vi.mock('@renderer/components/tags/Model', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => {
+  HoverCard: ({
+    children,
+    openDelay,
+    closeDelay,
+    onOpenChange
+  }: {
+    children: ReactNode
+    openDelay?: number
+    closeDelay?: number
+    onOpenChange?: (open: boolean) => void
+  }) => {
+    mockHoverCardProps.push({ openDelay, closeDelay })
     mockHoverCardOpenChange.current = onOpenChange
     return <>{children}</>
   },
@@ -125,6 +143,7 @@ describe('ModelSelectorDetailCard', () => {
   beforeEach(() => {
     mockGetModelSupportedReasoningEffortOptions.mockReturnValue([])
     mockHoverCardContentProps.length = 0
+    mockHoverCardProps.length = 0
     mockHoverCardOpenChange.current = undefined
   })
 
@@ -159,9 +178,13 @@ describe('ModelSelectorDetailCard', () => {
       collisionPadding: 12
     })
     expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
+    expect(mockHoverCardProps.at(-1)).toMatchObject({
+      openDelay: 1500,
+      closeDelay: 100
+    })
   })
 
-  it('places the hover card below the row when neither horizontal side fits', () => {
+  it('keeps the hover card on the wider horizontal side when neither side fully fits', () => {
     const model = makeModel()
 
     vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(280)
@@ -187,8 +210,8 @@ describe('ModelSelectorDetailCard', () => {
     act(() => mockHoverCardOpenChange.current?.(true))
 
     expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'bottom',
-      align: 'center'
+      side: 'left',
+      align: 'start'
     })
   })
 

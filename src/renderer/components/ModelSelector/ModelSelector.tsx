@@ -39,7 +39,7 @@ const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 392
-const MODEL_SELECTOR_WIDTH = 410
+const MODEL_SELECTOR_WIDTH = 450
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
@@ -683,7 +683,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       value: searchText,
       onChange: setSearchText,
       placeholder: t('models.search.placeholder'),
-      clearLabel: t('models.filter.clear'),
+      clearLabel: t('common.clear'),
       dataTestId: 'model-selector-search',
       onKeyDown: handleSearchKeyDown
     }),

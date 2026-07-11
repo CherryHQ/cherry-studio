@@ -19,6 +19,7 @@ const NUMBER_FORMATTER = new Intl.NumberFormat(undefined)
 const DETAIL_CARD_TARGET_WIDTH = 336
 const DETAIL_CARD_SIDE_OFFSET = 8
 const DETAIL_CARD_COLLISION_PADDING = 12
+const DETAIL_CARD_OPEN_DELAY = 1500
 
 const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   auto: 'assistants.settings.reasoning_effort.auto',
@@ -64,10 +65,8 @@ function getAvailableSpaceForSide(
       return viewport.width - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'left':
       return triggerRect.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
-    case 'bottom':
-      return viewport.height - triggerRect.bottom - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
-    case 'top':
-      return triggerRect.top - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
+    default:
+      return 0
   }
 }
 
@@ -85,10 +84,7 @@ function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
     return 'left'
   }
 
-  return getAvailableSpaceForSide(triggerRect, 'bottom', viewport) >=
-    getAvailableSpaceForSide(triggerRect, 'top', viewport)
-    ? 'bottom'
-    : 'top'
+  return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
 function getDetailCardAlign(side: HoverCardSide): HoverCardAlign {
@@ -210,7 +206,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   }, [])
 
   return (
-    <HoverCard openDelay={450} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
+    <HoverCard openDelay={DETAIL_CARD_OPEN_DELAY} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
       <HoverCardTrigger asChild ref={setTriggerElement}>
         {children}
       </HoverCardTrigger>
