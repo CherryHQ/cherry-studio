@@ -2,6 +2,11 @@ name: Build Cherry Studio WebUI Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag. Empty uses webui-${{ github.run_number }}"
+        required: false
+        default: ""
   push:
     branches:
       - webui
@@ -18,7 +23,7 @@ on:
       - .github/workflows/webui-windows-build.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -92,6 +97,30 @@ jobs:
 
       - name: Build Windows WebUI package
         run: pnpm build:win:x64
+
+      - name: Resolve release tag
+        id: release-tag
+        shell: pwsh
+        run: |
+          $inputTag = "${{ github.event.inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($inputTag)) {
+            "tag=webui-${{ github.run_number }}" >> $env:GITHUB_OUTPUT
+          } else {
+            "tag=$inputTag" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Upload setup and portable to Release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "dist/*-setup.exe,dist/*-portable.exe"
+          commit: ${{ github.sha }}
+          makeLatest: false
+          name: Cherry Studio WebUI ${{ steps.release-tag.outputs.tag }}
+          prerelease: true
+          replacesArtifacts: true
+          tag: ${{ steps.release-tag.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v4

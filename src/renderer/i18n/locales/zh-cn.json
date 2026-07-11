@@ -7735,6 +7735,16 @@
     "zoom": {
       "reset": "重置",
       "title": "缩放"
+    },
+    "webui": {
+      "title": "WebUI 远程访问",
+      "enable_remote_access": "启用远程访问",
+      "service_status": "服务状态",
+      "running": "运行中",
+      "stopped": "已停止",
+      "access_key": "安全验证 KEY",
+      "access_key_placeholder": "留空则不启用验证",
+      "port": "端口"
     }
   },
   "subWindow": {

@@ -4,11 +4,13 @@ import { stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-import { createWebUiApiRouter, isWebUiApiRequest } from './apiRouter'
+import { createWebUiApiRouter, isWebUiApiRequest, isWebUiRequestAuthorized } from './apiRouter'
 import type { WebUiSseRelay } from './sseRelay'
 
 export type WebUiStaticServerOptions = {
   readonly distRoot: string
+  readonly getAuthKey: () => string
+  readonly getLanguage: () => string | null
   readonly host: string
   readonly port: number
   readonly sseRelay: WebUiSseRelay
@@ -73,12 +75,16 @@ const resolveStaticPath = async (distRoot: string, requestUrl = '/') => {
 
 export const createWebUiStaticServer = ({
   distRoot,
+  getAuthKey,
+  getLanguage,
   host,
   port,
   sseRelay
 }: WebUiStaticServerOptions): WebUiStaticServer => {
   let server: Server | undefined
   const apiRouter = createWebUiApiRouter({
+    getAuthKey,
+    getLanguage,
     getSseClientCount: () => sseRelay.size,
     sseRelay
   })
@@ -95,7 +101,14 @@ export const createWebUiStaticServer = ({
       return
     }
 
-    if (new URL(request.url ?? '/', 'http://webui.local').pathname === '/events') {
+    const url = new URL(request.url ?? '/', 'http://webui.local')
+
+    if (url.pathname === '/events') {
+      if (!isWebUiRequestAuthorized(request, url, getAuthKey())) {
+        response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' })
+        response.end('Unauthorized')
+        return
+      }
       sseRelay.addClient(response)
       return
     }

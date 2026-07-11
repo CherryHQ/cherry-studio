@@ -10,6 +10,7 @@ export type WebUiSseClientOptions = {
 export type WebUiSseClient = {
   connect(): void
   close(): void
+  setAuthKey(key: string): void
   subscribe<TData = unknown>(event: WebUiSseEventName, handler: WebUiSseHandler<TData>): () => void
 }
 
@@ -27,6 +28,7 @@ export const createWebUiSseClient = ({
 }: WebUiSseClientOptions = {}): WebUiSseClient => {
   const handlers = new Map<WebUiSseEventName, Set<WebUiSseHandler>>()
   let eventSource: EventSource | undefined
+  let authKey = ''
 
   const dispatch = (eventName: WebUiSseEventName, event: Event) => {
     const messageEvent = event as MessageEvent<string>
@@ -40,19 +42,33 @@ export const createWebUiSseClient = ({
     }
   }
 
+  const connect = () => {
+    if (eventSource) return
+
+    const url = new URL(endpoint, window.location.origin)
+    if (authKey) url.searchParams.set('key', authKey)
+    eventSource = eventSourceFactory(`${url.pathname}${url.search}`)
+    for (const eventName of eventNames) {
+      eventSource.addEventListener(eventName, (event: Event) => dispatch(eventName, event))
+    }
+  }
+
+  const close = () => {
+    eventSource?.close()
+    eventSource = undefined
+  }
+
   return {
-    connect() {
-      if (eventSource) return
+    connect,
 
-      eventSource = eventSourceFactory(endpoint)
-      for (const eventName of eventNames) {
-        eventSource.addEventListener(eventName, (event: Event) => dispatch(eventName, event))
+    close,
+
+    setAuthKey(key: string) {
+      authKey = key.trim()
+      if (eventSource) {
+        close()
+        connect()
       }
-    },
-
-    close() {
-      eventSource?.close()
-      eventSource = undefined
     },
 
     subscribe<TData = unknown>(event: WebUiSseEventName, handler: WebUiSseHandler<TData>) {

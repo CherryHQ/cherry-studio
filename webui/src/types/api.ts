@@ -37,9 +37,16 @@ export type WebUiApiError = {
 
 export type WebUiHealthResponse = {
   readonly ok: true
+  readonly language?: string | null
   readonly service: 'cherry-studio-webui'
   readonly startedAt: string
   readonly sseClients: number
+  readonly timestamp: string
+}
+
+export type WebUiAuthStatusResponse = {
+  readonly authRequired: boolean
+  readonly language?: string | null
   readonly timestamp: string
 }
 

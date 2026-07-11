@@ -7,6 +7,7 @@ import { createWebUiHttpClient } from './service/httpClient'
 import { createWebUiSseClient } from './service/sseClient'
 import { useWebUiChatStore } from './stores/chatStore'
 import type {
+  WebUiAuthStatusResponse,
   WebUiAgentSessionMessageEntity,
   WebUiAgentSessionEntity,
   WebUiAgentEntity,
@@ -23,6 +24,149 @@ type WebuiStatus = {
   readonly label: string
   readonly value: string
 }
+
+const fallbackLanguage = 'en-US'
+
+const normalizeLanguage = (language?: string | null) => {
+  if (!language) return fallbackLanguage
+  const lower = language.toLowerCase()
+
+  return (
+    {
+      'de-de': 'de-DE',
+      'el-gr': 'el-GR',
+      'en-us': 'en-US',
+      'es-es': 'es-ES',
+      'fr-fr': 'fr-FR',
+      'ja-jp': 'ja-JP',
+      'pt-pt': 'pt-PT',
+      'ro-ro': 'ro-RO',
+      'ru-ru': 'ru-RU',
+      'vi-vn': 'vi-VN',
+      'zh-cn': 'zh-CN',
+      'zh-tw': 'zh-TW'
+    } as Record<string, string>
+  )[lower] ?? fallbackLanguage
+}
+
+const textPacks = {
+  'en-US': {
+    agent: 'Agent',
+    authDescription: 'Enter the WebUI access key configured in Cherry Studio.',
+    authKey: 'Access key',
+    authTitle: 'WebUI verification',
+    bridgeStatus: 'Bridge status',
+    cancel: 'Cancel',
+    checkingBridge: 'Checking desktop bridge',
+    close: 'Close',
+    connected: 'Win11 desktop bridge connected',
+    copy: 'Copy',
+    create: 'Create',
+    creating: 'Creating...',
+    desktopSession: 'Desktop session',
+    disconnected: 'Desktop bridge unavailable',
+    emptyConversation: 'This desktop conversation has no messages yet.',
+    generating: 'Generating',
+    invalidKey: 'Invalid access key',
+    loadingConversations: 'Loading conversations',
+    loadingMessages: 'Loading desktop messages',
+    newConversation: 'New conversation',
+    noAgents: 'No configured desktop Agents are available.',
+    noSessions: 'No desktop sessions yet',
+    reasoning: 'Reasoning',
+    runtime: 'Runtime',
+    selectConversation: 'Select a conversation',
+    selectFirst: 'Select a desktop conversation first',
+    send: 'Send',
+    sendPlaceholder: 'Send a message to this desktop Agent session',
+    serviceStarted: 'Started',
+    sessionsChanged: 'The selected desktop conversation is no longer available.',
+    sseClients: 'SSE clients',
+    stop: 'Stop',
+    stopped: 'Stopped',
+    unavailable: 'Unavailable',
+    verify: 'Verify',
+    webui: 'WebUI'
+  },
+  'zh-CN': {
+    agent: '智能体',
+    authDescription: '请输入 Cherry Studio 设置中配置的 WebUI 访问 KEY。',
+    authKey: '访问 KEY',
+    authTitle: 'WebUI 安全验证',
+    bridgeStatus: '连接状态',
+    cancel: '取消',
+    checkingBridge: '正在检查桌面桥接服务',
+    close: '关闭',
+    connected: 'Win11 桌面桥接已连接',
+    copy: '复制',
+    create: '创建',
+    creating: '创建中...',
+    desktopSession: '桌面会话',
+    disconnected: '桌面桥接不可用',
+    emptyConversation: '此桌面会话暂无消息。',
+    generating: '生成中',
+    invalidKey: '访问 KEY 无效',
+    loadingConversations: '正在加载会话',
+    loadingMessages: '正在加载桌面消息',
+    newConversation: '新建会话',
+    noAgents: '暂无可用的桌面智能体。',
+    noSessions: '暂无桌面会话',
+    reasoning: '思考过程',
+    runtime: '运行状态',
+    selectConversation: '选择一个会话',
+    selectFirst: '请先选择桌面会话',
+    send: '发送',
+    sendPlaceholder: '向此桌面智能体会话发送消息',
+    serviceStarted: '启动时间',
+    sessionsChanged: '选中的桌面会话已不可用。',
+    sseClients: 'SSE 客户端',
+    stop: '停止',
+    stopped: '已停止',
+    unavailable: '不可用',
+    verify: '验证',
+    webui: 'WebUI'
+  },
+  'zh-TW': {
+    agent: '智慧體',
+    authDescription: '請輸入 Cherry Studio 設定中配置的 WebUI 存取 KEY。',
+    authKey: '存取 KEY',
+    authTitle: 'WebUI 安全驗證',
+    bridgeStatus: '連線狀態',
+    cancel: '取消',
+    checkingBridge: '正在檢查桌面橋接服務',
+    close: '關閉',
+    connected: 'Win11 桌面橋接已連線',
+    copy: '複製',
+    create: '建立',
+    creating: '建立中...',
+    desktopSession: '桌面會話',
+    disconnected: '桌面橋接不可用',
+    emptyConversation: '此桌面會話尚無訊息。',
+    generating: '生成中',
+    invalidKey: '存取 KEY 無效',
+    loadingConversations: '正在載入會話',
+    loadingMessages: '正在載入桌面訊息',
+    newConversation: '新增會話',
+    noAgents: '尚無可用的桌面智慧體。',
+    noSessions: '尚無桌面會話',
+    reasoning: '思考過程',
+    runtime: '執行狀態',
+    selectConversation: '選擇一個會話',
+    selectFirst: '請先選擇桌面會話',
+    send: '傳送',
+    sendPlaceholder: '向此桌面智慧體會話傳送訊息',
+    serviceStarted: '啟動時間',
+    sessionsChanged: '選取的桌面會話已不可用。',
+    sseClients: 'SSE 用戶端',
+    stop: '停止',
+    stopped: '已停止',
+    unavailable: '不可用',
+    verify: '驗證',
+    webui: 'WebUI'
+  }
+} as const
+
+type TextKey = keyof (typeof textPacks)[typeof fallbackLanguage]
 
 const toErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : 'Unable to reach the desktop bridge'
@@ -64,13 +208,18 @@ const App = defineComponent({
     const chatStore = useWebUiChatStore()
     const { activeRunConversationId, conversations, messages, selectedConversationId } = storeToRefs(chatStore)
     const bridgeState = ref<'checking' | 'connected' | 'offline'>('checking')
-    const bridgeDetail = ref('Checking desktop bridge')
+    const language = ref(normalizeLanguage(navigator.language))
+    const authRequired = ref(false)
+    const isAuthenticated = ref(true)
+    const authKeyDraft = ref('')
+    const authError = ref('')
+    const bridgeDetail = ref('')
     const serviceStartedAt = ref('Pending')
     const sseClientCount = ref('0')
     const conversationLoadState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
     const conversationLoadMessage = ref('Loading conversations')
     const messageLoadState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
-    const messageLoadMessage = ref('Select a desktop conversation to read its messages.')
+    const messageLoadMessage = ref('')
     const composerText = ref('')
     const submitError = ref('')
     const agents = ref<readonly WebUiAgentEntity[]>([])
@@ -89,17 +238,22 @@ const App = defineComponent({
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
     )
 
+    const text = (key: TextKey) => {
+      const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
+      return pack[key] ?? textPacks[fallbackLanguage][key]
+    }
+
     const statusItems = computed<readonly WebuiStatus[]>(() => [
       {
-        label: 'Runtime',
+        label: text('runtime'),
         value: bridgeDetail.value
       },
       {
-        label: 'Started',
+        label: text('serviceStarted'),
         value: serviceStartedAt.value
       },
       {
-        label: 'SSE clients',
+        label: text('sseClients'),
         value: sseClientCount.value
       }
     ])
@@ -107,21 +261,22 @@ const App = defineComponent({
     const refreshHealth = async () => {
       try {
         const health = await httpClient.getJson<WebUiHealthResponse>('/api/health')
+        language.value = normalizeLanguage(health.language)
         bridgeState.value = health.ok ? 'connected' : 'offline'
-        bridgeDetail.value = health.ok ? 'Win11 desktop bridge connected' : 'Desktop bridge unavailable'
+        bridgeDetail.value = health.ok ? text('connected') : text('disconnected')
         serviceStartedAt.value = new Date(health.startedAt).toLocaleString()
         sseClientCount.value = String(health.sseClients)
       } catch (error) {
         bridgeState.value = 'offline'
         bridgeDetail.value = toErrorMessage(error)
-        serviceStartedAt.value = 'Unavailable'
+        serviceStartedAt.value = text('unavailable')
         sseClientCount.value = '0'
       }
     }
 
     const loadConversations = async () => {
       conversationLoadState.value = 'loading'
-      conversationLoadMessage.value = 'Loading conversations'
+      conversationLoadMessage.value = text('loadingConversations')
 
       try {
         const sessions: WebUiAgentSessionEntity[] = []
@@ -146,10 +301,10 @@ const App = defineComponent({
           selectedConversationId.value = undefined
           messages.value = []
           messageLoadState.value = 'idle'
-          messageLoadMessage.value = 'The selected desktop conversation is no longer available.'
+          messageLoadMessage.value = text('sessionsChanged')
         }
         conversationLoadState.value = 'ready'
-        conversationLoadMessage.value = conversations.value.length ? '' : 'No desktop sessions yet'
+        conversationLoadMessage.value = conversations.value.length ? '' : text('noSessions')
       } catch (error) {
         conversations.value = []
         conversationLoadState.value = 'error'
@@ -160,7 +315,7 @@ const App = defineComponent({
     const loadConversationMessages = async (conversationId: string) => {
       const requestId = ++latestMessageRequest
       messageLoadState.value = 'loading'
-      messageLoadMessage.value = 'Loading desktop messages'
+      messageLoadMessage.value = text('loadingMessages')
 
       try {
         const sessionMessages: WebUiAgentSessionMessageEntity[] = []
@@ -181,7 +336,7 @@ const App = defineComponent({
 
         messages.value = sessionMessages.map(toMessageSnapshot).reverse()
         messageLoadState.value = 'ready'
-        messageLoadMessage.value = messages.value.length ? '' : 'This desktop conversation has no messages yet.'
+        messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
       } catch (error) {
         if (requestId !== latestMessageRequest || selectedConversationId.value !== conversationId) return
 
@@ -208,7 +363,7 @@ const App = defineComponent({
         agents.value = page.items.filter((agent) => Boolean(agent.model))
         selectedAgentId.value = agents.value[0]?.id ?? ''
         newConversationState.value = 'idle'
-        if (!agents.value.length) newConversationError.value = 'No configured desktop Agents are available.'
+        if (!agents.value.length) newConversationError.value = text('noAgents')
       } catch (error) {
         agents.value = []
         selectedAgentId.value = ''
@@ -314,6 +469,51 @@ const App = defineComponent({
       }
     }
 
+    const startAuthenticatedSession = () => {
+      void refreshHealth()
+      void loadConversations()
+      sseClient.connect()
+      if (!healthTimer) healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
+    }
+
+    const loadAuthStatus = async () => {
+      try {
+        const status = await httpClient.getJson<WebUiAuthStatusResponse>('/api/auth/status')
+        language.value = normalizeLanguage(status.language)
+        authRequired.value = status.authRequired
+        isAuthenticated.value = !status.authRequired
+        bridgeDetail.value = text('checkingBridge')
+        serviceStartedAt.value = text('unavailable')
+        if (!status.authRequired) startAuthenticatedSession()
+      } catch (error) {
+        bridgeState.value = 'offline'
+        bridgeDetail.value = toErrorMessage(error)
+        serviceStartedAt.value = text('unavailable')
+      }
+    }
+
+    const verifyAuthKey = async () => {
+      const key = authKeyDraft.value.trim()
+      if (!key) {
+        authError.value = text('invalidKey')
+        return
+      }
+
+      httpClient.setAuthKey(key)
+      sseClient.setAuthKey(key)
+      try {
+        await refreshHealth()
+        authError.value = ''
+        isAuthenticated.value = true
+        startAuthenticatedSession()
+      } catch {
+        httpClient.setAuthKey('')
+        sseClient.setAuthKey('')
+        authError.value = text('invalidKey')
+        isAuthenticated.value = false
+      }
+    }
+
     const unsubscribeSync = sseClient.subscribe('sync', refreshFromDesktopSync)
     const unsubscribeChunk = sseClient.subscribe<WebUiChunkPayload>('chunk', ({ data }) => {
       if (data && typeof data === 'object') queueStreamChunk(data)
@@ -323,16 +523,13 @@ const App = defineComponent({
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) {
-        submitError.value = data.message ?? 'Desktop generation failed'
+        submitError.value = data.message ?? text('disconnected')
         activeRunConversationId.value = undefined
       }
     })
 
     onMounted(() => {
-      void refreshHealth()
-      void loadConversations()
-      sseClient.connect()
-      healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
+      void loadAuthStatus()
     })
 
     onBeforeUnmount(() => {
@@ -348,13 +545,48 @@ const App = defineComponent({
     })
 
     return () =>
+      authRequired.value && !isAuthenticated.value
+        ? h('main', { class: 'auth-shell' }, [
+            h('section', { class: 'auth-panel' }, [
+              h('span', { class: 'brand-mark' }, 'CS'),
+              h('h1', text('authTitle')),
+              h('p', { class: 'empty-copy' }, text('authDescription')),
+              h('label', { class: 'field-label', for: 'webui-auth-key' }, text('authKey')),
+              h('input', {
+                id: 'webui-auth-key',
+                autocomplete: 'current-password',
+                type: 'password',
+                value: authKeyDraft.value,
+                onInput: (event: Event) => {
+                  authKeyDraft.value = (event.target as HTMLInputElement).value
+                },
+                onKeydown: (event: KeyboardEvent) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void verifyAuthKey()
+                  }
+                }
+              }),
+              authError.value ? h('p', { class: 'composer-error', role: 'alert' }, authError.value) : undefined,
+              h(
+                'button',
+                {
+                  class: 'send-button',
+                  type: 'button',
+                  onClick: () => void verifyAuthKey()
+                },
+                text('verify')
+              )
+            ])
+          ])
+        :
       h('main', { class: 'webui-shell' }, [
-        h('section', { class: 'conversation-list', 'aria-label': 'Conversation list' }, [
+        h('section', { class: 'conversation-list', 'aria-label': text('newConversation') }, [
           h('header', { class: 'panel-header' }, [
             h('span', { class: 'brand-mark' }, 'CS'),
             h('div', [
               h('p', { class: 'eyebrow' }, 'Cherry Studio'),
-              h('h1', 'WebUI')
+              h('h1', text('webui'))
             ])
           ]),
           h(
@@ -364,7 +596,7 @@ const App = defineComponent({
               type: 'button',
               onClick: () => void openNewConversation()
             },
-            'New conversation'
+            text('newConversation')
           ),
           h(
             'p',
@@ -373,7 +605,7 @@ const App = defineComponent({
           ),
           h(
             'nav',
-            { class: 'conversation-nav', 'aria-label': 'Desktop conversations' },
+            { class: 'conversation-nav', 'aria-label': text('desktopSession') },
             conversations.value.map((conversation) =>
               h(
                 'button',
@@ -398,10 +630,10 @@ const App = defineComponent({
             )
           )
         ]),
-        h('section', { class: 'chat-stage', 'aria-label': 'Desktop conversation' }, [
+        h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
           h('header', { class: 'chat-header' }, [
-            h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? 'Desktop session'),
-            h('h2', selectedConversation.value?.title ?? 'Select a conversation')
+            h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? text('desktopSession')),
+            h('h2', selectedConversation.value?.title ?? text('selectConversation'))
           ]),
           h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack }, [
             messageLoadMessage.value ? h('p', { class: 'empty-copy' }, messageLoadMessage.value) : undefined,
@@ -423,19 +655,19 @@ const App = defineComponent({
                             type: 'button',
                             onClick: () => void navigator.clipboard.writeText(message.content)
                           },
-                          'Copy'
+                          text('copy')
                         )
                       : undefined
                   ]),
                   message.reasoning
                     ? h('details', { class: 'reasoning-block' }, [
-                        h('summary', 'Reasoning'),
+                        h('summary', text('reasoning')),
                         h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
                       ])
                     : undefined,
                   message.content
                     ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
-                    : h('span', { class: 'streaming-placeholder', 'aria-label': 'Generating' }),
+                    : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
                   h('time', { class: 'message-time', datetime: message.createdAt }, new Date(message.createdAt).toLocaleString())
                 ]
               )
@@ -445,9 +677,7 @@ const App = defineComponent({
             h('textarea', {
               disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
               value: composerText.value,
-              placeholder: selectedConversation.value
-                ? 'Send a message to this desktop Agent session'
-                : 'Select a desktop conversation first',
+              placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
               rows: 3,
               onInput: (event: Event) => {
                 composerText.value = (event.target as HTMLTextAreaElement).value
@@ -473,13 +703,13 @@ const App = defineComponent({
                   void submitMessage()
                 }
               },
-              activeRunConversationId.value === selectedConversationId.value ? 'Stop' : 'Send'
+              activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
             )
           ]),
           submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
         ]),
-        h('aside', { class: 'status-panel', 'aria-label': 'Connection status' }, [
-          h('h2', 'Bridge status'),
+        h('aside', { class: 'status-panel', 'aria-label': text('bridgeStatus') }, [
+          h('h2', text('bridgeStatus')),
           h('div', {
             class: ['bridge-indicator', `bridge-indicator-${bridgeState.value}`],
             role: 'status',
@@ -496,14 +726,14 @@ const App = defineComponent({
           ? h('div', { class: 'modal-backdrop' }, [
               h('section', { class: 'new-conversation-dialog', role: 'dialog', 'aria-modal': 'true' }, [
                 h('header', { class: 'dialog-header' }, [
-                  h('h2', 'New conversation'),
+                  h('h2', text('newConversation')),
                   h(
                     'button',
                     {
                       class: 'icon-button',
                       type: 'button',
-                      title: 'Close',
-                      'aria-label': 'Close',
+                      title: text('close'),
+                      'aria-label': text('close'),
                       onClick: () => {
                         newConversationOpen.value = false
                       }
@@ -511,7 +741,7 @@ const App = defineComponent({
                     '×'
                   )
                 ]),
-                h('label', { class: 'field-label', for: 'agent-select' }, 'Agent'),
+                h('label', { class: 'field-label', for: 'agent-select' }, text('agent')),
                 h(
                   'select',
                   {
@@ -539,7 +769,7 @@ const App = defineComponent({
                         newConversationOpen.value = false
                       }
                     },
-                    'Cancel'
+                    text('cancel')
                   ),
                   h(
                     'button',
@@ -549,7 +779,7 @@ const App = defineComponent({
                       disabled: !selectedAgentId.value || newConversationState.value === 'creating',
                       onClick: () => void createConversation()
                     },
-                    newConversationState.value === 'creating' ? 'Creating…' : 'Create'
+                    newConversationState.value === 'creating' ? text('creating') : text('create')
                   )
                 ])
               ])
@@ -574,8 +804,9 @@ style.textContent = `
 
   body {
     min-width: 320px;
-    min-height: 100vh;
+    height: 100vh;
     margin: 0;
+    overflow: hidden;
   }
 
   button,
@@ -587,11 +818,32 @@ style.textContent = `
   .webui-shell {
     display: grid;
     grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(220px, 260px);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .auth-shell {
+    display: grid;
     min-height: 100vh;
+    place-items: center;
+    padding: 24px;
+  }
+
+  .auth-panel {
+    display: grid;
+    width: min(420px, 100%);
+    gap: 14px;
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 18px 48px rgb(17 24 39 / 10%);
   }
 
   .conversation-list,
   .status-panel {
+    min-height: 0;
+    overflow-y: auto;
     padding: 20px;
     background: #ffffff;
     border-color: #e5e7eb;
@@ -732,9 +984,11 @@ style.textContent = `
 
   .chat-stage {
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100vh;
     min-width: 0;
-    padding: 28px;
+    overflow: hidden;
+    padding: 20px 28px 16px;
   }
 
   .message-stack {
@@ -743,7 +997,7 @@ style.textContent = `
     gap: 14px;
     min-height: 0;
     overflow-y: auto;
-    padding: 18px 4px;
+    padding: 16px 4px 12px;
   }
 
   .chat-header {
@@ -880,18 +1134,26 @@ style.textContent = `
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     align-items: end;
-    margin-top: 24px;
+    margin-top: 12px;
+    padding-top: 12px;
+    background: #f6f7fb;
+    border-top: 1px solid #e5e7eb;
   }
 
-  textarea {
+  textarea,
+  input {
     width: 100%;
-    min-height: 76px;
-    resize: vertical;
     padding: 12px;
     color: #111827;
     background: #ffffff;
     border: 1px solid #d1d5db;
     border-radius: 8px;
+  }
+
+  textarea {
+    min-height: 76px;
+    max-height: 180px;
+    resize: vertical;
   }
 
   .composer-error {

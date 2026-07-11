@@ -36,6 +36,8 @@ export const createWebUiHttpClient = ({
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS
 }: WebUiHttpClientOptions = {}) => {
+  let authKey = ''
+
   const requestJson = async <TResponse>(path: string, init: RequestInit = {}): Promise<TResponse> => {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -45,6 +47,7 @@ export const createWebUiHttpClient = ({
         ...init,
         headers: {
           Accept: 'application/json',
+          ...(authKey ? { 'X-Cherry-Webui-Key': authKey } : {}),
           ...(init.body ? { 'Content-Type': 'application/json' } : {}),
           ...init.headers
         },
@@ -68,6 +71,9 @@ export const createWebUiHttpClient = ({
       requestJson<TResponse>(path, {
         body: JSON.stringify(body),
         method: 'POST'
-      })
+      }),
+    setAuthKey: (key: string) => {
+      authKey = key.trim()
+    }
   }
 }

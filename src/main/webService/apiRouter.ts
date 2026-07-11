@@ -14,6 +14,8 @@ import type { UIMessageChunk } from 'ai'
 import type { WebUiSseRelay } from './sseRelay'
 
 export type WebUiApiRouterOptions = {
+  readonly getAuthKey: () => string
+  readonly getLanguage: () => string | null
   readonly getSseClientCount: () => number
   readonly sseRelay: WebUiSseRelay
 }
@@ -36,6 +38,8 @@ const jsonHeaders = {
   'Content-Type': 'application/json; charset=utf-8'
 }
 
+const authHeaderName = 'x-cherry-webui-key'
+
 export const isWebUiApiRequest = (requestUrl?: string) => {
   if (!requestUrl) return false
 
@@ -52,6 +56,31 @@ const methodNotAllowed = (allowed: readonly string[]): WebUiApiRouteResult => ({
   body: {
     code: 'METHOD_NOT_ALLOWED',
     message: `Method not allowed. Allowed methods: ${allowed.join(', ')}`
+  }
+})
+
+const normalizeAuthKey = (key: string) => key.trim()
+
+export const isWebUiRequestAuthorized = (request: IncomingMessage, url: URL, authKey: string) => {
+  const expectedKey = normalizeAuthKey(authKey)
+  if (!expectedKey) return true
+
+  const headerValue = request.headers[authHeaderName]
+  const providedKey =
+    typeof headerValue === 'string'
+      ? headerValue
+      : Array.isArray(headerValue)
+        ? headerValue[0]
+        : url.searchParams.get('key')
+
+  return normalizeAuthKey(providedKey ?? '') === expectedKey
+}
+
+const unauthorized = (): WebUiApiRouteResult => ({
+  status: 401,
+  body: {
+    code: 'WEBUI_AUTH_REQUIRED',
+    message: 'A valid WebUI access key is required'
   }
 })
 
@@ -218,7 +247,12 @@ const handleDataApiProxy = async (
   }
 }
 
-export const createWebUiApiRouter = ({ getSseClientCount, sseRelay }: WebUiApiRouterOptions): WebUiApiRouter => {
+export const createWebUiApiRouter = ({
+  getAuthKey,
+  getLanguage,
+  getSseClientCount,
+  sseRelay
+}: WebUiApiRouterOptions): WebUiApiRouter => {
   const startedAt = new Date().toISOString()
 
   const route = async (request: IncomingMessage): Promise<WebUiApiRouteResult> => {
@@ -227,6 +261,21 @@ export const createWebUiApiRouter = ({ getSseClientCount, sseRelay }: WebUiApiRo
     const { pathname } = url
     const sendMatch = pathname.match(sessionMessagePath)
     const abortMatch = pathname.match(sessionAbortPath)
+
+    if (pathname === '/api/auth/status') {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return {
+        status: 200,
+        body: {
+          authRequired: Boolean(normalizeAuthKey(getAuthKey())),
+          language: getLanguage(),
+          timestamp: new Date().toISOString()
+        }
+      }
+    }
+
+    if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
 
     if (sendMatch) {
       if (method !== 'POST') return methodNotAllowed(['POST'])
@@ -307,6 +356,7 @@ export const createWebUiApiRouter = ({ getSseClientCount, sseRelay }: WebUiApiRo
         status: 200,
         body: {
           ok: true,
+          language: getLanguage(),
           service: 'cherry-studio-webui',
           startedAt,
           sseClients: getSseClientCount(),

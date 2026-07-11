@@ -48,7 +48,7 @@ const ChannelsSettings: FC = () => {
             })}
             {isWebUiSupported && (
               <MenuItem
-                label="WebUI Remote"
+                label={t('settings.webui.title')}
                 active={selectedType === 'webui'}
                 onClick={() => setSelectedType('webui')}
                 icon={<Server size={16} />}

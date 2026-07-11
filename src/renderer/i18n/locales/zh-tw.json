@@ -7735,6 +7735,16 @@
     "zoom": {
       "reset": "重設",
       "title": "縮放"
+    },
+    "webui": {
+      "title": "WebUI 遠端存取",
+      "enable_remote_access": "啟用遠端存取",
+      "service_status": "服務狀態",
+      "running": "執行中",
+      "stopped": "已停止",
+      "access_key": "安全驗證 KEY",
+      "access_key_placeholder": "留空則不啟用驗證",
+      "port": "連接埠"
     }
   },
   "subWindow": {

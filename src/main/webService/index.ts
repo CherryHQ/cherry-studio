@@ -167,6 +167,8 @@ export class WebUiService extends BaseService implements Activatable {
     this.sseRelay = createWebUiSseRelay()
     this.staticServer = createWebUiStaticServer({
       distRoot,
+      getAuthKey: () => application.get('PreferenceService').get('feature.webui.auth_key'),
+      getLanguage: () => application.get('PreferenceService').get('app.language'),
       host,
       port,
       sseRelay: this.sseRelay

@@ -7735,6 +7735,16 @@
     "zoom": {
       "reset": "Reset",
       "title": "Page Zoom"
+    },
+    "webui": {
+      "title": "WebUI Remote",
+      "enable_remote_access": "Enable remote access",
+      "service_status": "Service status",
+      "running": "Running",
+      "stopped": "Stopped",
+      "access_key": "Access key",
+      "access_key_placeholder": "Leave empty to disable verification",
+      "port": "Port"
     }
   },
   "subWindow": {
