@@ -202,7 +202,8 @@ vi.mock('@renderer/utils/message/composerTokens', () => ({
 
 vi.mock('@shared/utils/model', () => ({
   isNonChatModel: vi.fn(
-    (model: { capabilities?: readonly unknown[] }) => model.capabilities?.includes('rerank') ?? false
+    (model: { capabilities?: readonly unknown[] }) =>
+      model.capabilities?.some((capability) => capability === 'embedding' || capability === 'rerank') ?? false
   ),
   isVisionModel: vi.fn(() => false)
 }))
@@ -326,7 +327,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
   })
 
-  it('filters reranker models from the regenerate model picker', () => {
+  it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
     let value: MessageListProviderValue | undefined
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
 
@@ -341,7 +342,9 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       </>
     )
 
-    expect(modelSelectorMock.props.at(-1)?.filter?.({ capabilities: ['rerank'] })).toBe(false)
+    const filter = modelSelectorMock.props.at(-1)?.filter
+    expect(filter?.({ capabilities: [capability] })).toBe(false)
+    expect(filter?.({ capabilities: [] })).toBe(true)
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
