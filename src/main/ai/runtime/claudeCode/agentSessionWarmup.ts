@@ -4,13 +4,17 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { isExternalCliProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import {
+  isExternalCliProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  OLLAMA_PLACEHOLDER_AUTH_TOKEN
+} from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -18,8 +22,6 @@ import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
-
-const OLLAMA_CLAUDE_CODE_AUTH_TOKEN = 'ollama'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings
@@ -46,7 +48,11 @@ interface ClaudeCodeRuntimeRoute {
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
-  effectiveResume?: string
+  effectiveResume?: string,
+  /** Connection-scoped model override: a live turn runs on the model captured at its creation,
+   *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
+   *  agent's current model (prewarm and turn-less connections). */
+  connectionModelId?: UniqueModelId
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -54,16 +60,28 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
 
-  const uniqueModelId = agent.model
+  const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  const route = await resolveClaudeCodeRuntimeRoute(agent, provider, model, modelId, baseUrl)
+  // A live turn's connection is pinned to the model captured at turn creation, which can already be an
+  // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
+  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
+  // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
+  // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
+  // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
+  // still apply.
+  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
+  const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
+  const route = await resolveClaudeCodeRuntimeRoute(provider, model, modelId, baseUrl, planModel, smallModel)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
-    await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
+    await buildClaudeCodeSessionSettings(session, provider, {
+      lastAgentSessionId: resumeSessionId
+    }),
     route
   )
   const sdkModelId = route.modelIds.primary
@@ -87,11 +105,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 }
 
 async function resolveClaudeCodeRuntimeRoute(
-  agent: AgentEntity,
   primaryProvider: Provider,
   primaryModel: Model,
   primaryModelId: string,
-  primaryBaseUrl: string
+  primaryBaseUrl: string,
+  planModel: UniqueModelId | null | undefined,
+  smallModel: UniqueModelId | null | undefined
 ): Promise<ClaudeCodeRuntimeRoute> {
   const primaryRef: RuntimeModelRef = {
     providerId: primaryProvider.id,
@@ -100,8 +119,12 @@ async function resolveClaudeCodeRuntimeRoute(
     provider: primaryProvider
   }
   const opusRef = primaryRef
-  const sonnetRef = resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
-  const haikuRef = resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
+  // Unset plan/small models fall back to `primaryRef` (the effective connection model). The caller also
+  // passes them unset to pin a captured turn's route to its primary (see `pinSubModelsToPrimary`), so a
+  // mid-window sub-model edit can't mix into the captured connection — the whole route stays on the pinned
+  // model (consistent env values, no spurious gateway switch when the edit points at another provider).
+  const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
+  const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
   const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
@@ -149,7 +172,7 @@ async function resolveClaudeCodeRuntimeRoute(
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
   const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
-  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
+  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
   return {
     baseUrl: anthropicBaseUrl,
     apiKey: runtimeApiKey,

@@ -1,5 +1,5 @@
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +7,7 @@ import type { PaintingProviderRuntime } from '../../model/types/paintingProvider
 import { checkProviderEnabled, isNoAuthProvider } from '../checkProviderEnabled'
 
 vi.mock('@renderer/services/popup', () => ({ popup: { warning: vi.fn() } }))
-vi.mock('@renderer/services/settingsNavigation', () => ({ openSettingsTab: vi.fn() }))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 vi.mock('i18next', () => ({ default: { t: (key: string) => key } }))
 
 function runtimeProvider(overrides: Partial<PaintingProviderRuntime> = {}): PaintingProviderRuntime {

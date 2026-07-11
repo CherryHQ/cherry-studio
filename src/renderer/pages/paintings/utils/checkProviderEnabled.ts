@@ -1,5 +1,5 @@
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { isOllamaProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
