@@ -1068,6 +1068,28 @@ describe('writeCliConfigDraft', () => {
       expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
     })
 
+    it('writes the bare gateway host + gateway key + gateway-addressed model for gemini-cli', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      // @google/genai appends /v1beta itself, so the base URL must stay bare (no /v1, no /v1beta).
+      const env = writes.find((w) => w.path.endsWith('.env'))!.content
+      expect(env).toContain(`GOOGLE_GEMINI_BASE_URL=${GATEWAY_BASE_URL}`)
+      expect(env).not.toContain(`${GATEWAY_BASE_URL}/v1`)
+      expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
+
+      const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
+      // Gateway addressing: single colon, providerId:apiModelId (NOT the "::" internal id).
+      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat' })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+    })
+
     it('rejects the CherryAI managed default model and writes nothing', async () => {
       mockGet({ '/models/': () => ({ id: 'qwen' }) })
 
