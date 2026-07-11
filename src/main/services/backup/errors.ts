@@ -1,4 +1,4 @@
-// Backup-specific errors thrown by the export pipeline.
+// Backup-specific errors thrown by the export and import (restore) pipelines.
 
 /**
  * Thrown when the preflight disk-space check finds insufficient room for the
@@ -57,5 +57,51 @@ export class OutputPathExistsError extends Error {
   constructor(outputPath: string) {
     super(`backup: outputPath already exists (no-clobber): ${outputPath}`)
     this.name = 'OutputPathExistsError'
+  }
+}
+
+/**
+ * Thrown by the restore merge step until the 14-domain detached merge engine
+ * (additive + remote-fills-local-empty, conflict policy, FK/FTS integrity) lands.
+ * The ImportOrchestrator spine is wired and tested independently; production
+ * restore stays fail-closed — NO staged journal is written without a real merge,
+ * so a half-restored state can never reach the preboot promotion gate.
+ *
+ * Injected as a dep so the spine is testable with a no-op merge.
+ */
+export class RestoreMergeNotImplementedError extends Error {
+  constructor(message = 'restore merge engine not implemented — staged journal refused') {
+    super(message)
+    this.name = 'RestoreMergeNotImplementedError'
+  }
+}
+
+/**
+ * Thrown by the restore quiesce step until #16849 (AI/channel) + #16850 (JobManager)
+ * land the `pause()` + `drainInFlight()` writer-quiesce contract. Without quiesce,
+ * the live-DB fingerprint captured for the staged journal can be invalidated by an
+ * in-flight writer before the gate re-checks it — so restore stays fail-closed:
+ * NO snapshot is taken, NO journal is written. Injected as a dep for spine testing.
+ */
+export class RestoreQuiesceNotImplementedError extends Error {
+  constructor(message = 'restore write-quiesce not implemented (#16849/#16850) — snapshot refused') {
+    super(message)
+    this.name = 'RestoreQuiesceNotImplementedError'
+  }
+}
+
+/**
+ * Thrown when the second live-DB fingerprint (re-captured just before writing the
+ * staged journal) does not match the value captured before createSnapshot. A mismatch
+ * means a writer touched the live DB during staging — the journal is NOT written and
+ * all staging is cleaned up. The preboot gate re-checks the fingerprint anyway; this
+ * is an early abort to avoid wasting a relaunch on a restore the gate would expire.
+ */
+export class RestoreFingerprintMismatchError extends Error {
+  constructor(captured: string, recomputed: string) {
+    super(
+      `restore fingerprint mismatch — live DB changed during staging (captured=${captured.slice(0, 12)}…, recomputed=${recomputed.slice(0, 12)}…)`
+    )
+    this.name = 'RestoreFingerprintMismatchError'
   }
 }
