@@ -6118,6 +6118,7 @@
         },
         "presetLabels": {
           "aliyun": "阿里雲（中國）",
+          "default": "預設（不使用鏡像）",
           "ghfast": "ghfast.top",
           "ghproxy": "ghproxy.net",
           "npmOfficial": "npmjs（官方）",

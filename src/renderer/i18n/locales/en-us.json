@@ -6118,6 +6118,7 @@
         },
         "presetLabels": {
           "aliyun": "Aliyun (China)",
+          "default": "Default (no mirror)",
           "ghfast": "ghfast.top",
           "ghproxy": "ghproxy.net",
           "npmOfficial": "npmjs (official)",

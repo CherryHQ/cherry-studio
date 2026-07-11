@@ -869,7 +869,14 @@ const UrlPresetField: FC<{
   const inputId = useId()
   const descriptionId = useId()
   const invalid = value.trim() !== '' && !isValidUrl(value.trim())
-  const items = presets.map((preset) => ({ id: preset.url, url: preset.url, label: t(preset.labelKey) }))
+  // The default preset's value is '' (no override); give it a non-empty
+  // dropdown id so selection isn't lost to empty-string falsiness.
+  const DEFAULT_ITEM_ID = '__default__'
+  const items = presets.map((preset) => ({
+    id: preset.url || DEFAULT_ITEM_ID,
+    url: preset.url,
+    label: t(preset.labelKey)
+  }))
 
   return (
     <Field>
@@ -888,13 +895,13 @@ const UrlPresetField: FC<{
           <SelectDropdown
             items={items}
             selectedId={null}
-            onSelect={onChange}
+            onSelect={(id) => onChange(id === DEFAULT_ITEM_ID ? '' : id)}
             placeholder={presetLabel}
             renderSelected={() => null}
             renderItem={(item) => (
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-foreground text-sm">{item.label}</span>
-                <span className="break-all text-muted-foreground text-xs">{item.url}</span>
+                {item.url && <span className="break-all text-muted-foreground text-xs">{item.url}</span>}
               </div>
             )}
           />

@@ -127,7 +127,20 @@ vi.mock('@cherrystudio/ui', () => {
     InputGroupAddon: passthrough('div'),
     InputGroupButton: passthrough('button'),
     InputGroupInput: passthrough('input'),
-    SelectDropdown: () => React.createElement('select')
+    SelectDropdown: ({
+      items,
+      onSelect
+    }: {
+      items: Array<{ id: string; label: string }>
+      onSelect: (id: string) => void
+    }) =>
+      React.createElement(
+        'div',
+        null,
+        items.map((item) =>
+          React.createElement('button', { key: item.id, onClick: () => onSelect(item.id) }, item.label)
+        )
+      )
   }
 })
 
@@ -200,6 +213,25 @@ describe('EnvironmentDependencies', () => {
       githubToken: 'ghp_secret',
       verifySignatures: false
     })
+  })
+
+  it('resets a mirror back to default (empty) via the default preset item', async () => {
+    installSettingsRef.value = {
+      githubMirror: 'https://ghfast.top',
+      githubToken: '',
+      npmRegistry: '',
+      pipIndexUrl: '',
+      verifySignatures: true
+    }
+    render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
+    // First default item belongs to the GitHub mirror field (fields render in order).
+    fireEvent.click(screen.getAllByText('settings.dependencies.installSettings.presetLabels.default')[0])
+    fireEvent.click(screen.getByText('common.save'))
+
+    expect(setInstallSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ githubMirror: '' }))
   })
 
   it('does not persist invalid install URLs', async () => {
