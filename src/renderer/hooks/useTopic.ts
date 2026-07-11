@@ -195,6 +195,8 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
     updatedAt: shared.updatedAt,
     parentId: shared.parentId ?? undefined,
     modelId: shared.modelId ?? undefined,
+    // Carry the frozen author so export headers survive assistant/agent rename/delete.
+    ...(shared.messageSnapshot && { messageSnapshot: shared.messageSnapshot }),
     ...(shared.stats && { stats: shared.stats })
   }
 }

@@ -133,6 +133,9 @@ type AgentSessionRuntimeEntry = {
   steerMessageIds?: Set<string>
   /** Ids of queued follow-ups that must open a responder-less/headless turn. */
   headlessMessageIds?: Set<string>
+  /** Submit-time author snapshot per queued follow-up (keyed by user message id) so a mid-session
+   *  agent/model change can't stamp the queued reply with the prior turn's frozen snapshot. */
+  pendingSnapshots?: Map<string, MessageSnapshot>
   /** Roll in progress: a steer was injected mid-turn (`steer-boundary`), the current row was finalised
    *  as A1a, and the post-steer chunks are buffered until the continuation row (A2) opens its stream. */
   rolling?: boolean
@@ -512,7 +515,11 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  enqueueUserMessage(sessionId: string, message: AgentSessionMessageEntity, opts: { headless?: boolean } = {}): void {
+  enqueueUserMessage(
+    sessionId: string,
+    message: AgentSessionMessageEntity,
+    opts: { headless?: boolean; messageSnapshot?: MessageSnapshot } = {}
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
 
@@ -537,6 +544,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
     entry.pendingTurns.push(message)
     ;(entry.steerMessageIds ??= new Set()).add(message.id)
+    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
     if (!turn || turn.terminalStatus) this.scheduleNextTurn(entry)
   }
 
@@ -1055,6 +1063,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const rootSpan = this.startRuntimeRootSpan(entry)
+    // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last
+    // beginTurn set) so a mid-session agent/model change can't stamp the queued reply with a stale author.
+    const messageSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
+    entry.pendingSnapshots?.delete(nextMessage.id)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -1064,7 +1076,7 @@ export class AgentSessionRuntimeService extends BaseService {
           status: 'pending',
           data: { parts: [] },
           modelId: entry.modelId,
-          messageSnapshot: entry.messageSnapshot
+          messageSnapshot
         }
       })
     } catch (error) {

@@ -123,7 +123,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application
         .get('AgentSessionRuntimeService')
-        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true })
+        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true, messageSnapshot })
 
       return {
         topicId: req.topicId,

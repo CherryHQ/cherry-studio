@@ -223,7 +223,17 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
-      { headless: false }
+      {
+        headless: false,
+        messageSnapshot: {
+          agent: {
+            id: 'agent-1',
+            name: 'My Agent',
+            type: 'claude-code',
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          }
+        }
+      }
     )
     expect(prepared.models).toEqual([])
     expect(prepared.userMessageId).toEqual(expect.any(String))
@@ -246,7 +256,17 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
-      { headless: true }
+      {
+        headless: true,
+        messageSnapshot: {
+          agent: {
+            id: 'agent-1',
+            name: 'My Agent',
+            type: 'claude-code',
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          }
+        }
+      }
     )
   })
 

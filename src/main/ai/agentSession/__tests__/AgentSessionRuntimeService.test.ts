@@ -206,6 +206,29 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
     })
 
+    it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+      } as any
+      const followUpSnapshot = {
+        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+      } as any
+
+      // Turn 1 sets the entry snapshot; the follow-up queues with a fresh snapshot (agent renamed/model swapped).
+      service.beginTurn({ ...baseTurnInput, messageSnapshot: priorSnapshot })
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // The queued turn's assistant placeholder freezes the enqueue-time author, not the stale entry snapshot.
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+      expect(getEntry(service).pendingSnapshots?.has('user-2')).toBe(false)
+    })
+
     it('opens an unmarked queued busy follow-up as interactive', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
