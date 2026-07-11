@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是 Cherry助手。你可以立刻开始跟我聊天",
-      "name": "Cherry助手",
+      "description": "你好，我是 Cherry 助手。你可以立刻开始跟我聊天",
+      "name": "Cherry 助手",
       "topic": {
         "name": "默认对话"
       }

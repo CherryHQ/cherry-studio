@@ -7,7 +7,7 @@ export const DEFAULT_ASSISTANT_EMOJI = '😀' as const
 export const DEFAULT_ASSISTANT_PROMPT = '' as const
 
 export function getDefaultAssistantNameForLocale(locale?: string | null): string {
-  return locale?.toLowerCase().startsWith('zh') ? 'Cherry助手' : DEFAULT_ASSISTANT_NAME
+  return locale?.toLowerCase().startsWith('zh') ? 'Cherry 助手' : DEFAULT_ASSISTANT_NAME
 }
 
 export const DEFAULT_ASSISTANT_SEED = {

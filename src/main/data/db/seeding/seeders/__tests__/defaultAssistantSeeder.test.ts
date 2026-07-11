@@ -91,7 +91,7 @@ describe('DefaultAssistantSeeder', () => {
     new DefaultAssistantSeeder().run(dbh.db)
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
-    expect(assistant?.name).toBe('Cherry助手')
+    expect(assistant?.name).toBe('Cherry 助手')
   })
 
   it('uses preferred system languages without calling app.getLocale before Electron is ready', async () => {
@@ -104,7 +104,7 @@ describe('DefaultAssistantSeeder', () => {
     expect(() => new DefaultAssistantSeeder().run(dbh.db)).not.toThrow()
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
-    expect(assistant?.name).toBe('Cherry助手')
+    expect(assistant?.name).toBe('Cherry 助手')
   })
 
   it('falls back to the English default assistant name when preferred system languages are unavailable', async () => {

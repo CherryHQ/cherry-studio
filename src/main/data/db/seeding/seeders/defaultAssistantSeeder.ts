@@ -21,7 +21,7 @@ export class DefaultAssistantSeeder implements ISeeder {
       assistant: DEFAULT_ASSISTANT_SEED,
       topic: { name: '', empty: true },
       freshGuard: 'bootstrap-only; no active assistant/topic/message',
-      localizedName: 'preferredSystemLanguages[0]; zh=>Cherry助手; other=>Cherry Assistant'
+      localizedName: 'preferredSystemLanguages[0]; zh=>Cherry 助手; other=>Cherry Assistant'
     })
   }
 
