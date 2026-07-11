@@ -65,6 +65,7 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Switch: () => <button type="button" role="switch" />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   usePortalContainer: () => portalContainerMock.current
 }))
 
