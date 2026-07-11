@@ -374,6 +374,8 @@ export function EditDialogShell<TValues extends FieldValues>({
             id="resource-edit-dialog-form"
             onSubmit={onSubmit}
             className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* pt-3 centers the 24px-tall title line on the absolute top-4 close icon. */}
+            <DialogTitle className="px-4 pt-3 pb-2 text-base">{title}</DialogTitle>
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
@@ -381,10 +383,9 @@ export function EditDialogShell<TValues extends FieldValues>({
               className="min-h-0 flex-1 gap-0 overflow-hidden">
               {/* Mirrors the standalone settings window shell: sidebar-tinted rail + hairline divider. */}
               <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px] bg-sidebar">
-                <DialogTitle className="px-4 pt-4 pb-2 text-lg">{title}</DialogTitle>
                 <TabsList
                   asChild
-                  className="h-auto w-full items-stretch justify-start rounded-none bg-transparent px-2.5 pb-2.5">
+                  className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-2.5">
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
