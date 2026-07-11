@@ -73,6 +73,12 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => (key === 'common.clear' ? 'Clear' : key)
+  })
+}))
+
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
 
 describe('SelectorShell', () => {
@@ -358,17 +364,18 @@ describe('SelectorShell', () => {
         trigger={<button type="button">Open</button>}
         open
         onOpenChange={vi.fn()}
-        search={{ value: 'qwen', onChange, placeholder: 'Search', clearLabel: 'Clear model filter' }}>
+        search={{ value: 'qwen', onChange, placeholder: 'Search' }}>
         <div />
       </SelectorShell>
     )
 
-    const clearButton = screen.getByRole('button', { name: 'Clear model filter' })
+    const clearButton = screen.getByRole('button', { name: 'Clear' })
     expect(clearButton.querySelector('svg')).not.toBeNull()
 
     clearButton.click()
 
     expect(onChange).toHaveBeenCalledWith('')
+    expect(screen.getByRole('textbox')).toHaveFocus()
   })
 
   it('can render multi-select as a filter-row badge', () => {

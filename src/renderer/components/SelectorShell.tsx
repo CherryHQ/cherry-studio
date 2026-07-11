@@ -13,6 +13,7 @@ import {
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 /**
@@ -34,7 +35,6 @@ export type SelectorShellSearch = {
   value: string
   onChange: (value: string) => void
   placeholder: string
-  clearLabel?: string
   inputRef?: RefObject<HTMLInputElement | null>
   ariaControls?: string
   activeDescendant?: string
@@ -177,6 +177,7 @@ export function SelectorShell({
   contentProps,
   'data-testid': dataTestId
 }: SelectorShellProps) {
+  const { t } = useTranslation()
   const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
   const {
     forceMount,
@@ -196,6 +197,7 @@ export function SelectorShell({
   const panelRef = useRef<HTMLDivElement | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
   const bottomActionRef = useRef<HTMLDivElement | null>(null)
+  const internalSearchInputRef = useRef<HTMLInputElement | null>(null)
   const localPortalRootRef = useRef<HTMLDivElement | null>(null)
   const measureFrameRef = useRef<number | null>(null)
   const [localPortalContainer] = useState(createLocalPortalContainer)
@@ -270,6 +272,16 @@ export function SelectorShell({
       scheduleMeasureAvailableListHeight()
     },
     [scheduleMeasureAvailableListHeight]
+  )
+
+  const setSearchInputElement = useCallback(
+    (element: HTMLInputElement | null) => {
+      internalSearchInputRef.current = element
+      if (search?.inputRef) {
+        search.inputRef.current = element
+      }
+    },
+    [search?.inputRef]
   )
 
   const setFilterElement = useCallback(
@@ -429,7 +441,7 @@ export function SelectorShell({
             onOpenAutoFocus={(event) => {
               if (search && search.autoFocus !== false) {
                 event.preventDefault()
-                search.inputRef?.current?.focus()
+                internalSearchInputRef.current?.focus()
               }
               onOpenAutoFocus?.(event)
             }}
@@ -458,7 +470,7 @@ export function SelectorShell({
                     <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground/60" />
                     <Input
                       type="text"
-                      ref={search.inputRef}
+                      ref={setSearchInputElement}
                       value={search.value}
                       autoFocus={search.autoFocus ?? true}
                       spellCheck={search.spellCheck ?? false}
@@ -477,12 +489,12 @@ export function SelectorShell({
                     {search.value ? (
                       <button
                         type="button"
-                        aria-label={search.clearLabel ?? 'Clear search'}
+                        aria-label={t('common.clear')}
                         className="-translate-y-1/2 absolute top-1/2 right-0 flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
-                          search.inputRef?.current?.focus()
+                          internalSearchInputRef.current?.focus()
                         }}>
                         <X size={9} aria-hidden="true" />
                       </button>

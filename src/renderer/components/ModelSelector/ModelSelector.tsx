@@ -683,7 +683,6 @@ export function ModelSelector(props: ModelSelectorProps) {
       value: searchText,
       onChange: setSearchText,
       placeholder: t('models.search.placeholder'),
-      clearLabel: t('common.clear'),
       dataTestId: 'model-selector-search',
       onKeyDown: handleSearchKeyDown
     }),
