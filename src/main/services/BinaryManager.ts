@@ -406,6 +406,13 @@ export class BinaryManager extends BaseService {
       const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool])
       const lsData = JSON.parse(lsOut) as Record<string, Array<{ version?: string }>>
       const entries = Object.values(lsData).flat()
+      const requestedVersion = tool.version ? semverValid(tool.version) : null
+      if (requestedVersion) {
+        const requestedEntry = entries.find((entry) => semverValid(entry.version) === requestedVersion)
+        if (requestedEntry?.version) {
+          return semverValid(requestedEntry.version) ?? requestedEntry.version
+        }
+      }
       if (entries.length > 0 && entries[0].version) {
         return entries[0].version
       }

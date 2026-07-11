@@ -335,7 +335,7 @@ function getDisplayEntries(
 
   const fileEntryNameCounts = new Map<string, number>()
   for (const entry of entries) {
-    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) continue
+    if ((entry.part.type as string) !== 'file') continue
 
     const name = getFileEntryName(entry)
     if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
@@ -343,7 +343,7 @@ function getDisplayEntries(
 
   const usedTokenIndexes = new Set<number>()
   return entries.filter((entry) => {
-    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return true
+    if ((entry.part.type as string) !== 'file') return true
 
     const sourceId = getFileEntrySourceId(entry)
     const sourceMatchIndex = sourceId

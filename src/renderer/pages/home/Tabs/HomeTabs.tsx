@@ -2,20 +2,23 @@ import type {
   ConversationResourceMenuItem,
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
+import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type { Topic } from '@renderer/types/topic'
 import { cn } from '@renderer/utils/style'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { FC, HTMLAttributes } from 'react'
 
-import type { AddNewTopicPayload } from '../types'
+import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic?: Topic
+  historyRecordsActive?: boolean
+  assistantTopicsSource: AssistantTopicsSource
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -27,6 +30,8 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({
   activeTopic,
+  historyRecordsActive,
+  assistantTopicsSource,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
@@ -44,6 +49,8 @@ const HomeTabs: FC<Props> = ({
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
+          historyRecordsActive={historyRecordsActive}
+          assistantTopicsSource={assistantTopicsSource}
           onActiveAssistantDeleted={onActiveAssistantDeleted}
           onAddAssistant={onAddAssistant}
           setActiveTopic={setActiveTopic}

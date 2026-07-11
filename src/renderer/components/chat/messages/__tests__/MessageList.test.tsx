@@ -36,7 +36,7 @@ vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
 }))
 
-vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
+vi.mock('@renderer/components/chat/messages/MultiSelectActionPopup', () => ({
   __esModule: true,
   default: () => null
 }))

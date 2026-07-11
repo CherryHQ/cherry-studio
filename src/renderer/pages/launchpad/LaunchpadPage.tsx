@@ -33,8 +33,7 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
   files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
   code_tools: 'linear-gradient(135deg, #1F2937, #374151)',
-  notes: 'linear-gradient(135deg, #F97316, #FB923C)',
-  openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
+  notes: 'linear-gradient(135deg, #F97316, #FB923C)'
 }
 
 export default function LaunchpadPage() {
