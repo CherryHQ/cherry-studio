@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getAppLanguage, t } from '@main/utils/language'
+import { getAppLanguage, t } from '@main/i18n'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
@@ -131,17 +131,7 @@ export class WebviewService extends BaseService {
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) => {
-      const webview = webContents.fromId(webviewId)
-      if (!webview) return
-
-      webview.setWindowOpenHandler(({ url }) => {
-        if (isExternal) {
-          void shell.openExternal(url)
-          return { action: 'deny' as const }
-        } else {
-          return { action: 'allow' as const }
-        }
-      })
+      setOpenLinkExternal(webviewId, isExternal)
     })
 
     this.ipcHandle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {

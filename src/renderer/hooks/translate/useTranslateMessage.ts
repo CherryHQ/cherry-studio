@@ -21,7 +21,10 @@
  */
 
 import { loggerService } from '@logger'
-import { useOptionalTranslationOverlaySetter, useRefresh } from '@renderer/components/chat/messages/blocks'
+import {
+  useOptionalTranslationOverlaySetter,
+  useRefresh
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { ipcApi } from '@renderer/ipc'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'

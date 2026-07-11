@@ -248,6 +248,16 @@ describe('useMiniApps', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
     })
+
+    it('should resolve a functional updater against the latest mocked value (mock parity)', async () => {
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [createMiniApp('a'), createMiniApp('b')])
+      const { result } = renderHook(() => useMiniApps())
+      await act(async () => {
+        result.current.setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== 'a'))
+      })
+      const stored = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []
+      expect(stored.map((a) => a.appId)).toEqual(['b'])
+    })
   })
 
   // === Mutations ===
@@ -338,6 +348,28 @@ describe('useMiniApps', () => {
       expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
       expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
       expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
+    })
+
+    it('should remove deleted custom miniapps from sidebar favorites', async () => {
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'custom-app' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
     })
   })
 

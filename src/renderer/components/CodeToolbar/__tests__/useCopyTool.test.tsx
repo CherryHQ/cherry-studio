@@ -1,5 +1,5 @@
 import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,8 +35,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: () => <div data-testid="copy-icon" />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: () => <div data-testid="copy-icon" />
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({
@@ -100,14 +100,19 @@ describe('useCopyTool', () => {
       )
     })
 
-    it('should register only the copy-source tool when previewRef is null', () => {
+    it('should register both tools when preview is requested before previewRef is set', () => {
       const props = createMockProps({ showPreviewTools: true, previewRef: { current: null } })
       renderHook(() => useCopyTool(props))
 
-      expect(mockRegisterTool).toHaveBeenCalledTimes(1)
+      expect(mockRegisterTool).toHaveBeenCalledTimes(2)
       expect(mockRegisterTool).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'copy'
+        })
+      )
+      expect(mockRegisterTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'copy-image'
         })
       )
     })
@@ -174,6 +179,24 @@ describe('useCopyTool', () => {
 
       expect(mockPreviewHandles.copy).toHaveBeenCalledTimes(1)
       expect(mockSetCopiedImageTemporarily).toHaveBeenCalledWith(true)
+    })
+
+    it('should tolerate copy image before the lazy preview ref is set', () => {
+      const props = createMockProps({
+        showPreviewTools: true,
+        previewRef: { current: null }
+      })
+
+      renderHook(() => useCopyTool(props))
+
+      const copyImageTool = mockRegisterTool.mock.calls[1][0]
+
+      expect(() => {
+        act(() => {
+          copyImageTool.onClick()
+        })
+      }).not.toThrow()
+      expect(mockSetCopiedImageTemporarily).not.toHaveBeenCalled()
     })
   })
 

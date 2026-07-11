@@ -4,23 +4,23 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { needsLikeFallback } from '../ftsQuery'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { libsqlVectorIndex } from '../LibsqlVectorIndex'
 import { createKnowledgeIndexSchema } from '../schema'
 
 describe('KnowledgeIndexStore.search', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-search-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
-    store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
+    store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
   afterEach(async () => {
@@ -34,6 +34,7 @@ describe('KnowledgeIndexStore.search', () => {
       material: { relativePath },
       content: { text },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
     })
 
@@ -49,9 +50,10 @@ describe('KnowledgeIndexStore.search', () => {
 
   it('vector mode drops a degenerate zero-norm embedding instead of ranking it first', async () => {
     await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])
-    // A zero vector has undefined cosine distance (libsql returns NULL). Without the
-    // `dist IS NOT NULL` guard it sorts first under `ORDER BY dist` and scores a perfect
-    // `1 - Number(null) = 1`, outranking the real hit — so it must be excluded entirely.
+    // A zero vector has undefined cosine distance (sqlite-vec returns NaN, coerced to
+    // NULL). Without the `dist IS NOT NULL` guard it sorts first under `ORDER BY dist`
+    // and scores a perfect `1 - Number(null) = 1`, outranking the real hit — so it must
+    // be excluded entirely.
     await indexMaterial('m2', 'b.md', 'banana bread', [0, 0, 0])
 
     const matches = await store.search({ queryText: '', queryEmbedding: [1, 1, 0], mode: 'vector', topK: 10 })
@@ -66,6 +68,24 @@ describe('KnowledgeIndexStore.search', () => {
     const matches = await store.search({ queryText: 'banana', mode: 'bm25', topK: 10 })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m2'])
+  })
+
+  it('indexes a BM25-only material (usesEmbeddings: false, no embeddings) and finds it via bm25 search', async () => {
+    // The rebuild path's false branch (no vectors written, no coverage check) has never
+    // been exercised against a real store — every other test in this file goes through
+    // `indexMaterial`, which always supplies a vector.
+    const text = 'lexical only content with no embedding model'
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'a.md' },
+      content: { text },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+      usesEmbeddings: false,
+      embeddings: []
+    })
+
+    const matches = await store.search({ queryText: 'lexical', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
   })
 
   it('bm25 mode returns nothing when the query has no usable token', async () => {

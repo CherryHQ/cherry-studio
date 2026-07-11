@@ -51,17 +51,20 @@ function makeTerminal(status: 'completed' | 'failed' | 'cancelled', id = `job-${
   }
 }
 
-function makeSettled(overrides: Partial<JobSettledEvent>): JobSettledEvent {
+function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSettledEvent<AgentTaskInput> {
   return {
     jobId: 'job-1',
     type: 'agent.task',
     scheduleId: 's1',
+    parentId: null,
     status: 'failed',
+    input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 30, workspace: WORKSPACE_SOURCE },
     output: null,
     error: { code: 'TEST', message: 'boom', retryable: false },
     attempt: 0,
+    metadata: {},
     ...overrides
-  } as JobSettledEvent
+  } as JobSettledEvent<AgentTaskInput>
 }
 
 describe('AgentTaskJobHandler', () => {
@@ -120,7 +123,7 @@ describe('AgentTaskJobHandler', () => {
 
   describe('onSettled circuit breaker', () => {
     it('pauses schedule after 3 consecutive failures', async () => {
-      vi.mocked(jobService.listRecentTerminalByScheduleId).mockResolvedValueOnce([
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([
         makeTerminal('failed', 'a'),
         makeTerminal('failed', 'b'),
         makeTerminal('failed', 'c')
@@ -133,7 +136,7 @@ describe('AgentTaskJobHandler', () => {
     })
 
     it('does not pause when the latest is failed but a recent one is completed', async () => {
-      vi.mocked(jobService.listRecentTerminalByScheduleId).mockResolvedValueOnce([
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([
         makeTerminal('failed', 'a'),
         makeTerminal('completed', 'b'),
         makeTerminal('failed', 'c')
@@ -145,7 +148,7 @@ describe('AgentTaskJobHandler', () => {
     })
 
     it('does not pause when the recent-terminal window is not yet full', async () => {
-      vi.mocked(jobService.listRecentTerminalByScheduleId).mockResolvedValueOnce([
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([
         makeTerminal('failed', 'a'),
         makeTerminal('failed', 'b')
       ])
@@ -171,7 +174,7 @@ describe('AgentTaskJobHandler', () => {
     })
 
     it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {
-      vi.mocked(jobService.listRecentTerminalByScheduleId).mockResolvedValueOnce([
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([
         makeTerminal('failed', 'a'),
         makeTerminal('failed', 'b'),
         makeTerminal('failed', 'c')

@@ -7,7 +7,9 @@
  */
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
+import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -17,7 +19,6 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentTools } from './useAgentTools'
-import { parseAgentConfiguration } from './utils'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
@@ -33,7 +34,7 @@ export const useAgent = (id: string | null) => {
     params: { agentId: id! },
     enabled: !!id,
     swrOptions: {
-      // Agent config may be modified externally (e.g. claw MCP tool in main process),
+      // Agent config may be modified externally (e.g. cherry MCP tool in main process),
       // so always revalidate on mount and reduce dedup window to get fresh data.
       revalidateOnMount: true,
       dedupingInterval: 2000,
@@ -59,8 +60,8 @@ export const useAgent = (id: string | null) => {
 }
 
 /**
- * List + mutate all agents. Deleting an agent cascades to its sessions at
- * the DB layer (FK ON DELETE cascade).
+ * List + mutate all agents. Plain deletion removes the agent only; sessions are
+ * preserved as orphaned history unless a caller explicitly requests session deletion.
  */
 export const useAgents = () => {
   const { t } = useTranslation()
@@ -72,11 +73,11 @@ export const useAgents = () => {
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
         const result = await createTrigger({ body: form as unknown as CreateAgentDto })
-        window.toast.success(t('common.add_success'))
+        toast.success(t('common.add_success'))
         return { success: true, data: result as unknown as AgentEntity }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
-        window.toast.error(msg)
+        toast.error(msg)
         return { success: false, error: error instanceof Error ? error : new Error(msg) }
       }
     },
@@ -84,15 +85,15 @@ export const useAgents = () => {
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions']
+    refresh: ['/agents', '/agent-sessions', '/pins']
   })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
         await deleteTrigger({ params: { agentId: id } })
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
     [deleteTrigger, t]
@@ -117,7 +118,7 @@ export const useUpdateAgent = () => {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
         if (options?.showSuccessToast ?? true) {
-          window.toast.success({ key: 'update-agent', title: t('common.update_success') })
+          toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
 
         return {
@@ -125,7 +126,7 @@ export const useUpdateAgent = () => {
           configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
         return undefined
       }
     },

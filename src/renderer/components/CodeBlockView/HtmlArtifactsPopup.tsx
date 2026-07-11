@@ -20,11 +20,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { FilePngIcon } from '@renderer/components/icons/FileIcons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -146,7 +148,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
 
         if (to === 'file') {
-          const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+          const dataUrl = await captureScrollableIframeAsDataUrl(previewFrameRef)
           if (dataUrl) {
             await window.api.file.saveImage(fileName, dataUrl)
           }
@@ -156,7 +158,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
           await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
             if (blob) {
               await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-              window.toast.success(t('message.copy.success'))
+              toast.success(t('message.copy.success'))
             }
           })
         }
@@ -237,6 +239,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
       }}>
       <DialogContent
         showCloseButton={false}
+        closeOnOverlayClick={false}
         overlayClassName={isFullscreen ? 'hidden' : 'bg-black/35 backdrop-blur-[2px]'}
         onPointerDownOutside={(event) => event.preventDefault()}
         className={cn(

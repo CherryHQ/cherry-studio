@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -8,11 +9,13 @@ import {
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
+import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
-import { Plus, Zap } from 'lucide-react'
+import { Pencil, Plus, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +29,8 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 
 const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const restoreInputFocusRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
   const {
     isVisible: isQuickPanelVisible,
@@ -41,7 +46,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     refresh: ['/prompts'],
     onError: (error) => {
       logger.error('Failed to create prompt', error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
     }
   })
 
@@ -74,6 +79,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     [insertText]
   )
 
+  const restoreInputFocus = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      restoreInputFocusRef.current?.()
+      restoreInputFocusRef.current = null
+    })
+  }, [])
+
   const handleAddModalSave = useCallback(
     async (data: { title: string; content: string }) => {
       try {
@@ -84,11 +96,37 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
           }
         })
         setIsAddModalOpen(false)
+        restoreInputFocus()
       } catch {
         // handled by useMutation onError
       }
     },
-    [createPrompt]
+    [createPrompt, restoreInputFocus]
+  )
+
+  const openAddModal = useCallback((options?: QuickPanelCallBackOptions) => {
+    restoreInputFocusRef.current = options?.inputAdapter?.focus ?? null
+    setIsAddModalOpen(true)
+  }, [])
+
+  const closeAddModal = useCallback(() => {
+    setIsAddModalOpen(false)
+    restoreInputFocus()
+  }, [restoreInputFocus])
+
+  const openManageModal = useCallback((options?: QuickPanelCallBackOptions) => {
+    restoreInputFocusRef.current = options?.inputAdapter?.focus ?? null
+    setIsManageModalOpen(true)
+  }, [])
+
+  const handleManageModalOpenChange = useCallback(
+    (open: boolean) => {
+      setIsManageModalOpen(open)
+      if (!open) {
+        restoreInputFocus()
+      }
+    },
+    [restoreInputFocus]
   )
 
   const phraseItems = useMemo(() => {
@@ -118,13 +156,19 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     }
 
     newList.push({
+      label: t('settings.prompts.manage'),
+      icon: <Pencil />,
+      action: openManageModal
+    })
+
+    newList.push({
       label: t('settings.prompts.add') + '...',
       icon: <Plus />,
-      action: () => setIsAddModalOpen(true)
+      action: openAddModal
     })
 
     return newList
-  }, [handleItemSelect, isPromptsLoading, promptItems, promptsError, t])
+  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsError, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
@@ -168,6 +212,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         order: 70,
         label: t('settings.prompts.title'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
         icon: <Zap />,
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)
@@ -184,7 +229,9 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     handleAddModalSave,
     isAddModalOpen,
     isCreatingPrompt,
-    setIsAddModalOpen
+    isManageModalOpen,
+    closeAddModal,
+    handleManageModalOpenChange
   }
 }
 
@@ -192,17 +239,27 @@ const QuickPhrasesModal = ({
   handleAddModalSave,
   isAddModalOpen,
   isCreatingPrompt,
-  setIsAddModalOpen
+  isManageModalOpen,
+  closeAddModal,
+  handleManageModalOpenChange
 }: Pick<
   ReturnType<typeof useQuickPhrasesToolController>,
-  'handleAddModalSave' | 'isAddModalOpen' | 'isCreatingPrompt' | 'setIsAddModalOpen'
+  | 'handleAddModalSave'
+  | 'isAddModalOpen'
+  | 'isCreatingPrompt'
+  | 'isManageModalOpen'
+  | 'closeAddModal'
+  | 'handleManageModalOpenChange'
 >) => (
-  <PromptEditDialog
-    open={isAddModalOpen}
-    saving={isCreatingPrompt}
-    onSave={handleAddModalSave}
-    onCancel={() => setIsAddModalOpen(false)}
-  />
+  <>
+    <PromptEditDialog
+      open={isAddModalOpen}
+      saving={isCreatingPrompt}
+      onSave={handleAddModalSave}
+      onCancel={closeAddModal}
+    />
+    <PromptManagementDialog open={isManageModalOpen} onOpenChange={handleManageModalOpenChange} />
+  </>
 )
 
 export const QuickPhrasesToolRuntime = (props: Props) => {

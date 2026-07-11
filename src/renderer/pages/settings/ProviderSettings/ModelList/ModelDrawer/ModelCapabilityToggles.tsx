@@ -6,7 +6,7 @@ import {
   ToolsCallingTag,
   VisionTag,
   WebSearchTag
-} from '@renderer/components/Tags/Model'
+} from '@renderer/components/tags/Model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -38,11 +38,17 @@ export function ModelCapabilityToggles({
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
         </div>
-        {hasUserModified && (
-          <Button variant="ghost" size="icon-sm" onClick={onReset}>
+        <div className="flex size-7 shrink-0 items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={!hasUserModified ? 'invisible' : undefined}
+            aria-hidden={!hasUserModified}
+            tabIndex={hasUserModified ? undefined : -1}
+            onClick={onReset}>
             <RotateCcw size={14} />
           </Button>
-        )}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5" aria-label={t('models.type.select')}>
         <VisionTag

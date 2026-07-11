@@ -6,12 +6,13 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import i18n from '@renderer/i18n'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * Data Flow Design:
@@ -211,9 +212,14 @@ export const useMiniApps = () => {
 
   // === UI State Cache (unchanged) ===
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
+  // Mirror the latest keep-alive list into a ref so callbacks that run after an
+  // await (syncOpenedCustomMiniApp) read fresh data, not the render-time snapshot.
+  const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
+  openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -313,14 +319,17 @@ export const useMiniApps = () => {
 
   const syncOpenedCustomMiniApp = useCallback(
     (updated: MiniApp) => {
-      const openedKeepAliveApp = openedKeepAliveMiniApps.find((app) => app.appId === updated.appId)
+      // Read the latest keep-alive list at call time (not the render-time snapshot)
+      // so an app opened concurrently during the edit's await is seen here and
+      // picks up the new url instead of being missed.
+      const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
       const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
       const urlChanged =
         (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
         (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
 
       if (openedKeepAliveApp) {
-        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.map((app) => (app.appId === updated.appId ? updated : app)))
+        setOpenedKeepAliveMiniApps((prev) => prev.map((app) => (app.appId === updated.appId ? updated : app)))
       }
 
       if (openedOneOffApp) {
@@ -338,14 +347,15 @@ export const useMiniApps = () => {
         }
       }
     },
-    [openedKeepAliveMiniApps, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
     (appId: string) => {
-      if (openedKeepAliveMiniApps.some((app) => app.appId === appId)) {
-        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((app) => app.appId !== appId))
-      }
+      // Functional update resolves against the latest list, so the prior
+      // `.some(...)` presence guard is redundant: filtering an absent id is a
+      // no-op the cache short-circuits via isEqual.
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
 
       if (openedOneOffMiniApp?.appId === appId) {
         setOpenedOneOffMiniApp(null)
@@ -363,15 +373,17 @@ export const useMiniApps = () => {
           tabsContext?.closeTab(tab.id)
         }
       }
+
+      removeSidebarFavoriteMiniApp(appId)
     },
     [
       currentMiniAppId,
-      openedKeepAliveMiniApps,
       openedOneOffMiniApp,
       setCurrentMiniAppId,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
+      removeSidebarFavoriteMiniApp,
       tabsContext
     ]
   )

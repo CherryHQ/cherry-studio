@@ -6,8 +6,8 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 
 | Layer | File | Responsibility | Rule |
 |---|---|---|---|
-| **L1** | `entryPoint.tsx` | Bootstrap: side-effect imports (styles), any `await` preload / init-data, `createRoot().render(<XxxApp />)` | Fixed filename. Defines **no** component — only mounts one. |
-| **L2** | `XxxApp.tsx` | Providers root (`Provider` / `QueryClientProvider` / `ThemeProvider` …). May hold an inner `XxxContent` for post-Redux hook wiring (e.g. `window.toast`). | Fixed name `<WindowName>App`, default export, mounted by L1. |
+| **L1** | `entryPoint.tsx` | Bootstrap: side-effect imports (styles), `await prepareWindow(...)`, `createRoot().render(<XxxApp />)` | Fixed filename. Defines **no** component — only mounts one. |
+| **L2** | `XxxApp.tsx` | Providers root (`Provider` / `QueryClientProvider` / `ThemeProvider` …). May hold an inner leaf that runs per-window init hooks (`useAppInit`) and mounts the popup/toast hosts (`<PopupHost/>` / `<ToastHost/>`) as sibling leaves. | Fixed name `<WindowName>App`, default export, mounted by L1. |
 | **L3** | (varies) | The window's actual UI. | Named for what it is — **no forced suffix**. |
 
 `index.html`'s `<script src>` points at the window's `entryPoint.tsx`.
@@ -15,6 +15,10 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 **Why split L1 from L2**: a module that calls `createRoot().render()` at top level is not a React Fast Refresh boundary, so editing it forces a full page reload. Keeping the component in its own `XxxApp.tsx` (a pure-component module) lets UI edits hot-swap; only the rarely-touched `entryPoint.tsx` reloads.
 
 **L3 naming**: L3 is not part of the convention — name it semantically, never with a suffix. Do **not** invent new `...AppShell` names: `AppShell` is a specific shared layout family (`components/layout/AppShell`, `AppShellTabBar`), not a generic content suffix.
+
+## prepareWindow
+
+`prepareWindow.ts` is the shared L1 prologue: `await prepareWindow({ preference: 'all' | [keys] })` initializes i18n and warms the preference cache **before** the first render, so `usePreference` reads saved values on frame one instead of defaults (no theme flash). `main`/`subWindow` warm the full cache (`'all'`, one in-memory IPC fetch); light windows list exactly the keys their first frame reads. `migrationV2` is a preboot special case (own i18n, no preferences) and stays standalone. CSS side-effect imports stay per-entry — `selection/toolbar` deliberately omits `index.css` (fonts / markdown / chat styles) to keep the lightest window minimal.
 
 ## Logger Window Source
 
@@ -31,7 +35,6 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | Window | L2 root | L3 content |
 |---|---|---|
 | `main` | `MainApp` | `components/layout/AppShell` (shared) |
-| `settings` | `SettingsApp` | route tree (`@renderer/routeTree.gen`) |
 | `subWindow` | `SubWindowApp` | `SubWindowAppShell` |
 | `quickAssistant` | `QuickAssistantApp` | `HomeWindow` |
 | `migrationV2` | `MigrationApp` | in-component (`components/`) |

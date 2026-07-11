@@ -4,6 +4,19 @@ import type { CherryMessagePart, CherryUIMessage } from '../../data/types/messag
 import type { UniqueModelId } from '../../data/types/model'
 import type { SerializedError } from '../../types/error'
 
+export interface AiChatRequestBody {
+  /** Topic ID for message routing and persistence. */
+  topicId: string
+  /** Explicit parent node — message id at the current branch tip, or null for first message. */
+  parentAnchorId?: string
+  /** Models selected by the composer model selector (multi-model fan-out). */
+  mentionedModels?: UniqueModelId[]
+  /** User message parts to persist/display for submit-message turns. */
+  userMessageParts?: CherryMessagePart[]
+  /** Uploaded file metadata. */
+  files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+}
+
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
 
 /** A single chunk of a running stream. */
@@ -121,6 +134,13 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+  /**
+   * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
+   * `resolveKnowledgeBaseIds`: the assistant's own bound bases take precedence when non-empty
+   * (these ids are then ignored); only when the assistant has none does this selection define
+   * the scope.
+   */
+  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */

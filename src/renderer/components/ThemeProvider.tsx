@@ -24,7 +24,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
   const [language] = usePreference('app.language')
 
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(getSystemTheme)
+  // Derive the first frame from the saved theme — the entry points await the preference
+  // preload before rendering, so waiting for the sync-up effect below would commit one
+  // OS-theme frame first (a visible flash when the saved theme differs from the OS).
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(() =>
+    settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark ? settedTheme : getSystemTheme()
+  )
   const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {

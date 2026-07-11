@@ -1,7 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
-import { TopView } from '@renderer/components/TopView'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,13 +14,10 @@ interface ShowParams {
   providerId: string
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => void
-}
+type Props = ShowParams & PopupInjectedProps<any>
 
-const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
+const PopupContainer: FC<Props> = ({ providerId, open, resolve }) => {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(true)
   const { provider, updateProvider } = useProvider(providerId)
   const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
   const [edited, setEdited] = useState(false)
@@ -37,17 +35,15 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
     setSaving(true)
     try {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
-      setOpen(false)
       resolve({})
     } catch {
-      window.toast.error(t('blocks.edit.save.failed.label'))
+      toast.error(t('blocks.edit.save.failed.label'))
     } finally {
       setSaving(false)
     }
   }
 
   const onCancel = () => {
-    setOpen(false)
     resolve({})
   }
 
@@ -84,22 +80,6 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   )
 }
 
-export default class ModelNotesPopup {
-  static hide() {
-    TopView.hide('ModelNotesPopup')
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'ModelNotesPopup'
-      )
-    })
-  }
-}
+const ModelNotesPopup = createPopup<ShowParams, any>(PopupContainer, { dismissResult: {} })
+
+export default ModelNotesPopup

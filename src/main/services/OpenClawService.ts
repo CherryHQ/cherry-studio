@@ -10,14 +10,12 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { WindowType } from '@main/core/window/types'
-import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
-import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/utils/process'
-import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
-import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
+import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { refreshShellEnv } from '@main/utils/shellEnv'
+import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
@@ -26,45 +24,10 @@ import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
 
-/**
- * Parse the current version from `openclaw --version` output.
- * Example input: "OpenClaw 2026.3.9 (fe96034)"
- */
-export function parseCurrentVersion(versionOutput: string): string | null {
-  const match = versionOutput.match(/OpenClaw\s+([\d.]+)/i)
-  return match?.[1] ?? null
-}
-
-/**
- * Parse the update status from `openclaw update status` output.
- * Returns the latest version string if a **binary** update is available, otherwise null.
- *
- * Cherry Studio installs OpenClaw as a standalone binary, so we only care about
- * binary-channel updates. npm/pkg-channel updates are ignored because they
- * require a different upgrade path (`npm update -g`).
- *
- * The table output contains a row like:
- *   │ Update   │ available · binary · 2026.3.12 │
- * And a summary line like:
- *   Update available (binary 2026.3.12). Run: openclaw update
- */
-export function parseUpdateStatus(statusOutput: string): string | null {
-  // Match binary-channel update from table row: "available · binary · <version>"
-  const tableMatch = statusOutput.match(/available\s*·\s*binary\s*·?\s*([\d.]+)/i)
-  if (tableMatch) return tableMatch[1]
-
-  // Match binary-channel update from summary line: "Update available (binary <version>)"
-  const summaryMatch = statusOutput.match(/Update available\s*\(binary\s+([\d.]+)\)/i)
-  if (summaryMatch) return summaryMatch[1]
-
-  return null
-}
-
 const openclawConfigDir = () => application.getPath('external.openclaw.config')
 const openclawConfigPath = () => path.join(openclawConfigDir(), 'openclaw.json')
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
-const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -72,13 +35,6 @@ export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-}
-
-export interface ChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
 }
 
 export interface OpenClawConfig {
@@ -173,52 +129,17 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
-  private installPromise: Promise<OperationResult> | null = null
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
   }
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
+    // IPC handlers migrated to IpcApi (openclaw.*)
   }
 
   protected async onStop(): Promise<void> {
     await this.stopGateway()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.OpenClaw_CheckInstalled, () => this.checkInstalled())
-    this.ipcHandle(IpcChannel.OpenClaw_Install, () => this.install())
-    this.ipcHandle(IpcChannel.OpenClaw_Uninstall, () => this.uninstall())
-    this.ipcHandle(IpcChannel.OpenClaw_StartGateway, (_e, port?: number) => this.startGateway(port))
-    this.ipcHandle(IpcChannel.OpenClaw_StopGateway, () => this.stopGateway())
-    this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
-    this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
-    this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
-    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, uniqueModelId) => this.syncConfig(uniqueModelId))
-    this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
-    this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
-    this.ipcHandle(IpcChannel.OpenClaw_PerformUpdate, () => this.performUpdate())
-  }
-
-  /**
-   * Check if OpenClaw is installed.
-   * Only recognizes the local binary (~/.cherrystudio/bin/). If openclaw is found
-   * in PATH but not locally, it's likely an old npm-installed version (possibly a
-   * third-party fork with ads) and needs migration.
-   */
-  public async checkInstalled(): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> {
-    const localPath = await getBinaryPath('openclaw')
-    if (fs.existsSync(localPath)) {
-      return { installed: true, path: localPath, needsMigration: false }
-    }
-    // Check if an old version exists in PATH (e.g. from npm install -g)
-    const envPath = await findExecutableInEnv('openclaw')
-    if (envPath) {
-      return { installed: false, path: null, needsMigration: true }
-    }
-    return { installed: false, path: null, needsMigration: false }
   }
 
   /**
@@ -229,139 +150,6 @@ export class OpenClawService extends BaseService {
     const localPath = await getBinaryPath('openclaw')
     if (fs.existsSync(localPath)) return localPath
     return null
-  }
-
-  /**
-   * Send install progress to renderer
-   */
-  private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    application
-      .get('WindowManager')
-      .broadcastToType(WindowType.Main, IpcChannel.OpenClaw_InstallProgress, { message, type })
-  }
-
-  /**
-   * Create a symlink in /usr/local/bin (macOS/Linux) or add bin dir to user PATH (Windows).
-   * Removes any existing symlink first to ensure a clean state.
-   */
-  private async linkBinary(): Promise<void> {
-    const binaryPath = await getBinaryPath('openclaw')
-    if (isWin) {
-      const binDir = await getBinaryPath()
-      try {
-        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
-        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
-        if (!currentPath.split(';').some((p) => p.toLowerCase() === binDir.toLowerCase())) {
-          const newPath = currentPath ? `${currentPath};${binDir}` : binDir
-          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
-          // Broadcast WM_SETTINGCHANGE so new shells pick up the change
-          execSync('setx OPENCLAW_PATH_REFRESH ""')
-          logger.info(`Added ${binDir} to user PATH`)
-        }
-      } catch {
-        // User PATH key may not exist yet
-        execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${binDir}" /f`)
-        logger.info(`Created user PATH with ${binDir}`)
-      }
-    } else {
-      try {
-        // Remove existing symlink or file at target path
-        if (fs.existsSync(SYMLINK_PATH)) {
-          fs.unlinkSync(SYMLINK_PATH)
-        }
-        fs.symlinkSync(binaryPath, SYMLINK_PATH)
-        logger.info(`Created symlink: ${SYMLINK_PATH} -> ${binaryPath}`)
-      } catch (err) {
-        logger.warn(`Failed to create symlink at ${SYMLINK_PATH} (may need elevated permissions):`, err as Error)
-      }
-    }
-  }
-
-  /**
-   * Remove the symlink from /usr/local/bin (macOS/Linux) or remove bin dir from user PATH (Windows).
-   */
-  private async unlinkBinary(): Promise<void> {
-    if (isWin) {
-      const binDir = await getBinaryPath()
-      try {
-        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
-        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
-        const parts = currentPath.split(';').filter((p) => p.toLowerCase() !== binDir.toLowerCase())
-        const newPath = parts.join(';')
-        if (newPath) {
-          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
-        } else {
-          execSync('reg delete "HKCU\\Environment" /v Path /f')
-        }
-        logger.info(`Removed ${binDir} from user PATH`)
-      } catch {
-        logger.debug('No user PATH to clean up')
-      }
-    } else {
-      try {
-        if (fs.existsSync(SYMLINK_PATH)) {
-          fs.unlinkSync(SYMLINK_PATH)
-          logger.info(`Removed symlink: ${SYMLINK_PATH}`)
-        }
-      } catch (err) {
-        logger.warn(`Failed to remove symlink at ${SYMLINK_PATH}:`, err as Error)
-      }
-    }
-  }
-
-  /**
-   * Install OpenClaw via BinaryManager (mise npm:openclaw backend).
-   */
-  public async install(): Promise<OperationResult> {
-    if (this.installPromise) {
-      return this.installPromise
-    }
-
-    this.installPromise = this.installInternal()
-    try {
-      return await this.installPromise
-    } finally {
-      this.installPromise = null
-    }
-  }
-
-  private async installInternal(): Promise<OperationResult> {
-    try {
-      this.sendInstallProgress('Installing OpenClaw...')
-      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
-      await this.linkBinary()
-      this.sendInstallProgress('OpenClaw installed successfully!')
-      logger.info('OpenClaw installed via BinaryManager')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to install OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
-      return { success: false, message: errorMessage }
-    }
-  }
-
-  /**
-   * Uninstall OpenClaw via BinaryManager.
-   */
-  public async uninstall(): Promise<OperationResult> {
-    // Stop the gateway before removing binary
-    if (this.gatewayStatus === 'running') {
-      await this.stopGateway()
-    }
-
-    try {
-      this.sendInstallProgress('Removing OpenClaw...')
-      await this.unlinkBinary()
-      await application.get('BinaryManager').removeTool('openclaw')
-      this.sendInstallProgress('OpenClaw uninstalled successfully!')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to uninstall OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
-      return { success: false, message: errorMessage }
-    }
   }
 
   /**
@@ -401,7 +189,7 @@ export class OpenClawService extends BaseService {
       }
     }
 
-    // Refresh shell env first so crossPlatformSpawn uses a fresh env
+    // Refresh shell env first so the gateway process spawns with a fresh env
     const shellEnv = await refreshShellEnv()
     const openclawPath = await this.findOpenClawBinary()
     if (!openclawPath) {
@@ -589,45 +377,6 @@ export class OpenClawService extends BaseService {
     return true
   }
 
-  private async execOpenClawCommandWithResult(
-    openclawPath: string,
-    args: string[],
-    env: Record<string, string>,
-    timeoutMs = 20000
-  ): Promise<{ code: number | null; stdout: string; stderr: string }> {
-    return new Promise((resolve) => {
-      const proc = crossPlatformSpawn(openclawPath, args, { env })
-
-      let stdout = ''
-      let stderr = ''
-
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString()
-      })
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      const timeout = setTimeout(() => {
-        logger.warn(`Gateway command timed out: ${args.join(' ')}`)
-        proc.kill('SIGKILL')
-        resolve({ code: null, stdout, stderr })
-      }, timeoutMs)
-
-      proc.on('exit', (code) => {
-        clearTimeout(timeout)
-        logger.info(`Gateway command [${args.join(' ')}]:`, { code, stdout: stdout.trim(), stderr: stderr.trim() })
-        resolve({ code, stdout, stderr })
-      })
-
-      proc.on('error', (err) => {
-        clearTimeout(timeout)
-        logger.error(`Gateway command error [${args.join(' ')}]:`, err)
-        resolve({ code: null, stdout, stderr: err.message })
-      })
-    })
-  }
-
   /**
    * Get Gateway status. Probes the port when idle to detect externally-started gateways.
    */
@@ -649,22 +398,6 @@ export class OpenClawService extends BaseService {
       status: this.gatewayStatus,
       port: this.gatewayPort
     }
-  }
-
-  /**
-   * Check Gateway health (public API).
-   * Returns unhealthy immediately if we know the gateway is not running.
-   */
-  public async checkHealth(): Promise<HealthInfo> {
-    if (this.gatewayStatus !== 'running') {
-      return { status: 'unhealthy', gatewayPort: this.gatewayPort }
-    }
-    const healthInfo = await this.checkGatewayHealth()
-    if (healthInfo.status === 'unhealthy') {
-      logger.warn(`Gateway health check failed, marking as stopped`)
-      this.gatewayStatus = 'stopped'
-    }
-    return healthInfo
   }
 
   /**
@@ -769,8 +502,15 @@ export class OpenClawService extends BaseService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
-  public async syncConfig(uniqueModelId: unknown): Promise<OperationResult> {
+  public async syncConfig(uniqueModelId: UniqueModelId, port?: number): Promise<OperationResult> {
     try {
+      // Apply the caller's gateway port before writing openclaw.json so the config's
+      // gateway.port matches the port startGateway() will bind and health-check. Without
+      // this, a custom port is written as the stale in-memory port (default 18790) because
+      // sync runs before startGateway(port), so the gateway binds the wrong port on launch.
+      if (port !== undefined) {
+        this.gatewayPort = port
+      }
       const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
@@ -918,14 +658,16 @@ export class OpenClawService extends BaseService {
         logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
 
-      // Read existing config
+      // Read existing config. An unparseable file aborts the sync instead of
+      // being rebuilt from scratch — silently replacing it would destroy any
+      // hand-edited OpenClaw config the user could otherwise repair.
       let config: OpenClawConfig = {}
       if (fs.existsSync(openclawConfigPath())) {
+        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
         try {
-          const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
           config = JSON.parse(content)
         } catch {
-          logger.warn('Failed to parse existing OpenClaw config, creating new one')
+          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
         }
       }
 
@@ -1015,103 +757,6 @@ export class OpenClawService extends BaseService {
       logger.error('Failed to sync provider config:', error as Error)
       return { success: false, message: errorMessage }
     }
-  }
-
-  /**
-   * Check for OpenClaw updates by comparing the installed version with the latest GitHub release.
-   */
-  public async checkUpdate(): Promise<{
-    hasUpdate: boolean
-    currentVersion: string | null
-    latestVersion: string | null
-    message?: string
-  }> {
-    try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        return { hasUpdate: false, currentVersion: null, latestVersion: null, message: 'OpenClaw binary not found' }
-      }
-
-      const shellEnv = await getShellEnv()
-
-      // Get current version via `openclaw --version`
-      const versionResult = await this.execOpenClawCommandWithResult(openclawPath, ['--version'], shellEnv, 10000)
-      const currentVersion = parseCurrentVersion(versionResult.stdout)
-
-      // Check for updates via `openclaw update status`
-      const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
-        openclawPath,
-        ['update', 'status'],
-        shellEnv,
-        15000
-      )
-
-      if (code !== 0) {
-        const errMsg = stderr.trim() || `Command exited with code ${code}`
-        return { hasUpdate: false, currentVersion, latestVersion: null, message: errMsg }
-      }
-
-      const latestVersion = parseUpdateStatus(stdout)
-      if (latestVersion) {
-        return { hasUpdate: true, currentVersion, latestVersion }
-      }
-
-      // No update available
-      return { hasUpdate: false, currentVersion, latestVersion: currentVersion }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to check for updates:', error as Error)
-      return { hasUpdate: false, currentVersion: null, latestVersion: null, message: errorMessage }
-    }
-  }
-
-  /**
-   * Perform OpenClaw update through BinaryManager so mise remains the owner.
-   */
-  public async performUpdate(): Promise<OperationResult> {
-    try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        return { success: false, message: 'OpenClaw binary not found' }
-      }
-
-      // Stop gateway before updating
-      if (this.gatewayStatus === 'running') {
-        await this.stopGateway()
-      }
-
-      this.sendInstallProgress('Updating OpenClaw via BinaryManager...')
-      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
-      void refreshShellEnv()
-
-      logger.info('OpenClaw updated successfully')
-      this.sendInstallProgress('OpenClaw updated successfully!')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to update OpenClaw:', error as Error)
-      this.sendInstallProgress(errorMessage, 'error')
-      return { success: false, message: errorMessage }
-    }
-  }
-
-  /**
-   * Get connected channel status
-   */
-  public async getChannelStatus(): Promise<ChannelInfo[]> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/api/channels`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (response.ok) {
-        const data = await response.json()
-        return data.channels || []
-      }
-    } catch (error) {
-      logger.debug('Failed to get channel status:', error as Error)
-    }
-
-    return []
   }
 
   /**

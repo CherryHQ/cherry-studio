@@ -7,15 +7,12 @@ import { checkModelsHealth } from '../checkModelsHealth'
 
 const checkApiMock = vi.fn()
 
-vi.mock('@renderer/services/ApiService', () => ({
-  checkApi: (...args: unknown[]) => checkApiMock(...args)
-}))
-
 vi.mock('../../utils/healthCheck', async () => {
   const actual = await vi.importActual<typeof HealthCheckUtils>('../../utils/healthCheck')
   return {
     ...actual,
-    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults)
+    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults),
+    checkApi: (...args: unknown[]) => checkApiMock(...args)
   }
 })
 
@@ -57,7 +54,7 @@ describe('checkModelsHealth', () => {
     await run
   })
 
-  it('probes once per model regardless of how many keys are configured (I7)', async () => {
+  it('probes each configured API key for a model', async () => {
     checkApiMock.mockResolvedValue(okResult)
 
     const results = await checkModelsHealth({
@@ -67,8 +64,10 @@ describe('checkModelsHealth', () => {
       timeout: 1000
     })
 
-    // One probe (the provider's rotated credential), not one per key.
-    expect(checkApiMock).toHaveBeenCalledTimes(1)
+    expect(checkApiMock).toHaveBeenCalledTimes(3)
+    expect(checkApiMock).toHaveBeenNthCalledWith(1, 'model-a', expect.objectContaining({ apiKey: 'sk-1' }))
+    expect(checkApiMock).toHaveBeenNthCalledWith(2, 'model-a', expect.objectContaining({ apiKey: 'sk-2' }))
+    expect(checkApiMock).toHaveBeenNthCalledWith(3, 'model-a', expect.objectContaining({ apiKey: 'sk-3' }))
     expect(results[0].kind).toBe('ok')
     expect(results[0].keyResults).toHaveLength(3)
   })

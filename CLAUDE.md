@@ -91,7 +91,7 @@ Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.
 
 ### Code Review
 
-Do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — inspect CI via `gh` instead.
+When reviewing a GitHub PR, do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — its CI already ran them; inspect via `gh` instead.
 
 ### Issues
 
@@ -138,7 +138,9 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/naming-conventions.md)).
 
-- [Main Process Architecture](docs/references/main-process-architecture.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`) and dependency direction.
+A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/naming-conventions.md)).
+
+- [Main Process Architecture](docs/references/main-process-architecture.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
 - [Renderer Architecture](docs/references/renderer-architecture.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
 - [Shared Layer Architecture](docs/references/shared-layer-architecture.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
@@ -160,9 +162,9 @@ Scope:
 - **Preference**: cross-process (main + renderer); auto-syncs across windows
 - **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
 
-Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
+Database: SQLite via **better-sqlite3** + Drizzle ORM — the driver is **synchronous** (queries and transactions run inline with no `await`, unlike the app's otherwise-async data layers), so `getDb()` queries and `withWriteTx(fn)` callbacks must be written synchronously. Schemas in `src/main/data/db/schemas/`, migrations via `pnpm db:migrations:generate`
 
-**Write serialization**: concurrent write paths MUST go through `application.get('DbService').withWriteTx(fn)` instead of `db.transaction(fn)` to avoid `SQLITE_BUSY` from libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288). See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewritewritetx).
+**Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction; `fn` must be synchronous. A single write doesn't need it — better-sqlite3 runs each statement atomically on its one connection. See [Database Patterns — Write Serialization](docs/references/data/database-patterns.md#write-serialization-dbservicewritewritetx).
 
 **DataApi boundary rule**: DataApi is for SQLite-backed business data only. No database table → no DataApi endpoint; use IPC instead. See [Scope & Boundaries](docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries).
 
@@ -254,3 +256,7 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 ### Breaking Changes Log
 
 When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
+
+## Local Instructions
+
+If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.

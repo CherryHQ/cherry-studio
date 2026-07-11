@@ -1,4 +1,4 @@
-import { compact, uniq } from 'lodash'
+import { compact, uniq } from 'es-toolkit/compat'
 
 export type ApiKeyValidity =
   | {
