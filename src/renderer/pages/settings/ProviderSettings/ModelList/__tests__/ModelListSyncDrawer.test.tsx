@@ -38,7 +38,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({

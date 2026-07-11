@@ -10,7 +10,7 @@ export {
   isVisionModels
 } from './capabilities'
 export { isEmbeddingModel, isRerankModel } from './embedding'
-export { getModelLogo } from './logo'
+export { getModelLogoRef } from './logo'
 export { isGPT5SeriesReasoningModel } from './openai'
 export {
   getModelSupportedReasoningEffortOptions,
