@@ -7,6 +7,7 @@ import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import type { ISeeder } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
@@ -14,7 +15,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull, sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
   return db
@@ -140,6 +141,23 @@ describe('CherryAssistantSeeder', () => {
     expect(dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()).toHaveLength(
       1
     )
+  })
+
+  it('seeds after an unrelated seeder closes bootstrap with no prior library history', () => {
+    const unrelatedSeeder: ISeeder = {
+      name: 'unrelated',
+      version: '1',
+      description: 'Close the bootstrap window without creating agent history',
+      run: vi.fn()
+    }
+    const runner = new SeedRunner(dbh.db)
+
+    runner.runAll([unrelatedSeeder])
+    runner.runAll([new CherryAssistantSeeder()])
+
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
+    const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
+    expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
   it('does not create later after the journal is written even if all agents are deleted', () => {

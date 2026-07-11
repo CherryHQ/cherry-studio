@@ -86,10 +86,6 @@ const RUNTIME_MARKER = '## Available Runtimes'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () => ({ ok: true }))
-  )
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
@@ -190,6 +186,19 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
     expect(result as string).toContain('- Language: zh-CN, Theme: undefined')
+  })
+
+  it('does not make network requests while building an assistant prompt', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('uses user-owned DB instructions when non-empty', async () => {

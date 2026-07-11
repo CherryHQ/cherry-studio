@@ -3,32 +3,33 @@
  * dotenv variants and private-key/cert material, not just `.env`/`.env.local`.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  preferenceGet: vi.fn(),
-  mcpList: vi.fn()
-}))
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      throw new Error(`Unexpected application.get(${name})`)
-    }),
-    getPath: vi.fn()
-  }
+  mcpList: vi.fn(),
+  providerGetById: vi.fn()
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { list: mocks.mcpList }
 }))
 
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mocks.providerGetById }
+}))
+
 import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
 beforeEach(() => {
-  mocks.preferenceGet.mockReset()
+  MockMainPreferenceServiceUtils.resetMocks()
   mocks.mcpList.mockReset()
+  mocks.providerGetById.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
 })
 
@@ -112,10 +113,10 @@ describe('diagnose mcp_status', () => {
 
 describe('diagnose config', () => {
   it('redacts assistant-visible proxy values to origin only', async () => {
-    mocks.preferenceGet.mockImplementation((key: string) => {
-      if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret'
-      return undefined
-    })
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'app.proxy.url',
+      'http://user:pass@proxy.example:8080/path?token=secret'
+    )
 
     const server = new AssistantServer()
     const result = await (
@@ -131,5 +132,97 @@ describe('diagnose config', () => {
     expect(text).not.toContain('pass')
     expect(text).not.toContain('token=secret')
     expect(text).not.toContain('/path')
+  })
+})
+
+describe('diagnose health', () => {
+  const endpoint = 'https://endpoint-user:endpoint-pass@api.example:8443/v1/chat?endpoint-token=secret#fragment'
+
+  function mockProvider() {
+    mocks.providerGetById.mockReturnValue({
+      apiKeys: [{ id: 'key-1' }],
+      defaultChatEndpoint: 'chat',
+      endpointConfigs: { chat: { baseUrl: endpoint } }
+    })
+  }
+
+  async function diagnoseHealth(providerId: string) {
+    const server = new AssistantServer()
+    return await (
+      server as unknown as {
+        diagnoseHealth: (id: string) => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).diagnoseHealth(providerId)
+  }
+
+  it('returns only the endpoint origin after a successful health check', async () => {
+    mockProvider()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200 }))
+    )
+    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
+
+    const result = await diagnoseHealth('health-success')
+    const text = result.content[0].text
+    const health = JSON.parse(text) as { host: string }
+
+    expect(health.host).toBe('https://api.example:8443')
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+    for (const secret of ['endpoint-user', 'endpoint-pass', '/v1/chat', 'endpoint-token=secret']) {
+      expect(text).not.toContain(secret)
+    }
+  })
+
+  it('uses a structural connection failure without leaking endpoint or fetch-error URLs', async () => {
+    mockProvider()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('connect https://error-user:error-pass@error.example:9443/private?error-token=secret')
+      })
+    )
+    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
+
+    const result = await diagnoseHealth('health-connection-failure')
+    const text = result.content[0].text
+    const health = JSON.parse(text) as { host: string; error: string }
+
+    expect(health).toMatchObject({ host: 'https://api.example:8443', error: 'connection failure' })
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+    for (const secret of [
+      'endpoint-user',
+      'endpoint-pass',
+      '/v1/chat',
+      'endpoint-token=secret',
+      'error-user',
+      'error-pass',
+      'error.example',
+      '/private',
+      'error-token=secret'
+    ]) {
+      expect(text).not.toContain(secret)
+    }
+  })
+
+  it('reports timeouts structurally and clears the timeout', async () => {
+    mockProvider()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw Object.assign(new Error('https://error-user:error-pass@error.example/private?error-token=secret'), {
+          name: 'AbortError'
+        })
+      })
+    )
+    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
+
+    const result = await diagnoseHealth('health-timeout')
+    const text = result.content[0].text
+    const health = JSON.parse(text) as { error: string }
+
+    expect(health.error).toBe('timeout')
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+    expect(text).not.toContain('error-token=secret')
   })
 })

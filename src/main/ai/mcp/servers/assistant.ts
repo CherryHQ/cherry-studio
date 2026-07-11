@@ -364,15 +364,16 @@ class AssistantServer {
 
       // Simple connectivity test — try to reach the API host
       const startTime = Date.now()
+      const host = redactUrlToOrigin(apiHost)
+      let timeout: ReturnType<typeof setTimeout> | undefined
       try {
         const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000)
+        timeout = setTimeout(() => controller.abort(), 10000)
         const response = await fetch(testUrl, {
           method: 'HEAD',
           signal: controller.signal
         })
-        clearTimeout(timeout)
         const latency = Date.now() - startTime
 
         const result = {
@@ -385,7 +386,7 @@ class AssistantServer {
                   status: response.ok || response.status === 401 || response.status === 403 ? 'reachable' : 'error',
                   httpStatus: response.status,
                   latencyMs: latency,
-                  host: testUrl
+                  host
                 },
                 null,
                 2
@@ -405,9 +406,10 @@ class AssistantServer {
                 {
                   providerId,
                   status: 'unreachable',
-                  error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+                  error:
+                    fetchError instanceof Error && fetchError.name === 'AbortError' ? 'timeout' : 'connection failure',
                   latencyMs: latency,
-                  host: apiHost || '(no host configured)'
+                  host
                 },
                 null,
                 2
@@ -417,6 +419,8 @@ class AssistantServer {
         }
         healthCache.set(providerId, { result, timestamp: Date.now() })
         return result
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout)
       }
     } catch (error) {
       return {

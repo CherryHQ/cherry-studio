@@ -647,6 +647,59 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__assistant__*')
+    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ autoAllowRuntimeNamePrefixes: ['mcp__assistant__'] })
+    )
+  })
+
+  it('excludes Assistant MCP capability for channel-linked sessions', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.allowedTools).not.toContain('mcp__assistant__*')
+    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ autoAllowRuntimeNamePrefixes: [] })
+    )
+  })
+
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
     const session = {
       id: 'session-1',

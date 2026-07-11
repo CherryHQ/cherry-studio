@@ -24,7 +24,7 @@ const CHERRY_ASSISTANT_SEED = {
 
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
-  readonly description = 'Insert the builtin Cherry Assistant agent for empty agent libraries'
+  readonly description = 'Insert the builtin Cherry Assistant agent for profiles with no prior agent-library history'
   readonly executionPolicy = 'run-on-change' as const
   // Deliberately manual, despite the seeding guide's checksum default: this seeder is
   // a one-time eligibility check and never updates existing rows. Preset content is
@@ -34,10 +34,11 @@ export class CherryAssistantSeeder implements ISeeder {
 
   run(db: DbType): void {
     db.transaction((tx) => {
-      // This seed is a one-time eligibility check. SeedRunner still writes the journal
-      // when any library history exists, so users who later delete all agents do not get
-      // an automatic recreation. Agent rows include soft-deleted migration history; orphaned
-      // sessions are durable history too because deleting an agent sets their agentId to NULL.
+      // This seed is a one-time eligibility check. Returning on prior history still counts
+      // as a successful run: SeedRunner journals the seeder after run returns, so users who
+      // later delete all agents do not get an automatic recreation. Agent rows include
+      // soft-deleted migration history; orphaned sessions are durable history too because
+      // deleting an agent sets their agentId to NULL.
       if (this.hasPriorLibraryHistory(tx)) return
 
       const agentId = uuidv4()

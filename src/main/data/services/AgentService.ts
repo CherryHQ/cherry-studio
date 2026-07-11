@@ -63,7 +63,7 @@ function buildAgentSearchPredicate(search: string): SQL {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
   const descriptionMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
-  // The builtin description is bundle-owned when the database value is blank, so include
+  // The builtin description is an i18n-owned fallback when the database value is blank, so include
   // its localized main-process fallback in SQL rather than limiting search to a renderer page.
   const builtinDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant' AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
   return or(nameMatch, descriptionMatch, builtinDescriptionMatch)!

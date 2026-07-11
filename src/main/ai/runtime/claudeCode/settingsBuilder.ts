@@ -191,7 +191,7 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
  * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
  * Injected into system prompt so the agent knows the user's setup immediately.
  */
-async function buildAssistantContext(): Promise<string> {
+function buildAssistantContext(): string {
   const appVersion = app.getVersion()
   const platform = `${os.platform()} ${os.release()}`
   const language = getAppLanguage()
@@ -202,16 +202,6 @@ async function buildAssistantContext(): Promise<string> {
   const mcpServers = mcpServerService.list({}).items
   const activeMcp = mcpServerService.list({ isActive: true }).items
 
-  // Network probe (parallel, 2s timeout each)
-  const probeResults = await Promise.allSettled([
-    probeHost('github.com'),
-    probeHost('google.com'),
-    probeHost('docs.cherry-ai.com')
-  ])
-  const networkLines = probeResults.map((r) =>
-    formatNetworkProbeLine(r.status === 'fulfilled' ? r.value : { host: '?', ok: false })
-  )
-
   return [
     '## Current Environment',
     `- App: Cherry Studio v${appVersion}`,
@@ -219,33 +209,8 @@ async function buildAssistantContext(): Promise<string> {
     `- Language: ${language}, Theme: ${theme}`,
     proxy ? `- Proxy: ${redactUrlToOrigin(proxy)}` : '- Proxy: none',
     `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
-    `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
-    '',
-    '## Network',
-    ...networkLines
+    `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`
   ].join('\n')
-}
-
-/**
- * Format a single network-probe line for the assistant context. Deliberately omits per-probe
- * latency: this string feeds the assistant systemPrompt, which is part of the warm-query
- * signature — volatile `(NNNms)` made prewarm/consume signatures differ so warm queries were
- * never reused. `reachable`/`unreachable` is stable run-to-run.
- */
-export function formatNetworkProbeLine(v: { host: string; ok: boolean }): string {
-  return `- ${v.host}: ${v.ok ? 'reachable' : 'unreachable'}`
-}
-
-async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 2000)
-    await fetch(`https://${host}`, { method: 'HEAD', signal: controller.signal })
-    clearTimeout(timeout)
-    return { host, ok: true }
-  } catch {
-    return { host, ok: false }
-  }
 }
 
 // ── Input types ─────────────────────────────────────────────────────
@@ -278,6 +243,11 @@ export async function buildClaudeCodeSessionSettings(
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
+  const agentConfig = agent.configuration
+  const isAssistant = agentConfig?.builtin_role === 'assistant'
+  // External channel turns are untrusted and have no local approval UI; never expose
+  // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
+  const assistantMcpEnabled = isAssistant && !channelService.findBySessionId(session.id)
 
   // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
   // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
@@ -303,15 +273,17 @@ export async function buildClaudeCodeSessionSettings(
   const steerHolder = getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
-  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent)
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
+    session,
+    agent,
+    assistantMcpEnabled
+  )
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
 
   // 6. MCP servers (session + built-in)
-  const agentConfig = agent.configuration
-  const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = buildMcpServers(session, agent, isAssistant)
+  const mcpServers = buildMcpServers(session, agent, assistantMcpEnabled)
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
@@ -343,7 +315,7 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(isAssistant)
+  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -677,7 +649,8 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 
 async function buildToolPermissions(
   session: AgentSessionEntity,
-  agent: AgentEntity
+  agent: AgentEntity,
+  assistantMcpEnabled: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -706,7 +679,7 @@ async function buildToolPermissions(
     // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-    autoAllowRuntimeNamePrefixes: isAssistant ? ['mcp__assistant__'] : [],
+    autoAllowRuntimeNamePrefixes: assistantMcpEnabled ? ['mcp__assistant__'] : [],
     // Mutating cherry-tools (kb_manage) must still prompt for approval.
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
@@ -930,7 +903,7 @@ async function buildToolPermissions(
  * Only the `bun` binary is bundled (no `bunx` shim), so the model is told to use
  * `bun x` rather than `bunx`; `uvx` is bundled alongside `uv`. Resolved paths are
  * stable (fixed install location), so this block is safe inside the warm-query
- * system-prompt signature — see {@link formatNetworkProbeLine}.
+ * system-prompt signature.
  */
 async function buildRuntimeContext(): Promise<string> {
   const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
@@ -983,11 +956,11 @@ export async function buildSystemPrompt(
   // Assistant mode
   if (isAssistant) {
     try {
-      const context = await buildAssistantContext()
+      const context = buildAssistantContext()
       return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
     } catch (error) {
-      // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
-      // entire assistant context, so surface it before falling back to the base instructions.
+      // Don't silently degrade to generic behavior: a context read failure drops the entire
+      // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
       return `${instructions}${channelSecurityBlock}`
     }
@@ -1005,7 +978,7 @@ export async function buildSystemPrompt(
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  isAssistant: boolean
+  assistantMcpEnabled: boolean
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -1062,8 +1035,8 @@ export function buildMcpServers(
     totalMcpServers: Object.keys(mcpList).length
   })
 
-  // 5. Assistant — navigate + diagnose tools (Cherry Assistant only)
-  if (isAssistant) {
+  // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
+  if (assistantMcpEnabled) {
     const assistantServer = new AssistantServer()
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
@@ -1187,10 +1160,10 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
  * The auto-approved cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage
  * tool is excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
-export function adjustAllowedToolsForMcp(isAssistant: boolean): string[] {
+export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
-  if (isAssistant) result.push('mcp__assistant__*')
+  if (assistantMcpEnabled) result.push('mcp__assistant__*')
   return result
 }
 

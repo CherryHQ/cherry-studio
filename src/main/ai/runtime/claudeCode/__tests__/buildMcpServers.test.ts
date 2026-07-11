@@ -61,7 +61,6 @@ const {
   adjustAllowedToolsForMcp,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
-  formatNetworkProbeLine,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
 
@@ -206,16 +205,5 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     )
 
     expect(mockMkdir).not.toHaveBeenCalled()
-  })
-})
-
-// claude-code-driver-3: the probe line must not embed volatile latency, or the assistant
-// systemPrompt (and thus the warm-query signature) differs every run and warm queries never reuse.
-describe('formatNetworkProbeLine', () => {
-  it('emits a stable reachable/unreachable line with no latency', () => {
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: true })).toBe('- github.com: reachable')
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: false })).toBe('- github.com: unreachable')
-    // No digits/ms — the line is identical across probe runs regardless of measured latency.
-    expect(formatNetworkProbeLine({ host: 'x', ok: true })).not.toMatch(/\d|ms/)
   })
 })
