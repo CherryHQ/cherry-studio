@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Inspecciona y gestiona esta configuración de agente y canales",
+          "label": "Configuración del Agente"
         },
         "CherryCron": {
           "description": "Gestiona el programador dentro de la aplicación",
@@ -891,8 +891,8 @@
           "label": "Búsqueda de conocimiento"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Envía una notificación a través de un canal conectado",
+          "label": "Notificar"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Añadir proveedor en Configuración → Servicio de modelo",
+    "add_provider_hint_anthropic_messages": "Configura un endpoint de Mensajes de Anthropic en Configuración → Servicio de Modelo",
+    "add_provider_hint_gemini": "Configura un endpoint de Gemini en Configuración → Servicio de modelo",
+    "add_provider_hint_openai_responses": "Configura un endpoint de Respuestas de OpenAI en Configuración → Servicio de Modelo",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Desactivar Contexto 1M",
+        "disable_attribution_header": "Desactivar encabezado de atribución",
+        "disable_auto_upgrade": "Desactivar actualización automática",
+        "disable_bundled_skills": "Desactivar habilidades incluidas",
+        "disable_compact": "Desactivar compactación",
+        "disable_extra_usage_command": "Desactivar Comando de Uso Adicional",
+        "disable_nonessential_traffic": "Desactivar Tráfico No Esencial",
+        "disable_terminal_title": "Desactivar título de terminal",
+        "effort_level_hint": "Nivel de Esfuerzo",
+        "enable_teammates": "Habilitar compañeros de equipo",
+        "enable_tool_search": "Activar búsqueda de herramientas",
+        "fable_model": "Fábula",
+        "haiku_model": "Haiku",
+        "hide_attribution": "Ocultar atribución de IA",
+        "max_context_tokens_hint": "Tokens de Contexto Máximos",
+        "max_output_tokens_hint": "Tokens de salida máximos",
+        "model_column": "Modelo de solicitud",
+        "model_roles": "Mapeo de roles del modelo",
+        "model_roles_hint": "Sobrescribir los modelos utilizados para subtareas en segundo plano (por ejemplo, compactación, títulos). Dejar vacío para seguir el modelo principal.",
+        "options": "Opciones Rápidas",
+        "opus_model": "Opus",
+        "permissions_allow": "Permitir (separados por comas)",
+        "permissions_deny": "Denegar (separado por comas)",
+        "permissions_hint": "Preaprobar o denegar patrones de herramientas. Admite comodines como Read(secrets-*/config.json).",
+        "role_column": "Rol",
+        "sonnet_model": "Soneto"
+      },
+      "codex": {
+        "disable_response_storage": "Desactivar Almacenamiento de Respuestas",
+        "goal_mode": "Activar Modo de Objetivo",
+        "remote_compaction": "Habilitar compactación remota"
+      },
+      "gemini": {
+        "checkpointing": "Activar puntos de control",
+        "disable_usage_stats": "Desactivar estadísticas de uso",
+        "hide_banner": "Ocultar Banner de Inicio",
+        "vim_mode": "Activar Modo Vim"
+      },
+      "kimi": {
+        "disable_telemetry": "Desactivar telemetría",
+        "keep_background_tasks": "Mantener tareas en segundo plano al salir",
+        "micro_compaction": "Habilitar Micro Compactación",
+        "plan_mode": "Modo de Plan Predeterminado",
+        "thinking": "Activar Pensamiento"
+      },
+      "opencode": {
+        "auto_compact": "Compactación automática",
+        "enable_reasoning": "Habilitar Razonamiento"
+      },
+      "permission_mode": "Aprobación de permiso",
+      "permission_modes": {
+        "accept_edits": "Aceptar ediciones",
+        "ask": "Preguntar",
+        "auto": "Auto",
+        "auto_edit": "Edición automática",
+        "bypass_high_risk": "Omitir permisos (alto riesgo)",
+        "default": "Predeterminado",
+        "default_allow_all": "Predeterminado (Permitir todo)",
+        "deny": "Denegar",
+        "full_access_high_risk": "Acceso Completo (Alto Riesgo)",
+        "manual": "Manual",
+        "plan": "Plan",
+        "read_only": "Solo lectura",
+        "workspace": "Espacio de trabajo",
+        "yolo_high_risk": "YOLO (Alto Riesgo)"
+      },
+      "qwen": {
+        "classify_all_shell": "Clasificar Todos los Comandos de Shell",
+        "disable_auto_update": "Desactivar actualización automática",
+        "disable_usage_stats": "Desactivar estadísticas de uso",
+        "hide_banner": "Ocultar Banner de Inicio",
+        "vim_mode": "Activar modo Vim"
+      },
+      "reasoning_effort": "Esfuerzo de razonamiento",
+      "reasoning_efforts": {
+        "default": "Predeterminado",
+        "high": "Alto",
+        "low": "Bajo",
+        "medium": "Medio",
+        "minimal": "Mínimo",
+        "xhigh": "Extra Alto"
+      },
+      "select_placeholder": "Seleccionar…"
+    },
+    "apply_failed": "Error al escribir la configuración de la CLI en el archivo del sistema",
     "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
+    "can_upgrade": "Actualización disponible",
+    "clear_config_failed": "Error al borrar la configuración de la CLI. Es posible que sus credenciales sigan estando en los archivos de configuración de la herramienta.",
+    "cli_config": {
+      "format_failed": "Error de formato. Verifica la sintaxis del archivo.",
+      "hint": "Este es el contenido que se escribirá en el archivo de configuración CLI del sistema. Las claves de API no se guardan en las preferencias.",
+      "title": "Archivo de Configuración CLI",
+      "unknown_model": "Modelo desconocido",
+      "unknown_provider": "Proveedor desconocido"
+    },
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "CLI de Gemini",
+      "github_copilot_cli": "CLI de GitHub Copilot",
+      "kimi_code": "Código Kimi",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Código Qwen"
+    },
+    "collapse": "Colapsar",
+    "config_json_hint": "Pega o edita JSON en bruto; se mantiene sincronizado con los campos de arriba",
+    "configure": "Configurar",
+    "configuring_provider": "Configurar {{provider}}",
     "count_one": "{{count}} artículo",
     "count_other": "{{count}} artículos",
+    "current_config": "Actual",
+    "current_config_settings": "Configuración Actual",
     "custom_path": "Ruta personalizada",
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "disable": "Desactivar",
+    "edit_config": "Editar Configuración",
+    "enable": "Habilitar",
+    "enabled": "Habilitado",
+    "endpoint_default": "Usando el proveedor predeterminado",
+    "endpoint_hint": "Endpoint / Clave en Model Service",
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
+    "format_json": "Format",
     "hero_tagline": "Elige una herramienta CLI para configurar",
+    "install": "Instalar",
     "install_bun": "Instalar Bun",
+    "install_error": "Instalación fallida",
+    "install_success": "Instalación exitosa",
+    "install_tool_first": "Instala {{toolName}} primero para seleccionar un proveedor",
+    "installing": "Instalando…",
     "installing_bun": "Instalando...",
+    "latest": "Último",
     "launch": {
       "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
       "error": "Error al iniciar, intente nuevamente",
       "label": "Iniciar",
       "launched": "Lanzado",
       "success": "Inicio exitoso",
+      "title": "Lanzar {{tool}}",
       "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
     "model": "modelo",
     "model_hint": "Elige qué modelo de IA debe usar la herramienta CLI",
+    "model_hint_config": "Seleccione el modelo a utilizar",
+    "model_mode": {
+      "common": "General",
+      "detailed": "Detallado"
+    },
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
+    "model_providers": "Proveedores de Modelos",
     "model_required": "Seleccione el modelo",
+    "model_selection": "Selección de modelo",
+    "more": "Más",
+    "no_matching_providers": "No se encontraron proveedores coincidentes",
+    "no_model_for_provider": "No hay modelo disponible para este proveedor",
+    "no_providers_description": "Habilita un proveedor compatible en Configuración → Servicio de modelo",
+    "no_providers_title": "No hay proveedores habilitados",
+    "no_tools": "No hay herramientas disponibles",
+    "not_installed": "No instalado",
+    "open_provider_settings": "Configuración del proveedor abierto",
+    "own_login": {
+      "title": "{{toolName}} Oficial"
+    },
+    "providerless_hint": "Esta herramienta se autentica a través de su propio flujo de inicio de sesión: simplemente elige un directorio de trabajo y lánzala. Ejecuta la herramienta una vez para iniciar sesión.",
+    "providers": "Proveedores",
+    "raw_config": "Configuración en bruto (JSON)",
+    "search_provider_placeholder": "Proveedores de búsqueda…",
     "select_folder": "Seleccionar carpeta",
+    "select_provider_before_launch": "Seleccione un proveedor antes de lanzar {{toolName}}",
+    "select_tool_to_start": "Seleccione una herramienta CLI de la izquierda para comenzar la configuración",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
     "terminal_hint": "Elige qué aplicación de terminal utilizar para ejecutar la CLI",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
-    "tool_description": {
-      "claude_code": "El asistente oficial de codificación con IA de línea de comandos de Anthropic",
-      "gemini_cli": "Asistente oficial de línea de comandos de Google Gemini",
-      "github_copilot_cli": "Compañero oficial de línea de comandos de GitHub Copilot",
-      "kimi_cli": "Asistente de línea de comandos Kimi de Moonshot",
-      "openai_codex": "CLI oficial de OpenAI para generación de código",
-      "opencode": "Agente de codificación multi-modelo de código abierto",
-      "qoder_cli": "Herramienta de codificación en línea de comandos agentica de Alibaba Qoder",
-      "qwen_code": "Herramienta de codificación CLI de código abierto de Alibaba Tongyi"
-    },
+    "tool_parameters": "Configuración de Parámetros",
+    "up_to_date": "Actualizado",
     "update_options": "Opciones de actualización",
+    "upgrade": "Actualizar",
+    "upgrade_error": "La actualización falló",
+    "upgrade_success": "Actualización exitosa",
     "working_directory": "directorio de trabajo",
     "working_directory_hint": "El directorio de trabajo en el que se ejecuta la herramienta CLI"
   },
@@ -2738,6 +2889,8 @@
       "chunking": "Fragmentación",
       "default_separator": "Auto (recomendado)",
       "document_count": "Recuento de documentos",
+      "download_local_embedding": "Descargar Modelo Local",
+      "download_local_embedding_failed": "Error al descargar el modelo de incrustación local",
       "embedding_model": "Modelo de incrustación",
       "embedding_model_select": "Selección de Modelo",
       "file_processing": "Procesamiento de archivos",
@@ -2764,7 +2917,8 @@
       "separator_rule": "Regla de Separador",
       "smart_chunking": "Fragmentación Inteligente",
       "threshold": "Umbral de Similitud",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Usar Modelo Local"
     },
     "recall": {
       "collapse": "Colapsar fragmento",
@@ -4160,6 +4314,7 @@
       "select_provider_model": "Por favor, selecciona primero un proveedor y un modelo."
     },
     "gateway": {
+      "open_dashboard": "Abrir OpenClaw",
       "port": "Puerto",
       "restart": "Reiniciar",
       "start": "Iniciar Gateway",
@@ -4679,6 +4834,7 @@
     "jina": "Jina",
     "lanyun": "Tecnología Lanyun",
     "lmstudio": "Estudio LM",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5342,7 +5498,8 @@
       },
       "backup": {
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
-        "skip_file_data_title": "Copia de seguridad reducida"
+        "skip_file_data_title": "Copia de seguridad reducida",
+        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
       },
       "clear_cache": {
         "button": "Limpiar caché",
@@ -5935,6 +6092,30 @@
       "installError": "Failed to install tool",
       "installing": "Instalando...",
       "invalidTool": "Nombre de herramienta o clave inválida",
+      "localModels": {
+        "cancel": "Cancelar",
+        "description": "Modelos que se ejecutan localmente en tu dispositivo: descárgalos una vez y úsalos sin conexión sin necesidad de clave API.",
+        "download": "Descargar",
+        "embedding": {
+          "name": "Embedding Local",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo.",
+          "inUse": "Todavía utilizado por una base de conocimientos; los pesos se mantuvieron.",
+          "removeFailed": "Error al eliminar. Consulta los registros para más detalles."
+        },
+        "ocr": {
+          "name": "OCR local",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Eliminar",
+        "status": {
+          "downloading": "Descargando…",
+          "ready": "Listo"
+        },
+        "title": "Modelos Locales"
+      },
       "notInstalled": "No instalado",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -7347,6 +7528,13 @@
           "doc2x": {
             "description": "Motor avanzado de restauración de archivos.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) ejecutándose en proceso — completamente offline, sin clave API, con reconocimiento en un hilo en segundo plano para que la interfaz permanezca responsiva. Descarga el modelo (~140MB) en Dependencias del Entorno antes del primer uso.",
+            "name": "PaddleOCR Local",
+            "status": {
+              "local": "Funciona completamente en tu dispositivo"
+            }
           },
           "mineru": {
             "description": "Herramienta de extracción de PDF de alta calidad de código abierto de OpenDataLab.",
