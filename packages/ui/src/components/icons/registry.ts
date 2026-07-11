@@ -212,7 +212,9 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   dashscope: 'bailian',
   zai: 'z-ai',
   'minimax-global': 'minimax',
-  cherryai: 'cherryin'
+  cherryai: 'cherryin',
+  // Synthetic code-CLI "Cherry Gateway" provider — reuse the Cherry mark.
+  'cherry:api-gateway': 'cherryin'
 }
 
 /**

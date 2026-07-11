@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -925,6 +925,102 @@ describe('writeCliConfigDraft', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(written!.content) as Record<string, any>
       expect(parsed.loop_control).toEqual({ max_steps_per_turn: 12 })
+    })
+  })
+
+  describe('cherry gateway (synthetic provider — gateway URL + gateway key, never the real provider key)', () => {
+    const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
+    // Field-complete synthetic provider, mirroring useApiGatewayProvider: all three
+    // endpoints point at the local gateway, so any CLI's endpoint pick resolves to it.
+    const gatewayProvider = {
+      id: CLI_API_GATEWAY_PROVIDER_ID,
+      name: 'Cherry Gateway',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: GATEWAY_BASE_URL },
+        'openai-chat-completions': { baseUrl: GATEWAY_BASE_URL },
+        'openai-responses': { baseUrl: GATEWAY_BASE_URL }
+      },
+      defaultChatEndpoint: 'anthropic-messages'
+    } as unknown as Provider
+    const gateway = { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
+
+    it('routes a cross-protocol (OpenAI) model through the gateway for claude-code', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: GATEWAY_BASE_URL,
+        ANTHROPIC_AUTH_TOKEN: 'cs-sk-gateway',
+        // Gateway addressing: single colon, providerId:apiModelId (NOT the "::" internal id).
+        ANTHROPIC_MODEL: 'deepseek:deepseek-chat'
+      })
+      // The real provider is never read, so its key can't leak into the CLI config file.
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek/api-keys')
+    })
+
+    it('addresses by the model record apiModelId when it differs from the internal model id', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat', apiModelId: 'deepseek-reasoner' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-reasoner')
+    })
+
+    it('names the OpenCode provider "cherry-gateway" (not the localized-title-sanitized "cherry-Cherry-")', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
+      const provider = parsed.provider['cherry-gateway']
+      expect(provider).toBeTruthy()
+      expect(provider.options.baseURL).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(provider.options.apiKey).toBe('cs-sk-gateway')
+      expect(provider.models['deepseek:deepseek-chat']).toBeTruthy()
+    })
+
+    it('writes the gateway URL + key + gateway-addressed model for codex under the "cherry-gateway" key', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPENAI_CODEX,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const tomlWrite = writes.find((w) => w.path.endsWith('config.toml'))!
+      const authWrite = writes.find((w) => w.path.endsWith('auth.json'))!
+      const parsed = parseToml(tomlWrite.content) as Record<string, any>
+      expect(parsed.model).toBe('deepseek:deepseek-chat')
+      expect(parsed.model_provider).toBe('cherry-gateway')
+      expect(parsed.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(JSON.parse(authWrite.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
+    })
+
+    it('rejects the CherryAI managed default model and writes nothing', async () => {
+      mockGet({ '/models/': () => ({ id: 'qwen' }) })
+
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'cherryai::qwen', gateway })
+      ).rejects.toThrow(/gateway/)
+      expect(writes).toEqual([])
     })
   })
 

@@ -1961,6 +1961,10 @@
       },
       "select_placeholder": "请选择…"
     },
+    "api_gateway": {
+      "requires_running": "启用后请保持 Cherry Studio 运行，外部 CLI 才能连接到它托管的网关。",
+      "title": "Cherry 网关"
+    },
     "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",

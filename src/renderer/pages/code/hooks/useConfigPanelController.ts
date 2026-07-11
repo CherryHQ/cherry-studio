@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +11,7 @@ import {
   clearCliConfig,
   type CliConfigConnection,
   type CliConfigFileDraft,
+  type CliConfigGatewayContext,
   extractConnectionFromCliConfigDraft,
   isOwnLoginConfigurable,
   parseConfiguredModelId,
@@ -21,6 +22,7 @@ import {
 } from '../cliConfig'
 import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
+import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 
 const logger = loggerService.withContext('useConfigPanelController')
 
@@ -37,6 +39,8 @@ interface UseConfigPanelControllerOptions {
   setCurrentProvider: (providerId: string | null) => Promise<void>
   setCurrentCliConfigConnection: (connection: CliConfigConnection | null) => void
   makeModelFilter: (providerId: string) => (model: Model) => boolean
+  /** Synthetic Cherry gateway bundle (null when the gateway config is unavailable). */
+  apiGatewayProvider?: ApiGatewayProviderBundle | null
 }
 
 interface ConfigPanelController {
@@ -56,11 +60,24 @@ export function useConfigPanelController({
   upsertProviderConfig,
   setCurrentProvider,
   setCurrentCliConfigConnection,
-  makeModelFilter
+  makeModelFilter,
+  apiGatewayProvider
 }: UseConfigPanelControllerOptions): ConfigPanelController {
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
+
+  // For a gateway write: start the gateway if needed and resolve the fresh key, then hand back the
+  // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
+  // provider key). Returns undefined for non-gateway providers.
+  const resolveGatewayWriteContext = useCallback(
+    async (providerId: string): Promise<CliConfigGatewayContext | undefined> => {
+      if (!isApiGatewayProviderId(providerId) || !apiGatewayProvider) return undefined
+      const apiKey = await apiGatewayProvider.ensureReady()
+      return { provider: apiGatewayProvider.provider, apiKey }
+    },
+    [apiGatewayProvider]
+  )
   // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
   // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
   // same tool could interleave the two operations' reads/writes and leave its config files inconsistent.
@@ -125,12 +142,18 @@ export function useConfigPanelController({
       // Re-apply to the CLI config file when editing the currently active provider.
       if (currentProviderId === editingProvider.id || shouldEnableAfterSave) {
         try {
+          // Gateway: ensure it's running and rebuild the files with the fresh key (the preview draft
+          // may have been built before the gateway started, so its files could hold a stale/empty key).
+          const gateway = isApiGatewayProviderId(editingProvider.id)
+            ? await resolveGatewayWriteContext(editingProvider.id)
+            : undefined
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigModelId,
             configBlob: sanitizedConfig,
-            files: values.cliConfigFiles,
-            writePrimaryModel
+            files: gateway ? undefined : values.cliConfigFiles,
+            writePrimaryModel,
+            gateway
           })
           if (shouldEnableAfterSave) {
             await setCurrentProvider(editingProvider.id)
@@ -150,6 +173,7 @@ export function useConfigPanelController({
       upsertProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
+      resolveGatewayWriteContext,
       t
     ]
   )
@@ -225,14 +249,21 @@ export function useConfigPanelController({
         // Inject first; only mark as current on success so the UI never shows a
         // provider as active while its CLI config file failed to write.
         try {
+          // Gateway: ensure it's running (generating the key on first start) before injecting.
+          // Gated on the id so the real-provider path stays synchronous (no extra await tick).
+          const gateway = isApiGatewayProviderId(provider.id)
+            ? await resolveGatewayWriteContext(provider.id)
+            : undefined
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigContext.modelId,
             configBlob: cfg?.config,
-            writePrimaryModel: cliConfigContext.writePrimaryModel
+            writePrimaryModel: cliConfigContext.writePrimaryModel,
+            gateway
           })
           await setCurrentProvider(provider.id)
           setCurrentCliConfigConnection(null)
+          if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
           toast.error(t('code.apply_failed'))
@@ -250,6 +281,7 @@ export function useConfigPanelController({
       upsertProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
+      resolveGatewayWriteContext,
       t
     ]
   )
@@ -292,6 +324,11 @@ export function useConfigPanelController({
             providerConfig: providerConfigs[editingProvider.id] ?? null,
             isCurrentProvider: currentProviderId === editingProvider.id,
             modelFilter: makeModelFilter(editingProvider.id),
+            // Preview key only (may be null before first start); the actual write uses a fresh key.
+            gateway:
+              isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
+                ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
+                : undefined,
             onSubmit: handlePanelSubmit
           }
         : undefined,

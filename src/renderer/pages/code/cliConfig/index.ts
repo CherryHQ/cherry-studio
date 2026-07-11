@@ -19,6 +19,7 @@ export {
 } from './draft'
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
+export { gatewayExpectedModel } from './gatewayModel'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {
   CLAUDE_PERMISSION_MODES,
@@ -34,6 +35,7 @@ export { cliConfigConnectionMatchesProvider } from './providerMatching'
 export type {
   CliConfigConnection,
   CliConfigFileDraft,
+  CliConfigGatewayContext,
   CliConfigLanguage,
   CliConfigTarget,
   CliConfigWriteArgs

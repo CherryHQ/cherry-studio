@@ -21,11 +21,11 @@ import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
+  cliProviderKeyName,
   dropFeatureGoalsIfEmpty,
   isCherryManagedModel,
   normalizeUrl,
-  omitKeysByPrefix,
-  sanitizeProviderName
+  omitKeysByPrefix
 } from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
@@ -165,7 +165,7 @@ export function buildOpenCodeConfig(
   resolved: { apiKey: string; baseUrl: string; model: string },
   options: Record<string, any>
 ): Record<string, any> {
-  const providerName = sanitizeProviderName(provider.name, provider.id)
+  const providerName = cliProviderKeyName(provider)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   const modelConfig: Record<string, any> = { name: resolved.model }
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
