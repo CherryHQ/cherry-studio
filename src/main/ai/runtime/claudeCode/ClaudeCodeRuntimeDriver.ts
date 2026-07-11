@@ -43,7 +43,6 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePolicyUpdate,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
@@ -254,16 +253,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
-    return true
-  }
-
-  async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
-    if (!this.query) return false
-    if (update.type === 'tool-policy') {
-      await this.toolPolicySnapshot?.update(update.agent)
-      return true
-    }
-    await this.applyPermissionMode(update.permissionMode)
     return true
   }
 

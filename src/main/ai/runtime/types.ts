@@ -2,7 +2,6 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -37,10 +36,6 @@ export interface AgentRuntimeUserInput {
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
 }
-
-export type AgentRuntimePolicyUpdate =
-  | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'> }
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
@@ -87,7 +82,6 @@ export interface AgentRuntimeConnection {
    * host always queues.
    */
   redirect?(input: AgentRuntimeUserInput): boolean
-  applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable facts (tool policy) are patched in place FIRST — even mid-turn, so a security
