@@ -200,6 +200,7 @@ describe('AiService', () => {
 
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
       // wire shape. Only n/size/seed/aspectRatio are AI SDK native options; the
@@ -257,7 +258,11 @@ describe('AiService', () => {
       }
     ])
 
-    expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
+    expect(createInternalEntry).toHaveBeenCalledWith({
+      source: 'base64',
+      data: 'data:image/png;base64,abc123',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(result).toEqual({ files: [fileEntry] })
   })
 
@@ -278,6 +283,7 @@ describe('AiService', () => {
 
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       paramValues: { size: 'auto' }
     })
@@ -287,6 +293,7 @@ describe('AiService', () => {
     // rather than the old forced 1024x1024.
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       paramValues: {}
     })
@@ -306,6 +313,7 @@ describe('AiService', () => {
 
     await service.generateImage({
       uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a fox',
       // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
       paramValues: {
@@ -841,16 +849,18 @@ describe('AiService tool approval', () => {
 
 describe('imageInputEntryParams', () => {
   it('maps a base64 data URL to a base64 entry', () => {
-    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
+    expect(imageInputEntryParams('data:image/png;base64,AAAA', 'delete_when_unreferenced')).toEqual({
       source: 'base64',
-      data: 'data:image/png;base64,AAAA'
+      data: 'data:image/png;base64,AAAA',
+      cleanupPolicy: 'delete_when_unreferenced'
     })
   })
 
   it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
-    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
+    expect(imageInputEntryParams('https://cdn.example.com/in.png', 'delete_when_unreferenced')).toEqual({
       source: 'url',
-      url: 'https://cdn.example.com/in.png'
+      url: 'https://cdn.example.com/in.png',
+      cleanupPolicy: 'delete_when_unreferenced'
     })
   })
 })
@@ -864,40 +874,6 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
     } as never)
   }
-
-  it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
-    const service = createService()
-    stubResolution(service)
-
-    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
-    const permanentDelete = vi.fn().mockResolvedValue(undefined)
-    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
-    const enqueue = vi.fn().mockReturnValue({
-      id: 'job-1',
-      snapshot: {},
-      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
-    })
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'FileManager') return { createInternalEntry, permanentDelete }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
-      return undefined
-    })
-
-    const result = await service.generateImage({
-      uniqueModelId: 'ppio::qwen-image',
-      prompt: 'a cat',
-      paramValues: {},
-      inputImages: ['data:image/png;base64,AAAA'],
-      requestOptions: { signal: new AbortController().signal }
-    })
-
-    expect(enqueue).toHaveBeenCalledWith(
-      'image-generation.generate',
-      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
-    )
-    expect(result).toEqual({ files: outputFiles })
-    expect(permanentDelete).toHaveBeenCalledWith('in-1')
-  })
 
   it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
     // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
@@ -920,6 +896,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       paramValues: {
         numImages: 1,
@@ -970,6 +947,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       mode: 'edit',
       paramValues: {},
@@ -1012,7 +990,12 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
 
     await expect(
-      service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', paramValues: {} })
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     ).rejects.toThrow('vendor exploded')
   })
 
@@ -1041,12 +1024,61 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     await expect(
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         paramValues: {},
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
     expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
+  })
+
+  it('enqueues the job, returns its output files, and classifies the temp input copy for GC reclaim', async () => {
+    const service = createService()
+    stubResolution(service)
+
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
+    })
+    // Capture the job_file_ref insert chain (getDb().insert(table).values(rows).run()).
+    const refInsertValues = vi.fn().mockReturnValue({ run: vi.fn() })
+    const refInsert = vi.fn().mockReturnValue({ values: refInsertValues })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      if (name === 'DbService') return { getDb: () => ({ insert: refInsert }) }
+      return undefined
+    })
+
+    const result = await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      paramValues: {},
+      inputImages: ['data:image/png;base64,AAAA'],
+      cleanupPolicy: 'delete_when_unreferenced',
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+    )
+    expect(result).toEqual({ files: outputFiles })
+    // No FileManager ref holds the temp input copy — it must be classified
+    // 'delete_when_unreferenced' so the cleanup pass reclaims it instead of
+    // relying on an ad-hoc delete.
+    expect(createInternalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
+    )
+    // A job_file_ref must hold the input for the job's lifetime so a startup
+    // cleanup pass can't reclaim it before recovery resumes the job.
+    expect(refInsertValues).toHaveBeenCalledWith([
+      expect.objectContaining({ fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' })
+    ])
   })
 
   it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
@@ -1072,6 +1104,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     await expect(
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'edit',
         paramValues: {},
         inputImages: ['data:image/png;base64,AAAA']

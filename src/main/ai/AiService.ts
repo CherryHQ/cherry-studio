@@ -5,6 +5,7 @@ import {
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
+import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -18,10 +19,10 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Base64String, UrlString } from '@shared/types/file'
+import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -131,6 +132,12 @@ export interface AiImageRequest extends AiBaseRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /**
+   * Cleanup policy stamped on every FileEntry this request persists (input
+   * images, mask, generated outputs). AiService is infrastructure — the
+   * calling business feature decides the policy (file-entry-cleanup.md §4.1).
+   */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -144,12 +151,10 @@ export interface AiImageResult {
  * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
  * become downloaded url entries. Either way the handler later reads the bytes by id.
  */
-export function imageInputEntryParams(
-  value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
+export function imageInputEntryParams(value: string, cleanupPolicy: CleanupPolicy): CreateInternalEntryIpcParams {
   return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as UrlString }
+    ? { source: 'base64', data: value as Base64String, cleanupPolicy }
+    : { source: 'url', url: value as UrlString, cleanupPolicy }
 }
 
 /**
@@ -578,7 +583,11 @@ export class AiService extends BaseService {
       })
     }
     const fileManager = application.get('FileManager')
-    const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
+    const files = await Promise.all(
+      dataUrls.map((data) =>
+        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+      )
+    )
 
     return { files }
   }
@@ -602,12 +611,9 @@ export class AiService extends BaseService {
     const fileManager = application.get('FileManager')
     const jobManager = application.get('JobManager')
 
-    // Track every temp entry as it is created so a failure anywhere in setup
-    // (a later input download, the mask create, or enqueue itself) cleans up the
-    // entries already made — they aren't in any payload yet, so no handler would.
     const createdEntryIds: string[] = []
     const persistInputImage = async (value: string): Promise<string> => {
-      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value, request.cleanupPolicy))
       createdEntryIds.push(entry.id)
       return entry.id
     }
@@ -643,9 +649,25 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
-        providerParams
+        providerParams,
+        cleanupPolicy: request.cleanupPolicy
       }
       handle = jobManager.enqueue('image-generation.generate', payload)
+
+      // Persist a job→file ref for every input the job reads. The ids also live
+      // in `job.input` JSON, but the cleanup anti-join cannot see JSON — without a
+      // real ref row, a non-terminal job whose `delete_when_unreferenced` inputs
+      // aged past the grace window could have them reclaimed before startup
+      // recovery resumes it (file-entry-cleanup.md §5.1). The job row exists now
+      // (enqueue committed it), so the FK is satisfied; deleting the job row later
+      // cascades these refs, releasing the inputs for reclaim.
+      const jobFileRefRows: InsertJobFileRefRow[] = [
+        ...(inputFileIds ?? []).map((fileEntryId) => ({ fileEntryId, sourceId: handle.id, role: 'input' as const })),
+        ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: handle.id, role: 'mask' as const }] : [])
+      ]
+      if (jobFileRefRows.length > 0) {
+        application.get('DbService').getDb().insert(jobFileRefTable).values(jobFileRefRows).run()
+      }
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
@@ -663,9 +685,6 @@ export class AiService extends BaseService {
       snapshot = await handle.finished
     } finally {
       signal?.removeEventListener('abort', onAbort)
-      // Backstop cleanup (the handler is the primary owner once it runs); also
-      // covers the in-process case where the job is cancelled while still pending.
-      await deleteImageInputEntries(createdEntryIds)
     }
 
     if (snapshot.status === 'completed') {

@@ -142,8 +142,8 @@ describe('fileHandlers', () => {
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt' },
-      { source: 'path' as const, path: '/tmp/b.txt' }
+      { source: 'path' as const, path: '/tmp/a.txt', cleanupPolicy: 'manual' as const },
+      { source: 'path' as const, path: '/tmp/b.txt', cleanupPolicy: 'manual' as const }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 

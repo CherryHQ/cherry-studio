@@ -1204,6 +1204,29 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(new Set(refs.map((r) => r.sourceId)).size).toBe(2)
   })
 
+  it('flips cleanup_policy to delete_when_unreferenced for referenced files and leaves unreferenced files as manual', async () => {
+    await seedFileEntry('fe-referenced')
+    await seedFileEntry('fe-unreferenced')
+
+    const migrator = new ChatMigrator()
+    const messages = [newMessage('m-ref', 't-cleanup', [{ type: 'image', fileId: 'fe-referenced' }])]
+    stage(
+      migrator,
+      [{ topic: newTopic('t-cleanup', 100), messages, pinned: false }],
+      ['fe-referenced', 'fe-unreferenced']
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const entries = await dbh.db.select().from(fileEntryTable)
+    const byId = new Map(entries.map((e) => [e.id, e.cleanupPolicy]))
+    expect(byId.get('fe-referenced')).toBe('delete_when_unreferenced')
+    expect(byId.get('fe-unreferenced')).toBe('manual')
+  })
+
   describe('loadMigratedFileEntryIds', () => {
     it('returns only file_entry IDs referenced by image/file blocks that exist in DB', async () => {
       await seedFileEntry('fe-exists')
