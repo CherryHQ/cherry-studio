@@ -60,6 +60,20 @@ describe('usePaintingInitialSelection', () => {
     expect(setCurrentPainting).toHaveBeenNthCalledWith(2, recent)
   })
 
+  it('does not replace an edited unsaved draft when history loads', () => {
+    const draft = makeDraft('zhipu')
+    const editedDraft = { ...draft, prompt: 'edited prompt' }
+    const recent = makeDraft('aihubmix')
+    const setCurrentPainting = vi.fn()
+    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialSelection(props), {
+      initialProps: { currentPainting: draft, historyItems: [], initialProviderId: 'zhipu', setCurrentPainting }
+    })
+
+    rerender({ currentPainting: editedDraft, historyItems: [recent], initialProviderId: 'zhipu', setCurrentPainting })
+
+    expect(setCurrentPainting).not.toHaveBeenCalled()
+  })
+
   it('does not re-adopt history after the first bootstrap completes', () => {
     const draft = makeDraft('zhipu')
     const recent = makeDraft('aihubmix')

@@ -10,6 +10,18 @@ interface UsePaintingInitialSelectionInput {
   setCurrentPainting: (painting: PaintingData) => void
 }
 
+function isUntouchedDraft(painting: PaintingData) {
+  return (
+    !painting.persistedAt &&
+    !painting.model &&
+    !painting.prompt &&
+    painting.files.length === 0 &&
+    (painting.inputFiles?.length ?? 0) === 0 &&
+    Object.keys(painting.params ?? {}).length === 0 &&
+    !painting.generationStatus
+  )
+}
+
 /**
  * Bootstrap the page's first painting once:
  *
@@ -33,13 +45,13 @@ export function usePaintingInitialSelection({
 
     if (historyItems.length > 0) {
       bootstrappedRef.current = true
-      if (!historyItems.some((item) => item.id === currentPainting.id)) {
+      if (!historyItems.some((item) => item.id === currentPainting.id) && isUntouchedDraft(currentPainting)) {
         setCurrentPainting(historyItems[0])
       }
       return
     }
 
-    if (currentPainting.persistedAt) {
+    if (currentPainting.persistedAt || !isUntouchedDraft(currentPainting)) {
       bootstrappedRef.current = true
       return
     }
