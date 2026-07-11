@@ -202,7 +202,10 @@ const createBaseMarkdown = async (
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
   const author = getMessageSnapshotAuthor('messageSnapshot' in message ? message.messageSnapshot : undefined)
-  const roleText = await getRoleText(message.role, message.model?.name, message.model?.provider, author)
+  // Fall back to the frozen author's model when the projection didn't populate a live `model`
+  // (e.g. topic exports), so the model/provider still render when those export prefs are on.
+  const model = message.model ?? author?.model
+  const roleText = await getRoleText(message.role, model?.name, model?.provider, author)
   const titleSection = `## ${roleText}`
   let reasoningSection = ''
 

@@ -526,6 +526,9 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.status = 'active'
     this.clearIdleTimer(entry)
     if (opts.headless === true) (entry.headlessMessageIds ??= new Set()).add(message.id)
+    // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
+    // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
+    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
 
     const turn = entry.currentTurn
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
@@ -544,7 +547,6 @@ export class AgentSessionRuntimeService extends BaseService {
     // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
     entry.pendingTurns.push(message)
     ;(entry.steerMessageIds ??= new Set()).add(message.id)
-    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
     if (!turn || turn.terminalStatus) this.scheduleNextTurn(entry)
   }
 
@@ -1164,6 +1166,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    // The continuation answers the steered follow-up — freeze its submit-time author, not the entry's.
+    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    entry.pendingSnapshots?.delete(steerMessage.id)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
@@ -1175,7 +1180,7 @@ export class AgentSessionRuntimeService extends BaseService {
           status: 'pending',
           data: { parts: [] },
           modelId,
-          messageSnapshot: entry.messageSnapshot
+          messageSnapshot
         }
       })
     } catch (error) {

@@ -229,6 +229,72 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingSnapshots?.has('user-2')).toBe(false)
     })
 
+    it('freezes a redirected steer-boundary continuation with the follow-up snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+      } as any
+      const followUpSnapshot = {
+        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+      } as any
+
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), messageSnapshot: priorSnapshot })
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.connection = connection
+      entry.connectionModelId = baseTurnInput.modelId
+
+      // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
+      // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      expect(connection.redirect).toHaveBeenCalled()
+      expect(entry.pendingTurns).toEqual([])
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+      service.closeSession('session-1')
+    })
+
+    it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+      } as any
+      const followUpSnapshot = {
+        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+      } as any
+
+      service.beginTurn({ ...baseTurnInput, messageSnapshot: priorSnapshot })
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.connection = connection
+      entry.connectionModelId = baseTurnInput.modelId
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      expect(connection.redirect).toHaveBeenCalled()
+
+      // Turn ended before the steer landed → requeued; the requeued turn must still freeze the follow-up snapshot.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-undelivered',
+        inputs: [{ message: userMessage('user-2') }]
+      })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+    })
+
     it('opens an unmarked queued busy follow-up as interactive', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
