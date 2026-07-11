@@ -2,7 +2,7 @@ import { application } from '@application'
 import type { LogoBindInput } from '@data/services/utils/logoRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'
 
 const logger = loggerService.withContext('entityImageBinding')
@@ -16,14 +16,27 @@ type MaybePromise<T> = T | Promise<T>
  * entity-image `file_entry` is created; the renderer no longer pre-creates one.
  * `createInternalEntry` already self-cleans if its own row insert fails; this
  * covers the *bind* failure that happens after the file row committed.
+ *
+ * `cleanupPolicy` is the caller's call because retention hinges on how the id is
+ * held: a ref-backed logo passes `delete_when_unreferenced` (reclaimed once its
+ * owner row — and thus the logo ref — is gone, or the slot is replaced), while
+ * the avatar passes `manual` because it has no ref table (it lives only in the
+ * `app.user.avatar` preference) and the anti-join would otherwise reclaim it.
  */
 export async function withCreatedImageEntry<T>(
   bytes: Uint8Array,
+  cleanupPolicy: CleanupPolicy,
   bind: (fileId: FileEntryId) => MaybePromise<T>
 ): Promise<T> {
   const fileManager = application.get('FileManager')
   const webp = await transcodeToEntityWebp(bytes)
-  const entry = await fileManager.createInternalEntry({ source: 'bytes', data: webp, name: 'image', ext: 'webp' })
+  const entry = await fileManager.createInternalEntry({
+    source: 'bytes',
+    data: webp,
+    name: 'image',
+    ext: 'webp',
+    cleanupPolicy
+  })
   try {
     return await bind(entry.id)
   } catch (error) {
@@ -49,5 +62,7 @@ export async function bindLogoImage(
 ): Promise<void> {
   if (image.kind === 'key') return bind({ kind: 'key', key: image.key })
   if (image.kind === 'default') return bind({ kind: 'default' })
-  await withCreatedImageEntry(image.data, (fileId) => bind({ kind: 'file', fileId }))
+  // Logos are ref-backed (provider_logo / mini_app_logo): reclaim on owner
+  // delete or slot replacement.
+  await withCreatedImageEntry(image.data, 'delete_when_unreferenced', (fileId) => bind({ kind: 'file', fileId }))
 }

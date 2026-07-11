@@ -27,7 +27,7 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   it('validates the nested payload uniqueModelId for ai.generate_image', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
-      payload: { uniqueModelId, prompt: 'a fox', paramValues: {} }
+      payload: { uniqueModelId, prompt: 'a fox', paramValues: {}, cleanupPolicy: 'delete_when_unreferenced' }
     })
     expect(genImage.safeParse(input('openai::gpt-image')).success).toBe(true)
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)

@@ -15,6 +15,7 @@ export interface OrphanReportCounts {
   readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
+  readonly entryCleanup: EntryCleanupSummary
 }
 
 /**
@@ -80,3 +81,22 @@ export type OrphanReport =
       readonly errorMessage: string
       readonly lastRunAt: number
     })
+
+/**
+ * Narrow wire summary of an `EntryCleanupReport` (`internal/entryCleanup.ts`)
+ * for consumers that only need the headline numbers, not the full internal
+ * breakdown (skipped-temp-refs / skipped-refs-reappeared / unlink-failure
+ * counts, timing).
+ *
+ * **Consumers MUST check `outcome` independently of the umbrella `OrphanReport.outcome`.**
+ * `runSweep` folds this in as `counts.entryCleanup` but never lets a `failed`
+ * cleanup change the umbrella outcome — so a caller that only inspects the
+ * top-level `outcome === 'completed'` would treat a crashed cleanup pass as
+ * "all cleaned up". Read `entryCleanup.outcome` to surface that.
+ *
+ * Discriminated on `outcome` (mirrors `OrphanReport`). There is no `aborted`
+ * outcome: the cleanup pass has no volume abort (spec §5.3).
+ */
+export type EntryCleanupSummary =
+  | { readonly outcome: 'completed'; readonly candidates: number; readonly deleted: number }
+  | { readonly outcome: 'failed'; readonly candidates: number; readonly deleted: number }

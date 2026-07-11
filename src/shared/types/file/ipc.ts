@@ -33,7 +33,7 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import type { CleanupPolicy, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
 import type { OrphanReport } from './sweep'
@@ -81,17 +81,34 @@ export interface ReadResult<T> {
  * UX names, where the caller has a legitimate choice).
  *
  * See `file-arch-problems-response.md` for the full rationale (extension of A-7).
+ *
+ * TODO(file-ipc types): this union hand-mirrors `createInternalEntryInputSchema`
+ * (`src/shared/ipc/schemas/file.ts`) and so re-declares the shared `cleanupPolicy`
+ * per branch. It can't simply become `z.infer<typeof createInternalEntryInputSchema>`
+ * today: the schema fields infer to plain `string` (`z.string()`/`z.url()`/refine
+ * don't narrow), whereas `path`/`url`/`data` here carry the template-literal brands
+ * `FilePath`/`UrlString`/`Base64String` — so inferring would silently widen and drop
+ * the brands. The cascade fix is to make the schemas *produce* those brands (e.g.
+ * `AbsolutePathSchema` → `.transform((s) => s as FilePath)`, branded url/base64
+ * outputs); then `z.infer` equals this type, the base `cleanupPolicy` lives in one
+ * place, and this hand-written union can be deleted. Deferred to the File IPC → IpcApi
+ * migration (see the matching TODO in `schemas/file.ts`). Until then, keep the two in
+ * sync by hand.
  */
 export type CreateInternalEntryIpcParams =
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: FilePath
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
@@ -99,6 +116,8 @@ export type CreateInternalEntryIpcParams =
       data: Base64String
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
@@ -108,6 +127,8 @@ export type CreateInternalEntryIpcParams =
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
 
 /**
@@ -158,6 +179,8 @@ export type CreateInternalEntryIpcParams =
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
+  /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Params for resolving the absolute filesystem path of a single FileEntry. */
@@ -639,13 +662,18 @@ export interface FileIpcApi {
   // is the only consumer.
 
   /**
-   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * temp-session ref prune / entry report (§7 Layer 3) concurrently. Returns
-   * once both settle, with the umbrella discriminated outcome surfaced through
-   * the report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   * Run the scan-based entry cleanup pass, then both the FS-level orphan
+   * sweep (architecture §10) and the DB-level temp-session ref prune / entry
+   * report (§7 Layer 3) concurrently. Returns once all three settle, with the
+   * umbrella discriminated outcome surfaced through the report's `outcome`
+   * field (`'completed'` / `'partial'` / `'failed'`); the cleanup pass's own
+   * outcome rides in `entryCleanup` without affecting it.
    *
    * DB failures dominate as `failed`; FS-side partial/aborted/failed outcomes
    * degrade the umbrella report to `partial` via `fsSweepIssue`.
+   *
+   * Caller-initiated maintenance; no user-facing UI triggers it (the entry
+   * cleanup it wraps is silent — see file-entry-cleanup.md's Decision note).
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
    * `FileManager.registerIpcHandlers`)

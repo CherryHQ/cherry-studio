@@ -162,6 +162,16 @@ export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
+// ─── Cleanup Policy Enum ───
+
+/**
+ * Cleanup intent stored as data — docs/references/file/file-entry-cleanup.md.
+ * 'manual' entries are preserved at zero refs; 'delete_when_unreferenced'
+ * entries may be reclaimed by FileManager's cleanup pass.
+ */
+export const CleanupPolicySchema = z.enum(['manual', 'delete_when_unreferenced'])
+export type CleanupPolicy = z.infer<typeof CleanupPolicySchema>
+
 // ─── Absolute Path ───
 
 /**
@@ -283,6 +293,8 @@ const CommonEntryFields = {
    * every assignment site. `FileEntrySchema.parse` is the authoritative check.
    */
   ext: SafeExtSchema.nullable(),
+  /** Cleanup intent — see CleanupPolicySchema. */
+  cleanupPolicy: CleanupPolicySchema,
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -583,6 +595,37 @@ export const paintingRefFields = {
 
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
 
+// ─── job variant ───
+//
+// Links a FileEntry to a `job` row (the generic job system). Its sole use today
+// is the async image-generation job (`imageGenerationJobHandler`): input images
+// and the edit mask are persisted as `delete_when_unreferenced` FileEntries at
+// enqueue time and referenced by id inside the job payload.
+//
+// Why a persistent ref (not just the payload id): the payload id lives in
+// `job.input` JSON, which the cleanup anti-join cannot see. Without a real ref
+// row, a non-terminal job whose inputs age past the grace window could have
+// those inputs reclaimed before startup recovery resumes it, breaking
+// `read(inputFileIds)`. An FK-constrained association table makes the job a
+// first-class holder: the anti-join sees it, and deleting the job row cascades
+// the ref so the inputs become reclaimable exactly when the job record is gone.
+//
+// `job.id` is `uuidPrimaryKeyOrdered()` — UUID v7. `z.uuid()` accepts it
+// (version-agnostic), matching the chat_message variant's forgiving stance.
+
+export const jobSourceType = 'job' as const
+
+export const jobRoles = ['input', 'mask'] as const
+export const jobRoleSchema = z.enum(jobRoles)
+
+export const jobRefFields = {
+  sourceType: z.literal(jobSourceType),
+  sourceId: z.uuid(),
+  role: jobRoleSchema
+}
+
+export const jobFileRefSchema = createRefSchema(jobRefFields)
+
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a
@@ -645,6 +688,7 @@ export const allSourceTypes = [
   tempSessionSourceType,
   chatMessageSourceType,
   paintingSourceType,
+  jobSourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
@@ -670,6 +714,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   chatMessageFileRefSchema,
   paintingFileRefSchema,
+  jobFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema
 ])

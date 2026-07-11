@@ -5,6 +5,8 @@ import {
   chatMessageFileRefSchema,
   chatMessageSourceType,
   FileRefSchema,
+  jobFileRefSchema,
+  jobSourceType,
   miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
@@ -17,6 +19,7 @@ const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
 const MESSAGE_ID = '33333333-4444-4555-8666-000000000002' // UUID (legacy chat ids may be v4)
 const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
+const JOB_ID = '019606a0-0000-7000-8000-000000000009' // UUIDv7 (job.id is uuidPrimaryKeyOrdered)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
@@ -26,7 +29,14 @@ describe('FileRefSourceType', () => {
     // FK-constrained association table — see ref/index.ts.
     // The user avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
-    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting', 'provider_logo', 'mini_app_logo'])
+    expect([...allSourceTypes]).toEqual([
+      'temp_session',
+      'chat_message',
+      'painting',
+      'job',
+      'provider_logo',
+      'mini_app_logo'
+    ])
   })
 })
 
@@ -132,6 +142,38 @@ describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
   })
 })
 
+describe('jobFileRefSchema', () => {
+  function makeJobRef(overrides: Record<string, unknown> = {}) {
+    return {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: jobSourceType,
+      sourceId: JOB_ID,
+      role: 'input',
+      createdAt: TS,
+      updatedAt: TS,
+      ...overrides
+    }
+  }
+
+  it('accepts both job roles (input/mask)', () => {
+    for (const role of ['input', 'mask']) {
+      const parsed = jobFileRefSchema.parse(makeJobRef({ role }))
+      expect(parsed.role).toBe(role)
+    }
+  })
+
+  it('rejects role values outside the job vocabulary', () => {
+    for (const role of ['output', 'attachment', 'thumbnail', '']) {
+      expect(() => jobFileRefSchema.parse(makeJobRef({ role }))).toThrow()
+    }
+  })
+
+  it('rejects a non-UUID sourceId', () => {
+    expect(() => jobFileRefSchema.parse(makeJobRef({ sourceId: 'not-a-uuid' }))).toThrow()
+  })
+})
+
 describe('FileRefSchema discriminated union', () => {
   it('dispatches to the temp_session variant', () => {
     const parsed = FileRefSchema.parse({
@@ -172,6 +214,21 @@ describe('FileRefSchema discriminated union', () => {
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('painting')
+  })
+
+  it('dispatches to the job variant', () => {
+    const parsed = FileRefSchema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: jobSourceType,
+      sourceId: JOB_ID,
+      role: 'mask',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.sourceType).toBe('job')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'job') expect(parsed.role).toBe('mask')
   })
 
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
