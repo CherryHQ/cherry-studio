@@ -85,8 +85,8 @@ const EDIT_DIALOG_GROUP_BUTTON_CLASS =
 
 const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
 
-export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '320px'
-export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '42vh'
+export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '380px'
+export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '50vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
   if (!selection) return null
@@ -381,6 +381,8 @@ export function EditDialogShell<TValues extends FieldValues>({
               className="min-h-0 flex-1 gap-0 overflow-hidden">
               {/* Mirrors the standalone settings window shell: sidebar-tinted rail + hairline divider. */}
               <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px] bg-sidebar">
+                {/* px-5 lines the title up with the nav item text (TabsList p-2.5 + item px-2.5). */}
+                <DialogTitle className="px-5 pt-4 text-sm">{title}</DialogTitle>
                 <TabsList
                   asChild
                   className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-2.5">
@@ -439,9 +441,9 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* Sits inside the content pane so the rail keeps one full-height color; pt-3.5 centers the 20px title line on the absolute top-4 close icon. */}
-                <DialogTitle className="px-5 pt-3.5 text-sm">{title}</DialogTitle>
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 py-4">
+                {/* Reserved row so the absolute top-4 close button sits on its own line, clear of the scrolling content. */}
+                <div className="h-10 shrink-0" />
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pb-4">
                   {children}
                 </Scrollbar>
 

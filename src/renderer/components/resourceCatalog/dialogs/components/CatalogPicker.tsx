@@ -37,14 +37,14 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
-        <Badge className="h-4 rounded-3xs border-0 bg-warning/10 px-1 py-0 font-normal text-warning text-xs">
+        <Badge className="h-4 border-0 bg-warning/10 px-1.5 py-0 font-normal text-warning text-xs">
           {item.inactiveBadge}
         </Badge>
       ) : null}
       {item.statusBadge ? (
         <Badge
           className={cn(
-            'h-4 rounded-3xs border-0 px-1 py-0 font-normal text-xs',
+            'h-4 border-0 px-1.5 py-0 font-normal text-xs',
             item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'
           )}>
           {item.statusBadge}
