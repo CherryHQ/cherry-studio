@@ -91,6 +91,34 @@ export class RestoreQuiesceNotImplementedError extends Error {
 }
 
 /**
+ * Thrown by the restore archive-admission step until the safe-unpack track lands (plan 横切
+ * archive admission): manifest schema + BACKUP_FORMAT_VERSION + domain/resource consistency +
+ * schemaMigrationId chain compatibility + backup.sqlite integrity_check + entry allowlist
+ * (zip-slip/symlink/hardlink escape) + size/byte budget + format/layout discriminator. Archive
+ * admission MUST run before quiesce — restore stays fail-closed: NO snapshot is taken, NO
+ * journal is written. Injected as a dep for spine testing.
+ */
+export class RestoreArchiveAdmissionNotImplementedError extends Error {
+  constructor(message = 'restore archive admission not implemented — snapshot refused') {
+    super(message)
+    this.name = 'RestoreArchiveAdmissionNotImplementedError'
+  }
+}
+
+/**
+ * Thrown by the restore file-resource staging step until the (e) track lands (restoreResources
+ * two-phase contract + path containment + FileResource journal entries). Staging + sealing MUST
+ * run before the 2nd fingerprint — restore stays fail-closed: NO staged journal is written
+ * without file-resource staging (independently of the merge stub). Injected as a dep for testing.
+ */
+export class RestoreStagingNotImplementedError extends Error {
+  constructor(message = 'restore file-resource staging not implemented (plan (e)) — journal refused') {
+    super(message)
+    this.name = 'RestoreStagingNotImplementedError'
+  }
+}
+
+/**
  * Thrown when the second live-DB fingerprint (re-captured just before writing the
  * staged journal) does not match the value captured before createSnapshot. A mismatch
  * means a writer touched the live DB during staging — the journal is NOT written and
