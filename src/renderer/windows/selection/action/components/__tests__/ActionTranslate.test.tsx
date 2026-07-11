@@ -29,6 +29,13 @@ const i18nMock = vi.hoisted(() => ({
 
 import ActionTranslate from '../ActionTranslate'
 
+const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
+
+vi.mock('../ActionResultContent', () => {
+  resultContentChunk.evaluated()
+  return { default: () => null }
+})
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
     <button type="button" {...props}>
@@ -132,6 +139,22 @@ describe('ActionTranslate', () => {
     state.cancel.mockReset()
     state.scrollToBottom.mockReset()
     state.translate.mockResolvedValue('translated text')
+  })
+
+  // MUST run first in this file: the later tests render translation results,
+  // which loads the lazy module through React.lazy and permanently marks
+  // `resultContentChunk.evaluated` (module caches defeat mockClear). Running
+  // before any result has ever rendered is what makes this assertion prove
+  // the mount preload specifically.
+  it('preloads the result-content chunk on mount, before the response arrives', async () => {
+    // Detection never resolves, so the translate flow never produces content —
+    // the chunk import must still fire so its download overlaps request latency.
+    state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
+    expect(state.translate).not.toHaveBeenCalled()
   })
 
   it('continues translating to the target language when source detection throws', async () => {

@@ -26,12 +26,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/components/icons/LogoAvatar', () => ({
+vi.mock('@renderer/components/icons/MiniAppLogoAvatar', () => ({
   default: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
-}))
-
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogo: (logo?: string) => (logo === 'application' ? 'application-icon' : undefined)
 }))
 
 vi.mock('@renderer/utils/uuid', () => ({
@@ -345,7 +341,7 @@ describe('NewMiniAppPanel', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
     })
-    expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'application-icon')
+    expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'application')
   })
 
   it('ignores stale logo upload results after switching edited apps', async () => {
