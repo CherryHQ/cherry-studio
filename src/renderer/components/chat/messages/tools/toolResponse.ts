@@ -2,6 +2,7 @@ import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from 
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -40,15 +41,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
-}
-
-function isMcpContentBlock(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.type !== 'string') return false
-  if (value.type === 'text') return typeof value.text === 'string'
-  if (value.type === 'image' || value.type === 'audio') {
-    return typeof value.data === 'string' && typeof value.mimeType === 'string'
-  }
-  return value.type === 'resource' && isRecord(value.resource)
 }
 
 function isMcpContentArray(value: unknown): value is unknown[] {

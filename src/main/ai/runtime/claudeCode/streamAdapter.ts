@@ -34,6 +34,7 @@ import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
 
@@ -148,15 +149,6 @@ function stringifyJsonValue(value: unknown): string {
   }
 }
 
-function isMcpContentBlock(value: unknown): value is JSONObject {
-  if (!isRecord(value) || typeof value.type !== 'string') return false
-  if (value.type === 'text') return typeof value.text === 'string'
-  if (value.type === 'image' || value.type === 'audio') {
-    return typeof value.data === 'string' && typeof value.mimeType === 'string'
-  }
-  return value.type === 'resource' && isRecord(value.resource)
-}
-
 function getContentArray(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value
   if (isRecord(value) && Array.isArray(value.content)) return value.content
@@ -164,7 +156,7 @@ function getContentArray(value: unknown): unknown[] | undefined {
 }
 
 function normalizeMcpContentBlock(block: unknown): JSONObject {
-  if (isMcpContentBlock(block)) return block
+  if (isMcpContentBlock(block)) return block as JSONObject
 
   if (!isRecord(block)) {
     return { type: 'text', text: stringifyJsonValue(block) }
