@@ -6,12 +6,11 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import {
   buildTopicMessageFlowGraph,
   layoutTopicMessageFlowGraph,
-  mergeTopicMessageFlowLiveTree,
-  TopicMessageFlowCanvas,
-  type TopicMessageFlowLiveState
+  TopicMessageFlowCanvas
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
+import { mergeTopicMessageFlowLiveTree, type TopicMessageFlowLiveState } from '@renderer/utils/topicMessageFlowLiveTree'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, GitBranch } from 'lucide-react'

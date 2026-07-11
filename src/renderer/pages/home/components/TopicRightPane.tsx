@@ -1,5 +1,3 @@
-// eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -16,6 +14,7 @@ import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import type { TopicMessageFlowLiveState } from '@renderer/utils/topicMessageFlowLiveTree'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useRef, useSyncExternalStore } from 'react'
