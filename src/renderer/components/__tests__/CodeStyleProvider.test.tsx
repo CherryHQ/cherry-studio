@@ -75,16 +75,18 @@ describe('CodeStyleProvider', () => {
 
     // The first waitFor in this file pays the real (cold) dynamic import of
     // @uiw/codemirror-themes-all; under a fully loaded worker pool that takes
-    // several seconds, so it needs more than the 1s waitFor default. Later
-    // tests reuse the module-level cmThemesPromise cache and stay fast.
+    // several seconds, so it needs more than the 1s waitFor default. The later
+    // tests reuse the module-level theme cache but got the same bound anyway —
+    // the S6 icon-graph probes raise pool pressure enough that even cached
+    // runs have been observed past 1s.
     await waitFor(
       () => {
         expect(screen.getByTestId('has-dracula').textContent).toBe('true')
         expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
       },
-      { timeout: 15000 }
+      { timeout: 15_000 }
     )
-  })
+  }, 45_000)
 
   it('resolves basic string cm themes without loading a themes-all extension', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
@@ -92,19 +94,25 @@ describe('CodeStyleProvider', () => {
 
     renderProvider()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('cm-theme-string').textContent).toBe('dark')
-    })
-  })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('cm-theme-string').textContent).toBe('dark')
+      },
+      { timeout: 15_000 }
+    )
+  }, 45_000)
 
   it('falls back to shiki theme names when code editor is disabled', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
 
     renderProvider()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('has-dracula').textContent).toBe('false')
-      expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-    })
-  })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('has-dracula').textContent).toBe('false')
+        expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
+      },
+      { timeout: 15_000 }
+    )
+  }, 45_000)
 })

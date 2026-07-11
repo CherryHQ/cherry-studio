@@ -1,4 +1,4 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import type { CSSProperties } from 'react'
@@ -13,9 +13,12 @@ interface ProviderAvatarProps {
 }
 
 export function ProviderAvatar({ provider, size, className, style }: ProviderAvatarProps) {
-  const systemIcon = resolveProviderIcon(provider.id)
-  const { logo: customLogo } = useProviderLogo(systemIcon ? undefined : provider.id)
-  if (systemIcon) {
+  // Existence is decided synchronously from the ref (meta catalog); only the
+  // component itself loads async, so the branch below never flip-flops.
+  const systemIconRef = resolveProviderIconRef(provider.id)
+  const systemIcon = useIcon(systemIconRef)
+  const { logo: customLogo } = useProviderLogo(systemIconRef ? undefined : provider.id)
+  if (systemIconRef) {
     return (
       <ProviderAvatarPrimitive
         providerId={provider.id}
