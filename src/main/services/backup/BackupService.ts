@@ -47,8 +47,10 @@ import {
   DiskFullError,
   InsufficientDiskSpaceError,
   OutputPathExistsError,
+  RestoreArchiveAdmissionNotImplementedError,
   RestoreMergeNotImplementedError,
-  RestoreQuiesceNotImplementedError
+  RestoreQuiesceNotImplementedError,
+  RestoreStagingNotImplementedError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
@@ -270,14 +272,21 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Fail-closed stubs — restore stays unavailable until quiesce + merge land.
+        // Fail-closed stubs — restore stays unavailable until archive admission, quiesce,
+        // merge, AND file-resource staging all land. Each throws independently so no journal
+        // is written without the full track (not just incidentally fail-closed via merge).
+        admitArchive: async () => {
+          throw new RestoreArchiveAdmissionNotImplementedError()
+        },
         quiesceWriters: async () => {
           throw new RestoreQuiesceNotImplementedError()
         },
         mergeBackupIntoWork: async () => {
           throw new RestoreMergeNotImplementedError()
         },
-        stageFileResources: async () => []
+        stageFileResources: async () => {
+          throw new RestoreStagingNotImplementedError()
+        }
       })
       await importOrch.importBackup({
         archivePath,

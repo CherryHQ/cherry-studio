@@ -82,6 +82,7 @@ describe('ImportOrchestrator spine', () => {
     restoreStagingRoot: stagingRoot,
     userData: tmpDir,
     journalPath,
+    admitArchive: async () => {},
     quiesceWriters: async () => {},
     mergeBackupIntoWork: async () => {},
     stageFileResources: async () => [],
