@@ -3616,6 +3616,7 @@
         "text_extraction_failed": "無法從 {{name}} 中擷取文字"
       },
       "get_embedding_dimensions": "取得嵌入維度失敗",
+      "image_process_failed": "圖片處理失敗，請重試",
       "invalid": {
         "api": {
           "host": "無效的 API 位址",

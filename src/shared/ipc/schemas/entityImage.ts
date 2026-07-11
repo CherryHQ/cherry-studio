@@ -20,10 +20,14 @@ const LogoKeySchema = z
   .max(2048)
   .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
 
-/** Max raw upload accepted (pre-normalization); sharp downsizes to 128² regardless. */
-export const MAX_ENTITY_IMAGE_BYTES = 16 * 1024 * 1024
+/**
+ * Max image bytes accepted over IPC. The renderer normalizes uploads to a 128×128
+ * WebP (tens of KB) before sending, so this is a tight defense-in-depth bound on the
+ * already-processed payload, not the original file size.
+ */
+export const MAX_ENTITY_IMAGE_BYTES = 1024 * 1024
 
-/** Raw uploaded image bytes — a non-empty `Uint8Array` within the size cap. */
+/** Normalized image bytes — a non-empty `Uint8Array` within the size cap. */
 export const ImageBytesSchema = z
   .instanceof(Uint8Array)
   .refine((u) => u.byteLength > 0 && u.byteLength <= MAX_ENTITY_IMAGE_BYTES, 'image bytes out of range')

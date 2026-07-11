@@ -69,19 +69,39 @@ describe('utils/image', () => {
   describe('prepareEntityImageBytes', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
+      vi.restoreAllMocks()
     })
 
-    it('falls back to the raw bytes when the canvas cannot decode the input', async () => {
-      // Canvas can't decode SVG / odd formats → the helper sends the raw bytes so
-      // main-side sharp still transcodes them.
+    it('throws a localized retry error when the canvas cannot decode the input', async () => {
+      // No raw fallback: a decode failure (SVG / corrupt / odd format) surfaces so the
+      // user can retry — raw bytes are never sent to main, which could not decode them.
       vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('cannot decode')))
-      const raw = new Uint8Array([1, 2, 3])
       const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
-      file.arrayBuffer = vi.fn().mockResolvedValue(raw.buffer)
 
-      const out = await prepareEntityImageBytes(file)
+      await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+    })
 
-      expect(out).toEqual(raw)
+    it('cover-crops the largest centered square into a 128×128 WebP', async () => {
+      const close = vi.fn()
+      // 200×100 landscape → centered 100×100 square (sx=50, sy=0) scaled to 128².
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 200, height: 100, close }))
+      const drawImage = vi.fn()
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        drawImage
+      } as unknown as CanvasRenderingContext2D)
+      const webp = new Uint8Array([9, 8, 7])
+      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
+        this: HTMLCanvasElement,
+        cb: BlobCallback
+      ) {
+        cb({ arrayBuffer: async () => webp.buffer } as Blob)
+      })
+
+      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
+
+      expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
+      expect(out).toEqual(webp)
+      expect(close).toHaveBeenCalled()
     })
   })
 

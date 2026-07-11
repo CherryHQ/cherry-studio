@@ -82,13 +82,15 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   // fail the row save (the provider is already persisted).
   const applyLogo = useCallback(
     async (providerId: string, edit: ProviderLogoEdit) => {
-      const image =
-        edit.kind === 'image'
-          ? ({ kind: 'image', data: await prepareEntityImageBytes(edit.file) } as const)
-          : edit.kind === 'key'
-            ? ({ kind: 'key', key: edit.key } as const)
-            : ({ kind: 'default' } as const)
       try {
+        // Normalize upload bytes inside the try: a canvas failure must surface the
+        // logo error (and never fall through to the request), not throw uncaught.
+        const image =
+          edit.kind === 'image'
+            ? ({ kind: 'image', data: await prepareEntityImageBytes(edit.file) } as const)
+            : edit.kind === 'key'
+              ? ({ kind: 'key', key: edit.key } as const)
+              : ({ kind: 'default' } as const)
         await ipcApi.request('provider.set_logo', { providerId, image })
       } catch (error) {
         logger.error('Failed to set provider logo', error as Error)

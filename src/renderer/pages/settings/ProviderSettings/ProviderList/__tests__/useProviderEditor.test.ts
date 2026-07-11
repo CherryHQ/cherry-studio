@@ -32,6 +32,12 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: any[]) => ipcRequestMock(...args) }
 }))
 
+// Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
+vi.mock('@renderer/utils/image', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/utils/image')>()),
+  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+}))
+
 const createProviderMock = vi.fn()
 const updateProviderByIdMock = vi.fn()
 const onProviderCreatedMock = vi.fn()

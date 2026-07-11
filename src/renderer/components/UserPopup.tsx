@@ -77,9 +77,9 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       return
     }
     try {
-      // Downscale + encode to a small WebP in the renderer, then send; the handler
-      // normalizes (final 128² cover-crop), creates the file_entry, points the avatar
-      // slot's file_ref at it, and writes the Preference.
+      // Normalize to a 128² WebP in the renderer, then send the small payload; the
+      // handler creates the file_entry, points the avatar slot's file_ref at it, and
+      // writes the Preference. A processing failure throws a localized retry message.
       const data = await prepareEntityImageBytes(file)
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)

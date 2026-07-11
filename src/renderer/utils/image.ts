@@ -41,30 +41,36 @@ export function checkEntityImageSize(file: File): string | null {
 }
 
 /**
- * Downscale + re-encode an entity image (avatar / logo) to a small WebP in the
- * renderer using the native canvas — shrinks the IPC payload from the raw upload
- * to a few KB. Aspect-preserving (longest edge → 128); main-side sharp still does
- * the final exact 128² cover-crop and is the on-disk authority, so this is purely a
- * transfer-size optimization. Falls back to the raw bytes when canvas can't decode
- * the input (SVG, odd/animated formats).
+ * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
+ * renderer via the native canvas — the same shape main-side sharp produces (short
+ * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
+ * failure — the caller surfaces it so the user can retry; the raw bytes are never
+ * sent to main, which could not decode them either.
  */
 export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
-    const scale = Math.min(1, ENTITY_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('no 2d context')
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    bitmap.close()
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
-    if (!blob) throw new Error('toBlob returned null')
-    return new Uint8Array(await blob.arrayBuffer())
-  } catch {
-    // ponytail: canvas can't decode (SVG/animated/quirks) → send raw, main's sharp transcodes it
-    return new Uint8Array(await file.arrayBuffer())
+    try {
+      // Cover crop: sample the largest centered square, scale it to 128×128.
+      const side = Math.min(bitmap.width, bitmap.height)
+      const sx = (bitmap.width - side) / 2
+      const sy = (bitmap.height - side) / 2
+      const canvas = document.createElement('canvas')
+      canvas.width = ENTITY_IMAGE_DIMENSION
+      canvas.height = ENTITY_IMAGE_DIMENSION
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no 2d context')
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION)
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
+      if (!blob) throw new Error('toBlob returned null')
+      return new Uint8Array(await blob.arrayBuffer())
+    } finally {
+      bitmap.close()
+    }
+  } catch (error) {
+    logger.error('Failed to process entity image', error as Error)
+    throw new Error(i18n.t('message.error.image_process_failed'))
   }
 }
 

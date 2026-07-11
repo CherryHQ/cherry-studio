@@ -123,6 +123,12 @@ vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
 }))
 
+// Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
+vi.mock('@renderer/utils/image', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/utils/image')>()),
+  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',
