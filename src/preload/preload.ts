@@ -10,8 +10,6 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { TerminalConfig } from '@shared/types/codeCli'
-import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
