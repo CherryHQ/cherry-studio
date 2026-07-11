@@ -162,7 +162,11 @@ jobs:
 
           $installDir = Join-Path $env:RUNNER_TEMP 'cherry-studio-arm64'
           Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
-          $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installDir" -PassThru
+          if (-not $process.WaitForExit(600000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'Windows ARM64 installer did not exit within 10 minutes'
+          }
           if ($process.ExitCode -ne 0) {
             throw "Windows ARM64 installer exited with code $($process.ExitCode)"
           }
