@@ -14,6 +14,14 @@ import * as z from 'zod'
  * (`feature.backup.restore.file`): the arbiter of a promotion cannot live
  * inside the databases being swapped, and boot-config is global-scoped with
  * debounced writes — both disqualified.
+ *
+ * Co-location with the database is a durability INVARIANT, not convenience:
+ * every journal write fsyncs the shared parent directory, which also flushes
+ * any not-yet-durable DB rename in that directory — so "marker at/past the
+ * commit step" implies "the commit rename is durable" even when the rename's
+ * own directory fsync failed. Relocating the journal into a different
+ * directory breaks that coupling and reopens a power-loss window where a
+ * completed journal survives a rolled-back rename (empty-DB boot).
  */
 
 /**

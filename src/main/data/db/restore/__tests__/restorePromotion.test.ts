@@ -1,3 +1,4 @@
+import type * as NodeFsModule from 'node:fs'
 import {
   copyFileSync,
   existsSync,
@@ -46,6 +47,32 @@ let userData = ''
 const markerFailure = vi.hoisted(() => ({
   shouldFail: null as ((journal: { state: string; step?: string }) => boolean) | null
 }))
+
+/**
+ * Directory-fsync fault injection: fsyncDir opens the directory with
+ * openSync(dir, 'r') before fsyncing, so failing that open (via a
+ * pass-through mock of node:fs — an ESM namespace cannot be spied on)
+ * faithfully models a dir-fsync failure — and, unlike fsyncSync, the open
+ * carries the PATH, so a predicate can target the commit rename's target dir
+ * (userData) vs source dir (staging) without fd bookkeeping. flags === 'r'
+ * keeps journal tmp-file writes (openSync(..., 'w')) out of scope; the
+ * predicate stays null (inert) for every other case.
+ */
+const fsyncDirFailure = vi.hoisted(() => ({
+  shouldFail: null as ((dir: string) => boolean) | null
+}))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFsModule>()
+  const openSync = (...args: Parameters<typeof actual.openSync>) => {
+    const [target, flags] = args
+    if (typeof target === 'string' && flags === 'r' && fsyncDirFailure.shouldFail?.(target)) {
+      throw Object.assign(new Error('EIO: injected directory fsync-open failure'), { code: 'EIO' })
+    }
+    return actual.openSync(...args)
+  }
+  return { ...actual, default: { ...actual, openSync }, openSync }
+})
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
   const actual = await importOriginal<typeof RestoreJournalModule>()
@@ -222,6 +249,7 @@ describe('runRestorePromotion', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
+    fsyncDirFailure.shouldFail = null
   })
 
   afterEach(() => {
@@ -698,6 +726,77 @@ describe('runRestorePromotion', () => {
       expect(readMarker(asidePath())).toBe('old')
       expect(existsSync(stagingDir())).toBe(false)
     })
+  })
+
+  describe('commit-rename durability-tail failures (rename landed, dir fsync threw)', () => {
+    // fsyncDir no-ops on win32 (MoveFileEx is accepted as best-effort there),
+    // so the durability tail cannot throw and these cases would silently
+    // degrade into a plain end-to-end run — skip them rather than fake-pass.
+    it.skipIf(process.platform === 'win32')(
+      'completes when the target-dir fsync fails after the commit rename',
+      async () => {
+        makeDb(livePath(), 'old')
+        makeDb(workPath(), 'new')
+        seedManifestFixtures()
+        writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+        // "work gone ∧ live present" first becomes true at the commit
+        // rename's own target-dir fsync: every earlier userData dir-open runs
+        // while work.sqlite still exists (marker writes, additive moves) or
+        // while live is absent (the live-aside rename). One-shot so the
+        // continuation's later journal fsyncs of the same dir go through.
+        fsyncDirFailure.shouldFail = (dir) => {
+          if (dir === userData && existsSync(livePath()) && !existsSync(workPath())) {
+            fsyncDirFailure.shouldFail = null
+            return true
+          }
+          return false
+        }
+
+        await runRestorePromotion()
+
+        // The rename landed — rolling back would strip the additives off the
+        // now-live new DB and delete the staging tree. The promotion must
+        // finish instead: entries applied, integrity checked, completed.
+        expect(readMarker(livePath())).toBe('new')
+        expect(readMarker(asidePath())).toBe('old')
+        expect(readFileSync(liveBlob(), 'utf8')).toBe('BLOB-NEW')
+        expect(readFileSync(join(liveKbDir(), 'chunk.bin'), 'utf8')).toBe('KB-NEW')
+        expect(readFileSync(liveAddedNote(), 'utf8')).toBe('NOTE-ADDED')
+        expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEW')
+        expect(journalState()).toBe('completed')
+        expect(existsSync(stagingDir())).toBe(false)
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'completes when the source-dir fsync fails after the commit rename',
+      async () => {
+        makeDb(livePath(), 'old')
+        makeDb(workPath(), 'new')
+        seedManifestFixtures()
+        writeRestoreJournal(await buildJournal({ fileResources: standardManifest() }))
+        // The staging dir is only ever dir-opened as the commit rename's
+        // SOURCE-dir fsync (the additive moves fsync staging subdirectories,
+        // not the staging root) — the target-dir fsync (userData) has passed
+        // by then, pinning the second fsync of the pair.
+        fsyncDirFailure.shouldFail = (dir) => {
+          if (dir === stagingDir() && existsSync(livePath()) && !existsSync(workPath())) {
+            fsyncDirFailure.shouldFail = null
+            return true
+          }
+          return false
+        }
+
+        await runRestorePromotion()
+
+        expect(readMarker(livePath())).toBe('new')
+        expect(readMarker(asidePath())).toBe('old')
+        expect(readFileSync(liveBlob(), 'utf8')).toBe('BLOB-NEW')
+        expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEW')
+        expect(journalState()).toBe('completed')
+        expect(existsSync(stagingDir())).toBe(false)
+      }
+    )
   })
 
   describe('add-target conflicts (target pre-exists — never clobber, never mis-delete)', () => {

@@ -362,6 +362,23 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
     try {
       runStep(ctx, step)
     } catch (error) {
+      // The commit step's rename is the point of no return, and renameDurable
+      // fsyncs the affected directories AFTER renaming — so this throw can
+      // arrive with the work→live rename already physically landed. Consult
+      // the FS: "work gone ∧ live present" inside this catch can only mean
+      // the rename ran (every earlier throw site leaves work in place or
+      // live absent). Rolling back would strip the additives off the
+      // now-live new DB and delete the staging tree while the aside guard
+      // leaves the new DB live — the forbidden third state. Treat it like a
+      // lagged commit marker instead: continue in memory, leaving the
+      // on-disk marker at live-aside (the last durably-fsynced one), which
+      // is exactly the state the recoverPromoting probe re-derives if a
+      // later crash intervenes.
+      if (i === commitIndex && !fs.existsSync(ctx.workPath) && fs.existsSync(ctx.livePath)) {
+        logger.error('Commit rename landed but its durability tail failed — continuing in memory', error as Error)
+        current = { ...current, step }
+        continue
+      }
       logger.error(`Promotion step '${step}' failed`, error as Error)
       if (i <= commitIndex) {
         rollbackPreCommit(ctx)

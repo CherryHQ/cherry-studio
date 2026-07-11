@@ -9,7 +9,7 @@ The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM
 
 | File | Exports | Role |
 |---|---|---|
-| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal`, `hasPendingRestore` | Crash-safe journal contract (sidecar `restore-journal.json`, `feature.backup.restore.file`) |
+| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal`, `hasPendingRestore` | Crash-safe journal contract (sidecar `restore-journal.json`, `feature.backup.restore.file`; MUST stay in the DB's directory — journal dir-fsyncs are what make a commit-step marker imply the DB rename is durable) |
 | `checkpoint.ts` | `checkpointTruncateAssert` | Asserted `wal_checkpoint(TRUNCATE)` — shared by both fingerprint sides |
 | `hashDbFile.ts` | `hashDbFile` | Streaming sha256 of the DB main file — shared by both fingerprint sides |
 | `snapshot.ts` | `snapshotTo` | `VACUUM INTO` snapshot (produces the merge base `work.sqlite`) |
@@ -28,6 +28,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 
 - `staged` — written by the backup staging pipeline after offline merge + verification.
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
+- Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
 - Terminal states (`completed` / `failed` / `expired`) are kept for post-boot reporting.
 
 ## Ownership
