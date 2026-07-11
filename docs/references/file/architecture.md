@@ -840,6 +840,7 @@ Current examples:
 
 - `chat_message_file_ref` is owned by chat/topic/message flows (`TopicService` copies rows when duplicating message paths; migrators backfill rows directly).
 - `painting_file_ref` is owned by `PaintingService` (`create`/`update` write rows directly; source deletion relies on FK cascade).
+- `job_file_ref` is owned by `AiService.generateImageViaJob` (writes rows at enqueue so the async image job's `delete_when_unreferenced` inputs stay referenced for its lifetime; terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
 
 `FileRefService` does **not** create/copy/replace persistent refs. It is the cross-source read facade used by DataApi and sweep (`findByEntryId`, `findBySource`, `countByEntryIds`).
 
@@ -852,7 +853,7 @@ await fileRefService.createTempSessionRef({ fileEntryId, sourceId: sessionId, ro
 await fileRefService.cleanupTempSessionSource(sessionId)
 ```
 
-The orphan sweep prunes temp-session refs whose `file_entry` row no longer exists, then reports active file entries with zero refs. Persistent source cleanup is not scanned generically because FK cascades own that path.
+The orphan sweep prunes temp-session refs whose `file_entry` row no longer exists, then reports active **manual-policy** file entries with zero refs (`delete_when_unreferenced` zero-ref entries are owned by the cleanup pass, not this report). Persistent source cleanup is not scanned generically because FK cascades own that path.
 
 #### (2b) Developer Checklist for Adding a New sourceType
 
@@ -864,7 +865,7 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 | 2 | `src/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
 | 3 | `src/main/data/db/schemas/*` | Add the dedicated FK-constrained association table | Migration + schema tests |
 | 4 | Owning business service/migrator | Write/copy/delete relationship rows directly; use FK cascade for source and `file_entry` deletion | Unit/integration tests |
-| 5 | `FileRefService` | Add the table to read/ref-count aggregation only | DataApi + sweep tests |
+| 5 | `FileRefService` | Add the table to read/ref-count aggregation only — the registry-driven cleanup anti-join (`persistentRefAbsenceConditions`) picks it up automatically; a missing `persistentFileRefTablesBySourceType` entry fails compilation (`satisfies Record<PersistentFileRefSourceType, …>` in `fileRelations.ts`), and the vitest coverage test additionally pins that `persistentRefAbsenceConditions()` stays registry-derived rather than hand-enumerated | DataApi + sweep tests |
 
 **Design intent**:
 
@@ -1039,7 +1040,7 @@ src/main/data/                        -- data layer
     files.ts                          -- DataApi handler, no FS side effect
   db/schemas/
     file.ts                           -- file_entry
-    fileRelations.ts                  -- chat_message_file_ref / painting_file_ref
+    fileRelations.ts                  -- chat_message_file_ref / painting_file_ref / job_file_ref
 
 src/main/ipc/handlers/
   file.ts                            -- File IPC adapter: schema-validated routes,

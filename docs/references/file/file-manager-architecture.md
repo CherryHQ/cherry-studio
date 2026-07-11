@@ -540,7 +540,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 - **Active push**: when a business module creates a watcher via `createDirectoryWatcher()`, the factory auto-wires add/unlink events into DanglingCache
 - **Side effect**: FileManager's own read/stat/write operations also update the cache on success/failure
 
-**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the ref association chain is preserved; the user can explicitly "Remove from library" or attempt to re-point.
+**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but dangling state itself never triggers cleanup—the ref association chain is preserved. `manual` entries require the user to explicitly "Remove from library" or attempt to re-point; `delete_when_unreferenced` entries are instead reclaimed by the ref-count-driven cleanup pass ([file-entry-cleanup.md](./file-entry-cleanup.md)) regardless of presence.
 
 ---
 
@@ -708,19 +708,21 @@ Three layers of protection, with each layer as a fallback for the next:
 +-------------------------------------------------------+
 | Layer 3: on-demand DB orphan sweep                    |
 | prune temp-session refs whose file_entry is missing   |
-| report active file_entry rows with zero refs          |
+| report zero-ref manual entries                        |
+| reclaim zero-ref delete_when_unreferenced entries     |
+| via the cleanup pass                                  |
 +-------------------------------------------------------+
 ```
 
-Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep only handles the non-persistent `temp_session` cache and reporting.
+Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep handles the non-persistent `temp_session` cache, reports `manual` zero-ref entries, and reclaims `delete_when_unreferenced` zero-ref entries via the cleanup pass described in [file-entry-cleanup.md](./file-entry-cleanup.md).
 
 ### 7.1 No-Reference Entry Policy
 
 The default stance — *FileEntry is preserved even when no business refs point at it* — is chosen so the user never loses a file they (or Cherry) bothered to track merely because the original consumer got deleted. A UI surface may show an "unreferenced" marker for user-triggered cleanup.
 
-There are **no automatic deletion exceptions**. Even an external entry that is currently missing and has zero refs is still a user-visible library record: it may represent a temporarily unmounted drive, a file the user wants to re-link later, or simply a stale record the user should remove explicitly. The file module may report these rows, but it must not delete them without an explicit user/caller action.
+Automatic deletion applies **only** to entries whose `cleanup_policy = 'delete_when_unreferenced'` (see [file-entry-cleanup.md](./file-entry-cleanup.md)); `manual` entries have no automatic deletion exceptions. Even an external `manual` entry that is currently missing and has zero refs is still a user-visible library record: it may represent a temporarily unmounted drive, a file the user wants to re-link later, or simply a stale record the user should remove explicitly. The file module may report these rows, but it must not delete them without an explicit user/caller action.
 
-**Policy matrix by `(origin, dangling state, refs)`**:
+**Policy matrix by `(origin, dangling state, refs)`**: the rows below describe `manual`-policy behavior. A `delete_when_unreferenced` entry is instead reclaimed once it clears the grace window with zero refs — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper).
 
 | origin | dangling state | refs | Policy |
 |---|---|---|---|
@@ -732,7 +734,7 @@ There are **no automatic deletion exceptions**. Even an external entry that is c
 
 ### 7.2 No Automatic Dangling-External Cleanup
 
-Dangling external entries are never deleted automatically by a scheduler, startup task, or `runSweep()` policy pass. Cleanup is explicit:
+This section applies to `manual`-policy entries. Dangling external `manual` entries are never deleted automatically by a scheduler, startup task, or `runSweep()` policy pass — deletion of `delete_when_unreferenced` entries is handled by the separate cleanup pass in [file-entry-cleanup.md](./file-entry-cleanup.md), and is driven by ref count and grace window, not dangling state. Cleanup for `manual` entries is explicit:
 
 - **User action**: FilesPage or a cleanup UI calls the external-entry deletion path (labelled "Remove from library") for selected rows.
 - **Business action**: a business service that owns a reference may decide how to handle a missing file in its own workflow (prompt, re-link, remove ref, etc.).
@@ -749,7 +751,7 @@ Consequences:
 - No persisted "missing since" timestamp or time-based cleanup query.
 - No cleanup-verification bypass around DanglingCache TTL.
 - No cleanup-specific observability event.
-- No `('external', 'missing', 0)` automatic deletion branch in Layer 3. Layer 3 remains temp-session ref pruning plus orphan-entry reporting.
+- No `('external', 'missing', 0)` automatic deletion branch keyed on dangling state. Layer 3's reporting sub-path remains temp-session ref pruning plus zero-ref reporting for `manual` entries; `delete_when_unreferenced` entries are instead reclaimed by the policy-driven cleanup pass (file-entry-cleanup.md), independent of dangling state.
 
 ---
 
@@ -924,7 +926,7 @@ interface IFileUploadService {
 
 ### 10.1 Positioning
 
-Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle. Both passes begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim.
+Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run for the FS-level pass (§10) or the DB-level report pass (§7 Layer 3). FileManager exposes a single `runSweep()` maintenance method: it first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folding the cleanup pass's own summary into `counts.entryCleanup`, and returns a single `OrphanReport` once all three settle. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim. (No user-facing UI calls `runSweep` — the entry cleanup it wraps is silent, and the cleanup mechanism has no user surface; see file-entry-cleanup.md's Decision note.)
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -933,22 +935,32 @@ protected override async onInit(): Promise<void> {
   await this.deps.danglingCache.initFromDb()
   // IPC handlers, including `File_RunSweep`, are registered here.
   this.registerIpcHandlers()
+  // Entry-cleanup pass auto-runs here (previous-session backlog) and on a
+  // 30min idle-gated interval — independently of `runSweep`. See
+  // file-entry-cleanup.md §5.5.
+  void this.runEntryCleanup()
+  this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
 }
 
 async runSweep(): Promise<OrphanReport> {
-  // Two concurrent passes:
-  //   1. FS-level file sweep (§10): scan {userData}/Data/Files/* for
+  // Three passes, cleanup first:
+  //   1. Entry-cleanup pass (file-entry-cleanup.md §5): reclaims zero-ref
+  //      `delete_when_unreferenced` entries. No volume abort (spec §5.3).
+  //      Runs first so the DB report below doesn't re-report entries it
+  //      just reclaimed.
+  //   2. FS-level file sweep (§10): scan {userData}/Data/Files/* for
   //      orphans not present in the file_entry snapshot.
-  //   2. DB-level temp-session ref prune + entry report (§7 Layer 3):
+  //   3. DB-level temp-session ref prune + entry report (§7 Layer 3):
   //      prune cache refs whose file_entry is missing, then report
-  //      unreferenced active entries.
-  // Each branch settles independently with its own error capture. A DB
+  //      unreferenced `manual` entries.
+  // Passes 2/3 settle independently with their own error capture. A DB
   // failure dominates as `failed`; FS-side partial/aborted/failed outcomes
-  // degrade the umbrella report to `partial` via `fsSweepIssue`. Exception:
-  // while a staged backup restore is pending promotion, BOTH passes stand
-  // aside up front and the umbrella returns `aborted`
-  // (abortReason: 'pending-restore') verbatim — expected behavior, never
-  // disguised as a degraded `partial` run.
+  // degrade the umbrella report to `partial` via `fsSweepIssue`. The
+  // cleanup pass's own outcome rides in `counts.entryCleanup` and never
+  // changes the umbrella `outcome`. Exception: while a staged backup restore
+  // is pending promotion, BOTH passes stand aside up front and the umbrella
+  // returns `aborted` (abortReason: 'pending-restore') verbatim — expected
+  // behavior, never disguised as a degraded `partial` run.
 }
 ```
 
@@ -1060,9 +1072,11 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports active entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports `manual` entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
 
-These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per user-triggered sweep run is a trivial volume for log aggregation.
+The entry-cleanup pass (§7.1, [file-entry-cleanup.md §5.6](./file-entry-cleanup.md#56-failure-handling--observability)) emits a third, independent record under `event: 'file-entry-cleanup'` — `info` on `completed`, `error` on `failed` (it has no `aborted` outcome; the volume abort was removed, spec §5.3) — covering candidate/deleted/`gonePinned`/`failed` counts and skip/unlink-failure breakdowns for the `delete_when_unreferenced` reclaim path. It fires on its own triggers (init, idle-gated interval) in addition to running as the first of `runSweep`'s three passes (§10.1).
+
+These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most three records per user-triggered sweep run is a trivial volume for log aggregation.
 
 ### 10.6 DanglingCache Initialization
 
@@ -1128,7 +1142,7 @@ export const danglingCache = new DanglingCache()
 
 ### 11.2 State Model
 
-DanglingCache exposes lazy, query-driven presence checks only. There is no cleanup-only recheck path because dangling external entries are not auto-deleted (§7.2). If a future explicit user workflow needs a strict re-stat escape hatch, add it with that concrete caller and document the user-visible action.
+DanglingCache exposes lazy, query-driven presence checks only. There is no cleanup-only recheck path because dangling state never drives deletion — `manual` entries are not auto-deleted (§7.2), and the cleanup pass for `delete_when_unreferenced` entries keys on ref count and grace window, not presence ([file-entry-cleanup.md](./file-entry-cleanup.md)). If a future explicit user workflow needs a strict re-stat escape hatch, add it with that concrete caller and document the user-visible action.
 
 ```typescript
 type DanglingState = 'present' | 'missing' | 'unknown'
@@ -1263,7 +1277,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 
 **Freshness guarantee**: for any path the caller queries, cached state is never older than the TTL. Paths that are never queried may stay stale indefinitely — but by construction, no consumer is looking at them, so the staleness has no user-visible impact.
 
-**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and dangling entries are never auto-deleted, so stale presence state should be corrected at use/query time rather than by a hidden global scanner.
+**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and deletion is never driven by dangling state (`manual` entries require explicit action; auto-policy cleanup keys on ref count), so stale presence state should be corrected at use/query time rather than by a hidden global scanner.
 
 **Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway); DanglingCache is a UI/presence helper, not a correctness boundary.
 
@@ -1393,7 +1407,7 @@ Every ad-hoc `if (entry.origin === 'internal')` / `=== 'external'` in the codeba
 | DanglingCache participation | `DanglingCache.check` returns `'present'` for internal; consider where the new variant falls on the `present/missing/unknown` axis |
 | `permanentDelete` semantics | Does it touch physical files? Just DB? Refer to §6 and architecture.md §3.4 |
 | Orphan sweep scope | §10 scans `origin='internal'` UUID files; does the new variant have a sweepable disk presence? |
-| Explicit cleanup semantics | §7.2 forbids automatic dangling-entry deletion; decide whether the new origin is preserved, reported, or removable only through an explicit user/caller action |
+| Explicit cleanup semantics | §7.2 forbids dangling-state-driven automatic deletion of `manual` entries (auto-policy entries are reclaimed by the ref-count-driven cleanup pass — [file-entry-cleanup.md](./file-entry-cleanup.md)); decide whether the new origin is preserved, reported, or removable only through an explicit user/caller action |
 | IPC dispatch applicability | architecture.md §3.3 tables per method — does each method make sense for the new variant? |
 
 ### 13.5 UX Layer
