@@ -208,6 +208,9 @@ export class ImportOrchestrator {
       // The gate re-checks anyway; this early abort avoids wasting a relaunch.
       this.emit(options, 'verify', 0, 1, 're-verifying live DB fingerprint')
       await this.verifyFingerprint(fingerprint)
+      // Final cancellation check — an abort during the rehash must NOT proceed to write the
+      // journal + relaunch (the 2nd fingerprint is the last async before the synchronous write).
+      this.assertNotCancelled(options)
 
       const journal: RestoreJournal = {
         version: 1,
@@ -291,6 +294,13 @@ export class ImportOrchestrator {
    * and relaunch.
    */
   private verifyChainExactEquality(workChain: readonly AppliedMigration[]): void {
+    // An empty chain would pass the length+item comparison trivially but the journal schema
+    // requires chain.min(1) — an unmigrated DB must not be journaled (it'd be quarantined post-relaunch).
+    if (workChain.length === 0) {
+      throw new Error(
+        'importBackup: work chain is empty — an unmigrated DB cannot be journaled (RestoreJournalSchema requires chain.min(1))'
+      )
+    }
     const bundled = readMigrationFiles({ migrationsFolder: this.deps.migrationsFolder })
     if (workChain.length !== bundled.length) {
       throw new Error(
