@@ -106,8 +106,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          @'
-
+          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
+          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
+          $windowsArchitectures = @'
           supportedArchitectures:
             os:
               - current
@@ -116,7 +117,9 @@ jobs:
               - current
               - x64
               - arm64
-          '@ | Add-Content pnpm-workspace.yaml
+          '@
+          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
+          Set-Content pnpm-workspace.yaml $workspaceConfig
 
       - name: Install Dependencies
         run: pnpm install
