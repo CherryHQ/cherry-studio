@@ -964,7 +964,7 @@ describe('writeCliConfigDraft', () => {
     // endpoints point at the local gateway, so any CLI's endpoint pick resolves to it.
     const gatewayProvider = {
       id: CLI_API_GATEWAY_PROVIDER_ID,
-      name: 'Cherry Gateway',
+      name: '统一网关',
       endpointConfigs: {
         'anthropic-messages': { baseUrl: GATEWAY_BASE_URL },
         'openai-chat-completions': { baseUrl: GATEWAY_BASE_URL },

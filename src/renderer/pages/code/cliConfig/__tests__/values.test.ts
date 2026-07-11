@@ -25,8 +25,8 @@ describe('safeCreateUniqueModelId', () => {
 
 describe('cliProviderKeyName', () => {
   it('uses the fixed "gateway" name for the synthetic gateway (→ clean cherry-gateway key)', () => {
-    // The card title "Cherry 网关" would otherwise sanitize to the ugly "Cherry-".
-    expect(cliProviderKeyName({ id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Cherry 网关' })).toBe('gateway')
+    // The card title "统一网关" is fully non-ASCII and would otherwise sanitize to an empty/garbled key.
+    expect(cliProviderKeyName({ id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' })).toBe('gateway')
   })
 
   it('derives real providers from their sanitized display name (unchanged behavior)', () => {

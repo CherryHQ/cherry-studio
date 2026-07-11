@@ -2,7 +2,7 @@ import { EmptyState, ReorderableList } from '@cherrystudio/ui'
 import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -98,6 +98,7 @@ export const ConfigList: FC<ConfigListProps> = ({
             provider={provider}
             providerName={meta.providerName}
             modelName={modelName}
+            description={isApiGatewayProviderId(provider.id) ? t('code.api_gateway.description') : undefined}
             isCurrent={currentProviderId === provider.id}
             dragging={dragging}
             onConfigure={onConfigure}

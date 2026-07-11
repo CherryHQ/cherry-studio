@@ -1962,8 +1962,9 @@
       "select_placeholder": "Select…"
     },
     "api_gateway": {
+      "description": "Any CLI, every model",
       "requires_running": "Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
-      "title": "Cherry Gateway"
+      "title": "Unified Gateway"
     },
     "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",

@@ -65,7 +65,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
     const baseUrl = `http://${host}:${port}`
     const provider: Provider = {
       id: CLI_API_GATEWAY_PROVIDER_ID,
-      // Keep the brand token ASCII so codex/kimi provider-key sanitization stays valid across locales.
+      // Display-only; the CLI provider key is decoupled from this title (see cliProviderKeyName).
       name: t('code.api_gateway.title'),
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl },
