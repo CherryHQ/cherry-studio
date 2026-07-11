@@ -401,6 +401,34 @@
       "name": "OpenRouter"
     },
     {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "DaoXE - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi",
+          "baseUrl": "https://daoxe.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "newapi",
+          "baseUrl": "https://daoxe.com/v1"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://daoxe.com/v1"
+        }
+      },
+      "id": "daoxe",
+      "metadata": {
+        "website": {
+          "apiKey": "https://daoxe.com/dashboard",
+          "docs": "https://github.com/seven7763/DaoXE-AI",
+          "models": "https://daoxe.com/pricing",
+          "official": "https://daoxe.com/"
+        }
+      },
+      "name": "DaoXE"
+    },
+    {
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1452,5 +1480,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "92482a2571d2ff1e"
+  "version": "8abf93e922e5ee23"
 }
