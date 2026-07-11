@@ -4,13 +4,13 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
 
-import { CUSTOM_SQL_STATEMENTS } from './customSqls'
+import { applyMigrations } from './applyMigrations'
+import { checkpointTruncateAssert } from './restore/checkpoint'
+import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbOrTx, DbType } from './types'
@@ -171,36 +171,10 @@ export class DbService extends BaseService {
    */
   private migrateDb(): void {
     try {
-      const migrationsFolder = application.getPath('app.database.migrations')
-      migrate(this.db, { migrationsFolder })
-
-      // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
-      this.runCustomMigrations()
-
+      applyMigrations(this.db, application.getPath('app.database.migrations'))
       logger.info('Database migration completed successfully')
     } catch (error) {
       logger.error('Database migration failed', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Run custom SQL statements that Drizzle cannot manage
-   *
-   * This includes triggers, virtual tables, and other SQL objects.
-   * Called after every migration because:
-   * 1. Drizzle doesn't track these in schema
-   * 2. DROP TABLE removes associated triggers
-   * 3. All statements use IF NOT EXISTS, so they're idempotent
-   */
-  private runCustomMigrations(): void {
-    try {
-      for (const statement of CUSTOM_SQL_STATEMENTS) {
-        this.db.run(sql.raw(statement))
-      }
-      logger.debug('Custom migrations completed', { count: CUSTOM_SQL_STATEMENTS.length })
-    } catch (error) {
-      logger.error('Custom migrations failed', error as Error)
       throw error
     }
   }
@@ -270,6 +244,34 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db.transaction(fn, { behavior: 'immediate' })
+  }
+
+  /**
+   * Copy the live database into a fresh file via `VACUUM INTO` — a
+   * transaction-consistent snapshot taken on the live connection, used by the
+   * backup restore pipeline as its merge base (work.sqlite). The target must
+   * not exist. Synchronous and blocking by design (the restore flow blocks
+   * the UI). See src/main/data/db/restore/README.md.
+   */
+  public createSnapshot(targetPath: string): void {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    snapshotTo(this.sqlite, targetPath)
+  }
+
+  /**
+   * Fold every committed WAL frame into the main database file and truncate
+   * the -wal, asserting the checkpoint completed (busy == 0, all frames
+   * checkpointed). Required before hashing the main file: under WAL the main
+   * file's bytes lag committed data until a checkpoint. Throws when readers
+   * hold the WAL open — the caller must quiesce writers/readers first.
+   */
+  public checkpointTruncate(): void {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    checkpointTruncateAssert(this.sqlite)
   }
 
   /**

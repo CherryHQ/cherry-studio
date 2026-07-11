@@ -1,5 +1,6 @@
-import type { ModelMessage, UIMessage } from 'ai'
+import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
@@ -63,6 +64,48 @@ describe('toModelMessages', () => {
     expect(model).toEqual([
       { role: 'user', content: [{ type: 'text', text: expect.stringContaining('image attachment omitted') }] }
     ])
+  })
+
+  it('uses the tool model-output formatter when replaying completed tool results', async () => {
+    const imageData = 'A'.repeat(1024)
+    const rawOutput = {
+      content: [{ type: 'image', data: imageData, mimeType: 'image/png' }]
+    }
+    const messages = [
+      ui('assistant', [
+        {
+          type: 'tool-screenshot',
+          toolCallId: 'call-1',
+          state: 'output-available',
+          input: {},
+          output: rawOutput
+        }
+      ]),
+      ui('user', [{ type: 'text', text: 'continue' }], 'u1')
+    ]
+    const originalMessages = structuredClone(messages)
+    const tools = {
+      screenshot: tool({
+        inputSchema: z.object({}),
+        toModelOutput: () => ({ type: 'text', value: '[Image: image/png, delivered to user]' })
+      })
+    }
+
+    const model = await toModelMessages(messages, undefined, tools)
+
+    expect(model[1]).toEqual({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: 'call-1',
+          toolName: 'screenshot',
+          output: { type: 'text', value: '[Image: image/png, delivered to user]' }
+        }
+      ]
+    })
+    expect(JSON.stringify(model)).not.toContain(imageData)
+    expect(messages).toEqual(originalMessages)
   })
 })
 
