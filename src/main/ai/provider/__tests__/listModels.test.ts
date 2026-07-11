@@ -515,6 +515,24 @@ describe('listModels — newApiFetcher rerank capability mapping', () => {
     expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
   })
+
+  it('does not mark jina-rerank when a chat endpoint has higher priority', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'multi-endpoint-chat-model',
+            supported_endpoint_types: ['openai', 'jina-rerank']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
+    expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+  })
 })
 
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {

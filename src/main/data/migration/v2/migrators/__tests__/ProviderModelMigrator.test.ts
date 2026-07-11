@@ -61,7 +61,14 @@ function createContext(
   } as unknown as MigrationContext
 }
 
-function makeProvider(id: string, models: Array<{ id: string; supported_endpoint_types?: string[] }> = []) {
+function makeProvider(
+  id: string,
+  models: Array<{
+    id: string
+    supported_endpoint_types?: string[]
+    capabilities?: Array<{ type: 'rerank'; isUserSelected?: boolean }>
+  }> = []
+) {
   return {
     id,
     name: `Provider ${id}`,
@@ -574,6 +581,29 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
+    it('preserves an explicit rerank disable for matching model ids and registry presets', async () => {
+      registryFixtures.models.set('rerank-2', {
+        id: 'rerank-2',
+        name: 'Rerank 2',
+        capabilities: [MODEL_CAPABILITY.RERANK]
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('voyageai', [{ id: 'rerank-2', capabilities: [{ type: 'rerank', isUserSelected: false }] }])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.userOverrides).toEqual(['capabilities'])
+    })
+
     it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
@@ -596,6 +626,57 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
       expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+    })
+
+    it('preserves an explicit rerank disable for opaque models with a primary Jina endpoint', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('new-api', [
+              {
+                id: 'opaque-model-id',
+                supported_endpoint_types: ['jina-rerank'],
+                capabilities: [{ type: 'rerank', isUserSelected: false }]
+              }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.userOverrides).toEqual(['capabilities'])
+    })
+
+    it('does not infer rerank from a secondary Jina endpoint', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('new-api', [
+              { id: 'multi-endpoint-chat-model', supported_endpoint_types: ['openai', 'jina-rerank'] }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'new-api::multi-endpoint-chat-model'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.capabilities).toEqual([])
     })
 
     it('tolerates a provider whose models field is null or undefined', async () => {

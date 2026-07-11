@@ -182,7 +182,10 @@ describe('toCreateModelDto', () => {
       providerId: 'voyageai',
       apiModelId: 'rerank-2',
       name: 'rerank-2',
-      capabilities: []
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
     } as Model)
 
     expect(dto).toMatchObject({

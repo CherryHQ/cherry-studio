@@ -494,20 +494,29 @@ function mapCapabilities(
   endpointTypes?: EndpointType[] | null
 ): ModelCapability[] {
   const mapped: ModelCapability[] = []
+  const rerankExplicitlyDisabled =
+    capabilities?.some((capability) => capability.type === 'rerank' && capability.isUserSelected === false) ?? false
+
   if (capabilities) {
     for (const capability of capabilities) {
       const result = CAPABILITY_MAP[capability.type]
-      if (result !== undefined) {
-        mapped.push(result)
-      } else if (capability.type !== 'text') {
-        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      if (result === undefined) {
+        if (capability.type !== 'text') {
+          logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+        }
+        continue
       }
+      if (capability.isUserSelected === false || (result === MODEL_CAPABILITY.RERANK && rerankExplicitlyDisabled)) {
+        continue
+      }
+
+      mapped.push(result)
     }
   }
-  if (inferRerankFromModelId(modelId)) {
+  if (!rerankExplicitlyDisabled && inferRerankFromModelId(modelId)) {
     mapped.push(MODEL_CAPABILITY.RERANK)
   }
-  if (endpointTypes?.includes(ENDPOINT_TYPE.JINA_RERANK)) {
+  if (!rerankExplicitlyDisabled && endpointTypes?.[0] === ENDPOINT_TYPE.JINA_RERANK) {
     mapped.push(MODEL_CAPABILITY.RERANK)
   }
 
