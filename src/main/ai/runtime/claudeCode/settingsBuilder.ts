@@ -330,7 +330,7 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    settingSources: getSettingSources(agent),
+    settingSources: getSettingSources(agent, provider),
     settings: { autoCompactEnabled: true },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
@@ -1113,9 +1113,13 @@ export function adjustAllowedToolsForMcp(isAssistant: boolean): string[] {
   return result
 }
 
-function getSettingSources(agent: AgentEntity): Array<'user' | 'project' | 'local'> {
+function getSettingSources(agent: AgentEntity, provider: Provider): Array<'user' | 'project' | 'local'> {
   const builtinRole = agent.configuration?.builtin_role
-  return builtinRole ? [] : ['project', 'local']
+  if (builtinRole) return []
+
+  // Managed skills are mirrored under Cherry's isolated CLAUDE_CONFIG_DIR/skills, which Claude Code loads from the
+  // user source. Login providers point CLAUDE_CONFIG_DIR at the user's real CLI config, so keep that source isolated.
+  return isExternalCliProvider(provider) ? ['project', 'local'] : ['user', 'project', 'local']
 }
 
 function getLanguageInstruction(): string {
