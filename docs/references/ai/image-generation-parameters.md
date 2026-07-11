@@ -27,7 +27,7 @@ shipped differs.
 │        → paramValues  (pure canonical bag; blanks dropped, customSize composed) │
 └──────────────────────────── ipcApi.request('ai.generate_image') ───────────────┘
                                        │  { uniqueModelId, prompt, mode, paramValues, inputImages?, mask? }
-                                       ▼   (IPC schema is loose: the model is dynamic)
+                                       ▼   (model routing is dynamic; paramValues validated + coerced by the catalog imageParamsSchema)
 ┌─ MAIN · AiService.generateImage ───────────────────────────────────────────────┐
 │   splitParamValues(paramValues)  ──via AI_SDK_NATIVE_BINDINGS──▶                │
 │        structured = { n, size, seed, aspectRatio, … }   (typed ParamValues & {n})│
@@ -60,7 +60,7 @@ Two halves, one canonical vocabulary in the middle:
   the transport → vendor wire body.
 
 The contract between them is the **catalog** (the canonical key set + each key's
-value type, control, and wire name). The form, the validation, the partition, and
+value type and wire name). The form, the validation, the partition, and
 the static types all project from it.
 
 ---
@@ -69,7 +69,7 @@ the static types all project from it.
 
 | Fact | Declared in | Consumed by |
 | --- | --- | --- |
-| param value type + control + wire name | `IMAGE_PARAM_CATALOG` (`ParamValues`, `wireName`) | form, validation, wire engine, `structured` type |
+| param value type + wire name | `IMAGE_PARAM_CATALOG` (`ParamValues`, `wireName`) | form, validation, wire engine, `structured` type |
 | per-model: which params + constraints (options/range/default) | registry `supports` | form + `buildParamsSchema` |
 | canonical → AI-SDK-native (`numImages→n`, `aspectRatio` normalize, …) | `AI_SDK_NATIVE_BINDINGS` | `splitParamValues` |
 | canonical → vendor wire name (`negativePrompt→negative_prompt`) | `wireName()` (catalog `wire` or auto snake_case) | WireProfiles + aihubmix DEFAULT |
@@ -91,15 +91,14 @@ to project from:
 ```ts
 interface ImageParamCatalogEntry {
   schema: z.ZodTypeAny   // SINGLE source of the value type → form validation + ParamValues type
-  control: ParamControlKind // enum | range | switch | text | seedInput | size
   wire?: string          // vendor wire name override; omit for the auto camelCase→snake_case form
 }
 
 const IMAGE_PARAM_CATALOG = {
-  negativePrompt:    { schema: optString, control: 'text' },               // → 'negative_prompt' (auto)
-  numInferenceSteps: { schema: optInt,    control: 'range' },              // → 'num_inference_steps' (auto)
-  imageResolution:   { schema: optString, control: 'enum',  wire: 'size' }, // irregular → explicit
-  addWatermark:      { schema: optBool,   control: 'switch', wire: 'watermark' },
+  negativePrompt:    { schema: optString },                // → 'negative_prompt' (auto)
+  numInferenceSteps: { schema: optInt },                   // → 'num_inference_steps' (auto)
+  imageResolution:   { schema: optString, wire: 'size' },  // irregular → explicit
+  addWatermark:      { schema: optBool,   wire: 'watermark' },
   // … exhaustive over CanonicalParamKey (a missing/extra key is a compile error)
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
@@ -142,8 +141,9 @@ type SupportSpec =
 ```
 
 `supports` carries **only** the per-model constraints (which params, their
-options/range/default); the value type, control kind, and wire name live in the
-catalog. A model's block resolves **override-wins** in
+options/range/default); the value type and wire name live in the catalog, and the
+control kind derives from `SupportSpec.type` in the form
+(`imageGenerationToFields`). A model's block resolves **override-wins** in
 `ProviderRegistryService.getImageGenerationSupport` ([`src/main/data/services/ProviderRegistryService.ts`](../../../src/main/data/services/ProviderRegistryService.ts)):
 
 ```
@@ -250,7 +250,7 @@ descriptor is a pure derivation, not a param.
 
 ### Add a parameter to a model
 
-1. Pick (or reuse) the **canonical key**. If new, add one row to `IMAGE_PARAM_CATALOG` (`{ schema, control, wire? }`) — set `wire` **only** if the vendor name isn't the auto snake_case form. Add its `KEY_LABELS` row + i18n (`pnpm i18n:sync`).
+1. Pick (or reuse) the **canonical key**. If new, add one row to `IMAGE_PARAM_CATALOG` (`{ schema, wire? }`) — set `wire` **only** if the vendor name isn't the auto snake_case form. Add its `KEY_LABELS` row + i18n (`pnpm i18n:sync`).
 2. Declare it in the model's `supports` with the right `SupportSpec` (options/range/default).
 3. That's it for a flat-body provider — the form, validation, types, and wire name all flow from the catalog row. Only add a `WireProfile` field / transport line if the param needs bespoke placement (a nested block, a sibling provider key, a transport envelope).
 
@@ -272,7 +272,7 @@ descriptor is a pure derivation, not a param.
 
 | Concern | File |
 | --- | --- |
-| **Param catalog** (value + control + wire) | `packages/provider-registry/src/schemas/imageParamCatalog.ts` |
+| **Param catalog** (value + wire) | `packages/provider-registry/src/schemas/imageParamCatalog.ts` |
 | Per-model validation schema | `packages/provider-registry/src/utils/buildParamsSchema.ts` |
 | Registry schema (`supports` / `vendorTransport`) | `packages/provider-registry/src/schemas/model.ts` |
 | Base / override model data | `packages/provider-registry/data/{models,provider-models}.json` |
