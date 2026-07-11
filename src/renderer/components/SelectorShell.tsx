@@ -451,7 +451,7 @@ export function SelectorShell({
               {search ? (
                 <div
                   ref={setSearchElement}
-                  className="flex h-9 items-center gap-2 border-border border-b px-3"
+                  className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
                   data-selector-shell-chrome="search">
                   <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/55" />
                   <Input
@@ -485,7 +485,7 @@ export function SelectorShell({
                         'disabled:cursor-not-allowed disabled:opacity-50',
                         multiSelect.checked
                           ? 'border-border-active bg-accent text-foreground'
-                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                          : 'text-icon hover:bg-accent/60 hover:text-foreground'
                       )}
                       onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
                       <AtSign className="size-3.5" aria-hidden="true" />
@@ -497,7 +497,7 @@ export function SelectorShell({
               {hasFilterContent ? (
                 <div
                   ref={setFilterElement}
-                  className="flex items-center justify-between gap-2 border-border border-b px-3 py-2"
+                  className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
                   data-selector-shell-chrome="filter">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
                   {renderMultiSelectAsFilterBadge && multiSelect ? (
