@@ -1,0 +1,49 @@
+name: Build Cherry Studio WebUI Static
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - webui
+    paths:
+      - webui/**
+      - .github/workflows/web-build.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-webui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 11.8.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install WebUI dependencies
+        working-directory: webui
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck WebUI
+        working-directory: webui
+        run: pnpm typecheck
+
+      - name: Build WebUI
+        working-directory: webui
+        run: pnpm build
+
+      - name: Upload static artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cherry-webui-dist
+          path: webui/dist
+          if-no-files-found: error
