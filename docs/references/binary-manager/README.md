@@ -72,7 +72,7 @@ Four sources for a tool to be available, in order of precedence:
 | **available (system)** | `binary.probe_system` resolves the name on the user's login-shell PATH outside Cherry's dirs | "system" chip, with the path on hover |
 | **not installed** | None of the above | "Install" CTA |
 
-`binary.probe_system` uses `getShellEnv` and `findCommandInShellEnv`, so it sees the PATH a terminal would rather than a truncated GUI-launch PATH. Cherry-owned resolutions are excluded to retain the more specific managed or bundled source.
+`binary.probe_system` starts from `getShellEnv`, removes Cherry's injected shim/bundled directories from PATH, then resolves the command. This sees the user's terminal PATH without letting a stale Cherry shim hide a valid system installation later in the path. Cherry-owned resolutions are also excluded defensively to retain the more specific managed or bundled source.
 
 **Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The probe-bundled IPC keeps the two sources orthogonal: BinaryState answers "what did the user install?", the filesystem probe answers "what shipped in the box?".
 

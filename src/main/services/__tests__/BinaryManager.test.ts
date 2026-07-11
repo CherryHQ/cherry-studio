@@ -1178,16 +1178,27 @@ describe('BinaryManager', () => {
   })
 
   describe('probeSystem', () => {
-    it('returns tools resolved on the login-shell PATH and excludes Cherry-owned paths', async () => {
-      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) => {
-        if (name === 'fd') return '/usr/local/bin/fd'
-        if (name === 'uv') return '/mock/cherry.bin/uv'
-        return null
+    it('removes Cherry-owned PATH segments before resolving system tools', async () => {
+      const { getShellEnv } = await import('@main/utils/shellEnv')
+      vi.mocked(getShellEnv).mockResolvedValueOnce({
+        PATH: '/mock/feature.binary.data/shims:/mock/cherry.bin:/usr/local/bin:/usr/bin'
       })
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'gemini' ? '/usr/local/bin/gemini' : null
+      )
 
-      await expect(new BinaryManager().probeSystem(['fd', 'uv', 'missing'])).resolves.toEqual({
-        fd: '/usr/local/bin/fd'
+      await expect(new BinaryManager().probeSystem(['gemini'])).resolves.toEqual({
+        gemini: '/usr/local/bin/gemini'
       })
+      expect(findCommandInShellEnv).toHaveBeenCalledWith('gemini', {
+        PATH: '/usr/local/bin:/usr/bin'
+      })
+    })
+
+    it('excludes a Cherry-owned result defensively', async () => {
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/mock/cherry.bin/uv')
+
+      await expect(new BinaryManager().probeSystem(['uv'])).resolves.toEqual({})
     })
   })
 

@@ -222,11 +222,31 @@ export class BinaryManager extends BaseService {
   public async probeSystem(names: string[]): Promise<Record<string, string>> {
     const shellEnv = await getShellEnv()
     const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
+    const pathSeparator = isWin ? ';' : ':'
+    const lookupEnv = { ...shellEnv }
+
+    // getShellEnv intentionally prepends Cherry's shims/bundled dirs for runtime
+    // execution. A system probe must remove those segments before command lookup;
+    // otherwise a stale Cherry shim shadows a valid executable later on the user's
+    // PATH, gets excluded below, and the real system installation is never seen.
+    for (const key of Object.keys(lookupEnv).filter((key) => key.toLowerCase() === 'path')) {
+      lookupEnv[key] = lookupEnv[key]
+        .split(pathSeparator)
+        .filter((segment) => {
+          const absolute = path.resolve(segment)
+          return !cherryDirs.some((dir) => {
+            const relative = path.relative(dir, absolute)
+            return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+          })
+        })
+        .join(pathSeparator)
+    }
+
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
         const resolved = isWin
-          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: shellEnv })
-          : await findCommandInShellEnv(name, shellEnv)
+          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: lookupEnv })
+          : await findCommandInShellEnv(name, lookupEnv)
         if (!resolved || cherryDirs.some((dir) => resolved.startsWith(dir))) return null
         return [name, resolved]
       })
