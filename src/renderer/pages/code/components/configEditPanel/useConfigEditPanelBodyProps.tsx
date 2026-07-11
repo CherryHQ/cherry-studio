@@ -1,4 +1,4 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -27,7 +27,7 @@ export function useConfigEditPanelBodyProps({
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const providerName = getProviderDisplayName(provider)
-  const providerIcon = resolveProviderIcon(provider.id)
+  const providerIcon = useIcon(resolveProviderIconRef(provider.id))
 
   const {
     draft,

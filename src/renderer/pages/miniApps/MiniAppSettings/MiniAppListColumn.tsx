@@ -1,6 +1,5 @@
 import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import LogoAvatar from '@renderer/components/icons/LogoAvatar'
-import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
@@ -69,12 +68,11 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                     }}
                     aria-label={getToggleLabel(displayName)}>
                     {/*
-                     * app.logo is the preset's CompoundIcon ID (e.g. "Moonshot") for
-                     * preset rows and a URL/path for custom rows. Resolve the ID to a
-                     * CompoundIcon before passing to LogoAvatar so preset icons render
-                     * via Icon.Avatar instead of being treated as a broken image URL.
+                     * app.logo is the preset's logo ID (e.g. "moonshot") for preset
+                     * rows and a URL/path for custom rows — MiniAppLogoAvatar branches
+                     * between the brand icon and the image URL path.
                      */}
-                    <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={16} />
+                    <MiniAppLogoAvatar logo={app.logo} size={16} />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/40"
