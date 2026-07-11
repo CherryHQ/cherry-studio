@@ -481,7 +481,7 @@ function AssistantPromptField({
           variant="outline"
           aria-label={t('common.undo')}
           onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
           <Undo2 size={10} />
         </Button>
       ) : null}
@@ -491,7 +491,7 @@ function AssistantPromptField({
         aria-label={t('library.config.prompt.generate')}
         onClick={handleGeneratePrompt}
         disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
         {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
       </Button>
     </>
