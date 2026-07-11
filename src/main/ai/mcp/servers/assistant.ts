@@ -60,7 +60,6 @@ const ALLOWED_ROUTES = [
   '/settings',
   '/agents',
   '/knowledge',
-  '/openclaw',
   '/paintings',
   '/translate',
   '/files',

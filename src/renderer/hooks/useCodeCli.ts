@@ -1,155 +1,168 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
-import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/codeCli'
-import { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useMemo } from 'react'
+import type {
+  CliProviderConfig,
+  CodeCliConfigs,
+  CodeCliId,
+  CodeCliToolState
+} from '@shared/data/preference/preferenceTypes'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
-const DEFAULT_TOOL = CodeCli.QWEN_CODE as CodeCliId
+const PREFERENCE_KEY = 'feature.code_cli.configs'
+const DEFAULT_TOOL = CodeCli.CLAUDE_CODE
 
-function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides): Required<CodeCliOverride> {
-  const preset = CODE_CLI_PRESET_MAP[toolId]
-  const override = overrides[toolId] ?? {}
-  return {
-    enabled: override.enabled ?? preset.enabled,
-    modelId: override.modelId ?? preset.modelId,
-    envVars: override.envVars ?? preset.envVars,
-    terminal: override.terminal ?? preset.terminal,
-    currentDirectory: override.currentDirectory ?? preset.currentDirectory,
-    directories: override.directories ?? [...preset.directories]
+const EMPTY_TOOL_STATE: CodeCliToolState = { providers: {}, current: null }
+
+function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolState {
+  const state = configs[toolId] ?? EMPTY_TOOL_STATE
+  // Dev profiles written before `modelId: UniqueModelId | null` may hold the
+  // legacy '' sentinel; normalize on read (this is the preference's only read
+  // choke point) so the next write self-heals. No migration needed.
+  const legacyIds = Object.keys(state.providers).filter((id) => (state.providers[id].modelId as string) === '')
+  if (legacyIds.length === 0) return state
+  const providers = { ...state.providers }
+  for (const id of legacyIds) {
+    providers[id] = { ...providers[id], modelId: null }
   }
+  return { ...state, providers }
 }
 
 export const useCodeCli = () => {
-  const [overrides, setOverrides] = usePreference('feature.code_cli.overrides')
+  const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
-  const selectedCliTool = useMemo(() => {
-    for (const [toolId, override] of Object.entries(overrides)) {
-      if (override?.enabled) {
-        return toolId as CodeCli
-      }
-    }
-    return DEFAULT_TOOL as CodeCli
-  }, [overrides])
+  // Mirror configs in a ref so sequential writes read the freshest value.
+  // A write queue serialises patchToolState calls so two concurrent writes
+  // never clobber each other (setConfigs takes a plain value, not an updater).
+  const configsRef = useRef(configs)
+  configsRef.current = configs
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
 
-  const currentConfig = useMemo(
-    () => getEffectiveToolConfig(selectedCliTool as CodeCliId, overrides),
-    [selectedCliTool, overrides]
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
+
+  const selectTool = useCallback((tool: CodeCli) => {
+    setSelectedCliTool(tool)
+  }, [])
+
+  const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
+
+  const currentProviderId = currentToolState.current
+  const currentProviderConfig = useMemo(
+    () => (currentProviderId ? (currentToolState.providers[currentProviderId] ?? null) : null),
+    [currentToolState, currentProviderId]
+  )
+  const selectedTerminal = currentToolState.terminal
+  const directory = currentToolState.directory
+  const providerConfigs = currentToolState.providers
+
+  const patchToolState = useCallback(
+    (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState): Promise<void> => {
+      const task = writeQueueRef.current.then(async () => {
+        const latest = configsRef.current
+        const prev = getToolState(toolId, latest)
+        const next = { ...latest, [toolId]: patch(prev) }
+        configsRef.current = next
+        await setConfigs(next)
+      })
+      writeQueueRef.current = task.catch(() => {})
+      return task
+    },
+    [setConfigs]
   )
 
-  const selectedModel = currentConfig.modelId
-  const selectedTerminal = currentConfig.terminal
-  const environmentVariables = currentConfig.envVars
-  const directories = currentConfig.directories
-  const currentDirectory = currentConfig.currentDirectory
-
-  const canLaunch = Boolean(
-    selectedCliTool &&
-      currentDirectory &&
-      (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI || selectedModel)
-  )
-
-  const updateCurrentTool = useCallback(
-    async (patch: Partial<CodeCliOverride>) => {
+  const upsertProviderConfig = useCallback(
+    async (
+      providerId: string,
+      partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
+    ): Promise<string> => {
       const toolId = selectedCliTool as CodeCliId
-      const existing = overrides[toolId] ?? {}
-      await setOverrides({
-        ...overrides,
-        [toolId]: { ...existing, ...patch }
+      const existing = getToolState(toolId, configsRef.current).providers[providerId]
+      const next: CliProviderConfig = {
+        modelId: partial.modelId,
+        ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
+        ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
+          ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
+          : {})
+      }
+      await patchToolState(toolId, (prev) => ({
+        ...prev,
+        providers: { ...prev.providers, [providerId]: next }
+      }))
+      logger.info('Upserted CLI provider config', { toolId, providerId })
+      return providerId
+    },
+    [patchToolState, selectedCliTool]
+  )
+
+  const deleteProviderConfig = useCallback(
+    async (providerId: string) => {
+      const toolId = selectedCliTool as CodeCliId
+      await patchToolState(toolId, (prev) => {
+        const nextProviders = { ...prev.providers }
+        delete nextProviders[providerId]
+        return {
+          ...prev,
+          providers: nextProviders,
+          current: prev.current === providerId ? null : prev.current
+        }
       })
     },
-    [overrides, setOverrides, selectedCliTool]
+    [patchToolState, selectedCliTool]
   )
 
-  const setCliTool = useCallback(
-    async (tool: CodeCli) => {
-      const newOverrides = { ...overrides }
-      const currentId = selectedCliTool as CodeCliId
-      if (newOverrides[currentId]) {
-        newOverrides[currentId] = { ...newOverrides[currentId], enabled: false }
-      }
-      const newId = tool as CodeCliId
-      newOverrides[newId] = { ...newOverrides[newId], enabled: true }
-      await setOverrides(newOverrides)
+  const setCurrentProvider = useCallback(
+    async (providerId: string | null) => {
+      const toolId = selectedCliTool as CodeCliId
+      await patchToolState(toolId, (prev) => ({ ...prev, current: providerId }))
     },
-    [overrides, setOverrides, selectedCliTool]
+    [patchToolState, selectedCliTool]
   )
 
-  const setModel = useCallback(
-    async (modelId: string | null) => {
-      await updateCurrentTool({ modelId })
+  const reorderProviders = useCallback(
+    async (orderedIds: string[]) => {
+      const toolId = selectedCliTool as CodeCliId
+      await patchToolState(toolId, (prev) => {
+        const nextProviders = { ...prev.providers }
+        for (let i = 0; i < orderedIds.length; i++) {
+          const id = orderedIds[i]
+          const existing = nextProviders[id]
+          if (!existing) {
+            // The virtual own-login entry has no real config; persist a placeholder so its drag
+            // position sticks. Real unconfigured providers are still skipped (no empty configs).
+            if (id === CLI_OWN_LOGIN_PROVIDER_ID) {
+              nextProviders[id] = { modelId: null, sortIndex: i }
+            }
+            continue
+          }
+          nextProviders[id] = { ...existing, sortIndex: i }
+        }
+        return { ...prev, providers: nextProviders }
+      })
     },
-    [updateCurrentTool]
+    [patchToolState, selectedCliTool]
   )
 
   const setTerminal = useCallback(
     async (terminal: string) => {
-      await updateCurrentTool({ terminal })
+      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, terminal }))
     },
-    [updateCurrentTool]
+    [patchToolState, selectedCliTool]
   )
 
-  const setEnvVars = useCallback(
-    async (envVars: string) => {
-      await updateCurrentTool({ envVars })
-    },
-    [updateCurrentTool]
-  )
-
-  const setCurrentDir = useCallback(
+  const setDirectory = useCallback(
     async (directory: string) => {
-      const toolId = selectedCliTool as CodeCliId
-      const existing = overrides[toolId] ?? {}
-      const currentDirs = existing.directories ?? []
-      let newDirs: string[]
-      if (directory && !currentDirs.includes(directory)) {
-        newDirs = [directory, ...currentDirs].slice(0, 10)
-      } else if (directory && currentDirs.includes(directory)) {
-        newDirs = [directory, ...currentDirs.filter((d) => d !== directory)]
-      } else {
-        newDirs = currentDirs
-      }
-      await setOverrides({
-        ...overrides,
-        [toolId]: { ...existing, currentDirectory: directory, directories: newDirs }
-      })
+      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, directory }))
     },
-    [overrides, setOverrides, selectedCliTool]
+    [patchToolState, selectedCliTool]
   )
 
-  const removeDir = useCallback(
-    async (directory: string) => {
-      const toolId = selectedCliTool as CodeCliId
-      const existing = overrides[toolId] ?? {}
-      const currentDirs = existing.directories ?? []
-      const newDirs = currentDirs.filter((d) => d !== directory)
-      const patch: Partial<CodeCliOverride> = { directories: newDirs }
-      if (existing.currentDirectory === directory) {
-        patch.currentDirectory = ''
-      }
-      await setOverrides({
-        ...overrides,
-        [toolId]: { ...existing, ...patch }
-      })
-    },
-    [overrides, setOverrides, selectedCliTool]
-  )
-
-  const clearDirs = useCallback(async () => {
-    await updateCurrentTool({ directories: [], currentDirectory: '' })
-  }, [updateCurrentTool])
-
-  const resetSettings = useCallback(async () => {
-    await setOverrides({})
-  }, [setOverrides])
-
-  const selectFolder = useCallback(async () => {
+  const selectFolder = useCallback(async (): Promise<string | null> => {
     try {
       const folderPath = await window.api.file.selectFolder()
       if (folderPath) {
-        await setCurrentDir(folderPath)
+        await setDirectory(folderPath)
         return folderPath
       }
       return null
@@ -157,24 +170,24 @@ export const useCodeCli = () => {
       logger.error('Failed to select folder:', error as Error)
       throw error
     }
-  }, [setCurrentDir])
+  }, [setDirectory])
 
   return {
+    configs,
     selectedCliTool,
-    selectedModel,
+    currentToolState,
+    currentProviderId,
+    currentProviderConfig,
+    providerConfigs,
+    directory,
     selectedTerminal,
-    environmentVariables,
-    directories,
-    currentDirectory,
-    canLaunch,
-    setCliTool,
-    setModel,
+    upsertProviderConfig,
+    deleteProviderConfig,
+    setCurrentProvider,
+    reorderProviders,
+    selectTool,
     setTerminal,
-    setEnvVars,
-    setCurrentDir,
-    removeDir,
-    clearDirs,
-    resetSettings,
+    setDirectory,
     selectFolder
   }
 }

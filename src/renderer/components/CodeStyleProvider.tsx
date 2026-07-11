@@ -1,4 +1,4 @@
-import { getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
+import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useMermaid } from '@renderer/hooks/useMermaid'
@@ -19,10 +19,13 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
   const { theme } = useTheme()
   const [shikiThemesInfo, setShikiThemesInfo] = useState<BundledThemeInfo[]>([])
+  const [cmThemeNames, setCmThemeNames] = useState<string[]>([])
   useMermaid()
 
   useEffect(() => {
-    if (!codeEditorEnabled) {
+    if (codeEditorEnabled) {
+      void getCmThemeNames().then(setCmThemeNames)
+    } else {
       void getShiki().then(({ bundledThemesInfo }) => {
         setShikiThemesInfo(bundledThemesInfo)
       })
@@ -31,15 +34,14 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
   // 获取支持的主题名称列表
   const themeNames = useMemo(() => {
-    // CodeMirror 主题
-    // 更保险的做法可能是硬编码主题列表
+    // CodeMirror 主题（异步加载，到位前为空列表）
     if (codeEditorEnabled) {
-      return getCmThemeNames()
+      return cmThemeNames
     }
 
     // Shiki 主题，取出所有 BundledThemeInfo 的 id 作为主题名
     return ['auto', ...shikiThemesInfo.map((info) => info.id)]
-  }, [codeEditorEnabled, shikiThemesInfo])
+  }, [codeEditorEnabled, cmThemeNames, shikiThemesInfo])
 
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
@@ -56,14 +58,27 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return themeInfo?.type === 'dark'
   }, [activeShikiTheme, shikiThemesInfo])
 
-  // 获取当前使用的 CodeMirror 主题对象（只用于编辑器）
-  const activeCmTheme = useMemo(() => {
+  // 获取当前使用的 CodeMirror 主题对象（只用于编辑器；异步解析，到位前用基础明暗主题）
+  const [activeCmTheme, setActiveCmTheme] = useState<CodeMirrorTheme>(() =>
+    theme === ThemeMode.light ? 'light' : 'dark'
+  )
+
+  useEffect(() => {
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
     let themeName = codeStyle
     if (!themeName || themeName === 'auto' || !themeNames.includes(themeName)) {
       themeName = theme === ThemeMode.light ? 'materialLight' : 'dark'
     }
-    return getCmThemeByName(themeName)
+
+    let cancelled = false
+    void getCmThemeByName(themeName).then((cmTheme) => {
+      if (!cancelled) {
+        setActiveCmTheme(cmTheme)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
   }, [theme, codeEditorThemeLight, codeEditorThemeDark, themeNames])
 
   // 自定义 shiki 语言别名

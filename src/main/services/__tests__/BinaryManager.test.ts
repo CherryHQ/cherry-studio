@@ -418,6 +418,35 @@ describe('BinaryManager', () => {
       expect(mockFs.chmodSync).not.toHaveBeenCalled()
     })
 
+    it('persists the requested upgraded version when mise ls returns multiple installed versions', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          tools: {
+            fd: { tool: 'github:sharkdp/fd', version: '9.0.0' }
+          }
+        })
+      )
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({
+          stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '9.0.0' }, { version: '10.0.0' }] }),
+          stderr: ''
+        }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready check)
+
+      const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
+
+      expect(result.version).toBe('10.0.0')
+      const savedState = JSON.parse(mockFs.writeFileSync.mock.calls.at(-1)![1])
+      expect(savedState.tools.fd.version).toBe('10.0.0')
+    })
+
     it('throws and does not persist state when the binary is not runnable after install', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -706,7 +735,6 @@ describe('BinaryManager', () => {
     it('accepts valid tool definitions', () => {
       expect(() => validateManagedBinary({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).not.toThrow()
       expect(() => validateManagedBinary({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
-      expect(() => validateManagedBinary({ name: 'hermes', tool: 'pipx:hermes-agent' })).not.toThrow()
     })
   })
 

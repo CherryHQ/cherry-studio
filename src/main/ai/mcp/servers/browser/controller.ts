@@ -5,7 +5,7 @@ import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
 import TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
-import { TAB_BAR_HTML } from './tabbar-html'
+import { TAB_BAR_HTML } from './tabbarHtml'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
 
 /**

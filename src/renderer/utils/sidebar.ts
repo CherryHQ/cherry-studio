@@ -114,10 +114,6 @@ const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'notes',
     routePrefix: '/app/notes'
-  },
-  {
-    id: 'openclaw',
-    routePrefix: '/app/openclaw'
   }
 ] as const satisfies readonly SidebarAppDefinition[]
 
@@ -202,7 +198,7 @@ export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
   return match?.id ?? ''
 }
 
-function isSidebarAppId(value: string): value is SidebarAppId {
+export function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
@@ -334,7 +330,7 @@ export function getOrderedVisibleSidebarFavorites(
 ): SidebarAppId[] {
   // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
-    favorite.type === 'app' ? [favorite.id] : []
+    favorite.type === 'app' && isSidebarAppId(favorite.id) ? [favorite.id] : []
   )
 }
 

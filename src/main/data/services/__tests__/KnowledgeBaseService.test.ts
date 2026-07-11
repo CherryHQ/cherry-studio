@@ -866,6 +866,78 @@ describe('KnowledgeBaseService', () => {
           }
         })
       })
+
+      describe('allowEmbeddingModelBackfill', () => {
+        it('allows setting a model in place on a BM25-only base with items when opted in', async () => {
+          await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          const result = service.update(
+            KNOWLEDGE_BASE_ID,
+            { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
+            { allowEmbeddingModelBackfill: true }
+          )
+
+          expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+          expect(result.dimensions).toBe(768)
+
+          const [row] = await dbh.db
+            .select()
+            .from(knowledgeBaseTable)
+            .where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+          expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        })
+
+        it('still rejects switching an already-configured model even when opted in', async () => {
+          await seedKnowledgeBase()
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          let err: unknown
+          try {
+            service.update(
+              KNOWLEDGE_BASE_ID,
+              { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
+              { allowEmbeddingModelBackfill: true }
+            )
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+              }
+            }
+          })
+        })
+
+        it('still rejects a BM25-only base with items when the caller does not opt in', async () => {
+          await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          let err: unknown
+          try {
+            service.update(KNOWLEDGE_BASE_ID, {
+              embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+              dimensions: 768
+            })
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+              }
+            }
+          })
+        })
+      })
     })
   })
 
