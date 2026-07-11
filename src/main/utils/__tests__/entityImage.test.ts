@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { transcodeToEntityWebp } from '../entityImageWebp'
+import { transcodeToEntityWebp } from '../entityImage'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
