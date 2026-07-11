@@ -112,6 +112,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Handle 'none' reasoningEffort. It's explicitly off.
   if (reasoningEffort === 'none') {
+    // Claude on OpenAI-compatible providers: `default` omits thinking params,
+    // but `none` must send an explicit disable so Off is distinguishable.
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      return { thinking: { type: 'disabled' } }
+    }
+
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
       if (isSupportNoneReasoningEffortModel(model) && reasoningEffort === 'none') {

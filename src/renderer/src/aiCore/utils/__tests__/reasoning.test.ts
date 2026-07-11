@@ -192,6 +192,33 @@ describe('reasoning utils', () => {
       expect(result).toEqual({ reasoning: { enabled: false, exclude: true } })
     })
 
+    it('should distinguish Claude default from explicitly disabled on OpenAI-compatible providers', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        provider: 'custom-openai-compatible'
+      } as Model
+
+      const defaultAssistant = {
+        id: 'default',
+        name: 'Default',
+        settings: { reasoning_effort: 'default' }
+      } as Assistant
+      const disabledAssistant = {
+        id: 'disabled',
+        name: 'Disabled',
+        settings: { reasoning_effort: 'none' }
+      } as Assistant
+
+      expect(getReasoningEffort(defaultAssistant, model)).toEqual({})
+      expect(getReasoningEffort(disabledAssistant, model)).toEqual({ thinking: { type: 'disabled' } })
+    })
+
     it('should handle Qwen models with enable_thinking', async () => {
       const { isReasoningModel, isSupportedThinkingTokenQwenModel, isQwenReasoningModel } = await import(
         '@renderer/config/models'
