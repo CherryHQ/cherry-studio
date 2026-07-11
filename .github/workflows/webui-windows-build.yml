@@ -96,8 +96,8 @@ jobs:
         run: |
           Remove-Item -LiteralPath "webui/node_modules" -Recurse -Force -ErrorAction SilentlyContinue
 
-      - name: Build Windows WebUI package
-        run: pnpm build:win:x64
+      - name: Build Windows WebUI packages
+        run: pnpm build:win
 
       - name: Resolve release tag
         id: release-tag
@@ -126,6 +126,6 @@ jobs:
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: cherry-studio-webui-windows-portable
+          name: cherry-studio-webui-windows-portable-all-arch
           path: dist/*-portable.exe
           if-no-files-found: error
