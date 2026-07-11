@@ -29,10 +29,14 @@ export const EmojiAvatarPicker: FC<{
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            'min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
+            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
             size === 'sm' ? 'size-9' : 'size-8'
           )}>
-          <EmojiAvatar size={avatarSize} fontSize={fontSize}>
+          {/* Match the adjacent Input's rounded-lg + border-fg-muted hairline. */}
+          <EmojiAvatar
+            size={avatarSize}
+            fontSize={fontSize}
+            className="rounded-lg border border-[color:var(--color-border-fg-muted)]">
             {value || fallback}
           </EmojiAvatar>
         </Button>

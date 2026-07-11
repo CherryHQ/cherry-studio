@@ -373,7 +373,7 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="grid grid-cols-[auto_1fr] gap-4">
         <AvatarField
           form={form}
@@ -458,7 +458,9 @@ function PermissionModeField({
       render={({ field }) => (
         <FormItem>
           <div className="flex items-center justify-between gap-3">
-            <FormLabel className="font-normal">{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-normal text-[13px]">
+              {t('library.config.agent.field.permission_mode.label')}
+            </FormLabel>
             <Select
               value={field.value || 'default'}
               onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
@@ -505,7 +507,7 @@ function HeartbeatSettingsField({
         render={({ field }) => (
           <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal">{label}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
               <FormControl>
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
               </FormControl>
@@ -521,7 +523,7 @@ function HeartbeatSettingsField({
           render={({ field }) => (
             <FormItem>
               <div className="flex items-center justify-between gap-3">
-                <FormLabel className="font-normal">
+                <FormLabel className="font-normal text-[13px]">
                   {t('library.config.agent.field.heartbeat_interval.label')}
                 </FormLabel>
                 <FormControl>

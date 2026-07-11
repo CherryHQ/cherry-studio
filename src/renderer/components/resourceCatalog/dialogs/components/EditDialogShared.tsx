@@ -367,13 +367,16 @@ export function EditDialogShell<TValues extends FieldValues>({
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!isSubmitting}
-        className="flex h-[min(600px,70vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-180 lg:max-w-200"
+        className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200"
         onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
         <Form {...form}>
+          {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
+              transform makes it the containing block for portaled fixed poppers (model selector),
+              so overflow-hidden on DialogContent would clip them. */}
           <form
             id="resource-edit-dialog-form"
             onSubmit={onSubmit}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
