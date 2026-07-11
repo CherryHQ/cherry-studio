@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest'
 // is globally mocked for renderer tests, but this deeper specifier is not.
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createMemoryHistory } from '@tanstack/react-router'
+import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -67,6 +67,7 @@ vi.mock('@tanstack/react-router', async () => {
   }
 })
 
+import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
 const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
@@ -83,6 +84,16 @@ afterEach(() => {
   cleanup()
   knobs.renderPage = () => null
   vi.clearAllMocks()
+})
+
+describe('TabRouter route error containment wiring', () => {
+  it('wires RouteErrorFallback as the router defaultErrorComponent', () => {
+    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
+
+    expect(vi.mocked(createRouter)).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultErrorComponent: RouteErrorFallback })
+    )
+  })
 })
 
 describe('TabRouter portal container', () => {
