@@ -1169,37 +1169,39 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   }
 
-  return (
-    <>
-      {hasHistory && (
-        <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
-          <CompletedProcessHistory
-            hasContent={historyHasContent}
-            hasError={historyHasError}
-            hasReasoning={historyHasReasoning}
-            message={message}
-            toolCount={historyToolCount}
-            toolItems={historyToolItems}>
-            {historyGroups.map((entry) => renderGroupedEntry(entry, message, false, false, completedRenderOptions))}
-          </CompletedProcessHistory>
-        </AnimatedBlockWrapper>
-      )}
-      {visibleGroups.map((entry) => {
-        const firstEntry = Array.isArray(entry) ? entry[0] : entry
-        return (
-          <MessageContentEntryView
-            key={`message-content-${message.id}-${firstEntry.index}`}
-            enableAnimation={false}
-            entry={entry}
-            isStreaming={false}
-            isTranslationOverlayActive={isTranslationOverlayActive}
-            message={message}
-            renderOptions={completedRenderOptions}
-          />
-        )
-      })}
-    </>
-  )
+  const completedItems: React.ReactNode[] = visibleGroups.map((entry) => {
+    const firstEntry = Array.isArray(entry) ? entry[0] : entry
+    return (
+      <MessageContentEntryView
+        key={`message-content-${message.id}-${firstEntry.index}`}
+        enableAnimation={false}
+        entry={entry}
+        isStreaming={false}
+        isTranslationOverlayActive={isTranslationOverlayActive}
+        message={message}
+        renderOptions={completedRenderOptions}
+      />
+    )
+  })
+
+  if (hasHistory) {
+    completedItems.unshift(
+      <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
+        <CompletedProcessHistory
+          hasContent={historyHasContent}
+          hasError={historyHasError}
+          hasReasoning={historyHasReasoning}
+          message={message}
+          toolCount={historyToolCount}
+          toolItems={historyToolItems}>
+          {historyGroups.map((entry) => renderGroupedEntry(entry, message, false, false, completedRenderOptions))}
+        </CompletedProcessHistory>
+      </AnimatedBlockWrapper>
+    )
+  }
+
+  // Keep keyed content in the same child-array slot across the active-to-terminal frame.
+  return <>{completedItems}</>
 })
 
 // ============================================================================

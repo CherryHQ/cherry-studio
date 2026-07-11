@@ -240,7 +240,12 @@ vi.mock('../ToolBlockGroup', () => ({
           (showLatestWhenComplete ? items?.at(-1)?.toolResponse?.tool?.name : undefined) ??
           summary ??
           `${items?.length ?? 0} tool calls`)}
-      {elapsedText ? ` · ${elapsedText}` : ''}
+      {elapsedText && (
+        <>
+          <span aria-hidden="true"> · </span>
+          <span>{elapsedText}</span>
+        </>
+      )}
     </span>
   )
 }))
@@ -1015,7 +1020,7 @@ describe('MessagePartsRenderer', () => {
     it('shows processed, tool count, and elapsed time in a completed tool summary', () => {
       renderParts([toolPart('read')] as unknown as CherryMessagePart[], msg({ updatedAt: '2026-01-01T00:00:01Z' }))
 
-      expect(screen.getByRole('button')).toHaveTextContent('Processed · 1 tool calls · 1 second')
+      expect(screen.getByRole('button', { name: 'Processed 1 tool calls 1 second' })).toBeInTheDocument()
     })
 
     it('surfaces any tool failure in the collapsed completed summary', () => {
@@ -1025,7 +1030,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'text', text: 'Recovered answer' }
       ] as unknown as CherryMessagePart[])
 
-      expect(screen.getByRole('button', { name: 'Error · 2 tool calls' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Error 2 tool calls' })).toBeInTheDocument()
     })
 
     it('renders pure text without a process-history summary', () => {

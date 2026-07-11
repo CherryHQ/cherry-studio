@@ -157,12 +157,12 @@ describe('ToolBlockGroup', () => {
     expect(screen.queryByText('1 tool call')).toBeNull()
   })
 
-  it('marks the top-level latest tool header as active while live progress continues', () => {
+  it('keeps the latest completed tool status while live progress continues', () => {
     render(
       <ToolBlockGroupHeaderContent items={[items[1]]} summary="1 tool call" isLiveProgress showLatestWhenComplete />
     )
 
-    expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Write:invoking')
+    expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Write:done')
     expect(screen.queryByText('1 tool call')).toBeNull()
   })
 
