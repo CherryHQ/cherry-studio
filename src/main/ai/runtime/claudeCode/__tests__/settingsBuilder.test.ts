@@ -245,6 +245,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
+  it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.settingSources).toEqual(['user', 'project', 'local'])
+  })
+
   it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
     mocks.listSkills.mockResolvedValue([
       // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
@@ -880,6 +892,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     }
+
+    it('keeps the user setting source isolated when using the real CLI config', async () => {
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.settingSources).toEqual(['project', 'local'])
+    })
 
     it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
       mocks.getShellEnv.mockResolvedValue({
