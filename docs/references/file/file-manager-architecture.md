@@ -924,7 +924,7 @@ interface IFileUploadService {
 
 ### 10.1 Positioning
 
-Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle.
+Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle. Both passes begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim.
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -944,7 +944,11 @@ async runSweep(): Promise<OrphanReport> {
   //      unreferenced active entries.
   // Each branch settles independently with its own error capture. A DB
   // failure dominates as `failed`; FS-side partial/aborted/failed outcomes
-  // degrade the umbrella report to `partial` via `fsSweepIssue`.
+  // degrade the umbrella report to `partial` via `fsSweepIssue`. Exception:
+  // while a staged backup restore is pending promotion, BOTH passes stand
+  // aside up front and the umbrella returns `aborted`
+  // (abortReason: 'pending-restore') verbatim — expected behavior, never
+  // disguised as a degraded `partial` run.
 }
 ```
 
@@ -1051,12 +1055,12 @@ Every sweep run emits one structured log record through `loggerService` — `inf
   scanDurationMs: number,
   // outcome-specific fields (discriminated union):
   // 'partial':  failedDeleteCount: number, failedSamples: readonly string[]  (capped at 5)
-  // 'aborted':  abortReason: 'count-fraction' | 'byte-fraction'
+  // 'aborted':  abortReason: 'count-fraction' | 'byte-fraction' | 'pending-restore'
   // 'failed':   errorMessage: string
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed` or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports active entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports active entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
 
 These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per user-triggered sweep run is a trivial volume for log aggregation.
 
