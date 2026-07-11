@@ -1,5 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +18,7 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
       <Alert
         type="error"
         message={t('error.boundary.default.message')}
-        description={formatErrorMessage(error)}
+        description={formatErrorDetails(error)}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">

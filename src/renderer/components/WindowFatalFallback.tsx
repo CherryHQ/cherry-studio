@@ -1,6 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import { useEffect } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
@@ -25,7 +25,7 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
       <Alert
         type="error"
         message={i18n.t('error.boundary.default.message')}
-        description={formatErrorMessage(error)}
+        description={formatErrorDetails(error)}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
