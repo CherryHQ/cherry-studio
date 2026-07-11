@@ -34,6 +34,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
       return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
     case CodeCli.QODER_CLI:
     case CodeCli.GITHUB_COPILOT_CLI:
+    case CodeCli.PI:
       return false
     default:
       return false
