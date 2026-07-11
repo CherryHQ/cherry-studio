@@ -46,7 +46,7 @@ export const createWebUiSseClient = ({
 
       eventSource = eventSourceFactory(endpoint)
       for (const eventName of eventNames) {
-        eventSource.addEventListener(eventName, (event) => dispatch(eventName, event))
+        eventSource.addEventListener(eventName, (event: Event) => dispatch(eventName, event))
       }
     },
 

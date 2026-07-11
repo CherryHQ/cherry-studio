@@ -1,10 +1,10 @@
 import hljs from 'highlight.js/lib/common'
 import MarkdownIt from 'markdown-it'
 
-const markdown = new MarkdownIt({
+const markdown: MarkdownIt = new MarkdownIt({
   breaks: true,
-  highlight(code, language) {
-    const escaped = markdown.utils.escapeHtml(code)
+  highlight(code: string, language: string): string {
+    const escaped: string = markdown.utils.escapeHtml(code)
     if (!language || !hljs.getLanguage(language)) {
       return `<pre class="hljs"><code>${escaped}</code></pre>`
     }
