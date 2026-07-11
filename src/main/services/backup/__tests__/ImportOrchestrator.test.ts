@@ -5,8 +5,7 @@
 // (quiesce / merge / file-resource staging). Production wires those deps to throw,
 // keeping restore fail-closed; here they are no-ops so the crash-safety orchestration
 // is testable in isolation.
-import { existsSync } from 'node:fs'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +19,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  BackupCancelledError,
   RestoreFingerprintMismatchError,
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError
@@ -173,5 +173,30 @@ describe('ImportOrchestrator spine', () => {
     await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'has space' })).rejects.toThrow(
       /invalid restoreId/
     )
+  })
+
+  it('refuses to start when the aside target already exists (unclean prior restore)', async () => {
+    // A prior restore crashed leaving the aside file in place — the gate's rename would fail.
+    const asideAbs = `${liveDbPath}.aside-rst-005`
+    writeFileSync(asideAbs, 'stale')
+    try {
+      const orch = new ImportOrchestrator(makeDeps())
+      await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-005' })).rejects.toThrow(
+        /aside target already exists/
+      )
+      expect(readRestoreJournal().kind).toBe('none')
+    } finally {
+      rmSync(asideAbs, { force: true })
+    }
+  })
+
+  it('aborts with BackupCancelledError when the signal is already aborted', async () => {
+    const orch = new ImportOrchestrator(makeDeps())
+    const ac = new AbortController()
+    ac.abort()
+    await expect(
+      orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-006', signal: ac.signal })
+    ).rejects.toThrow(BackupCancelledError)
+    expect(readRestoreJournal().kind).toBe('none')
   })
 })
