@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatErrorDetails } from '../errorDetails'
 
@@ -35,12 +35,6 @@ describe('formatErrorDetails', () => {
 describe('errorDetails light import graph (B6)', () => {
   const HEAVY_DEPS = ['zod', 'ai', 'axios']
   let loaded: ReturnType<typeof vi.fn>
-
-  // Settle the on-the-fly dep optimizer for the heavy graph up front, so the
-  // doMock probes below can never race a mid-run optimize reload.
-  beforeAll(async () => {
-    await import('../error')
-  })
 
   beforeEach(() => {
     vi.resetModules()
