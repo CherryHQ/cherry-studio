@@ -1,4 +1,4 @@
-import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
+import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
@@ -11,14 +11,25 @@ interface Props {
 }
 
 const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
+  // Branching is decided synchronously from the ref; the CompoundIcon itself
+  // loads async — a size-stable placeholder covers the brief loading window.
+  const logoRef = getMiniAppsLogoRef(app.logo || undefined)
+  const Icon = useMiniAppLogo(app.logo || undefined)
+
   // A preset key resolves to a CompoundIcon; an uploaded logo arrives as a
   // ready `logoSrc` URL (or a pre-resolved url on `logo` for sidebar tabs).
-  const compound = app.logo ? getMiniAppsLogo(app.logo) : undefined
   const src = app.logoSrc ?? app.logo
 
   // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
-  if (compound) {
-    const Icon = compound
+  if (logoRef) {
+    if (!Icon) {
+      return (
+        <span
+          className="flex shrink-0 items-center justify-center"
+          style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
+        />
+      )
+    }
     if (appearance === 'plain' || appearance === 'bare') {
       return (
         <span

@@ -333,6 +333,9 @@ importers:
       '@floating-ui/dom':
         specifier: 1.7.3
         version: 1.7.3
+      '@fontsource/ubuntu':
+        specifier: 5.2.8
+        version: 5.2.8
       '@google/genai':
         specifier: ^1.46.0
         version: 1.46.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))
@@ -2949,6 +2952,9 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@fontsource/ubuntu@5.2.8':
+    resolution: {integrity: sha512-esSJCpgigwWOm4Ug9f7AMozUyBq5Iobea5C9QYsl2OlCb62wZABBUbXahHLdFv5Ru4lJCD9tUX6xEAeLwUTNBg==}
 
   '@google/genai@1.46.0':
     resolution: {integrity: sha512-ewPMN5JkKfgU5/kdco9ZhXBHDPhVqZpMQqIFQhwsHLf8kyZfx1cNpw1pHo1eV6PGEW7EhIBFi3aYZraFndAXqg==}
@@ -16070,6 +16076,8 @@ snapshots:
 
   '@floating-ui/utils@0.2.10': {}
 
+  '@fontsource/ubuntu@5.2.8': {}
+
   '@google/genai@1.46.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))':
     dependencies:
       google-auth-library: 10.5.0
@@ -19963,7 +19971,7 @@ snapshots:
   '@typescript-eslint/project-service@8.51.0(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.9.3)
-      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/types': 8.62.1
       debug: 4.4.3
       typescript: 5.9.3
     transitivePeerDependencies:

@@ -31,7 +31,8 @@ vi.mock('@renderer/components/icons/LogoAvatar', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogo: () => undefined
+  getMiniAppsLogoRef: () => undefined,
+  useMiniAppLogo: () => undefined
 }))
 
 vi.mock('react-i18next', () => ({

@@ -21,7 +21,8 @@ import {
   generateAvatar as codegenAvatar,
   generateBarrelIndex as codegenBarrelIndex,
   generateCatalog as codegenCatalog,
-  generateIconIndex as codegenIconIndex
+  generateIconIndex as codegenIconIndex,
+  generateMetaCatalog as codegenMetaCatalog
 } from './codegen'
 import {
   buildSvgMap,
@@ -306,16 +307,26 @@ function main() {
 
   generateBarrelIndex(baseDir, iconDirs)
 
-  // Generate catalog.ts for runtime icon lookup
+  // Generate metaCatalog.ts (sync meta lookup) + catalog.ts (async component lookup)
   const catalogName = iconType === 'models' ? 'MODEL_ICON_CATALOG' : 'PROVIDER_ICON_CATALOG'
+  const metaCatalogName = iconType === 'models' ? 'MODEL_ICON_META_CATALOG' : 'PROVIDER_ICON_META_CATALOG'
+  const keyTypeName = iconType === 'models' ? 'ModelIconKey' : 'ProviderIconKey'
   const catalogEntries = iconDirs.map((dirName) => ({
     dirName,
     colorName: getComponentName(baseDir, dirName)
   }))
+  codegenMetaCatalog({
+    outPath: path.join(baseDir, 'meta-catalog.ts'),
+    entries: catalogEntries,
+    catalogName: metaCatalogName,
+    keyTypeName
+  })
+  console.log(`Generated meta-catalog.ts (${metaCatalogName}) with ${catalogEntries.length} entries`)
   codegenCatalog({
     outPath: path.join(baseDir, 'catalog.ts'),
     entries: catalogEntries,
-    catalogName
+    catalogName,
+    keyTypeName
   })
   console.log(`Generated catalog.ts (${catalogName}) with ${catalogEntries.length} entries`)
 

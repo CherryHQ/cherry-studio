@@ -6,34 +6,37 @@ import MiniAppIcon from '../MiniAppIcon'
 
 // Mirror production: only preset keys resolve to a CompoundIcon; everything else
 // (an uploaded logo's `file://` URL) returns undefined and renders as an image.
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogo: (logo: unknown) => {
-    if (logo !== 'compound-logo') return undefined
-    const CompoundLogo = ({
-      'aria-label': ariaLabel,
-      className,
-      style,
-      variant
-    }: React.SVGProps<SVGSVGElement> & { variant?: 'light' | 'dark' }) => (
-      <svg
-        aria-label={ariaLabel}
-        className={className}
-        data-testid="compound-logo"
-        data-variant={variant ?? 'auto'}
-        style={style}
-      />
-    )
-    CompoundLogo.Avatar = ({ className, size = 32 }: { className?: string; size?: number }) => (
-      <div className={className} data-testid="compound-logo-avatar" style={{ width: size, height: size }}>
-        <div data-testid="compound-logo-fallback" data-slot="avatar-fallback">
-          <CompoundLogo style={{ width: size * 0.7, height: size * 0.7 }} />
-        </div>
+vi.mock('@renderer/components/icons/miniAppsLogo', () => {
+  const CompoundLogo = ({
+    'aria-label': ariaLabel,
+    className,
+    style,
+    variant
+  }: React.SVGProps<SVGSVGElement> & { variant?: 'light' | 'dark' }) => (
+    <svg
+      aria-label={ariaLabel}
+      className={className}
+      data-testid="compound-logo"
+      data-variant={variant ?? 'auto'}
+      style={style}
+    />
+  )
+  CompoundLogo.Avatar = ({ className, size = 32 }: { className?: string; size?: number }) => (
+    <div className={className} data-testid="compound-logo-avatar" style={{ width: size, height: size }}>
+      <div data-testid="compound-logo-fallback" data-slot="avatar-fallback">
+        <CompoundLogo style={{ width: size * 0.7, height: size * 0.7 }} />
       </div>
-    )
-    CompoundLogo.colorPrimary = '#000000'
-    return CompoundLogo
+    </div>
+  )
+  CompoundLogo.colorPrimary = '#000000'
+  return {
+    getMiniAppsLogoRef: (logo: unknown) =>
+      logo === 'compound-logo'
+        ? { kind: 'provider', key: 'compound-logo', meta: { id: 'compound-logo', colorPrimary: '#000000' } }
+        : undefined,
+    useMiniAppLogo: (logo: unknown) => (logo === 'compound-logo' ? CompoundLogo : undefined)
   }
-}))
+})
 
 describe('MiniAppIcon', () => {
   const baseApp = {
