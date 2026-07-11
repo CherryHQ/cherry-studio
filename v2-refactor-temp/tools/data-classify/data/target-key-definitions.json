@@ -238,17 +238,39 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
-      "targetKey": "feature.binary.install_settings",
-      "type": "PreferenceTypes.BinaryInstallSettings",
-      "defaultValue": {
-        "githubMirror": "",
-        "githubToken": "",
-        "npmRegistry": "",
-        "pipIndexUrl": "",
-        "verifySignatures": true
-      },
+      "targetKey": "feature.binary.install.github_mirror",
+      "type": "string",
+      "defaultValue": "",
       "status": "classified",
-      "description": "User-configurable mise install settings for BinaryManager"
+      "description": "GitHub mirror for BinaryManager's mise install environment"
+    },
+    {
+      "targetKey": "feature.binary.install.github_token",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "GitHub token for BinaryManager's mise install environment"
+    },
+    {
+      "targetKey": "feature.binary.install.npm_registry",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "npm registry for BinaryManager's mise install environment"
+    },
+    {
+      "targetKey": "feature.binary.install.pip_index_url",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "pip index URL for BinaryManager's mise install environment"
+    },
+    {
+      "targetKey": "feature.binary.install.verify_signatures",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Signature verification for BinaryManager's mise install environment"
     },
     {
       "targetKey": "feature.binary.tools",

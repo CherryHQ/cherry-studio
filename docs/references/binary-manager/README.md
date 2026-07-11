@@ -101,7 +101,7 @@ These are passthrough — if the user already has either var in their shell env,
 
 ## Advanced install settings
 
-**Settings → Dependencies → Advanced install settings** persists `feature.binary.install_settings`. These settings affect only BinaryManager's isolated mise install subprocess, never the execution environment of installed CLIs. Empty URL/token fields preserve the existing behavior; signature verification defaults to enabled. URL presets live in `src/shared/data/presets/binaryInstallPresets.ts`.
+**Settings → Dependencies → Advanced install settings** persists five atomic preferences: `feature.binary.install.github_mirror`, `feature.binary.install.github_token`, `feature.binary.install.npm_registry`, `feature.binary.install.pip_index_url`, and `feature.binary.install.verify_signatures`. These settings affect only BinaryManager's isolated mise install subprocess, never the execution environment of installed CLIs. Empty URL/token fields preserve the existing behavior; signature verification defaults to enabled. URL presets live in `src/renderer/pages/settings/DependenciesSettings/binaryInstallPresets.ts`.
 
 ## Adding a new managed binary
 

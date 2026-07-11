@@ -67,10 +67,8 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) =>
-    key === 'feature.binary.install_settings'
-      ? [installSettingsRef.value, setInstallSettingsMock]
-      : [customToolsRef.value, setCustomToolsMock]
+  useMultiplePreferences: () => [installSettingsRef.value, setInstallSettingsMock],
+  usePreference: () => [customToolsRef.value, setCustomToolsMock]
 }))
 
 vi.mock('semver', () => ({
@@ -114,7 +112,15 @@ vi.mock('@cherrystudio/ui', () => {
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    DescriptionSwitch: passthrough('button'),
+    DescriptionSwitch: ({
+      checked,
+      label,
+      onCheckedChange
+    }: {
+      checked: boolean
+      label: string
+      onCheckedChange: (checked: boolean) => void
+    }) => React.createElement('button', { onClick: () => onCheckedChange(!checked) }, label),
     Field: passthrough('div'),
     FieldDescription: passthrough('div'),
     FieldLabel: passthrough('label'),
@@ -123,7 +129,7 @@ vi.mock('@cherrystudio/ui', () => {
     InputGroupAddon: passthrough('div'),
     InputGroupButton: passthrough('button'),
     InputGroupInput: passthrough('input'),
-    SelectDropdown: passthrough('select')
+    SelectDropdown: () => React.createElement('select')
   }
 })
 
@@ -146,6 +152,30 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
+  })
+
+  it('writes advanced install settings to independent preferences', async () => {
+    render(<EnvironmentDependencies />)
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
+      target: { value: 'https://ghfast.top' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.npmRegistry.placeholder'), {
+      target: { value: 'https://registry.example' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.pipIndexUrl.placeholder'), {
+      target: { value: 'https://pypi.example/simple' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('ghp_…'), { target: { value: 'ghp_secret' } })
+    fireEvent.click(screen.getByText('settings.dependencies.installSettings.verifySignatures.label'))
+
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(1, { githubMirror: 'https://ghfast.top' })
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(2, { npmRegistry: 'https://registry.example' })
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(3, { pipIndexUrl: 'https://pypi.example/simple' })
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(4, { githubToken: 'ghp_secret' })
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(5, { verifySignatures: false })
   })
 
   it('renders preset tools and the empty custom-tools state', async () => {

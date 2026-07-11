@@ -59,6 +59,14 @@ const MISE_PASSTHROUGH_ENV = [
   'PIP_INDEX_URL'
 ]
 
+const BINARY_INSTALL_PREFERENCE_KEYS = {
+  githubMirror: 'feature.binary.install.github_mirror',
+  githubToken: 'feature.binary.install.github_token',
+  npmRegistry: 'feature.binary.install.npm_registry',
+  pipIndexUrl: 'feature.binary.install.pip_index_url',
+  verifySignatures: 'feature.binary.install.verify_signatures'
+} as const
+
 // True for any pin that does not pick a single concrete version — floating pins
 // like "latest" / "stable" / "lts" / "1" / "1.2" that mise accepts but that don't
 // resolve to one version we can persist and compare. semver.valid() returns null
@@ -132,7 +140,16 @@ export class BinaryManager extends BaseService {
     const prefService = application.get('PreferenceService')
     this.registerDisposable(
       prefService.subscribeMultipleChanges(
-        ['feature.binary.install_settings', 'app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'],
+        [
+          BINARY_INSTALL_PREFERENCE_KEYS.githubMirror,
+          BINARY_INSTALL_PREFERENCE_KEYS.githubToken,
+          BINARY_INSTALL_PREFERENCE_KEYS.npmRegistry,
+          BINARY_INSTALL_PREFERENCE_KEYS.pipIndexUrl,
+          BINARY_INSTALL_PREFERENCE_KEYS.verifySignatures,
+          'app.proxy.mode',
+          'app.proxy.url',
+          'app.proxy.bypass_rules'
+        ],
         () => {
           this.isolatedEnv = null
           this.isolatedEnvPromise = null
@@ -315,7 +332,7 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    const installSettings = application.get('PreferenceService').get('feature.binary.install_settings')
+    const installSettings = application.get('PreferenceService').getMultiple(BINARY_INSTALL_PREFERENCE_KEYS)
     if (installSettings.npmRegistry) env['NPM_CONFIG_REGISTRY'] = installSettings.npmRegistry
     if (installSettings.pipIndexUrl) env['PIP_INDEX_URL'] = installSettings.pipIndexUrl
 

@@ -19,11 +19,8 @@ const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
     constants: { F_OK: 0, X_OK: 1 }
   },
   mockPreferenceService: {
-    get: vi.fn((key: string) =>
-      key === 'feature.binary.install_settings'
-        ? { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
-        : []
-    ),
+    get: vi.fn(),
+    getMultiple: vi.fn(),
     subscribeMultipleChanges: vi.fn(() => () => {})
   }
 }))
@@ -99,6 +96,30 @@ const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
+const DEFAULT_INSTALL_PREFERENCES = {
+  githubMirror: '',
+  githubToken: '',
+  npmRegistry: '',
+  pipIndexUrl: '',
+  verifySignatures: true
+}
+
+const mockInstallPreferences = (values = DEFAULT_INSTALL_PREFERENCES) => {
+  const preferenceValues = {
+    'feature.binary.install.github_mirror': values.githubMirror,
+    'feature.binary.install.github_token': values.githubToken,
+    'feature.binary.install.npm_registry': values.npmRegistry,
+    'feature.binary.install.pip_index_url': values.pipIndexUrl,
+    'feature.binary.install.verify_signatures': values.verifySignatures
+  }
+  mockPreferenceService.get.mockImplementation(
+    (key: string) => preferenceValues[key as keyof typeof preferenceValues] ?? []
+  )
+  mockPreferenceService.getMultiple.mockImplementation((keys: Record<string, string>) =>
+    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, mockPreferenceService.get(key)]))
+  )
+}
+
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
   // and the OpenClaw gateway — it MUST keep the user's real HOME so they find
@@ -127,16 +148,34 @@ describe('BinaryManager', () => {
     mockExecFileAsync.mockReset()
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
-    mockPreferenceService.get.mockImplementation((key: string) =>
-      key === 'feature.binary.install_settings'
-        ? { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
-        : []
-    )
+    mockInstallPreferences()
   })
 
   describe('decorators', () => {
     it('is registered as Background phase', () => {
       expect(getPhase(BinaryManager)).toBe(Phase.Background)
+    })
+  })
+
+  describe('install preference subscriptions', () => {
+    it('invalidates the isolated environment for every atomic install preference', () => {
+      const service = new BinaryManager()
+
+      ;(service as any).onAllReady()
+
+      expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledWith(
+        [
+          'feature.binary.install.github_mirror',
+          'feature.binary.install.github_token',
+          'feature.binary.install.npm_registry',
+          'feature.binary.install.pip_index_url',
+          'feature.binary.install.verify_signatures',
+          'app.proxy.mode',
+          'app.proxy.url',
+          'app.proxy.bypass_rules'
+        ],
+        expect.any(Function)
+      )
     })
   })
 
@@ -844,21 +883,24 @@ describe('BinaryManager', () => {
     })
 
     it('applies configured registries, GitHub mirror/token, and verification override only to the install env', async () => {
-      mockPreferenceService.get.mockImplementation((key: string) =>
-        key === 'feature.binary.install_settings'
-          ? {
-              githubMirror: 'https://ghfast.top/',
-              githubToken: 'ghp_settings',
-              npmRegistry: 'https://registry.example',
-              pipIndexUrl: 'https://pypi.example/simple',
-              verifySignatures: false
-            }
-          : []
-      )
+      mockInstallPreferences({
+        githubMirror: 'https://ghfast.top/',
+        githubToken: 'ghp_settings',
+        npmRegistry: 'https://registry.example',
+        pipIndexUrl: 'https://pypi.example/simple',
+        verifySignatures: false
+      })
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       const env = await (service as any).buildIsolatedEnv()
 
+      expect(mockPreferenceService.getMultiple).toHaveBeenCalledWith({
+        githubMirror: 'feature.binary.install.github_mirror',
+        githubToken: 'feature.binary.install.github_token',
+        npmRegistry: 'feature.binary.install.npm_registry',
+        pipIndexUrl: 'feature.binary.install.pip_index_url',
+        verifySignatures: 'feature.binary.install.verify_signatures'
+      })
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
       expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')
       expect(env['GITHUB_TOKEN']).toBe('ghp_settings')

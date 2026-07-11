@@ -19,20 +19,14 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { BinaryInstallSettings, BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import {
-  GITHUB_MIRROR_PRESETS,
-  type InstallSettingPreset,
-  NPM_REGISTRY_PRESETS,
-  PIP_INDEX_PRESETS
-} from '@shared/data/presets/binaryInstallPresets'
+import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -58,9 +52,23 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
+import {
+  GITHUB_MIRROR_PRESETS,
+  type InstallSettingPreset,
+  NPM_REGISTRY_PRESETS,
+  PIP_INDEX_PRESETS
+} from './binaryInstallPresets'
 import LocalModelsSection from './LocalModelsSection'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
+
+const BINARY_INSTALL_PREFERENCE_KEYS = {
+  githubMirror: 'feature.binary.install.github_mirror',
+  githubToken: 'feature.binary.install.github_token',
+  npmRegistry: 'feature.binary.install.npm_registry',
+  pipIndexUrl: 'feature.binary.install.pip_index_url',
+  verifySignatures: 'feature.binary.install.verify_signatures'
+} as const
 
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
   const validLatest = latest ? semverValid(latest) : null
@@ -817,7 +825,7 @@ const UrlPresetField: FC<{
   placeholder: string
   presetLabel: string
   value: string
-  presets: InstallSettingPreset[]
+  presets: readonly InstallSettingPreset[]
   onChange: (value: string) => void
 }> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
   const invalid = value.trim() !== '' && !isValidUrl(value.trim())
@@ -861,11 +869,8 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   onOpenChange
 }) => {
   const { t } = useTranslation()
-  const [settings, setSettings] = usePreference('feature.binary.install_settings')
+  const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS)
   const [showToken, setShowToken] = useState(false)
-  const update = <K extends keyof BinaryInstallSettings>(key: K, value: BinaryInstallSettings[K]) => {
-    void setSettings({ ...settings, [key]: value })
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -883,7 +888,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={settings.githubMirror}
             presets={GITHUB_MIRROR_PRESETS}
-            onChange={(value) => update('githubMirror', value)}
+            onChange={(value) => void setSettings({ githubMirror: value })}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.npmRegistry.label')}
@@ -893,7 +898,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={settings.npmRegistry}
             presets={NPM_REGISTRY_PRESETS}
-            onChange={(value) => update('npmRegistry', value)}
+            onChange={(value) => void setSettings({ npmRegistry: value })}
           />
           <UrlPresetField
             label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
@@ -903,7 +908,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={settings.pipIndexUrl}
             presets={PIP_INDEX_PRESETS}
-            onChange={(value) => update('pipIndexUrl', value)}
+            onChange={(value) => void setSettings({ pipIndexUrl: value })}
           />
           <Field>
             <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
@@ -913,7 +918,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
                 autoComplete="off"
                 placeholder="ghp_…"
                 value={settings.githubToken}
-                onChange={(event) => update('githubToken', event.target.value)}
+                onChange={(event) => void setSettings({ githubToken: event.target.value })}
               />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton
@@ -935,7 +940,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             label={t('settings.dependencies.installSettings.verifySignatures.label')}
             description={t('settings.dependencies.installSettings.verifySignatures.help')}
             checked={settings.verifySignatures}
-            onCheckedChange={(checked) => update('verifySignatures', checked)}
+            onCheckedChange={(checked) => void setSettings({ verifySignatures: checked })}
           />
         </div>
       </DialogContent>
