@@ -327,6 +327,7 @@ describe('SelectorShell', () => {
         search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
         multiSelect={{
           label: 'Multi',
+          ariaLabel: 'Multi model',
           checked: false,
           placement: 'search-badge',
           dataTestId: 'multi-badge',
@@ -339,6 +340,9 @@ describe('SelectorShell', () => {
 
     expect(screen.queryByTestId('multi-row')).not.toBeInTheDocument()
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-label', 'Multi model')
+    expect(screen.getByTestId('multi-badge')).not.toHaveTextContent('Multi')
+    expect(screen.getByTestId('multi-badge').querySelector('svg')).not.toBeNull()
 
     screen.getByTestId('multi-badge').click()
 

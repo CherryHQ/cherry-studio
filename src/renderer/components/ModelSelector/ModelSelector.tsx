@@ -715,8 +715,9 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiple
         ? {
             label: t('models.multi_select.label'),
+            ariaLabel: t('models.multi_select.label'),
             checked: multiSelectMode,
-            placement: 'filter-badge' as const,
+            placement: 'search-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,
             dataTestId: 'model-selector-multi-select-switch',
             rowTestId: 'model-selector-multi-select-row'

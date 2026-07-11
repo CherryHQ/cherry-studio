@@ -1,6 +1,6 @@
 import { Input, Popover, PopoverContent, PopoverTrigger, Switch, usePortalContainer } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   isValidElement,
@@ -45,6 +45,7 @@ export type SelectorShellSearch = {
 
 export type SelectorShellMultiSelect = {
   label: ReactNode
+  ariaLabel?: string
   hint?: ReactNode
   checked: boolean
   disabled?: boolean
@@ -476,16 +477,18 @@ export function SelectorShell({
                       type="button"
                       disabled={multiSelect.disabled}
                       aria-pressed={multiSelect.checked}
+                      aria-label={multiSelect.ariaLabel}
+                      title={multiSelect.ariaLabel}
                       data-testid={multiSelect.dataTestId}
                       className={cn(
-                        'inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-2.5 py-0 text-[11px] leading-none transition-colors',
+                        'inline-flex size-6 shrink-0 items-center justify-center rounded-md border p-0 transition-colors',
                         'disabled:cursor-not-allowed disabled:opacity-50',
                         multiSelect.checked
                           ? 'border-border-active bg-accent text-foreground'
                           : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                       )}
                       onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                      <span className="max-w-24 truncate">{multiSelect.label}</span>
+                      <Plus className="size-3.5" aria-hidden="true" />
                     </button>
                   ) : null}
                 </div>

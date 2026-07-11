@@ -524,6 +524,11 @@ describe('ModelSelector', () => {
 
     expect(screen.queryByTestId('model-selector-multi-select-row')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-selector-multi-select-switch')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('model-selector-multi-select-switch')).toHaveAttribute(
+      'aria-label',
+      'models.multi_select.label'
+    )
+    expect(screen.getByTestId('model-selector-multi-select-switch')).not.toHaveTextContent('models.multi_select.label')
 
     fireEvent.click(screen.getByTestId('model-selector-multi-select-switch'))
     fireEvent.click(screen.getByTestId(`model-selector-item-${secondModelId}`))
