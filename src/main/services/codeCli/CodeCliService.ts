@@ -341,7 +341,8 @@ export class CodeCliService extends BaseService {
 
     const normal = input.mode === 'normal' ? input : null
     const isLoginFlow = input.mode === 'login-flow'
-    const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
+    const isProviderlessCli =
+      cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI || cliTool === CodeCli.PI
     // "Own login" run: the CLI uses its own stored account login, so no Cherry
     // provider/model is injected (the renderer already cleared any prior config).
     // Gated to login-capable tools so a genuinely missing provider still errors.

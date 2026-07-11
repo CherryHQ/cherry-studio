@@ -15,7 +15,8 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
   { id: CodeCli.QWEN_CODE, miseTool: 'npm:@qwen-code/qwen-code' },
   { id: CodeCli.KIMI_CODE, miseTool: 'npm:@moonshot-ai/kimi-code' },
   { id: CodeCli.QODER_CLI, miseTool: 'npm:@qodercn-ai/qoderclicn' },
-  { id: CodeCli.GITHUB_COPILOT_CLI, miseTool: 'npm:@github/copilot' }
+  { id: CodeCli.GITHUB_COPILOT_CLI, miseTool: 'npm:@github/copilot' },
+  { id: CodeCli.PI, miseTool: 'npm:@earendil-works/pi-coding-agent' }
 ]
 
 export const CLI_TOOL_PRESET_MAP: Record<string, CliToolPreset> = Object.fromEntries(
