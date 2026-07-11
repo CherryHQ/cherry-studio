@@ -94,7 +94,11 @@ describe('usePaintingComposerInputFiles', () => {
     const reported = onInputFilesChange.mock.calls.at(-1)?.[0] as FileEntry[]
     expect(reported).toHaveLength(1)
     expect(reported[0].id).toBe('fe-new')
-    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/new.png' })
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/new.png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
   })
 
   // Stateful harness mirroring the provider: SEED's `setFiles` re-renders and re-fires
