@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => {
   }> = []
 
   const watch = vi.fn((_path: string, _options: { usePolling?: boolean }) => {
+    void _path
+    void _options
     const handlers = new Map<string, Handler>()
     const watcher = {
       close: vi.fn().mockResolvedValue(undefined),
