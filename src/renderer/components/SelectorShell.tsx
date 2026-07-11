@@ -44,17 +44,25 @@ export type SelectorShellSearch = {
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
 }
 
-export type SelectorShellMultiSelect = {
+type SelectorShellMultiSelectBase = {
   label: ReactNode
-  ariaLabel?: string
   hint?: ReactNode
   checked: boolean
   disabled?: boolean
-  placement?: 'row' | 'search-badge' | 'filter-badge'
   onCheckedChange: (checked: boolean) => void
   dataTestId?: string
   rowTestId?: string
 }
+
+export type SelectorShellMultiSelect =
+  | (SelectorShellMultiSelectBase & {
+      ariaLabel?: string
+      placement?: 'row'
+    })
+  | (SelectorShellMultiSelectBase & {
+      ariaLabel: string
+      placement: 'search-badge'
+    })
 
 export type SelectorShellBottomCommandAction = {
   type?: 'command'
@@ -205,12 +213,9 @@ export function SelectorShell({
   const [hasOpened, setHasOpened] = useState(open)
   const pagePortalContainer = usePortalContainer()
   const hasSearch = Boolean(search)
-  const renderMultiSelectAsFilterBadge = Boolean(multiSelect?.placement === 'filter-badge')
-  const hasFilterContent = Boolean(filterContent || renderMultiSelectAsFilterBadge)
+  const hasFilterContent = Boolean(filterContent)
   const renderMultiSelectAsSearchBadge = Boolean(search && multiSelect?.placement === 'search-badge')
-  const renderMultiSelectRow = Boolean(
-    multiSelect && !renderMultiSelectAsSearchBadge && !renderMultiSelectAsFilterBadge
-  )
+  const renderMultiSelectRow = Boolean(multiSelect && !renderMultiSelectAsSearchBadge)
   const resolvedBottomActions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
   const hasBottomAction = resolvedBottomActions.length > 0
 
@@ -530,23 +535,6 @@ export function SelectorShell({
                   className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
                   data-selector-shell-chrome="filter">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
-                  {renderMultiSelectAsFilterBadge && multiSelect ? (
-                    <button
-                      type="button"
-                      disabled={multiSelect.disabled}
-                      aria-pressed={multiSelect.checked}
-                      data-testid={multiSelect.dataTestId}
-                      className={cn(
-                        'inline-flex h-6 shrink-0 items-center justify-center rounded-full border px-2.5 py-0 text-[11px] leading-none transition-colors',
-                        'disabled:cursor-not-allowed disabled:opacity-50',
-                        multiSelect.checked
-                          ? 'border-border-active bg-accent text-foreground'
-                          : 'border-border-subtle bg-secondary/60 text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                      )}
-                      onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                      <span className="max-w-24 truncate">{multiSelect.label}</span>
-                    </button>
-                  ) : null}
                 </div>
               ) : null}
 

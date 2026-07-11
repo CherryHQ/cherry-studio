@@ -378,37 +378,6 @@ describe('SelectorShell', () => {
     expect(screen.getByRole('textbox')).toHaveFocus()
   })
 
-  it('can render multi-select as a filter-row badge', () => {
-    const onCheckedChange = vi.fn()
-
-    render(
-      <SelectorShell
-        trigger={<button type="button">Open</button>}
-        open
-        onOpenChange={vi.fn()}
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
-        filterContent={<span>Filter</span>}
-        multiSelect={{
-          label: 'Multi',
-          checked: false,
-          placement: 'filter-badge',
-          dataTestId: 'multi-badge',
-          rowTestId: 'multi-row',
-          onCheckedChange
-        }}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(screen.getByText('Filter')).toBeInTheDocument()
-    expect(screen.queryByTestId('multi-row')).not.toBeInTheDocument()
-    expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
-
-    screen.getByTestId('multi-badge').click()
-
-    expect(onCheckedChange).toHaveBeenCalledWith(true)
-  })
-
   it('uses maxContentHeight as the popover cap before measuring list height', async () => {
     const originalGetComputedStyle = window.getComputedStyle.bind(window)
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
