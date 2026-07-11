@@ -225,8 +225,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to extract Windows ARM64 setup with exit code $LASTEXITCODE"
           }
+          $payload = Get-ChildItem $extractDir -Recurse -File -Filter 'app-arm64.7z' | Select-Object -First 1
+          if (-not $payload) {
+            throw 'Windows ARM64 setup does not contain app-arm64.7z'
+          }
+          $payloadDir = Join-Path $extractDir 'payload'
+          & 7z x $payload.FullName "-o$payloadDir" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to extract Windows ARM64 payload with exit code $LASTEXITCODE"
+          }
           $missingInstallerFiles = $requiredFiles | Where-Object {
-            -not (Get-ChildItem $extractDir -Recurse -File -Filter (Split-Path $_ -Leaf) | Select-Object -First 1)
+            -not (Test-Path (Join-Path $payloadDir $_))
           }
           if ($missingInstallerFiles) {
             throw "Windows ARM64 setup is missing: $($missingInstallerFiles -join ', ')"
