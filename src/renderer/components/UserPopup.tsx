@@ -20,6 +20,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,10 +71,16 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }
 
   const handleUploadAvatar = async (file: File) => {
+    const sizeError = checkEntityImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
     try {
-      // Send raw bytes; the handler normalizes to WebP, creates the file_entry,
-      // points the avatar slot's file_ref at it, and writes the Preference.
-      const data = new Uint8Array(await file.arrayBuffer())
+      // Downscale + encode to a small WebP in the renderer, then send; the handler
+      // normalizes (final 128² cover-crop), creates the file_entry, points the avatar
+      // slot's file_ref at it, and writes the Preference.
+      const data = await prepareEntityImageBytes(file)
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')

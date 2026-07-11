@@ -1,21 +1,19 @@
-import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   captureElement,
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataUrl,
-  compressImage,
+  checkEntityImageSize,
   convertToBase64,
-  makeSvgSizeAdaptive
+  makeSvgSizeAdaptive,
+  MAX_ENTITY_IMAGE_UPLOAD_BYTES,
+  prepareEntityImageBytes
 } from '../image'
 
 // mock 依赖
-vi.mock('browser-image-compression', () => ({
-  default: vi.fn(() => Promise.resolve(new File(['compressed'], 'compressed.png', { type: 'image/png' })))
-}))
 vi.mock('html-to-image', () => ({
   toCanvas: vi.fn(() =>
     Promise.resolve({
@@ -25,8 +23,12 @@ vi.mock('html-to-image', () => ({
   )
 }))
 
+// Deterministic i18n for checkEntityImageSize (avoids depending on real init).
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string, opts?: Record<string, unknown>) => `${key}:${JSON.stringify(opts)}` }
+}))
+
 beforeEach(() => {
-  vi.mocked(imageCompression).mockClear()
   vi.mocked(htmlToImage.toCanvas).mockReset()
   vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
     Promise.resolve({
@@ -46,27 +48,40 @@ describe('utils/image', () => {
     })
   })
 
-  describe('compressImage', () => {
-    it('should compress image file', async () => {
-      const file = new File(['img'], 'img.png', { type: 'image/png' })
-      const result = await compressImage(file)
-      expect(result).toBeInstanceOf(File)
-      expect(result.name).toBe('compressed.png')
+  describe('checkEntityImageSize', () => {
+    const makeFile = (size: number): File => {
+      const file = new File(['x'], 'avatar.png', { type: 'image/png' })
+      Object.defineProperty(file, 'size', { value: size })
+      return file
+    }
+
+    it('returns null when the file is within the limit', () => {
+      expect(checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES))).toBeNull()
     })
 
-    it('should pass custom compression options', async () => {
-      const file = new File(['img'], 'img.png', { type: 'image/png' })
+    it('returns a localized message when the file exceeds the limit', () => {
+      const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
+      expect(message).toContain('message.error.avatar_image_too_large')
+      expect(message).toContain('10MB')
+    })
+  })
 
-      await compressImage(file, { maxSizeMB: 0.25, maxWidthOrHeight: 256 })
+  describe('prepareEntityImageBytes', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
 
-      expect(imageCompression).toHaveBeenLastCalledWith(
-        file,
-        expect.objectContaining({
-          maxSizeMB: 0.25,
-          maxWidthOrHeight: 256,
-          useWebWorker: false
-        })
-      )
+    it('falls back to the raw bytes when the canvas cannot decode the input', async () => {
+      // Canvas can't decode SVG / odd formats → the helper sends the raw bytes so
+      // main-side sharp still transcodes them.
+      vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('cannot decode')))
+      const raw = new Uint8Array([1, 2, 3])
+      const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
+      file.arrayBuffer = vi.fn().mockResolvedValue(raw.buffer)
+
+      const out = await prepareEntityImageBytes(file)
+
+      expect(out).toEqual(raw)
     })
   })
 

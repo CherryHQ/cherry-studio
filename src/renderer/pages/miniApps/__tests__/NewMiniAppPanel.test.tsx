@@ -93,6 +93,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+// This suite mocks react-i18next without initReactI18next, so the shared setup's
+// real i18n init is skipped — stub the resolver `checkEntityImageSize` reaches.
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string) => key }
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 }))
@@ -314,6 +320,20 @@ describe('NewMiniAppPanel', () => {
       expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
     })
     // Bytes are uploaded only on save, not on pick.
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversize logo at pick time without staging a preview', () => {
+    const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [file] }
+    })
+
+    expect(vi.mocked(toast.error)).toHaveBeenCalled()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 

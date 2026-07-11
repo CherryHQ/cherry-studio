@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { transcodeToEntityWebp } from '@main/utils/entityImage'
+import { transcodeToEntityWebp } from '@main/utils/image'
 import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'

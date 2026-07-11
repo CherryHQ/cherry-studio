@@ -198,4 +198,25 @@ describe('UserPopup', () => {
       })
     })
   })
+
+  it('rejects an oversize avatar at pick time without calling profile.set_avatar', async () => {
+    showUserPopup()
+
+    const trigger = await screen.findByTestId('popover-trigger')
+    fireEvent.click(trigger)
+
+    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+    })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
+    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
+        'profile.set_avatar',
+        expect.objectContaining({ kind: 'image' })
+      )
+    })
+  })
 })

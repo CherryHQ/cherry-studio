@@ -16,6 +16,7 @@ import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -98,6 +99,11 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    const sizeError = checkEntityImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
     // Stage the raw file + preview it; the bytes are uploaded on save via the
     // `mini_app.set_logo` command (the renderer no longer creates file_entries).
     revokePreviewObjectUrl()
@@ -138,7 +144,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     let logoFailed = false
     if (stagedFile) {
       try {
-        const data = new Uint8Array(await stagedFile.arrayBuffer())
+        const data = await prepareEntityImageBytes(stagedFile)
         await ipcApi.request('mini_app.set_logo', { appId, image: { kind: 'image', data } })
         await refreshCustomMiniApp(appId)
       } catch (error) {

@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import type { Options as ImageCompressionOptions } from 'browser-image-compression'
 import type * as HtmlToImage from 'html-to-image'
 
 const logger = loggerService.withContext('Utils:image')
@@ -29,21 +28,44 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
   })
 }
 
-/**
- * 压缩图像文件，限制最大大小和尺寸。
- * @param {File} file 要压缩的图像文件
- * @param options 可覆盖最大体积 / 最大边长（默认 1MB / 300px）
- * @returns {Promise<File>} 压缩后的图像文件
- */
-export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
-  const { default: imageCompression } = await import('browser-image-compression')
+/** Target square dimension for a normalized entity image (mirrors main-side sharp). */
+const ENTITY_IMAGE_DIMENSION = 128
+/** Max original entity-image upload accepted in the renderer (avatar / logo). */
+export const MAX_ENTITY_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
-  return await imageCompression(file, {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 300,
-    useWebWorker: false,
-    ...options
-  })
+/** Localized "too large" message if the file exceeds the cap, else null. */
+export function checkEntityImageSize(file: File): string | null {
+  return file.size > MAX_ENTITY_IMAGE_UPLOAD_BYTES
+    ? i18n.t('message.error.avatar_image_too_large', { limit: '10MB' })
+    : null
+}
+
+/**
+ * Downscale + re-encode an entity image (avatar / logo) to a small WebP in the
+ * renderer using the native canvas — shrinks the IPC payload from the raw upload
+ * to a few KB. Aspect-preserving (longest edge → 128); main-side sharp still does
+ * the final exact 128² cover-crop and is the on-disk authority, so this is purely a
+ * transfer-size optimization. Falls back to the raw bytes when canvas can't decode
+ * the input (SVG, odd/animated formats).
+ */
+export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, ENTITY_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('no 2d context')
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
+    if (!blob) throw new Error('toBlob returned null')
+    return new Uint8Array(await blob.arrayBuffer())
+  } catch {
+    // ponytail: canvas can't decode (SVG/animated/quirks) → send raw, main's sharp transcodes it
+    return new Uint8Array(await file.arrayBuffer())
+  }
 }
 
 /**

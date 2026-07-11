@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { prepareEntityImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
@@ -83,7 +84,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
     async (providerId: string, edit: ProviderLogoEdit) => {
       const image =
         edit.kind === 'image'
-          ? ({ kind: 'image', data: new Uint8Array(await edit.file.arrayBuffer()) } as const)
+          ? ({ kind: 'image', data: await prepareEntityImageBytes(edit.file) } as const)
           : edit.kind === 'key'
             ? ({ kind: 'key', key: edit.key } as const)
             : ({ kind: 'default' } as const)

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,6 +124,28 @@ describe('ProviderEditorDrawer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo', 'blob:provider-logo')
     })
+  })
+
+  it('rejects an oversize logo at pick time without staging a preview', () => {
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    expect(vi.mocked(toast.error)).toHaveBeenCalled()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
   })
 
   it('submits the uploaded logo as an image edit (raw file, no pre-store)', async () => {
