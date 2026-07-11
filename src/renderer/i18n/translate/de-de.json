@@ -4473,10 +4473,9 @@
       },
       "minimap": "[to be translated]:Minimap",
       "op": {
+        "add_to_chat": "[to be translated]:Add to chat",
         "edit": "[to be translated]:Edit",
-        "reference": "[to be translated]:Use as reference",
-        "upscale": "[to be translated]:Upscale",
-        "variation": "[to be translated]:Variation"
+        "regenerate": "[to be translated]:Regenerate"
       },
       "retry": "[to be translated]:Retry",
       "tool": {
@@ -4561,6 +4560,9 @@
     "input_parameters": "Eingabeparameter",
     "invalid_image_url": "Ungültiges Bild-URL-Format",
     "learn_more": "Mehr erfahren",
+    "list": {
+      "load_more": "[to be translated]:Load more"
+    },
     "magic_prompt_option": "Prompt-Verbesserung",
     "mode": {
       "edit": "Bearbeiten",
@@ -4680,6 +4682,10 @@
       "resemblance": "Ähnlichkeit",
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
+    },
+    "view": {
+      "canvas": "[to be translated]:Canvas",
+      "list": "[to be translated]:List"
     },
     "watermark": "Wasserzeichen hinzufügen",
     "zhipu": {

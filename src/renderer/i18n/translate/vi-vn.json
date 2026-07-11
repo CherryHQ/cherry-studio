@@ -4473,10 +4473,9 @@
       },
       "minimap": "[to be translated]:Minimap",
       "op": {
+        "add_to_chat": "[to be translated]:Add to chat",
         "edit": "[to be translated]:Edit",
-        "reference": "[to be translated]:Use as reference",
-        "upscale": "[to be translated]:Upscale",
-        "variation": "[to be translated]:Variation"
+        "regenerate": "[to be translated]:Regenerate"
       },
       "retry": "[to be translated]:Retry",
       "tool": {
@@ -4561,6 +4560,9 @@
     "input_parameters": "Tham số đầu vào",
     "invalid_image_url": "Format URL de imagen inválido",
     "learn_more": "Tìm Hiểu Thêm",
+    "list": {
+      "load_more": "[to be translated]:Load more"
+    },
     "magic_prompt_option": "Lời nhắc Ma thuật",
     "mode": {
       "edit": "Chỉnh sửa",
@@ -4680,6 +4682,10 @@
       "resemblance": "Tương đồng",
       "resemblance_tip": "Kiểm soát độ tương đồng với hình ảnh gốc",
       "seed_tip": "Kiểm soát độ ngẫu nhiên khi nâng cấp"
+    },
+    "view": {
+      "canvas": "[to be translated]:Canvas",
+      "list": "[to be translated]:List"
     },
     "watermark": "Thêm Watermark",
     "zhipu": {

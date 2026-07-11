@@ -4473,10 +4473,9 @@
       },
       "minimap": "[to be translated]:Minimap",
       "op": {
+        "add_to_chat": "[to be translated]:Add to chat",
         "edit": "[to be translated]:Edit",
-        "reference": "[to be translated]:Use as reference",
-        "upscale": "[to be translated]:Upscale",
-        "variation": "[to be translated]:Variation"
+        "regenerate": "[to be translated]:Regenerate"
       },
       "retry": "[to be translated]:Retry",
       "tool": {
@@ -4561,6 +4560,9 @@
     "input_parameters": "Παράμετροι εισόδου",
     "invalid_image_url": "Μη έγκυρη μορφή διεύθυνσης URL εικόνας",
     "learn_more": "Μάθετε περισσότερα",
+    "list": {
+      "load_more": "[to be translated]:Load more"
+    },
     "magic_prompt_option": "Ενίσχυση προτροπής",
     "mode": {
       "edit": "Επεξεργασία",
@@ -4680,6 +4682,10 @@
       "resemblance": "Ομοιότητα",
       "resemblance_tip": "Ρυθμίστε την ομοιότητα της μεγεθυσμένης εικόνας με την αρχική",
       "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης"
+    },
+    "view": {
+      "canvas": "[to be translated]:Canvas",
+      "list": "[to be translated]:List"
     },
     "watermark": "Προσθήκη υδατογραφήματος",
     "zhipu": {

@@ -4560,6 +4560,9 @@
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
+    "list": {
+      "load_more": "Load more"
+    },
     "magic_prompt_option": "Magic Prompt",
     "mode": {
       "edit": "Edit",
@@ -4679,6 +4682,10 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "view": {
+      "canvas": "Canvas",
+      "list": "List"
     },
     "watermark": "Add Watermark",
     "zhipu": {

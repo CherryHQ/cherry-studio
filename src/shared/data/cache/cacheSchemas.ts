@@ -329,6 +329,8 @@ export type RendererPersistCacheSchema = {
   'ui.emoji.recently_used': string[]
   // Paintings canvas viewport (pan + zoom); `null` = never moved → fit on open.
   'ui.painting.canvas_viewport': { x: number; y: number; zoom: number } | null
+  // Which paintings view is active: the infinite canvas or the message-list feed.
+  'ui.painting.view': 'canvas' | 'list'
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -355,7 +357,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'feature.mcp.is_bun_installed': false,
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': [],
-  'ui.painting.canvas_viewport': null
+  'ui.painting.canvas_viewport': null,
+  'ui.painting.view': 'canvas'
 }
 
 // ============================================================================

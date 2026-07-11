@@ -4560,6 +4560,9 @@
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
+    "list": {
+      "load_more": "加载更多"
+    },
     "magic_prompt_option": "提示词增强",
     "mode": {
       "edit": "编辑",
@@ -4679,6 +4682,10 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
+    },
+    "view": {
+      "canvas": "画布",
+      "list": "列表"
     },
     "watermark": "添加水印",
     "zhipu": {
