@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import {
   SettingGroup,
   SettingRow,
@@ -11,7 +10,8 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'

@@ -49,7 +49,13 @@ export function useSidebarFavorites() {
     [favorites, persist]
   )
   const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favorites, id)), [favorites, persist])
-  const removeMiniApp = useCallback((id: string) => persist(removeSidebarMiniApp(favorites, id)), [favorites, persist])
+  const removeMiniApp = useCallback(
+    (id: string) => {
+      if (!miniAppFavoriteIds.includes(id)) return
+      persist(removeSidebarMiniApp(favorites, id))
+    },
+    [favorites, miniAppFavoriteIds, persist]
+  )
   const reorderFavorites = useCallback(
     (orderedItems: readonly SidebarFavoriteItem[]) => persist(reorderSidebarFavorites(favorites, orderedItems)),
     [favorites, persist]

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export const CHAT_INPUT_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'quote', 'promptVariable'] as const
+export const CHAT_INPUT_TOKEN_KINDS = ['skill', 'file', 'folder', 'knowledge', 'quote', 'promptVariable'] as const
 
 export type ChatInputTokenKind = (typeof CHAT_INPUT_TOKEN_KINDS)[number]
 

@@ -5,6 +5,11 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
+import {
+  LOCAL_EMBEDDING_MODEL_ID,
+  LOCAL_EMBEDDING_PROVIDER_ID,
+  LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+} from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 import { net } from 'electron'
@@ -52,6 +57,16 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  it('uses an explicit API key override instead of the provider rotation key', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
+
+    const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
+
+    expect(getRotatedApiKeyMock).not.toHaveBeenCalled()
+    expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',
@@ -346,7 +361,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).not.toMatch(/\/openai$/)
     })
 
-    it('routes an Azure provider on an anthropic-messages endpoint to azure-anthropic even for a non-claude id', async () => {
+    it('uses the provider default endpoint to route an Azure provider to azure-anthropic', async () => {
       const provider = makeProvider({
         id: 'azure-openai',
         authType: 'iam-azure',
@@ -358,7 +373,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({
         id: 'azure::custom',
         apiModelId: 'some-anthropic-relay-model',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: undefined
       })
 
       const config = await providerToAiSdkConfig(provider, model)
@@ -415,7 +430,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({
         id: 'cherryin::gpt-4o',
         apiModelId: 'gpt-4o',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        endpointTypes: undefined
       })
 
       const config = await providerToAiSdkConfig(provider, model)
@@ -483,6 +498,38 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           })
         })
       )
+    })
+  })
+
+  describe('Local embedding routing (in-process provider, no endpoint/baseURL/apiKey)', () => {
+    it('routes the local embedding provider to its own provider id instead of the openai-compatible fallback (REGRESSION)', async () => {
+      // The local embedding provider has no endpoint config, so resolveAiSdkProviderId
+      // returns 'openai-compatible'. Without the dedicated dispatch row it would fall
+      // through to buildOpenAICompatibleConfig, which hands ai-core an empty baseURL and
+      // throws "Invalid URL". The id-based row must win and produce empty providerSettings.
+      const provider = makeProvider({
+        id: LOCAL_EMBEDDING_PROVIDER_ID,
+        presetProviderId: LOCAL_EMBEDDING_PROVIDER_ID,
+        // Mirrors the registered row: in-process runtime, no endpoints.
+        endpointConfigs: {}
+      })
+      const model = makeModel({
+        id: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+        providerId: LOCAL_EMBEDDING_PROVIDER_ID,
+        apiModelId: LOCAL_EMBEDDING_MODEL_ID,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe(LOCAL_EMBEDDING_PROVIDER_ID)
+      // The local builder returns empty providerSettings: no baseURL/apiKey leak from the
+      // openai-compatible builder (the rotated key is fetched but deliberately discarded).
+      expect(settings.baseURL).toBeUndefined()
+      expect(settings.apiKey).toBeUndefined()
+      // Still defaulted to the proxy-aware fetch by the shared tail of providerToAiSdkConfig.
+      expect(settings.fetch).toBe(customFetch)
     })
   })
 
@@ -668,10 +715,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('NewAPI builder', () => {
-    it('uses anthropic endpointConfig baseUrl for anthropic endpoint type', async () => {
+    it('uses the provider default anthropic endpoint when the model has no endpoint types', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
             baseUrl: 'https://api.newapi.com/v1',
@@ -683,7 +730,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         }
       })
-      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+      const model = makeModel({ endpointTypes: undefined })
 
       const config = await providerToAiSdkConfig(provider, model)
 

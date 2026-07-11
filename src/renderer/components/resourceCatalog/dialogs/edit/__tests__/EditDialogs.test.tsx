@@ -193,7 +193,7 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
-vi.mock('@renderer/services/settingsNavigation', () => ({
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
 }))
 
@@ -204,8 +204,6 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string, fallback?: string) =>
         ({
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           'common.avatar': 'Avatar',
@@ -239,8 +237,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use workspace soul files and autonomous tools.',
-          'library.config.agent.field.soul_enabled.label': 'Autonomous mode',
           'library.config.agent.field.instructions.label': 'Instructions',
           'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
@@ -419,7 +415,6 @@ const AGENT: AgentDetail = {
   mcps: [],
   configuration: {
     avatar: '🤖',
-    soul_enabled: false,
     heartbeat_enabled: true,
     heartbeat_interval: 30
   },
@@ -846,29 +841,6 @@ describe('edit dialogs', () => {
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
         permission_mode: 'plan'
-      })
-    )
-  })
-
-  it('hides permission mode while autonomous mode is enabled', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
-    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Autonomous mode' }))
-
-    expect(screen.queryByRole('combobox', { name: 'Permission mode' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          configuration: expect.objectContaining({
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
-          })
-        })
       })
     )
   })

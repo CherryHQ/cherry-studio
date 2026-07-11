@@ -141,8 +141,7 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
         avatar: createValues.avatar,
-        permission_mode: 'bypassPermissions',
-        soul_enabled: true
+        permission_mode: 'bypassPermissions'
       },
       description: createValues.description,
       instructions: createValues.prompt,

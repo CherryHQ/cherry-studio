@@ -76,6 +76,11 @@ export class MockMainDbService {
    */
   public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => fn(this.db))
 
+  /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */
+  public createSnapshot = vi.fn()
+
+  public checkpointTruncate = vi.fn()
+
   public get isReady() {
     return this._isReady
   }
@@ -102,6 +107,8 @@ export const MockMainDbServiceUtils = {
   resetMocks: () => {
     mockInstance.getDb.mockClear()
     mockInstance.withWriteTx.mockClear()
+    mockInstance.createSnapshot.mockClear()
+    mockInstance.checkpointTruncate.mockClear()
 
     // Reset default db mocks
     Object.values(defaultMockDb).forEach((method) => {
@@ -139,6 +146,8 @@ export const MockMainDbServiceUtils = {
    */
   getMockCallCounts: () => ({
     getDb: mockInstance.getDb.mock.calls.length,
-    withWriteTx: mockInstance.withWriteTx.mock.calls.length
+    withWriteTx: mockInstance.withWriteTx.mock.calls.length,
+    createSnapshot: mockInstance.createSnapshot.mock.calls.length,
+    checkpointTruncate: mockInstance.checkpointTruncate.mock.calls.length
   })
 }

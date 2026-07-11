@@ -89,6 +89,18 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
+  detectLanguageOrUnknown: async (
+    text: string,
+    detectLanguage: (text: string) => Promise<string>,
+    onError: (error: unknown) => void
+  ) => {
+    try {
+      return await detectLanguage(text)
+    } catch (error) {
+      onError(error)
+      return 'unknown'
+    }
+  },
   useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
 }))
 
@@ -210,7 +222,34 @@ vi.mock('../components/IconButton', () => ({
 }))
 
 vi.mock('../components/TranslateHistory', () => ({
-  default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="translate-history-open" /> : null)
+  default: ({
+    isOpen,
+    onHistoryItemClick
+  }: {
+    isOpen: boolean
+    onHistoryItemClick: (history: {
+      sourceText: string
+      targetText: string
+      sourceLanguage: string | null
+      targetLanguage: string | null
+    }) => void
+  }) =>
+    isOpen ? (
+      <div data-testid="translate-history-open">
+        <button
+          type="button"
+          aria-label="reuse-null-target-history"
+          onClick={() =>
+            onHistoryItemClick({
+              sourceText: 'hello',
+              targetText: '你好',
+              sourceLanguage: null,
+              targetLanguage: null
+            })
+          }
+        />
+      </div>
+    ) : null
 }))
 
 vi.mock('../components/TranslateInputPane', () => ({
@@ -1094,6 +1133,35 @@ describe('TranslatePage', () => {
     })
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
+  })
+
+  it('keeps the current target language when reusing history with a null target language', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.target_language', 'ja-jp')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+  })
+
+  it('falls back to a concrete target language when reusing history with a null target and current unknown target', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.target_language', 'unknown')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
+    })
   })
 
   it('keeps history and settings drawers mutually exclusive and exposes open state through aria-pressed', () => {

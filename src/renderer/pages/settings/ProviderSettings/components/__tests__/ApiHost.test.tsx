@@ -8,11 +8,9 @@ const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const useProviderMetaMock = vi.fn()
-const useProviderModelSyncMock = vi.fn()
 const useProviderHostPreviewMock = vi.fn()
 const useProviderEndpointActionsMock = vi.fn()
 const updateProviderMock = vi.fn()
-const syncProviderModelsMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -55,14 +53,13 @@ vi.mock('../../hooks/providerSetting/useProviderEndpointActions', () => ({
   useProviderEndpointActions: (...args: any[]) => useProviderEndpointActionsMock(...args)
 }))
 
-vi.mock('../../hooks/useProviderModelSync', () => ({
-  useProviderModelSync: (...args: any[]) => useProviderModelSyncMock(...args)
-}))
-
 vi.mock('../../primitives/ProviderField', () => ({
-  default: ({ title, help, children, className }: any) => (
+  default: ({ title, action, help, children, className }: any) => (
     <div className={className}>
-      <div>{title}</div>
+      <div>
+        {title}
+        {action}
+      </div>
       {help}
       {children}
     </div>
@@ -108,9 +105,6 @@ describe('ApiHost', () => {
       isCherryIN: false,
       isChineseUser: false
     })
-    useProviderModelSyncMock.mockReturnValue({
-      syncProviderModels: syncProviderModelsMock
-    })
   })
 
   it('copies the api host from the hover action and shows copied feedback', async () => {
@@ -134,11 +128,103 @@ describe('ApiHost', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
       expect(toast.success).toHaveBeenCalled()
     })
+    expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
   })
 
-  it('opens the request-configuration drawer and resets the primary API host from the connection row', () => {
+  it('edits the primary API host and commits it without opening the request-configuration drawer', () => {
+    const commitApiHost = vi.fn()
+
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost,
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" />)
+
+    const apiHostInput = screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })
+    fireEvent.click(apiHostInput)
+    fireEvent.change(apiHostInput, { target: { value: 'https://api2.example.com' } })
+    fireEvent.blur(apiHostInput)
+
+    expect(endpointState.setApiHost).toHaveBeenCalledWith('https://api2.example.com')
+    expect(commitApiHost).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
+  })
+
+  it('requests the model pull guide after a changed API host is committed on blur', async () => {
+    const commitApiHost = vi.fn().mockResolvedValue(true)
+    const onRequestModelPullGuide = vi.fn()
+
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api2.example.com/chat/completions',
+      anthropicHostPreview: 'https://api2.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost,
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" onRequestModelPullGuide={onRequestModelPullGuide} />)
+
+    const apiHostInput = screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })
+    fireEvent.change(apiHostInput, { target: { value: 'https://api2.example.com' } })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(onRequestModelPullGuide).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('opens the request-configuration drawer from the add endpoint text button', () => {
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost: vi.fn(),
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" />)
+
+    expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i }))
+    expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
+  })
+
+  it('opens the request-configuration drawer from the add endpoint text button when multiple endpoints exist', () => {
     const resetApiHost = vi.fn()
 
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.example.com' }
+        }
+      }
+    })
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',
       anthropicHostPreview: 'https://api.example.com/messages',
@@ -157,13 +243,26 @@ describe('ApiHost', () => {
     fireEvent.click(screen.getByRole('button', { name: /^重置$|^Reset$/ }))
     expect(resetApiHost).toHaveBeenCalled()
 
-    /** `settings.provider.request_configuration_tooltip`: bilingual label on the config trigger */
-    fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
+    const addEndpointButton = screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i })
+    expect(addEndpointButton).toHaveTextContent(/^添加端点$|^Add Endpoint$/i)
+    expect(addEndpointButton).toHaveClass('font-normal')
+    fireEvent.click(addEndpointButton)
 
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
-  it('opens the drawer when anthropic messaging is the primary endpoint', () => {
+  it('edits the anthropic API host and opens the drawer from the add endpoint text button', () => {
+    const commitAnthropicApiHost = vi.fn()
+
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.example.com' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',
       anthropicHostPreview: 'https://anthropic.example.com/messages',
@@ -171,7 +270,7 @@ describe('ApiHost', () => {
     })
     useProviderEndpointActionsMock.mockReturnValue({
       commitApiHost: vi.fn(),
-      commitAnthropicApiHost: vi.fn(),
+      commitAnthropicApiHost,
       commitApiVersion: vi.fn(),
       resetApiHost: vi.fn()
     })
@@ -183,7 +282,14 @@ describe('ApiHost', () => {
 
     render(<ApiHost providerId="openai" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
+    const anthropicHostInput = screen.getByRole('textbox', { name: /^Anthropic API 地址$|^Anthropic API Host$/ })
+    fireEvent.change(anthropicHostInput, { target: { value: 'https://anthropic2.example.com' } })
+    fireEvent.blur(anthropicHostInput)
+    expect(endpointState.setAnthropicApiHost).toHaveBeenCalledWith('https://anthropic2.example.com')
+    expect(commitAnthropicApiHost).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i }))
 
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
