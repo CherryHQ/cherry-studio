@@ -127,15 +127,17 @@ vi.mock('@renderer/components/ListItem', () => ({
   )
 }))
 
-// Return a STABLE translation object: react-i18next's real `t` is stable across
-// renders, but a fresh `t` per call makes `loadData` (useCallback([t])) churn, so its
-// fetch effect re-runs every render and a post-click refetch resets the schedule form
-// mid-interaction — a race that made the schedule-type-swap test flaky.
 vi.mock('react-i18next', () => {
-  const translation = { i18n: { language: 'en-US' }, t: (key: string) => key }
+  // Stable `t` reference (matches real i18next) so callbacks/effects depending
+  // on `t` don't churn — an unstable `t` re-runs TasksSettings' loadData effect
+  // on every render, causing a refetch storm that flakes waitFor under CI load.
+  const t = (key: string) => key
   return {
     initReactI18next: { type: '3rdParty', init: vi.fn() },
-    useTranslation: () => translation
+    useTranslation: () => ({
+      i18n: { language: 'en-US' },
+      t
+    })
   }
 })
 
