@@ -5,11 +5,14 @@ import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
 import { cherryinHandlers } from './cherryin'
+import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { localModelHandlers } from './localModel'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
+import { openclawHandlers } from './openclaw'
 import { printHandlers } from './print'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
@@ -29,11 +32,14 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...binaryHandlers,
   ...cherryinHandlers,
+  ...codeCliHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...localModelHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
+  ...openclawHandlers,
   ...printHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,

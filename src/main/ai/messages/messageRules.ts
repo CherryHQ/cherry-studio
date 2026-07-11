@@ -5,7 +5,7 @@
  * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
-import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
+import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
 
@@ -70,8 +70,12 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
  * would otherwise dangle without a result → merge adjacent same-role turns left by
  * drops → placeholder any turn that still converted to empty content. See #16195.
  */
-export async function toModelMessages(messages: UIMessage[], caps?: MediaCapabilities): Promise<ModelMessage[]> {
+export async function toModelMessages(
+  messages: UIMessage[],
+  caps?: MediaCapabilities,
+  tools?: ToolSet
+): Promise<ModelMessage[]> {
   const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true })
+  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
 }

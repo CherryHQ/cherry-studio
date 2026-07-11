@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/services/settingsNavigation', () => ({
+vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 

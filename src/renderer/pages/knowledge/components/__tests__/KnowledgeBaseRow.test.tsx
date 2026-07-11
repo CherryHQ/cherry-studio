@@ -111,6 +111,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
@@ -129,6 +130,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
@@ -146,6 +148,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
@@ -162,6 +165,7 @@ describe('KnowledgeBaseRow', () => {
         onSelectBase={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )

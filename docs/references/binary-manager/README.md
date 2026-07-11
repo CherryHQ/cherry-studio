@@ -37,7 +37,7 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
 | Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.probe_system`, `binary.get_latest_versions` | Renderer → main |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.get_latest_versions` | Renderer → main |
 | IPC events | `binary.state_changed`, `binary.reconcile_failed` | Main → renderer |
 | Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
@@ -63,16 +63,13 @@ BinaryManager state is operational cache for installed shim metadata, not user-a
 
 ## State contract: bundled vs mise-managed
 
-Four sources for a tool to be available, in order of precedence:
+Three sources for a tool to be available, in order of precedence:
 
 | State | Detected by | UI label |
 |---|---|---|
 | **managed (mise)** | `BinaryState.tools[name]` is set after `mise use -g` | "v1.2.3" version chip |
-| **available (bundled)** | `binary.probe_bundled` finds the binary in `cherry.bin` after extraction | "bundled" chip + low-key "Install via mise" |
-| **available (system)** | `binary.probe_system` resolves the name on the user's login-shell PATH (outside Cherry's dirs) | "system" chip (path on hover) + low-key "Install via mise" |
-| **not installed** | None of the above | prominent "Install" CTA |
-
-`binary.probe_system` uses the captured login-shell env (`getShellEnv` + `findCommandInShellEnv`) so it sees the same PATH a terminal would, not the truncated GUI-launch PATH. Resolutions that land inside `cherry.bin` / `feature.binary.data` are dropped so a bundled/managed tool keeps its more specific source. "system" carries no version (that would cost a per-tool `--version` spawn); the goal is only to tell the user the tool is already usable. A prominent "Install" appears **only** for the not-installed state — the mise install stays available for already-present tools but is de-emphasized (it just yields a Cherry-managed, pinned copy).
+| **available (bundled)** | `binary:probe-bundled` finds the binary in `cherry.bin` after extraction | "bundled" chip + "Install via mise" CTA |
+| **not installed** | Neither of the above | "Install" CTA |
 
 **Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The probe-bundled IPC keeps the two sources orthogonal: BinaryState answers "what did the user install?", the filesystem probe answers "what shipped in the box?".
 
@@ -84,34 +81,20 @@ The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but 
 
 mise's `github:` backend (used by `github:larksuite/cli`, `github:sharkdp/fd`, etc.) hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 req/hour per IP — easily exhausted behind shared NAT (offices, mainland-China ISPs, Codespaces, CI).
 
-`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can set a token in **Settings → Dependencies → Advanced install settings** (see below), which is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour. When that field is empty, a `CHERRY_GITHUB_TOKEN` shell env var is used as a fallback:
+`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can opt in by setting `CHERRY_GITHUB_TOKEN` in their shell before launching Cherry; it is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour.
 
 ```bash
-export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional fallback if the settings token is empty
+export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail with HTTP 403
 ```
 
 ## China mirror behavior
 
-`BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true (and no explicit registry override is configured — see below), injects mirror URLs into the mise subprocess env:
+`BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true, injects mirror URLs into the mise subprocess env:
 
 - `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com`
 - `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
 
 These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per app launch and applies to all `npm:` / `pipx:` backends without per-tool configuration.
-
-## Advanced install settings (UI)
-
-**Settings → Dependencies → Advanced install settings** (collapsed by default) exposes the install knobs as the `feature.binary.install_settings` preference, consumed only by `buildIsolatedEnv()` (the install subprocess) — never the shared execution env that runs installed CLIs, so a token or mirror can't leak into launched agents. All fields default empty (verification on), i.e. the behavior above is unchanged until a user opts in. `BinaryManager` invalidates its memoized isolated env when this preference or the proxy prefs change.
-
-| Field              | Effect                                                                                                                                                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `githubMirror`     | Proxy-prefix mirror (e.g. `https://ghfast.top`). Sets `MISE_URL_REPLACEMENTS` to rewrite **both** `https://github.com` and `https://api.github.com` (the latter is what `mise latest` resolves against). Empty = direct. |
-| `npmRegistry`      | Overrides `NPM_CONFIG_REGISTRY`. Beats the China auto-mirror; empty keeps the auto behavior above.                                                        |
-| `pipIndexUrl`      | Overrides `PIP_INDEX_URL`. Same auto-vs-explicit rule as npm.                                                                                             |
-| `githubToken`      | Sets `GITHUB_TOKEN` (supersedes the `CHERRY_GITHUB_TOKEN` env). Stored as plaintext preference JSON — password-masked in the UI, never logged.            |
-| `verifySignatures` | Default on. When off, sets `MISE_AQUA_COSIGN/SLSA/MINISIGN=false` — an escape hatch when aqua's Sigstore/SLSA verification can't complete.                 |
-
-Presets for the URL fields (a short, opt-in, cheaply-updatable list — Cherry never routes downloads through a mirror unless picked) live in `src/shared/data/presets/binaryInstallPresets.ts`.
 
 ## Adding a new managed binary
 
@@ -125,14 +108,11 @@ Presets for the URL fields (a short, opt-in, cheaply-updatable list — Cherry n
      tool: 'gh',           // mise tool spec — registry entry, npm:..., pipx:..., etc.
      icon: 'simple-icons:github', // optional iconify id
      repoUrl: 'https://github.com/cli/cli',
-     homepage: 'https://cli.github.com/', // optional
-     category: 'cli'       // 'runtime' | 'agent' | 'cli' — which dependencies-page group
+     homepage: 'https://cli.github.com/' // optional
    }
    ```
 2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
 3. No code change in BinaryManager — the renderer picks it up via the preset list.
-
-   `category` places the tool in one of the three collapsible dependencies groups: `runtime` (bundled deps the app needs — no user install action), `agent` (coding agents), or `cli` (optional third-party CLIs, shown alongside custom tools). For a **coding agent** (`category: 'agent'`) that is launchable from the Code Tools page, also set `codeCli: CodeCli.<ID>` — that wires an "Open in Code Tools" button on the card (which deep-links to the tool's launch dialog) once the agent is available.
 
 **Custom (user-added from the settings UI):**
 

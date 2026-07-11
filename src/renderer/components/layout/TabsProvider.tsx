@@ -33,15 +33,48 @@ function createLaunchpadFallbackTab(): Tab {
   }
 }
 
+// Route no longer served — its orphaned pinned tabs are dropped on restore.
 const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
+// OpenClaw was folded into the Code page (its sidebar entry + `/app/openclaw` route were removed),
+// so an already-persisted OpenClaw pin is redirected here rather than restoring to a dead route.
+const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
+const CODE_ROUTE_PATH = '/app/code'
 
-function isLegacyLibraryTab(tab: Tab): boolean {
-  if (tab.type !== 'route') return false
+function routePathOfTab(tab: Tab): string | null {
+  if (tab.type !== 'route') return null
   try {
-    return new URL(tab.url, 'https://www.cherry-ai.com').pathname === LEGACY_LIBRARY_ROUTE_PATH
+    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
   } catch {
-    return false
+    return null
   }
+}
+
+/**
+ * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
+ * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
+ * redirect never produces a second Code pin). `changed` is true when anything was dropped or
+ * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
+ */
+export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
+  let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
+  const tabs: Tab[] = []
+  let changed = false
+  for (const tab of pinnedTabs) {
+    const path = routePathOfTab(tab)
+    if (path === LEGACY_LIBRARY_ROUTE_PATH) {
+      changed = true
+      continue
+    }
+    if (path === LEGACY_OPENCLAW_ROUTE_PATH) {
+      changed = true
+      if (hasCodePin) continue // a Code pin already exists — drop rather than duplicate it
+      hasCodePin = true
+      tabs.push({ ...tab, url: CODE_ROUTE_PATH, title: getDefaultRouteTitle(CODE_ROUTE_PATH) })
+      continue
+    }
+    tabs.push(tab)
+  }
+  return { tabs, changed }
 }
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
@@ -101,19 +134,18 @@ export function TabsProvider({
     [includePinnedTabs]
   )
   const restoredPinnedTabs = useMemo(() => pinnedTabs || [], [pinnedTabs])
-  const availablePinnedTabs = useMemo(
-    () => restoredPinnedTabs.filter((tab) => !isLegacyLibraryTab(tab)),
-    [restoredPinnedTabs]
-  )
+  const migratedPinnedTabs = useMemo(() => migratePinnedTabs(restoredPinnedTabs), [restoredPinnedTabs])
+  const availablePinnedTabs = migratedPinnedTabs.tabs
 
   useEffect(() => {
-    if (!includePinnedTabs || restoredPinnedTabs.length === availablePinnedTabs.length) return
+    if (!includePinnedTabs || !migratedPinnedTabs.changed) return
 
-    setPinnedTabs(availablePinnedTabs)
-    logger.info('Dropped legacy library pinned tabs', {
-      count: restoredPinnedTabs.length - availablePinnedTabs.length
+    setPinnedTabs(migratedPinnedTabs.tabs)
+    logger.info('Reconciled pinned tabs against removed/relocated routes', {
+      before: restoredPinnedTabs.length,
+      after: migratedPinnedTabs.tabs.length
     })
-  }, [availablePinnedTabs, includePinnedTabs, restoredPinnedTabs, setPinnedTabs])
+  }, [includePinnedTabs, migratedPinnedTabs, restoredPinnedTabs, setPinnedTabs])
 
   // Normal tabs - in-memory storage (cleared on restart)
   const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))

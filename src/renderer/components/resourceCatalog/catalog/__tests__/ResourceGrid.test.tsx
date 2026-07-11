@@ -60,6 +60,20 @@ vi.mock('@cherrystudio/ui', async () => {
     open: false,
     setOpen: () => {}
   })
+  const DropdownMenuContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+  const DropdownMenuSubContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
 
   return {
     Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
@@ -161,6 +175,100 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogFooter: ({ children }: { children?: ReactNode }) => <footer>{children}</footer>,
     DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
     DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+    DropdownMenu: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [internalOpen, setInternalOpen] = React.useState(open ?? false)
+      const actualOpen = open ?? internalOpen
+      const setOpen = (nextOpen: boolean) => {
+        if (open === undefined) setInternalOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <DropdownMenuContext value={{ open: actualOpen, setOpen }}>{children}</DropdownMenuContext>
+    },
+    DropdownMenuCheckboxItem: ({
+      children,
+      checked,
+      disabled,
+      onCheckedChange
+    }: {
+      children?: ReactNode
+      checked?: boolean
+      disabled?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={checked}
+        aria-disabled={disabled || undefined}
+        disabled={disabled}
+        onClick={() => onCheckedChange?.(!checked)}>
+        {children}
+      </button>
+    ),
+    DropdownMenuContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(DropdownMenuContext)
+      return open ? <div role="menu">{children}</div> : null
+    },
+    DropdownMenuItem: ({
+      children,
+      disabled,
+      onSelect,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & {
+      disabled?: boolean
+      onSelect?: (event: React.MouseEvent<HTMLButtonElement>) => void
+      variant?: string
+    }) => {
+      void variant
+      return (
+        <button
+          type="button"
+          role="menuitem"
+          disabled={disabled}
+          aria-disabled={disabled || undefined}
+          onClick={(event) => onSelect?.(event)}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuSeparator: () => <div data-testid="menu-divider" />,
+    DropdownMenuSub: ({ children }: { children?: ReactNode }) => {
+      const [open, setOpen] = React.useState(false)
+      return <DropdownMenuSubContext value={{ open, setOpen }}>{children}</DropdownMenuSubContext>
+    },
+    DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(DropdownMenuSubContext)
+      return open ? <div role="menu">{children}</div> : null
+    },
+    DropdownMenuSubTrigger: ({ children, disabled }: { children?: ReactNode; disabled?: boolean }) => {
+      const { setOpen } = React.use(DropdownMenuSubContext)
+      return (
+        <button type="button" aria-disabled={disabled || undefined} disabled={disabled} onClick={() => setOpen(true)}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuTrigger: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) => {
+      const { open, setOpen } = React.use(DropdownMenuContext)
+      if (asChild) return <span onClickCapture={() => setOpen(!open)}>{children}</span>
+
+      return (
+        <button type="button" onClick={() => setOpen(!open)}>
+          {children}
+        </button>
+      )
+    },
     Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
     MenuDivider: () => <div data-testid="menu-divider" />,
     MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -622,7 +730,9 @@ describe('ResourceCardMenu tag binding', () => {
     updateAssistantMock.mockReset()
   })
 
-  it('does not show a tag count in the single-select tag menu trigger', () => {
+  it('does not show a tag count in the single-select tag menu trigger', async () => {
+    const user = userEvent.setup()
+
     render(
       <ResourceCardMenu
         resource={createAssistantResource({ tag: 'alpha' })}
@@ -634,6 +744,7 @@ describe('ResourceCardMenu tag binding', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.getByRole('button', { name: /library.action.manage_tags/ })).not.toHaveTextContent(/\b1\b/)
   })
 
@@ -654,16 +765,17 @@ describe('ResourceCardMenu tag binding', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
-    expect(screen.getByRole('menu', { name: 'library.config.basic.tags' })).toContainElement(
-      screen.getByRole('menuitemradio', { name: 'alpha' })
-    )
-    await user.click(screen.getByRole('menuitemradio', { name: 'alpha' }))
+    await user.click(screen.getByRole('menuitem', { name: 'alpha' }))
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     await waitFor(() =>
-      expect(screen.getByRole('menuitemradio', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
+      expect(screen.getByRole('button', { name: /library.action.manage_tags/ })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
     )
-    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
 
     pendingTags.resolve([{ id: 'tag-alpha', name: 'alpha' }])
@@ -674,45 +786,48 @@ describe('ResourceCardMenu tag binding', () => {
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
   })
 
-  it('uses roving focus for tag picker radio items', async () => {
+  it('disables the current assistant tag in the command submenu', async () => {
     const user = userEvent.setup()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource()}
+        resource={createAssistantResource({ tag: 'alpha' })}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={['alpha', 'beta', 'gamma']}
+        allTagNames={['alpha', 'beta']}
       />
     )
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
 
-    const alpha = screen.getByRole('menuitemradio', { name: 'alpha' })
-    const beta = screen.getByRole('menuitemradio', { name: 'beta' })
-    const gamma = screen.getByRole('menuitemradio', { name: 'gamma' })
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: 'beta' })).not.toHaveAttribute('aria-disabled')
+  })
 
-    expect(alpha).toHaveAttribute('tabindex', '0')
-    expect(beta).toHaveAttribute('tabindex', '-1')
+  it('refreshes the disabled assistant tag when the resource tag changes', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allTagNames: ['alpha', 'beta']
+    }
 
-    alpha.focus()
-    expect(alpha).toHaveFocus()
+    const { rerender } = render(
+      <ResourceCardMenu resource={createAssistantResource({ tag: 'alpha' })} {...menuProps} />
+    )
 
-    await user.keyboard('{ArrowDown}')
-    expect(beta).toHaveFocus()
+    rerender(<ResourceCardMenu resource={createAssistantResource({ tag: 'beta' })} {...menuProps} />)
 
-    await waitFor(() => {
-      expect(alpha).toHaveAttribute('tabindex', '-1')
-      expect(beta).toHaveAttribute('tabindex', '0')
-    })
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
 
-    await user.keyboard('{End}')
-    expect(gamma).toHaveFocus()
-
-    await user.keyboard('{Home}')
-    expect(alpha).toHaveFocus()
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).not.toHaveAttribute('aria-disabled')
+    expect(screen.getByRole('menuitem', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('replaces the current assistant tag when a different tag is selected', async () => {
@@ -731,55 +846,37 @@ describe('ResourceCardMenu tag binding', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
-    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
+    await user.click(screen.getByRole('menuitem', { name: 'beta' }))
 
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['beta']))
     expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
   })
 
-  it('does not expose tag management for agent, skill, or prompt resources', () => {
-    const { rerender } = render(
-      <ResourceCardMenu
-        resource={createAgentResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
+  it('does not expose tag management for agent, skill, or prompt resources', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allTagNames: ['alpha', 'beta']
+    }
 
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+    for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
+      const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
 
-    rerender(
-      <ResourceCardMenu
-        resource={createSkillResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
 
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
-
-    rerender(
-      <ResourceCardMenu
-        resource={createPromptResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+      unmount()
+    }
   })
 
-  it('keeps uninstall available for skill resources without extra menu actions', () => {
+  it('keeps uninstall available for skill resources without extra menu actions', async () => {
+    const user = userEvent.setup()
+
     render(
       <ResourceCardMenu
         resource={createSkillResource()}
@@ -791,11 +888,14 @@ describe('ResourceCardMenu tag binding', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /library.action.uninstall/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.getByRole('menuitem', { name: /library.action.uninstall/ })).toBeInTheDocument()
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('keeps the divider when assistant resources have actions before delete', () => {
+  it('keeps the divider when assistant resources have actions before delete', async () => {
+    const user = userEvent.setup()
+
     render(
       <ResourceCardMenu
         resource={createAssistantResource()}
@@ -807,8 +907,9 @@ describe('ResourceCardMenu tag binding', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
   })
 })

@@ -260,32 +260,50 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
+import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
-  'qwen-code',
   'claude-code',
-  'gemini-cli',
   'openai-codex',
+  'opencode',
+  'openclaw',
+  'gemini-cli',
+  'qwen-code',
+  'kimi-code',
   'qoder-cli',
-  'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'github-copilot-cli'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeCliOverride = {
-  enabled?: boolean
-  modelId?: string | null
-  envVars?: string
-  /** Terminal app name — should match `TerminalApp` enum values */
-  terminal?: string
-  currentDirectory?: string
-  directories?: string[]
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /**
+   * Unique model id ("providerId::modelId"), or null for the two legal
+   * model-less states: the own-login placeholder and a Claude detailed-models
+   * config with no common model.
+   */
+  modelId: UniqueModelId | null
+  /** User-edited tool-specific config blob. */
+  config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
 }
 
-export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
+  current: string | null
+  /** Terminal app — an id from `code_cli.get_available_terminals`. */
+  terminal?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+}
+
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
@@ -313,6 +331,7 @@ export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
   'paddleocr',
+  'local-paddleocr',
   'ovocr',
   'mineru',
   'doc2x',
@@ -359,24 +378,4 @@ export interface ToolInstallState {
 
 export interface BinaryState {
   tools: Record<string, ToolInstallState>
-}
-
-/**
- * User-configurable knobs for the mise-based binary install path. Consumed only
- * by `BinaryManager.buildIsolatedEnv` (the install subprocess), never the shared
- * execution env that runs installed CLIs. Empty strings mean "don't override":
- * registry/mirror fields leave today's auto behavior (China auto-mirror) intact,
- * and an empty token falls back to the `CHERRY_GITHUB_TOKEN` env opt-in.
- */
-export interface BinaryInstallSettings {
-  /** GitHub mirror host for `github.com`/`api.github.com` rewrites; '' = direct. */
-  githubMirror: string
-  /** npm registry override; '' = keep current auto-China behavior. */
-  npmRegistry: string
-  /** pip index URL override; '' = keep current auto-China behavior. */
-  pipIndexUrl: string
-  /** GitHub token to raise the API rate limit; '' = fall back to CHERRY_GITHUB_TOKEN env. */
-  githubToken: string
-  /** When false, disables mise aqua signature verification (MISE_AQUA_*=false). */
-  verifySignatures: boolean
 }

@@ -32,6 +32,7 @@ import { getCommandShortcutLabel } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
   MenuLocation,
+  MenuPresentationMode,
   NativePopupMenuItem,
   NativePopupMenuModel,
   ResolvedMenuItem,
@@ -553,28 +554,30 @@ export function CommandContextMenu({
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent
-        className={contentClassName}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}>
-        {combinedItems.map((item, index) =>
-          isExtraMenuItem(item) ? (
-            <CommandContextMenuExtraItemView
-              key={`extra-${item.id}`}
-              item={item}
-              onSelectItem={handleCherrySelectItem}
-            />
-          ) : (
-            <CommandMenuItemView
-              key={`${item.type}-${index}`}
-              item={item}
-              onExecute={runtime.execute}
-              onSelectItem={handleCherrySelectItem}
-              renderIcon={renderIcon}
-            />
-          )
-        )}
-      </ContextMenuContent>
+      {combinedItems.length > 0 && (
+        <ContextMenuContent
+          className={contentClassName}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}>
+          {combinedItems.map((item, index) =>
+            isExtraMenuItem(item) ? (
+              <CommandContextMenuExtraItemView
+                key={`extra-${item.id}`}
+                item={item}
+                onSelectItem={handleCherrySelectItem}
+              />
+            ) : (
+              <CommandMenuItemView
+                key={`${item.type}-${index}`}
+                item={item}
+                onExecute={runtime.execute}
+                onSelectItem={handleCherrySelectItem}
+                renderIcon={renderIcon}
+              />
+            )
+          )}
+        </ContextMenuContent>
+      )}
     </ContextMenu>
   )
 }
@@ -702,7 +705,8 @@ export function CommandPopupMenu({
   onOpenChange,
   disabled,
   renderIcon,
-  extraItems = EMPTY_EXTRA_ITEMS
+  extraItems = EMPTY_EXTRA_ITEMS,
+  presentationMode
 }: {
   location: MenuLocation
   children: React.ReactNode
@@ -716,13 +720,14 @@ export function CommandPopupMenu({
   disabled?: boolean
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
+  presentationMode?: MenuPresentationMode
 }): React.ReactNode {
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
+  const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])

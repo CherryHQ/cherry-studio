@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,16 +7,9 @@ import EnvironmentDependencies from '../EnvironmentDependencies'
 const customToolsRef = vi.hoisted(() => ({ value: [] as Array<{ name: string; tool: string; version?: string }> }))
 const setCustomToolsMock = vi.hoisted(() => vi.fn())
 
-const installSettingsRef = vi.hoisted(() => ({
-  value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
-}))
-const setInstallSettingsMock = vi.hoisted(() => vi.fn())
-const navigateMock = vi.hoisted(() => vi.fn())
-
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
-  probeSystem: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
@@ -33,14 +26,14 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.getState()
         case 'binary.probe_bundled':
           return ipcMocks.probeBundled()
-        case 'binary.probe_system':
-          return ipcMocks.probeSystem(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
         case 'binary.remove_tool':
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
+        case 'local_model.get_status':
+          return Promise.resolve({ status: 'unsupported' })
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         default:
@@ -53,20 +46,21 @@ vi.mock('@renderer/ipc', () => ({
   })
 }))
 
+vi.mock('@renderer/ipc/useIpcOn', () => ({
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+  useNavigate: () => vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) =>
-    key === 'feature.binary.install_settings'
-      ? [installSettingsRef.value, setInstallSettingsMock]
-      : [customToolsRef.value, setCustomToolsMock]
+  usePreference: () => [customToolsRef.value, setCustomToolsMock]
 }))
 
 vi.mock('semver', () => ({
@@ -83,9 +77,11 @@ vi.mock('@cherrystudio/ui', () => {
       void closeOnOverlayClick
       return React.createElement(tag, props, children)
     }
-  // Render children only — these carry non-DOM props (onOpenChange, onConfirm,
-  // destructive, open) that React would warn about if spread onto a div.
+  // Render children only — these carry non-DOM props that React would warn
+  // about if spread onto a div.
   const childrenOnly = ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children)
+  const dialog = ({ open, children }: { open?: boolean; children?: React.ReactNode }) =>
+    open ? React.createElement('div', { role: 'dialog' }, children) : null
   return {
     Badge: passthrough('span'),
     Button: ({
@@ -102,73 +98,13 @@ vi.mock('@cherrystudio/ui', () => {
       title?: string
     }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
     ConfirmDialog: childrenOnly,
-    // Accordion groups always render their content in tests (no collapse behavior).
-    Accordion: childrenOnly,
-    AccordionItem: childrenOnly,
-    AccordionTrigger: childrenOnly,
-    AccordionContent: childrenOnly,
-    // Render the trigger (its child) directly; the tooltip content is irrelevant here.
-    NormalTooltip: ({ children }: { children?: React.ReactNode }) => children,
-    Dialog: childrenOnly,
+    Dialog: dialog,
     DialogContent: passthrough('div'),
     DialogDescription: passthrough('div'),
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    Input: passthrough('input'),
-    // Install-settings primitives. Field wrappers just render children; the
-    // interactive stubs preserve the props the tests drive. The dialog is the
-    // childrenOnly Dialog stub above, so fields render without opening it.
-    Field: passthrough('div'),
-    FieldLabel: passthrough('label'),
-    FieldDescription: passthrough('div'),
-    InputGroup: passthrough('div'),
-    InputGroupAddon: passthrough('div'),
-    InputGroupInput: passthrough('input'),
-    InputGroupButton: ({
-      children,
-      onClick,
-      'aria-label': ariaLabel
-    }: {
-      children?: React.ReactNode
-      onClick?: () => void
-      'aria-label'?: string
-    }) => React.createElement('button', { type: 'button', onClick, 'aria-label': ariaLabel }, children),
-    DescriptionSwitch: ({
-      label,
-      checked,
-      onCheckedChange
-    }: {
-      label: string
-      checked?: boolean
-      onCheckedChange?: (checked: boolean) => void
-    }) =>
-      React.createElement('label', null, [
-        label,
-        React.createElement('input', {
-          key: 'switch',
-          type: 'checkbox',
-          checked: !!checked,
-          onChange: (e: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(e.target.checked)
-        })
-      ]),
-    // Renders each preset as a button so a click drives onSelect(url) — exercises
-    // "pick a preset fills the field" without the real popover.
-    SelectDropdown: ({
-      items,
-      onSelect,
-      placeholder
-    }: {
-      items: Array<{ id: string; label: string }>
-      onSelect: (id: string) => void
-      placeholder?: string
-    }) =>
-      React.createElement('div', null, [
-        React.createElement('span', { key: 'placeholder' }, placeholder),
-        ...items.map((it) =>
-          React.createElement('button', { key: it.id, type: 'button', onClick: () => onSelect(it.id) }, it.label)
-        )
-      ])
+    Input: passthrough('input')
   }
 })
 
@@ -177,38 +113,31 @@ describe('EnvironmentDependencies', () => {
     vi.clearAllMocks()
     ipcEventHandlers.clear()
     customToolsRef.value = []
-    installSettingsRef.value = {
-      githubMirror: '',
-      githubToken: '',
-      npmRegistry: '',
-      pipIndexUrl: '',
-      verifySignatures: true
-    }
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
-    ipcMocks.probeSystem.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
   })
 
-  it('renders preset tools across the runtime and CLI groups', async () => {
+  it('renders preset tools and the empty custom-tools state', async () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    // Runtime-group displayNames render regardless of install state.
+    // Preset displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
-    // Third-party CLI preset also renders.
-    expect(screen.getByText('GitHub CLI')).toBeInTheDocument()
+    // No custom tools → empty-state hint.
+    expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
   })
 
-  it('renders a persisted custom tool in the third-party CLI group', async () => {
+  it('renders a persisted custom tool instead of the empty state', async () => {
     customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
+    expect(screen.queryByText('settings.dependencies.customToolsEmpty')).not.toBeInTheDocument()
   })
 
   it('shows an uninstall action for a mise-managed preset tool', async () => {
@@ -227,73 +156,6 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
-  })
-
-  it('marks a system-PATH CLI preset as available with only the low-key managed install', async () => {
-    // fd (third-party CLI) found on the user's PATH (source 'system') → "System"
-    // badge and a low-key icon to pull in a Cherry-managed copy — never the CTA.
-    // (Runtime deps like uv show no install action at all; CLIs still can.)
-    ipcMocks.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
-    render(<EnvironmentDependencies />)
-
-    await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
-    const fdCard = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
-    expect(within(fdCard).getByText('settings.dependencies.source.system')).toBeInTheDocument()
-    expect(within(fdCard).getByLabelText('settings.dependencies.installManaged')).toBeInTheDocument()
-    expect(within(fdCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
-  })
-
-  it('shows no install action for a runtime dependency that is only bundled', async () => {
-    // uv is a runtime dep → its card never offers install/managed-copy actions,
-    // even when present only as bundled.
-    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0' })
-    render(<EnvironmentDependencies />)
-
-    await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
-    const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(uvCard).queryByLabelText('settings.dependencies.installManaged')).not.toBeInTheDocument()
-    expect(within(uvCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
-  })
-
-  it('opens an installed coding agent in the Code Tools launcher', async () => {
-    // claude is mise-managed → the coding-agents card offers "Open in Code Tools",
-    // which deep-links to /app/code with the launcher's dialog auto-opened.
-    ipcMocks.getState.mockResolvedValue({ tools: { claude: { version: '1.0.0' } } })
-    render(<EnvironmentDependencies />)
-
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    fireEvent.click(await screen.findByText('settings.dependencies.openInCodeTools'))
-
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/app/code', search: { launch: 'claude-code' } })
-    )
-  })
-
-  it('does not offer Open for a coding agent that is not installed', async () => {
-    // Nothing installed → no agent card shows the open affordance.
-    render(<EnvironmentDependencies />)
-
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    expect(screen.queryByText('settings.dependencies.openInCodeTools')).not.toBeInTheDocument()
-  })
-
-  it('surfaces a failed install in a persistent, copyable error dialog', async () => {
-    // A failed install must not vanish like a toast: the full mise log stays on
-    // screen and is copyable so the user can read it or paste it to an AI.
-    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
-    ipcMocks.installTool.mockRejectedValue(new Error('boom: mise blew up'))
-    const writeTextMock = vi.fn().mockResolvedValue(undefined)
-    Object.assign(navigator, { clipboard: { writeText: writeTextMock } })
-    render(<EnvironmentDependencies />)
-
-    await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('settings.mcp.install'))
-
-    await waitFor(() => expect(screen.getByText('boom: mise blew up')).toBeInTheDocument())
-    expect(screen.getByText('settings.dependencies.installError: mytool')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('common.copy'))
-    expect(writeTextMock).toHaveBeenCalledWith('boom: mise blew up')
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {
@@ -391,6 +253,20 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
+  it('keeps the full install error visible in a persistent dialog', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.installTool.mockRejectedValue(new Error('mise failed\nnetwork timeout'))
+
+    render(<EnvironmentDependencies />)
+
+    const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
+    fireEvent.click(updateButtons[0])
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('mise failed')
+    expect(screen.getByRole('dialog')).toHaveTextContent('network timeout')
+    expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.installErrorHint')
+  })
+
   it('continues installing latest when update versions are not comparable semver', async () => {
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: 'nightly' } } })
     ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
@@ -418,55 +294,5 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     expect(container).toBeEmptyDOMElement()
-  })
-
-  describe('install settings section', () => {
-    const placeholderOf = (key: string) => `settings.dependencies.installSettings.${key}`
-
-    it('persists a typed value into the install-settings preference', async () => {
-      render(<EnvironmentDependencies />)
-      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-
-      const mirror = screen.getByPlaceholderText(placeholderOf('githubMirror.placeholder'))
-      fireEvent.change(mirror, { target: { value: 'https://my.mirror' } })
-
-      expect(setInstallSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ githubMirror: 'https://my.mirror' })
-      )
-    })
-
-    it('fills the field with the chosen preset URL, not its label', async () => {
-      render(<EnvironmentDependencies />)
-      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-
-      // The mirror field's preset dropdown renders each preset as a button.
-      fireEvent.click(screen.getByText('ghfast.top'))
-
-      expect(setInstallSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ githubMirror: 'https://ghfast.top' })
-      )
-    })
-
-    it('masks the GitHub token by default and reveals it on toggle', async () => {
-      render(<EnvironmentDependencies />)
-      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-
-      const token = screen.getByPlaceholderText('ghp_…')
-      expect(token).toHaveAttribute('type', 'password')
-
-      // Reveal toggles the local show-token state; waitFor flushes the update inside act().
-      fireEvent.click(screen.getByLabelText(placeholderOf('githubToken.show')))
-      await waitFor(() => expect(screen.getByPlaceholderText('ghp_…')).toHaveAttribute('type', 'text'))
-    })
-
-    it('writes the boolean when the verify-signatures switch is toggled off', async () => {
-      render(<EnvironmentDependencies />)
-      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-
-      // Default on → toggling emits verifySignatures:false.
-      fireEvent.click(screen.getByRole('checkbox'))
-
-      expect(setInstallSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ verifySignatures: false }))
-    })
   })
 })

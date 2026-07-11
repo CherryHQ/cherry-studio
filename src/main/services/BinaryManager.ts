@@ -12,8 +12,6 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
-import { getShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'
@@ -130,24 +128,6 @@ export class BinaryManager extends BaseService {
 
   protected override onAllReady() {
     const prefService = application.get('PreferenceService')
-
-    // buildIsolatedEnv() reads feature.binary.install_settings and snapshots the
-    // process.env proxy vars, then getIsolatedEnv() memoizes the result for the
-    // app's lifetime. Drop the cache when either input changes so the next mise
-    // run rebuilds with fresh mirror/registry/token/verify + proxy values, instead
-    // of applying them only after a restart. Subscribe in onAllReady (not
-    // onInit/onReady): BinaryManager is Phase.Background and must not race the
-    // BeforeReady PreferenceService (codex R3).
-    this.registerDisposable(
-      prefService.subscribeMultipleChanges(
-        ['feature.binary.install_settings', 'app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'],
-        () => {
-          this.isolatedEnv = null
-          this.isolatedEnvPromise = null
-        }
-      )
-    )
-
     const predefinedNames = new Set(PRESETS_BINARY_TOOLS.map((t) => t.name))
     const tools = prefService.get('feature.binary.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
@@ -204,31 +184,6 @@ export class BinaryManager extends BaseService {
       result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
     }
     return result
-  }
-
-  /**
-   * Probe which of the given tool names the user already has on their login-shell
-   * PATH (installed outside Cherry — Homebrew, a global npm, a manual download).
-   *
-   * Uses the captured login-shell env so it sees the same PATH a terminal would,
-   * not the truncated GUI-launch PATH. Paths that resolve into Cherry's own
-   * managed/bundled dirs are dropped so those keep their more specific "managed"
-   * / "bundled" source in the UI instead of masquerading as a system install.
-   *
-   * Returns a map of tool name → resolved absolute path; absent names aren't on PATH.
-   */
-  public async probeSystem(names: string[]): Promise<Record<string, string>> {
-    const shellEnv = await getShellEnv()
-    const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
-    const entries = await Promise.all(
-      names.map(async (name): Promise<[string, string] | null> => {
-        const resolved = await findCommandInShellEnv(name, shellEnv)
-        if (!resolved) return null
-        if (cherryDirs.some((dir) => resolved.startsWith(dir))) return null
-        return [name, resolved]
-      })
-    )
-    return Object.fromEntries(entries.filter((e): e is [string, string] => e !== null))
   }
 
   private async extractBundledBinaries(): Promise<void> {
@@ -329,21 +284,6 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    // User-configured install knobs (mirror/registry/token/verify). All applied
-    // here in the install-only env, never the shared execution env (D7), so a
-    // token or mirror can't leak into the launched agent CLIs.
-    const installSettings = application.get('PreferenceService').get('feature.binary.install_settings')
-
-    // Explicit registry overrides win over both the ambient shell values (passed
-    // through above) and the China auto-mirror below — set before the China block
-    // so an empty field still falls back to auto-China.
-    if (installSettings.npmRegistry) {
-      env['NPM_CONFIG_REGISTRY'] = installSettings.npmRegistry
-    }
-    if (installSettings.pipIndexUrl) {
-      env['PIP_INDEX_URL'] = installSettings.pipIndexUrl
-    }
-
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
     // raise it to 5000 req/hr. We deliberately do NOT pick up the ambient
@@ -353,41 +293,10 @@ export class BinaryManager extends BaseService {
     if (cherryGhToken) {
       env['GITHUB_TOKEN'] = cherryGhToken
     }
-    // A token set in settings supersedes the CHERRY_GITHUB_TOKEN env opt-in; an
-    // empty field keeps the env fallback so existing users don't regress.
-    if (installSettings.githubToken) {
-      env['GITHUB_TOKEN'] = installSettings.githubToken
-    }
 
-    // Install `pipx:` tools via the bundled uv/uvx instead of a `pipx` binary the
-    // user may not have. mise's default is already true, but only "if uv is on
-    // PATH" — set it explicitly so the bundled uv is used deterministically and a
-    // missing `pipx` can't fail the install (#16719). Install-only: this must not
-    // leak into the shared execution env that runs the launched CLIs.
+    // mise only defaults this when uv is already on PATH. Force bundled uv/uvx
+    // for pipx tools so installs do not depend on a separate pipx executable.
     env['MISE_PIPX_UVX'] = '1'
-
-    // GitHub mirror (proxy-prefix form, e.g. https://ghfast.top): rewrite only the
-    // release-asset host (github.com). Do NOT route api.github.com through the
-    // mirror — the ghproxy-style asset mirrors we ship all return 403 for the
-    // GitHub API, which breaks aqua/github version resolution; api.github.com is
-    // reachable directly (GITHUB_TOKEN below lifts its rate limit). MISE_URL_REPLACEMENTS
-    // takes a JSON object of from→to prefix rules (verified against the bundled mise).
-    if (installSettings.githubMirror) {
-      const prefix = installSettings.githubMirror.replace(/\/+$/, '')
-      env['MISE_URL_REPLACEMENTS'] = JSON.stringify({
-        'https://github.com': `${prefix}/https://github.com`
-      })
-    }
-
-    // Escape hatch (default off, D4): disable aqua's Sigstore/SLSA/minisign
-    // verification for users whose network can't complete it. The Windows
-    // cache-dir fix (B2) is the primary unblock; this only flips when the user
-    // explicitly opts out of supply-chain verification.
-    if (!installSettings.verifySignatures) {
-      env['MISE_AQUA_COSIGN'] = 'false'
-      env['MISE_AQUA_SLSA'] = 'false'
-      env['MISE_AQUA_MINISIGN'] = 'false'
-    }
 
     const inChina = await regionService.isInChina().catch(() => false)
     if (inChina) {
@@ -411,10 +320,7 @@ export class BinaryManager extends BaseService {
       merged['USERPROFILE'] = merged['HOME']
     }
 
-    // Create every relocated dir so mise (and its verifiers) can write. The home
-    // keys are derived from getBinaryIsolatedHomeEnv() rather than hardcoded, so
-    // platform-conditional additions (Windows LOCALAPPDATA/APPDATA) are covered
-    // without drifting from that function.
+    // Keep directory creation aligned with platform-specific isolated-home keys.
     for (const key of [
       'MISE_DATA_DIR',
       'MISE_CONFIG_DIR',
@@ -443,20 +349,16 @@ export class BinaryManager extends BaseService {
       return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
-      const building = this.buildIsolatedEnv().then(
+      this.isolatedEnvPromise = this.buildIsolatedEnv().then(
         (env) => {
-          // Only cache if this build is still the current one. An invalidation
-          // (settings/proxy change) mid-build nulls isolatedEnvPromise; a stale
-          // resolve must not repopulate isolatedEnv with pre-change values.
-          if (this.isolatedEnvPromise === building) this.isolatedEnv = env
+          this.isolatedEnv = env
           return env
         },
         (err) => {
-          if (this.isolatedEnvPromise === building) this.isolatedEnvPromise = null
+          this.isolatedEnvPromise = null
           throw err
         }
       )
-      this.isolatedEnvPromise = building
     }
     return this.isolatedEnvPromise
   }
@@ -475,17 +377,12 @@ export class BinaryManager extends BaseService {
     // mise.toml from the main process's working directory.
     try {
       return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
-    } catch (err) {
-      // execFileAsync rejects with a generic "Command failed" message; mise's
-      // actionable diagnostic lives on err.stderr. Fold it into the message so it
-      // reaches the logger and the renderer toast (via installTool/reconcile)
-      // instead of a bare exit-code line (#16719). No token vars appear in mise
-      // stderr, so this can't leak the GitHub token.
-      const stderr = (err as { stderr?: unknown }).stderr
-      if (err instanceof Error && typeof stderr === 'string' && stderr.trim()) {
-        err.message = `${err.message}\n${stderr.trim()}`
+    } catch (error) {
+      const stderr = (error as { stderr?: unknown }).stderr
+      if (error instanceof Error && typeof stderr === 'string' && stderr.trim()) {
+        error.message = `${error.message}\n${stderr.trim()}`
       }
-      throw err
+      throw error
     }
   }
 
@@ -520,6 +417,13 @@ export class BinaryManager extends BaseService {
       const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool])
       const lsData = JSON.parse(lsOut) as Record<string, Array<{ version?: string }>>
       const entries = Object.values(lsData).flat()
+      const requestedVersion = tool.version ? semverValid(tool.version) : null
+      if (requestedVersion) {
+        const requestedEntry = entries.find((entry) => semverValid(entry.version) === requestedVersion)
+        if (requestedEntry?.version) {
+          return semverValid(requestedEntry.version) ?? requestedEntry.version
+        }
+      }
       if (entries.length > 0 && entries[0].version) {
         return entries[0].version
       }
