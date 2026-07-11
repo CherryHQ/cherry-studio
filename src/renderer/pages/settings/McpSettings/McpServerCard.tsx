@@ -2,10 +2,12 @@ import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -76,7 +78,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
             await window.api.mcp.refreshTools(serverForUpdate.id)
           } catch (error: any) {
-            window.modal.error({
+            void popup.error({
               title: t('settings.mcp.startError'),
               content: formatMcpError(error),
               centered: true
@@ -88,7 +90,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           setVersion(null)
         }
       } catch (error: any) {
-        window.modal.error({
+        void popup.error({
           title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
           content: formatMcpError(error),
           centered: true
@@ -100,20 +102,20 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
   )
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     try {
-      window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('settings.mcp.deleteServer'),
         content: t('settings.mcp.deleteServerConfirm'),
-        centered: true,
-        onOk: async () => {
-          await window.api.mcp.removeServer(server.id)
-          await deleteMcpServer({})
-          window.toast.success(t('settings.mcp.deleteSuccess'))
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      await window.api.mcp.removeServer(server.id)
+      await deleteMcpServer({})
+      toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
   }, [server, deleteMcpServer, t])
 
@@ -152,7 +154,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const handleDeleteClick = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation()
-      handleDelete()
+      void handleDelete()
     },
     [handleDelete]
   )
@@ -165,7 +167,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       const errorDetails = formatErrorMessage(error)
 
       const onClickDetails = () => {
-        void GeneralPopup.show({
+        void ContentPopup.show({
           content: (
             <div
               style={{

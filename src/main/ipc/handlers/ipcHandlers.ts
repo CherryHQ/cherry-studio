@@ -5,12 +5,16 @@ import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
 import { cherryinHandlers } from './cherryin'
+import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { localModelHandlers } from './localModel'
 import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
+import { openclawHandlers } from './openclaw'
+import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { selectionHandlers } from './selection'
@@ -31,12 +35,16 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...binaryHandlers,
   ...cherryinHandlers,
+  ...codeCliHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...localModelHandlers,
   ...miniAppHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
+  ...openclawHandlers,
+  ...printHandlers,
   ...profileHandlers,
   ...providerHandlers,
   ...selectionHandlers,

@@ -1,70 +1,63 @@
-import {
-  Button,
-  MenuDivider,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  ConversationResourceMenu,
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
+  renderAgentEntityIcon,
+  resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
-  type ResourceListSection
+  type ResourceListSection,
+  SESSION_DISPLAY_LABEL_KEYS,
+  SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { cn } from '@renderer/utils/style'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import {
-  AGENT_WORKSPACE_TYPE,
-  type AgentSessionWorkspaceSource,
-  type AgentWorkspaceEntity
-} from '@shared/data/api/schemas/agentWorkspaces'
+  type AgentSessionExportOptions,
+  agentSessionToMarkdown,
+  copyAgentSessionAsMarkdown,
+  copyAgentSessionAsPlainText,
+  exportAgentSessionAsMarkdown,
+  getAgentSessionExportTitle,
+  getAgentSessionMessagesForExport
+} from '@renderer/services/agentSessionExport'
 import {
-  Bot,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clock,
-  Folder,
-  FolderOpen,
-  History,
-  ListFilter,
-  MoreHorizontal,
-  SquarePen
-} from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import type { DraftAgentSessionDefaults } from '../types'
-import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
-import SessionItem from './SessionItem'
+  exportContentToNotes,
+  exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
+  exportMarkdownToYuque,
+  exportMessagesToNotion
+} from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
@@ -90,7 +83,32 @@ import {
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
-} from './sessionListHelpers'
+} from '@renderer/utils/chat/sessionListHelpers'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { cn } from '@renderer/utils/style'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  type AgentWorkspaceEntity
+} from '@shared/data/api/schemas/agentWorkspaces'
+import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  type AgentSessionImageActionRequest,
+  type AgentSessionImageActionType,
+  rejectPendingAgentSessionImageActions,
+  requestAgentSessionImageAction
+} from '../messages/agentSessionImageActionBus'
+import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
+import type { CreateAgentSessionDefaults } from '../types'
+import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
+import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
@@ -98,11 +116,18 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
+  historyRecordsActive?: boolean
+  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+  onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
-  onSelectItem?: () => void
-  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
-  onStartMissingAgentDraft?: () => void | Promise<void>
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
+  onCreateSession?: (
+    defaults: CreateAgentSessionDefaults
+  ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
+  onShowMissingAgentSelection?: () => void | Promise<void>
+  panePosition?: TopicTabPosition
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -117,120 +142,47 @@ type SessionsProps = ControlledSessionsProps
 
 const logger = loggerService.withContext('AgentSessions')
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir']
-const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
-  agent: 'agent.session.display.agent',
-  time: 'agent.session.display.time',
-  workdir: 'agent.session.display.workdir'
-}
-const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
-  agent: <Bot size={16} />,
-  time: <Clock size={16} />,
-  workdir: <Folder size={16} />
-}
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
+// Let the context menu close before mounting the heavier offscreen message list.
+const IMAGE_CAPTURE_START_DELAY_MS = 160
+const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
+const LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT = 50
+
 type CreateSessionSeed = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
   workspacePath?: string
 }
 
-function SessionListOptionsMenu({
-  mode,
-  onChange,
-  onOpenHistoryRecords,
-  sectionId
-}: {
-  mode: AgentSessionDisplayMode
-  onChange: (mode: AgentSessionDisplayMode) => void
-  onOpenHistoryRecords?: () => void
-  sectionId?: string
-}) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton type="button" aria-label={t('agent.session.display.title')}>
-          <ListFilter className="block" />
-        </ResourceList.HeaderActionButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
-        <MenuList>
-          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">
-            {t('agent.session.display.title')}
-          </div>
-          {SESSION_DISPLAY_OPTIONS.map((option) => (
-            <MenuItem
-              key={option}
-              size="sm"
-              icon={SESSION_DISPLAY_ICONS[option]}
-              label={t(SESSION_DISPLAY_LABEL_KEYS[option])}
-              active={mode === option}
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-            />
-          ))}
-          {sectionId && (
-            <>
-              <MenuDivider />
-              <ResourceList.SectionToggleMenuItem
-                size="sm"
-                expandIcon={<ChevronsUpDown size={16} />}
-                collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
-                expandLabel={t('agent.session.group.expand_all')}
-                collapseLabel={t('agent.session.group.collapse_all')}
-                onClick={() => {
-                  setOpen(false)
-                }}
-              />
-            </>
-          )}
-          {onOpenHistoryRecords && <MenuDivider />}
-          {onOpenHistoryRecords && (
-            <MenuItem
-              size="sm"
-              icon={<History size={16} />}
-              label={t('history.records.shortTitle')}
-              onClick={() => {
-                onOpenHistoryRecords()
-                setOpen(false)
-              }}
-            />
-          )}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 function AgentGroupMoreMenu({
   agentId,
-  deleteSessionsDisabled,
+  assistantIconType,
+  deleteAgentDisabled,
   pinDisabled,
   pinned,
-  onDeleteSessions,
+  onDeleteAgent,
   onEdit,
+  onSetAgentIconType,
   onTogglePin
 }: {
   agentId: string
-  deleteSessionsDisabled?: boolean
+  assistantIconType: AssistantIconType
+  deleteAgentDisabled?: boolean
   pinDisabled?: boolean
   pinned: boolean
-  onDeleteSessions: (agentId: string) => void | Promise<void>
+  onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
-    deleteSessionsDisabled,
-    onDeleteSessions,
+    assistantIconType,
+    deleteAgentDisabled,
+    onDeleteAgent,
     onEdit,
+    onSetAgentIconType,
     onTogglePin,
     pinDisabled,
     pinned,
@@ -349,22 +301,48 @@ export function findLatestCreateSessionSeed(
 }
 
 const Sessions = ({
+  agentSessionsSource,
   activeSessionId,
   agentIdFilter,
+  historyRecordsActive,
+  onActiveAgentDeleted,
+  onAddAgent,
   onOpenHistoryRecords,
-  onSelectItem,
-  onStartDraftSession,
-  onStartMissingAgentDraft,
+  onSetPanePosition,
+  onCreateSession,
+  onShowMissingAgentSelection,
+  panePosition,
   presentation = 'sidebar',
   revealRequest,
   resourceMenuItems,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
+  const { notesPath } = useNotesSettings()
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notes: 'data.export.menus.notes',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    plain_text: 'data.export.menus.plain_text',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
+  // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
+  const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const resolvedPanePosition = panePosition ?? storedPanePosition
+  const setResolvedPanePosition = onSetPanePosition ?? setStoredPanePosition
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
@@ -383,21 +361,26 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useAgentSessionsSource()
+  } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
-  const [deletingAgentGroupId, setDeletingAgentGroupId] = useState<string | null>(null)
-  const deletingAgentGroupIdRef = useRef<string | null>(null)
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
   } | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } =
+    useImageCaptureTargets<AgentSessionEntity>({
+      cancelMessage: 'Agent session image export was cancelled',
+      delayMs: IMAGE_CAPTURE_START_DELAY_MS,
+      rejectPendingActions: rejectPendingAgentSessionImageActions
+    })
 
   const { data: channels } = useQuery('/agent-channels')
   const channelTypeMap = useMemo(() => {
@@ -413,6 +396,10 @@ const Sessions = ({
     : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
       ? sessionDisplayMode
       : 'time'
+  const defaultGroupVisibleCount =
+    !isRightPanel && displayMode === 'time'
+      ? LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT
+      : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
   const isDraggableMode = displayMode !== 'time'
   const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
   const sessionExpansion = isRightPanel
@@ -482,6 +469,12 @@ const Sessions = ({
     return orderedAgents
   }, [agents, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
+  const getSessionExportOptions = useCallback(
+    (session: AgentSessionEntity): AgentSessionExportOptions => ({
+      modelFallback: getAgentModelFallbackSnapshot(session.agentId ? agentById.get(session.agentId) : undefined)
+    }),
+    [agentById]
+  )
   const agentRankById = useMemo(
     () => new Map(agentsForDisplay.map((agent, index) => [agent.id, index])),
     [agentsForDisplay]
@@ -627,15 +620,21 @@ const Sessions = ({
   }, [displayMode, t])
 
   const collapsedSessionState = useMemo(() => {
+    const resolvedSessionExpansion = resolveDefaultCollapsedGroupIds({
+      collapsedIds: sessionExpansion,
+      groupBy: sessionGroupBy,
+      items: filteredGroupedSessions
+    })
+
     if (displayMode !== 'workdir') {
-      return sessionExpansion
+      return resolvedSessionExpansion
     }
 
-    return remapResourceListCollapsedGroupIds(sessionExpansion, (groupId) => {
+    return remapResourceListCollapsedGroupIds(resolvedSessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
-  }, [displayMode, sessionExpansion, workdirDisplay])
+  }, [displayMode, filteredGroupedSessions, sessionExpansion, sessionGroupBy, workdirDisplay])
 
   const handleSessionCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
@@ -657,67 +656,57 @@ const Sessions = ({
   )
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      // Capture the deleted session before removal so selection can be scoped to its agent even
+      // after the list refetches.
+      const deletedSession =
+        filteredGroupedSessions.find((session) => session.id === id) ??
+        sessionItemsRef.current.find((session) => session.id === id)
+
       const success = await deleteSession(id)
       if (!success || activeSessionId !== id) return
 
-      if (isRightPanel) {
-        // Classic layout is scoped to a single agent: select that agent's neighbouring session rather than
-        // the first remaining session, which could belong to another agent.
-        const index = filteredGroupedSessions.findIndex((s) => s.id === id)
-        const next =
-          index !== -1 && filteredGroupedSessions.length > 1
-            ? filteredGroupedSessions[index + 1 === filteredGroupedSessions.length ? index - 1 : index + 1]
-            : undefined
-        if (next) {
-          setActiveSessionId(next.id)
-          return
-        }
-
-        const deletedSession =
-          (index !== -1 ? filteredGroupedSessions[index] : undefined) ??
-          sessionItemsRef.current.find((session) => session.id === id)
-        const seed = deletedSession
-          ? buildCreateSessionSeed({
-              agentId: agentIdFilter ?? deletedSession.agentId,
-              workspace: deletedSession.workspace,
-              workspaceId: deletedSession.workspaceId
-            })
-          : agentIdFilter
-            ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-            : null
-        // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-        // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
-        // clear the active id in `finally`, so we never strand the view on the just-deleted session.
-        try {
-          if (seed?.agentId && onStartDraftSession) {
-            await onStartDraftSession({
-              agentId: seed.agentId,
-              workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-            })
-          }
-        } catch (err) {
-          logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-        } finally {
-          setActiveSessionId(null)
-        }
+      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
+      // never jump to an unrelated agent's session. When that agent has no other session left, open a
+      // fresh empty one for it instead of stranding the view.
+      const agentScopedSessions = deletedSession
+        ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
+        : filteredGroupedSessions
+      const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
+      if (next) {
+        setActiveSessionId(next.id)
         return
       }
 
-      const remaining = sessionItems.find((s) => s.id !== id)
-      setActiveSessionId(remaining?.id ?? null)
+      const seed = deletedSession
+        ? buildCreateSessionSeed({
+            agentId: agentIdFilter ?? deletedSession.agentId,
+            workspace: deletedSession.workspace,
+            workspaceId: deletedSession.workspaceId
+          })
+        : agentIdFilter
+          ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+          : null
+      // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
+      // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
+      // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+      let createdSession: AgentSessionEntity | null | void = null
+      try {
+        if (seed?.agentId && onCreateSession) {
+          createdSession = await onCreateSession({
+            agentId: seed.agentId,
+            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+            // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
+            excludeReuseSessionId: id
+          })
+        }
+      } catch (err) {
+        logger.error('Failed to create session after deleting last session', { err, sessionId: id })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        if (!createdSession) setActiveSessionId(null)
+      }
     },
-    [
-      activeSessionId,
-      agentIdFilter,
-      deleteSession,
-      filteredGroupedSessions,
-      isRightPanel,
-      onStartDraftSession,
-      sessionItems,
-      setActiveSessionId,
-      t
-    ]
+    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
   )
 
   const handleRenameSession = useCallback(
@@ -732,14 +721,190 @@ const Sessions = ({
           { showSuccessToast: false }
         )
         if (updatedSession) {
-          window.toast.success(t('common.saved'))
+          toast.success(t('common.saved'))
         }
       } catch (err) {
         logger.error('Failed to rename session', { err, sessionId: id })
-        window.toast.error(t('agent.session.update.error.failed'))
+        toast.error(t('agent.session.update.error.failed'))
       }
     },
     [sessionItems, t, updateSession]
+  )
+
+  const handleAutoRenameSession = useCallback(
+    async (session: AgentSessionEntity) => {
+      const messages = await getAgentSessionMessagesForExport(session)
+      if (messages.length < 2) return
+
+      const topicId = buildAgentSessionTopicId(session.id)
+      startTopicRenaming(topicId)
+      try {
+        const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
+        if (summaryText) {
+          await updateSession(
+            { id: session.id, name: summaryText, isNameManuallyEdited: false },
+            { showSuccessToast: false }
+          )
+        } else if (summaryError) {
+          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+        }
+      } finally {
+        finishTopicRenaming(topicId)
+      }
+    },
+    [t, updateSession]
+  )
+
+  const showSessionImageExportToast = useCallback(
+    (request: AgentSessionImageActionRequest) => {
+      const key = `agent-session-image-export:${request.id}`
+      const loadingPromise = request.promise.finally(() => toast.closeToast(key)).catch(() => undefined)
+
+      toast.loading({
+        key,
+        title: t('chat.topics.export.image_exporting_keep_page'),
+        promise: loadingPromise,
+        onError: () => {}
+      })
+
+      void request.promise.then(
+        () => toast.success(t('chat.topics.export.image_saved')),
+        () => toast.error(t('chat.topics.export.failed'))
+      )
+    },
+    [t]
+  )
+
+  const handleSessionImageAction = useCallback(
+    (type: AgentSessionImageActionType, session: AgentSessionEntity) => {
+      const request = requestAgentSessionImageAction(type, session)
+      if (type === 'export') {
+        showSessionImageExportToast(request)
+      } else {
+        void request.promise.catch(() => toast.error(t('common.copy_failed')))
+      }
+
+      queueImageCaptureTarget(request, session)
+    },
+    [queueImageCaptureTarget, showSessionImageExportToast, t]
+  )
+
+  const handleSaveSessionToNotes = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await exportContentToNotes(title, markdown, notesPath)
+    },
+    [getSessionExportOptions, notesPath]
+  )
+
+  const handleSaveSessionToKnowledge = useCallback(
+    async (session: AgentSessionEntity) => {
+      try {
+        const title = getAgentSessionExportTitle(session)
+        const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+        const result = await SaveToKnowledgePopup.showForMessages(messages, title)
+        if (result?.success) {
+          toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+        }
+      } catch (err) {
+        logger.error('Failed to save agent session to knowledge base', { err, sessionId: session.id })
+        toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+      }
+    },
+    [getSessionExportOptions, t]
+  )
+
+  const handleCopySessionMarkdown = useCallback(
+    (session: AgentSessionEntity) => copyAgentSessionAsMarkdown(session, getSessionExportOptions(session)),
+    [getSessionExportOptions]
+  )
+
+  const handleCopySessionPlainText = useCallback(
+    (session: AgentSessionEntity) => copyAgentSessionAsPlainText(session, getSessionExportOptions(session)),
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionMarkdown = useCallback(
+    (session: AgentSessionEntity) => {
+      return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionMarkdownReason = useCallback(
+    (session: AgentSessionEntity) => {
+      return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionWord = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionNotion = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await exportMessagesToNotion(title, messages)
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionYuque = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await exportMarkdownToYuque(title, markdown)
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionObsidian = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionJoplin = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await exportMarkdownToJoplin(title, messages)
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionSiyuan = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await exportMarkdownToSiyuan(title, markdown)
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleCopySessionImage = useCallback(
+    (session: AgentSessionEntity) => {
+      handleSessionImageAction('copy', session)
+    },
+    [handleSessionImageAction]
+  )
+
+  const handleExportSessionImage = useCallback(
+    (session: AgentSessionEntity) => {
+      handleSessionImageAction('export', session)
+    },
+    [handleSessionImageAction]
   )
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
@@ -755,8 +920,8 @@ const Sessions = ({
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
     refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
-  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
+    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
@@ -767,15 +932,15 @@ const Sessions = ({
       if (!seed?.agentId) {
         const defaultAgent = agentsForDisplay[0]
         if (defaultAgent) {
-          await onStartDraftSession?.({
+          const createdSession = await onCreateSession?.({
             agentId: defaultAgent.id,
             workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
           })
-          setActiveSessionId(null)
-          return null
+          if (!createdSession) setActiveSessionId(null)
+          return createdSession ?? null
         }
 
-        await onStartMissingAgentDraft?.()
+        await onShowMissingAgentSelection?.()
         return null
       }
 
@@ -793,16 +958,16 @@ const Sessions = ({
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
 
-        await onStartDraftSession?.({
+        const createdSession = await onCreateSession?.({
           agentId: seed.agentId,
           workspace
         })
 
-        setActiveSessionId(null)
-        return null
+        if (!createdSession) setActiveSessionId(null)
+        return createdSession ?? null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
         setCreatingSession(false)
@@ -813,8 +978,8 @@ const Sessions = ({
       agentsForDisplay,
       creatingSession,
       findOrCreateWorkspace,
-      onStartMissingAgentDraft,
-      onStartDraftSession,
+      onShowMissingAgentSelection,
+      onCreateSession,
       setActiveSessionId,
       t
     ]
@@ -831,22 +996,20 @@ const Sessions = ({
     }
   }, [displayMode, refetchWorkspaces, reload])
 
-  const handleDeleteAgentSessions = useCallback(
+  const handleDeleteAgent = useCallback(
     async (agentId: string) => {
-      if (deletingAgentGroupIdRef.current) return
+      if (deletingAgentId) return
 
-      const sessionIds = sessionItemsRef.current
-        .filter((session) => session.agentId === agentId)
-        .map((session) => session.id)
-      if (sessionIds.length === 0) return
+      const currentActiveSessionId = activeSessionIdRef.current
+      const currentActiveSession = currentActiveSessionId
+        ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
+        : undefined
 
-      deletingAgentGroupIdRef.current = agentId
-      setDeletingAgentGroupId(agentId)
-
+      setDeletingAgentId(agentId)
       try {
-        const confirmed = await window.modal.confirm({
-          title: t('agent.session.agent.delete.title'),
-          content: t('agent.session.agent.delete.content'),
+        const confirmed = await popup.confirm({
+          title: t('agent.delete.title'),
+          content: t('agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -856,27 +1019,39 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        const result = await deleteAgentSessions({ params: { agentId } })
-        const affectedSessionIds = new Set(result.deletedIds)
-        const currentActiveSessionId = activeSessionIdRef.current
-
-        if (currentActiveSessionId && affectedSessionIds.has(currentActiveSessionId)) {
-          const remaining = sessionItemsRef.current.find((session) => !affectedSessionIds.has(session.id))
-          setActiveSessionId(remaining?.id ?? null)
+        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        if (currentActiveSession?.agentId === agentId) {
+          if (onActiveAgentDeleted) {
+            await onActiveAgentDeleted(agentId)
+          } else {
+            const remaining = sessionItemsRef.current.find((session) => session.agentId !== agentId)
+            setActiveSessionId(remaining?.id ?? null)
+          }
         }
 
+        await refetchAgents()
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete agent sessions', { agentId, err, sessionIds })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
+        logger.error('Failed to delete agent from session group', { agentId, err })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
       } finally {
-        deletingAgentGroupIdRef.current = null
-        setDeletingAgentGroupId(null)
+        setDeletingAgentId(null)
       }
     },
-    [deleteAgentSessions, refetchWorkspaces, reload, setActiveSessionId, t]
+    [
+      closeConversationTabs,
+      deleteAgent,
+      deletingAgentId,
+      onActiveAgentDeleted,
+      refetchAgents,
+      refetchWorkspaces,
+      reload,
+      setActiveSessionId,
+      t
+    ]
   )
 
   const handleDeleteWorkdirGroup = useCallback(
@@ -889,7 +1064,7 @@ const Sessions = ({
         .map((session) => session.id)
       if (sessionIds.length === 0) return
 
-      const confirmed = await window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('agent.session.workdir.delete.title'),
         content: t('agent.session.workdir.delete.content'),
         okText: t('common.delete'),
@@ -902,10 +1077,11 @@ const Sessions = ({
       if (!confirmed) return
 
       setDeletingWorkspaceGroupId(group.id)
-      const affectedSessionIds = new Set(sessionIds)
 
       try {
-        await deleteWorkspace({ params: { workspaceId } })
+        const result = await deleteWorkspace({ params: { workspaceId } })
+        closeConversationTabs('agents', result.deletedIds)
+        const affectedSessionIds = new Set(result.deletedIds)
 
         if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
           const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
@@ -914,16 +1090,17 @@ const Sessions = ({
 
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
       } finally {
         setDeletingWorkspaceGroupId(null)
       }
     },
     [
       activeSessionId,
+      closeConversationTabs,
       deleteWorkspace,
       deletingWorkspaceGroupId,
       refetchWorkspaces,
@@ -959,10 +1136,10 @@ const Sessions = ({
           body: { name: trimmedName },
           params: { workspaceId: target.workspaceId }
         })
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename workspace group', { err, workspaceId: target.workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
       }
     },
     [renamingWorkspaceGroup, t, updateWorkspace]
@@ -973,7 +1150,7 @@ const Sessions = ({
       try {
         await window.api.file.openPath(workdirPath)
       } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
+        toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }
     },
     [t]
@@ -1004,7 +1181,7 @@ const Sessions = ({
         await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -1100,7 +1277,7 @@ const Sessions = ({
           } catch (err) {
             setOptimisticAgentOrderIds(null)
             logger.error('Failed to reorder agent session group', { activeAgentId, err, overAgentId })
-            window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+            toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
             try {
               await refetchAgents()
@@ -1143,7 +1320,7 @@ const Sessions = ({
             err,
             overWorkspaceId
           })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
           try {
             await refetchWorkspaces()
@@ -1214,7 +1391,6 @@ const Sessions = ({
       const createSessionSeed = getCreateSessionSeedForGroup(group.id)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
       const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
-      const hasAgentSessions = !!agentGroupId && sessionItems.some((session) => session.agentId === agentGroupId)
 
       if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
 
@@ -1224,11 +1400,13 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
-                deleteSessionsDisabled={!!deletingAgentGroupId || !hasAgentSessions}
+                assistantIconType={assistantIconType}
+                deleteAgentDisabled={deletingAgentId !== null}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
-                onDeleteSessions={handleDeleteAgentSessions}
+                onDeleteAgent={handleDeleteAgent}
                 onEdit={openAgentEditor}
+                onSetAgentIconType={setAssistantIconType}
                 onTogglePin={handleToggleAgentPin}
               />
             </Tooltip>
@@ -1268,13 +1446,14 @@ const Sessions = ({
     [
       agentById,
       agentPinnedIdSet,
+      assistantIconType,
       createSessionFromSeed,
       creatingSession,
-      deletingAgentGroupId,
+      deletingAgentId,
       deletingWorkspaceGroupId,
       displayMode,
       getCreateSessionSeedForGroup,
-      handleDeleteAgentSessions,
+      handleDeleteAgent,
       handleToggleAgentPin,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
@@ -1282,7 +1461,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
-      sessionItems,
+      setAssistantIconType,
       t,
       workdirDisplay
     ]
@@ -1335,16 +1514,9 @@ const Sessions = ({
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
-      return (
-        <EmojiIcon
-          emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
-          size={24}
-          fontSize={14}
-          className="mr-0"
-        />
-      )
+      return renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
     },
-    [agentById, displayMode]
+    [agentById, assistantIconType, defaultModelId, displayMode]
   )
 
   const getGroupHeaderClassName = useCallback(
@@ -1381,10 +1553,11 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
-          deleteSessionsDisabled:
-            !!deletingAgentGroupId || !sessionItems.some((session) => session.agentId === agentId),
-          onDeleteSessions: handleDeleteAgentSessions,
+          assistantIconType,
+          deleteAgentDisabled: deletingAgentId !== null,
+          onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
+          onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
@@ -1423,10 +1596,11 @@ const Sessions = ({
     [
       agentById,
       agentPinnedIdSet,
-      deletingAgentGroupId,
+      assistantIconType,
+      deletingAgentId,
       deletingWorkspaceGroupId,
       displayMode,
-      handleDeleteAgentSessions,
+      handleDeleteAgent,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
@@ -1434,9 +1608,48 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
-      sessionItems,
+      setAssistantIconType,
       t,
       workdirDisplay
+    ]
+  )
+
+  const sessionMenuActions = useMemo<SessionItemMenuActions>(
+    () => ({
+      exportMenuOptions: exportMenuOptions as SessionItemMenuActions['exportMenuOptions'],
+      onAutoRename: handleAutoRenameSession,
+      onCopyImage: handleCopySessionImage,
+      onCopyMarkdown: handleCopySessionMarkdown,
+      onCopyPlainText: handleCopySessionPlainText,
+      onExportImage: handleExportSessionImage,
+      onExportJoplin: handleExportSessionJoplin,
+      onExportMarkdown: handleExportSessionMarkdown,
+      onExportMarkdownReason: handleExportSessionMarkdownReason,
+      onExportNotion: handleExportSessionNotion,
+      onExportObsidian: handleExportSessionObsidian,
+      onExportSiyuan: handleExportSessionSiyuan,
+      onExportWord: handleExportSessionWord,
+      onExportYuque: handleExportSessionYuque,
+      onSaveToKnowledge: handleSaveSessionToKnowledge,
+      onSaveToNotes: handleSaveSessionToNotes
+    }),
+    [
+      exportMenuOptions,
+      handleAutoRenameSession,
+      handleCopySessionMarkdown,
+      handleCopySessionPlainText,
+      handleCopySessionImage,
+      handleExportSessionImage,
+      handleExportSessionJoplin,
+      handleExportSessionMarkdown,
+      handleExportSessionMarkdownReason,
+      handleExportSessionNotion,
+      handleExportSessionObsidian,
+      handleExportSessionSiyuan,
+      handleExportSessionWord,
+      handleExportSessionYuque,
+      handleSaveSessionToKnowledge,
+      handleSaveSessionToNotes
     ]
   )
 
@@ -1461,6 +1674,16 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
+  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
+  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
+  const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
+  const headerCreateDisabled =
+    displayMode === 'agent'
+      ? !onAddAgent
+      : creatingSession || (!headerCreateSessionSeed && !onShowMissingAgentSelection)
+  const handleHeaderCreate = displayMode === 'agent' ? () => void onAddAgent?.() : handleHeaderCreateSession
+  const canSetPanePosition = displayMode === 'agent' || isRightPanel
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1468,13 +1691,13 @@ const Sessions = ({
       className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
-      selectedId={hasActiveResourceMenuItem ? null : activeSessionId}
+      selectedId={hasActiveCenterSurface ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
-      defaultGroupVisibleCount={5}
-      groupLoadStep={5}
+      defaultGroupVisibleCount={defaultGroupVisibleCount}
+      groupLoadStep={DEFAULT_SESSION_GROUP_VISIBLE_COUNT}
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderClassName={getGroupHeaderClassName}
@@ -1498,7 +1721,7 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}>
-      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
         {isRightPanel ? (
           <ResourceList.Search
             aria-label={t('agent.session.search.title')}
@@ -1510,16 +1733,22 @@ const Sessions = ({
           <>
             <ResourceList.HeaderItem
               type="button"
-              command="topic.create"
-              aria-label={t('agent.session.new')}
-              disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
-              icon={<SquarePen />}
-              label={t('agent.session.new')}
-              onClick={handleHeaderCreateSession}
+              command={displayMode === 'agent' ? undefined : 'topic.create'}
+              aria-label={headerCreateLabel}
+              disabled={headerCreateDisabled}
+              icon={displayMode === 'agent' ? <Plus /> : <SquarePen />}
+              label={headerCreateLabel}
+              onClick={handleHeaderCreate}
               actions={
                 <SessionListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
+                  manageAgentsActive={manageAgentsMenuItem?.active}
+                  manageSkillsActive={manageSkillsMenuItem?.active}
+                  manageSkillsIcon={manageSkillsMenuItem?.icon}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+                  onManageAgents={manageAgentsMenuItem?.onSelect}
+                  onManageSkills={manageSkillsMenuItem?.onSelect}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionId={
                     displayMode === 'agent'
@@ -1531,7 +1760,6 @@ const Sessions = ({
                 />
               }
             />
-            <ConversationResourceMenu items={resourceMenuItems} />
           </>
         )}
       </ResourceList.Header>
@@ -1548,8 +1776,10 @@ const Sessions = ({
         onOpenInNewTab={openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}
-        onSelectItem={onSelectItem}
+        onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
         onTogglePin={togglePin}
+        panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+        sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
       />
       {!listLoading && (isLoadingMore || hasMore) && (
@@ -1571,6 +1801,17 @@ const Sessions = ({
         }}
         onSaved={refetchAgents}
       />
+      {imageCaptureTargets.map(({ requestId, target: session }) => {
+        const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
+        return (
+          <AgentSessionImageCaptureHost
+            key={requestId}
+            activeAgent={activeAgent}
+            modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+            session={session}
+          />
+        )
+      })}
     </SessionResourceList>
   )
 }
@@ -1588,8 +1829,10 @@ interface SessionListBodyProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
-  onSelectItem?: () => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
+  panePosition?: TopicTabPosition
+  sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
 
@@ -1606,8 +1849,10 @@ function SessionListBody({
   onOpenInNewTab,
   onOpenInNewWindow,
   onRetry,
-  onSelectItem,
+  onSetPanePosition,
   onTogglePin,
+  panePosition,
+  sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
   const { t } = useTranslation()
@@ -1627,8 +1872,10 @@ function SessionListBody({
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
+        onSetPanePosition={onSetPanePosition}
+        panePosition={panePosition}
         onPress={setActiveSessionId}
-        onSelectItem={onSelectItem}
+        sessionMenuActions={sessionMenuActions}
       />
     ),
     [
@@ -1638,8 +1885,10 @@ function SessionListBody({
       onDeleteSession,
       onOpenInNewTab,
       onOpenInNewWindow,
-      onSelectItem,
+      onSetPanePosition,
       onTogglePin,
+      panePosition,
+      sessionMenuActions,
       setActiveSessionId
     ]
   )

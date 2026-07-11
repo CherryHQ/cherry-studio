@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   showSearchPopup: vi.fn()
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
@@ -249,6 +249,29 @@ describe('AppShellTabBar', () => {
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')
+  })
+
+  it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
+    renderTabBar({
+      tabs: [
+        { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat title' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ],
+      activeTabId: 'chat'
+    })
+
+    const title = screen.getByText('Chat title')
+    const tabButton = screen.getByRole('button', { name: 'Chat title' })
+    const icon = tabButton.querySelector('svg')
+    const iconBox = icon?.parentElement
+
+    expect(title).toHaveClass('font-normal')
+    expect(title).toHaveClass('text-xs')
+    expect(title).toHaveClass('leading-none')
+    expect(title).not.toHaveClass('font-medium')
+    expect(icon).toHaveAttribute('width', '14')
+    expect(icon).toHaveAttribute('height', '14')
+    expect(iconBox).toHaveClass('h-3.5', 'w-3.5')
   })
 
   it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {

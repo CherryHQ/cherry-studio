@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c7229938-c431-41a6-8210-b9310cc150e4",
+  "id": "2db09e8e-7808-4ecb-a6e2-8e57c0340882",
   "prevId": "056f15b4-1256-4d30-85f9-c1ad2f1b23c6",
   "tables": {
     "agent": {
@@ -557,6 +557,11 @@
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -1431,81 +1436,6 @@
         }
       }
     },
-    "mini_app_logo_file_ref": {
-      "name": "mini_app_logo_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "malfr_entry_id_idx": {
-          "name": "malfr_entry_id_idx",
-          "columns": ["file_entry_id"],
-          "isUnique": false
-        },
-        "malfr_source_id_idx": {
-          "name": "malfr_source_id_idx",
-          "columns": ["source_id"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "mini_app_logo_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "mini_app_logo_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "mini_app_logo_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": ["file_entry_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mini_app_logo_file_ref_source_id_mini_app_app_id_fk": {
-          "name": "mini_app_logo_file_ref_source_id_mini_app_app_id_fk",
-          "tableFrom": "mini_app_logo_file_ref",
-          "tableTo": "mini_app",
-          "columnsFrom": ["source_id"],
-          "columnsTo": ["app_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "painting_file_ref": {
       "name": "painting_file_ref",
       "columns": {
@@ -1597,81 +1527,6 @@
           "value": "\"painting_file_ref\".\"role\" IN ('output', 'input')"
         }
       }
-    },
-    "provider_logo_file_ref": {
-      "name": "provider_logo_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "plfr_entry_id_idx": {
-          "name": "plfr_entry_id_idx",
-          "columns": ["file_entry_id"],
-          "isUnique": false
-        },
-        "plfr_source_id_idx": {
-          "name": "plfr_source_id_idx",
-          "columns": ["source_id"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "provider_logo_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "provider_logo_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "provider_logo_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": ["file_entry_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "provider_logo_file_ref_source_id_user_provider_provider_id_fk": {
-          "name": "provider_logo_file_ref_source_id_user_provider_provider_id_fk",
-          "tableFrom": "provider_logo_file_ref",
-          "tableTo": "user_provider",
-          "columnsFrom": ["source_id"],
-          "columnsTo": ["provider_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "group": {
       "name": "group",
@@ -2831,15 +2686,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo_key": {
-          "name": "logo_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "logo_file_id": {
-          "name": "logo_file_id",
+        "logo": {
+          "name": "logo",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2923,17 +2771,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "mini_app_logo_file_id_file_entry_id_fk": {
-          "name": "mini_app_logo_file_id_file_entry_id_fk",
-          "tableFrom": "mini_app",
-          "tableTo": "file_entry",
-          "columnsFrom": ["logo_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
@@ -3898,20 +3736,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo_key": {
-          "name": "logo_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "logo_file_id": {
-          "name": "logo_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "endpoint_configs": {
           "name": "endpoint_configs",
           "type": "text",
@@ -4002,17 +3826,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "user_provider_logo_file_id_file_entry_id_fk": {
-          "name": "user_provider_logo_file_id_file_entry_id_fk",
-          "tableFrom": "user_provider",
-          "tableTo": "file_entry",
-          "columnsFrom": ["logo_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

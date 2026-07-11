@@ -85,7 +85,8 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
-      showItemInFolder: vi.fn()
+      showItemInFolder: vi.fn(),
+      trashItem: vi.fn()
     },
     session: {
       defaultSession: {

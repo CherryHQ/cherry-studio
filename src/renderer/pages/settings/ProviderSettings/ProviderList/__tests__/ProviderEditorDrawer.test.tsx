@@ -91,15 +91,16 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
+}))
+
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // jsdom has no object-URL impl; stub so the staged-upload preview path runs.
     URL.createObjectURL = vi.fn(() => 'blob:provider-logo')
     URL.revokeObjectURL = vi.fn()
-    window.toast = {
-      error: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('stages an uploaded logo and previews it via an object URL', async () => {

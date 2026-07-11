@@ -2,6 +2,7 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
@@ -90,7 +91,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         await ipcApi.request('provider.set_logo', { providerId, image })
       } catch (error) {
         logger.error('Failed to set provider logo', error as Error)
-        window.toast.error(t('settings.provider.logo_upload_failed'))
+        toast.error(t('settings.provider.logo_upload_failed'))
         return
       }
 

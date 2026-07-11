@@ -1,6 +1,6 @@
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarFavoriteKey, getSidebarMenuPath } from '@renderer/utils/sidebar'
+import { getSidebarFavoriteKey, getSidebarMenuPath, isSidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -42,6 +42,7 @@ interface SidebarVariantDescriptor<T extends SidebarFavoriteItem> {
 const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 'app' }>> = {
   resolve: (item, ctx) => {
     const id = item.id
+    if (!isSidebarAppId(id)) return null
     const path = getSidebarMenuPath(id, ctx.defaultPaintingProvider)
     const Icon = SIDEBAR_ICON_COMPONENTS[id]
     // Unrenderable app (no route or no icon) is dropped from the list but stays in

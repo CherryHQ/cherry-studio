@@ -25,7 +25,6 @@ vi.mock('html-to-image', () => ({
   )
 }))
 
-// mock window.toast
 beforeEach(() => {
   vi.mocked(imageCompression).mockClear()
   vi.mocked(htmlToImage.toCanvas).mockReset()
@@ -35,10 +34,6 @@ beforeEach(() => {
       toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
     } as unknown as HTMLCanvasElement)
   )
-
-  window.toast = {
-    error: vi.fn()
-  } as any
 })
 
 describe('utils/image', () => {
@@ -205,8 +200,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 40000, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      await expect(captureScrollable(ref)).rejects.toBeUndefined()
-      expect(window.toast.error).toHaveBeenCalled()
+      await expect(captureScrollable(ref)).rejects.toThrow()
       expect(div.classList.contains('hide-scrollbar')).toBe(false)
     })
   })

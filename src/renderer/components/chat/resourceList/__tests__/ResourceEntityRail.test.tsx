@@ -75,13 +75,18 @@ vi.mock('@renderer/components/VirtualList', () => {
     renderItem,
     role,
     scrollerProps,
-    scrollElementRef
+    scrollElementRef,
+    dragCapabilities
   }) => {
     const rows = buildGroupedVirtualRows(groups, Boolean(renderGroupHeader), Boolean(renderGroupFooter))
 
     return (
       <div
         ref={(node) => {
+          // The real virtual list exposes an imperative scrollToIndex; stub it so keyboard
+          // navigation (which scrolls the active item into view) works under this mock.
+          const listNode = node as (HTMLDivElement & { scrollToIndex?: (index: number) => void }) | null
+          if (listNode && typeof listNode.scrollToIndex !== 'function') listNode.scrollToIndex = () => {}
           if (typeof ref === 'function') ref(node)
           else if (ref) (ref as { current: HTMLDivElement | null }).current = node
           if (typeof scrollElementRef === 'function') scrollElementRef(node)
@@ -93,6 +98,7 @@ vi.mock('@renderer/components/VirtualList', () => {
         role={role}
         className={className}
         data-draggable={dragEnabled ? 'true' : 'false'}
+        data-drag-capabilities={JSON.stringify(dragCapabilities ?? null)}
         {...scrollerProps}>
         {rows.map((row, index) => {
           if (row.type === 'group-header') {
@@ -156,6 +162,23 @@ describe('ResourceEntityRail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks the history button as current while history records are active', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onOpenHistoryRecords={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('omits the history button when onOpenHistoryRecords is not provided', () => {
@@ -236,6 +259,188 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('renders row trailing actions next to the more menu without selecting the entity', () => {
+    const onContextMenuAction = vi.fn()
+    const onSelect = vi.fn()
+    const onTrailingAction = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        getContextMenuActions={() => [EDIT_ACTION]}
+        items={[
+          {
+            ...ITEMS[0],
+            trailingAction: (
+              <button type="button" aria-label="Create" onClick={onTrailingAction}>
+                Create
+              </button>
+            )
+          },
+          ITEMS[1]
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onContextMenuAction={onContextMenuAction}
+        onSelect={onSelect}
+      />
+    )
+
+    const createButton = screen.getByRole('button', { name: 'Create' })
+    const moreButton = screen.getAllByRole('button', { name: 'common.more' })[0]
+
+    expect(createButton).toBeInTheDocument()
+    expect(moreButton).toBeInTheDocument()
+    expect(moreButton.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
+
+    expect(onTrailingAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onContextMenuAction).not.toHaveBeenCalled()
+  })
+
+  it('toggles the selected entity instead of selecting it again', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Assistant B').closest('[role="option"]') as HTMLElement)
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onSelectedClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('activates entities from the keyboard, toggling the already-selected one', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const listbox = screen.getByRole('listbox', { name: 'Assistants' })
+
+    // Enter on the already-selected entity toggles its pane instead of reselecting.
+    fireEvent.keyDown(listbox, { key: 'Home' })
+    fireEvent.keyDown(listbox, { key: 'Enter' })
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+
+    // Space on a different entity selects it, mirroring a mouse click.
+    fireEvent.keyDown(listbox, { key: 'End' })
+    fireEvent.keyDown(listbox, { key: ' ' })
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onSelectedClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the selected click id for repeat-click toggles when the visual selection is cleared', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId={null}
+        selectedClickId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps repeat-click toggles available while history records clear the visual selection', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const row = screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement
+    expect(row).not.toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(row)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('selects the entity instead of toggling it while a resource menu item is active', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'assistant-view',
+            label: 'Assistants',
+            onSelect: vi.fn()
+          }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelectedClick).not.toHaveBeenCalled()
+  })
+
   it('does not select the entity when a context-menu action is picked', () => {
     const onSelect = vi.fn()
     const onContextMenuAction = vi.fn()
@@ -264,6 +469,26 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
 
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('does not reserve a leading slot for entities without icons', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        items={[{ id: 'assistant-a', name: 'Assistant A' }]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(
+      screen
+        .getByText('Assistant A')
+        .closest('[role="option"]')
+        ?.querySelector('[data-resource-list-leading-slot=true]')
+    ).toBeNull()
   })
 
   it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
@@ -330,7 +555,41 @@ describe('ResourceEntityRail', () => {
     // The flat default "Assistants" header never appears while grouping by tag.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
-    expect(screen.getByRole('listbox', { name: 'Assistants list' })).toHaveAttribute('data-draggable', 'false')
+    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
+    expect(listbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      groups: false,
+      items: true,
+      itemSameGroup: true,
+      itemCrossGroup: false
+    })
+  })
+
+  it('renders tag section headers with the shared hover and collapse affordance', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const workHeader = screen.getByRole('button', { name: 'work' })
+    const visualRow = workHeader.closest('div')
+
+    expect(visualRow).toHaveClass('hover:bg-sidebar-accent', 'rounded-lg')
+    expect(workHeader.querySelector('svg')).not.toBeNull()
+
+    fireEvent.click(workHeader)
+    expect(workHeader).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {

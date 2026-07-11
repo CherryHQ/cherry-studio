@@ -7,6 +7,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -25,6 +26,7 @@ export type AgentSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactElement
+  additionalItems?: readonly AgentSelectorItem[]
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
@@ -52,6 +54,7 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const {
     trigger,
+    additionalItems,
     open,
     onOpenChange,
     onDialogCloseAutoFocus,
@@ -93,14 +96,16 @@ export function AgentSelector(props: AgentSelectorProps) {
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((agent) => ({
+    () => [
+      ...(data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
         description: agent.description,
         emoji: getAgentAvatarFromConfiguration(agent.configuration)
       })),
-    [data]
+      ...(additionalItems ?? [])
+    ],
+    [additionalItems, data]
   )
 
   const handleTogglePin = useCallback(
@@ -110,7 +115,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await togglePin(id)
       } catch (error) {
         logger.error('Failed to toggle agent pin', error as Error, { id })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isPinActionDisabled, togglePin, t]
@@ -164,8 +169,7 @@ export function AgentSelector(props: AgentSelectorProps) {
             skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
+              permission_mode: 'bypassPermissions'
             }
           }
         })
@@ -180,7 +184,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
-        window.toast?.error(t('selector.create_dialog.refresh_failed'))
+        toast.error(t('selector.create_dialog.refresh_failed'))
       }
       if (autoSelectOnCreate) {
         if (props.selectionType === 'item') {
@@ -208,7 +212,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       await refetch()
     } catch (error) {
       logger.warn('Failed to refresh agents after selector edit', { error })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [refetch, t])
 

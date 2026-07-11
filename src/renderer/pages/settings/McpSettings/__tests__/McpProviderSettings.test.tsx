@@ -42,6 +42,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key })
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
+}))
+
 const PERSIST_KEY = 'feature.mcp.provider_available_servers'
 
 function makeProvider(key: string): ProviderConfig {
@@ -62,7 +66,6 @@ describe('McpProviderSettings persist cache', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
-    window.toast = { success: vi.fn(), error: vi.fn() } as unknown as typeof window.toast
   })
 
   it('merges fetched servers without clobbering another provider in the persist cache', async () => {

@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-03T11:39:07.419Z
+ * Generated at: 2026-07-11T04:23:04.106Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -149,6 +149,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'fontSize',
       targetKey: 'chat.message.font_size'
+    },
+    {
+      originalKey: 'topicPosition',
+      targetKey: 'topic.tab.position'
     },
     {
       originalKey: 'assistantIconType',
@@ -799,11 +803,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 175
+ * - Redux Store项: 176
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 181
+ * - 总配置项: 182
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

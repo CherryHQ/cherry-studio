@@ -427,26 +427,6 @@ export async function registerIpc() {
     }
   })
 
-  ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
-    try {
-      if (
-        !options ||
-        typeof options.skillId !== 'string' ||
-        !options.skillId ||
-        typeof options.agentId !== 'string' ||
-        !options.agentId ||
-        typeof options.isEnabled !== 'boolean'
-      ) {
-        return { success: false, error: 'Invalid toggle options' }
-      }
-      const data = skillService.toggle(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to toggle skill', { options, error })
-      return { success: false, error }
-    }
-  })
-
   ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
     try {
       const data = await skillService.installFromZip(options)

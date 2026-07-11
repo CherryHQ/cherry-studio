@@ -3,12 +3,16 @@ import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { cherryinRequestSchemas } from './cherryin'
+import { codeCliRequestSchemas } from './codeCli'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { miniAppRequestSchemas } from './miniApp'
-import { navigationRequestSchemas } from './navigation'
+import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
+import { openclawRequestSchemas } from './openclaw'
+import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
@@ -27,12 +31,16 @@ export const ipcRequestSchemas = {
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...cherryinRequestSchemas,
+  ...codeCliRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...localModelRequestSchemas,
   ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
+  ...openclawRequestSchemas,
+  ...printRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,
   ...selectionRequestSchemas,
@@ -51,6 +59,8 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
+  LocalModelEventSchemas &
+  NavigationEventSchemas &
   OAuthEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas

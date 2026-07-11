@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
 import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
 import type { FC } from 'react'
@@ -45,14 +46,18 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
     setLaunching(true)
     try {
       const { homePath } = await window.api.getAppInfo()
-      const result = await window.api.codeCli.run(CodeCli.CLAUDE_CODE, '', homePath, {}, { loginFlow: true })
+      const result = await ipcApi.request('code_cli.run', {
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: homePath
+      })
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })
-        window.toast.error(t('settings.provider.claude_code.launch_failed'))
+        toast.error(t('settings.provider.claude_code.launch_failed'))
       }
     } catch (error) {
       logger.error('Failed to launch Claude login terminal', error as Error)
-      window.toast.error(t('settings.provider.claude_code.launch_failed'))
+      toast.error(t('settings.provider.claude_code.launch_failed'))
     } finally {
       setLaunching(false)
     }
@@ -61,10 +66,10 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   const handleCopyCommand = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(LOGIN_COMMAND)
-      window.toast.success(t('common.copied'))
+      toast.success(t('common.copied'))
     } catch (error) {
       logger.error('Failed to copy login command', error as Error)
-      window.toast.error(t('common.copy_failed'))
+      toast.error(t('common.copy_failed'))
     }
   }, [t])
 

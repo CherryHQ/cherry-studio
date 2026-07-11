@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "53efa25a-deaf-4868-806a-83dd1231e4be",
-  "prevId": "c7229938-c431-41a6-8210-b9310cc150e4",
+  "id": "5b6b03b4-0882-4ab4-9eb8-29425fd9e797",
+  "prevId": "2db09e8e-7808-4ecb-a6e2-8e57c0340882",
   "tables": {
     "agent": {
       "name": "agent",
@@ -557,6 +557,11 @@
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -92,7 +93,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// window.toast — used in success/error paths
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
+}))
+
 beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
@@ -101,6 +105,8 @@ beforeEach(() => {
   mocks.refreshCustomMiniApp.mockResolvedValue(undefined)
   mocks.ipcRequest.mockReset()
   mocks.ipcRequest.mockResolvedValue(undefined)
+  vi.mocked(toast.success).mockClear()
+  vi.mocked(toast.error).mockClear()
   // jsdom has no object-URL impl nor File.arrayBuffer; stub both so the staged
   // upload preview + on-save byte read run.
   URL.createObjectURL = vi.fn(() => 'blob:miniapp-logo')
@@ -109,11 +115,6 @@ beforeEach(() => {
     File.prototype.arrayBuffer = async function () {
       return new Uint8Array([1, 2, 3]).buffer
     }
-  }
-  ;(window as unknown as { toast: { success: () => void; error: () => void; info: () => void } }).toast = {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn()
   }
 })
 
@@ -185,7 +186,7 @@ describe('NewMiniAppPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
-    expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.url_invalid')
+    expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.url_invalid')
     expect(mocks.createCustomMiniApp).not.toHaveBeenCalled()
   })
 
@@ -369,13 +370,13 @@ describe('NewMiniAppPanel', () => {
       // The app saved; only the logo upload failed → a logo-specific message.
       expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.refreshCustomMiniApp).not.toHaveBeenCalled()
-      expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
+      expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
     })
     // The row is saved, so the dialog closes (no re-submittable create state that
     // would mint a fresh appId and insert a duplicate row) and the generic
     // success toast is suppressed in favor of the logo-specific error.
     expect(onClose).toHaveBeenCalledTimes(1)
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('cancel calls onClose', () => {
