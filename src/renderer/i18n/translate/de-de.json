@@ -6083,8 +6083,6 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Auf Updates prüfen",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",

@@ -389,6 +389,36 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('listTools', () => {
+    it('maps state-file entries to the inventory shape', () => {
+      const service = new BinaryManager()
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          tools: {
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+            mytool: { tool: 'npm:mytool', version: '1.2.3' }
+          }
+        })
+      )
+
+      expect(service.listTools()).toEqual([
+        { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
+        { name: 'mytool', tool: 'npm:mytool', version: '1.2.3' }
+      ])
+    })
+
+    it('returns an empty inventory when no state file exists', () => {
+      const service = new BinaryManager()
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      expect(service.listTools()).toEqual([])
+    })
+  })
+
   describe('removeTool', () => {
     it('removes tool from state', async () => {
       const service = new BinaryManager()

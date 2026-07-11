@@ -11,6 +11,24 @@ export enum CodeCli {
 }
 
 /**
+ * CLI tool id → installed binary name (the shim mise exposes). Lives in shared
+ * because it doubles as the exclusion list for surfaces that enumerate
+ * BinaryManager-installed tools (Dependencies settings): code CLIs are
+ * acquired through BinaryManager but managed on the Code CLI page.
+ */
+export const CLI_BINARY_NAMES: Record<CodeCli, string> = {
+  [CodeCli.CLAUDE_CODE]: 'claude',
+  [CodeCli.OPENAI_CODEX]: 'codex',
+  [CodeCli.OPEN_CODE]: 'opencode',
+  [CodeCli.OPENCLAW]: 'openclaw',
+  [CodeCli.GEMINI_CLI]: 'gemini',
+  [CodeCli.QWEN_CODE]: 'qwen',
+  [CodeCli.KIMI_CODE]: 'kimi',
+  [CodeCli.QODER_CLI]: 'qoderclicn',
+  [CodeCli.GITHUB_COPILOT_CLI]: 'copilot'
+}
+
+/**
  * Reserved virtual provider id for the code-CLI "use your own login" option.
  * Persisted as `CodeCliToolState.current` in place of a real provider id so the
  * launch gate passes while no Cherry provider is injected — the CLI then falls

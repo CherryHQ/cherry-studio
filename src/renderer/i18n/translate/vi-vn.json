@@ -6083,8 +6083,6 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Kiểm tra cập nhật",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
       "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",

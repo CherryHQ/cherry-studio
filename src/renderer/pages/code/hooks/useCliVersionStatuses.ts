@@ -1,11 +1,10 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryResolution } from '@shared/types/binary'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_BINARY_NAMES, CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
-import { CLI_BINARY_NAMES } from '../constants/cliTools'
 import type { VersionStatus } from '../types'
 
 const logger = loggerService.withContext('useCliVersionStatus')

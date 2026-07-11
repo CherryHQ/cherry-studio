@@ -707,6 +707,15 @@ export class BinaryManager extends BaseService {
     return { ...this.installStates }
   }
 
+  /** Full inventory of mise-managed installs from the persisted state file. */
+  listTools(): Array<{ name: string; tool: string; version: string }> {
+    return Object.entries(this.loadState().tools).map(([name, entry]) => ({
+      name,
+      tool: entry.tool,
+      version: entry.version
+    }))
+  }
+
   private setInstallState(name: string, state: BinaryInstallState | null) {
     if (state) {
       this.installStates[name] = state

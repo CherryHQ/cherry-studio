@@ -20,7 +20,8 @@ const ipcMocks = vi.hoisted(() => ({
   installTool: vi.fn(),
   removeTool: vi.fn(),
   getToolDir: vi.fn(),
-  getInstallStates: vi.fn()
+  getInstallStates: vi.fn(),
+  listTools: vi.fn()
 }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 
@@ -41,6 +42,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.latestVersions(input)
         case 'binary.get_install_states':
           return ipcMocks.getInstallStates()
+        case 'binary.list_tools':
+          return ipcMocks.listTools()
         default:
           throw new Error(`unexpected route: ${route}`)
       }
@@ -163,6 +166,7 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getInstallStates.mockResolvedValue({})
+    ipcMocks.listTools.mockResolvedValue([])
     ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
       const [state, bundled, system] = await Promise.all([
         ipcMocks.getState(),
@@ -263,15 +267,13 @@ describe('EnvironmentDependencies', () => {
     ).toHaveAttribute('type', 'password')
   })
 
-  it('renders preset tools and the empty custom-tools state', async () => {
+  it('renders all preset tools in the unified grid', async () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     // Preset displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
-    // No custom tools → empty-state hint.
-    expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
   })
 
   it('marks a system-PATH preset as available and shows its resolved path on the source badge', async () => {
@@ -284,12 +286,34 @@ describe('EnvironmentDependencies', () => {
     expect(fdCard).not.toHaveTextContent('settings.mcp.install')
   })
 
-  it('renders a persisted custom tool instead of the empty state', async () => {
+  it('renders a persisted custom tool alongside the presets', async () => {
     customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
-    expect(screen.queryByText('settings.dependencies.customToolsEmpty')).not.toBeInTheDocument()
+    expect(screen.getByText('Bun')).toBeInTheDocument()
+  })
+
+  it('shows state-file inventory tools that are neither presets nor custom tools', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'some-agent', tool: 'npm:some-agent', version: '1.2.3' }])
+    ipcMocks.getState.mockResolvedValue({ tools: { 'some-agent': { version: '1.2.3' } } })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('some-agent')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('v1.2.3')
+  })
+
+  it('excludes code CLI binaries from the inventory grid', async () => {
+    ipcMocks.listTools.mockResolvedValue([
+      { name: 'claude', tool: 'npm:@anthropic-ai/claude-code', version: '1.0.0' },
+      { name: 'openclaw', tool: 'npm:openclaw', version: '1.0.0' },
+      { name: 'some-agent', tool: 'npm:some-agent', version: '1.2.3' }
+    ])
+    render(<EnvironmentDependencies />)
+
+    await screen.findByText('some-agent')
+    expect(screen.queryByText('claude')).not.toBeInTheDocument()
+    expect(screen.queryByText('openclaw')).not.toBeInTheDocument()
   })
 
   it('marks a custom system tool as available without offering installation', async () => {

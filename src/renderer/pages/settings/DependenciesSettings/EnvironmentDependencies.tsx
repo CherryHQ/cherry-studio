@@ -35,6 +35,7 @@ import { cn } from '@renderer/utils/style'
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import type { BinaryResolutions } from '@shared/types/binary'
+import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -95,6 +96,10 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
 
 type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 
+// Code CLIs are installed through BinaryManager too, but have their own
+// management surface (the Code CLI page) — keep them out of this inventory.
+const CODE_CLI_BINARIES = new Set<string>(Object.values(CLI_BINARY_NAMES))
+
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -102,6 +107,9 @@ interface EnvironmentDependenciesProps {
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [resolutions, setResolutions] = useState<BinaryResolutions>({})
   const [resolutionsReady, setResolutionsReady] = useState(false)
+  // Everything recorded in BinaryManager's state file (minus code CLIs) — the
+  // page shows the actual install inventory, not just what it can install.
+  const [inventoryTools, setInventoryTools] = useState<Array<{ name: string; tool: string; version: string }>>([])
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const installStates = useBinaryInstallStates()
@@ -129,9 +137,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const refreshState = useCallback(async () => {
     const requestId = ++resolutionRequestIdRef.current
     try {
-      const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
+      const inventory = (await ipcApi.request('binary.list_tools')).filter((tool) => !CODE_CLI_BINARIES.has(tool.name))
+      const names = [
+        ...new Set([
+          ...PRESETS_BINARY_TOOLS.map((tool) => tool.name),
+          ...customTools.map((tool) => tool.name),
+          ...inventory.map((tool) => tool.name)
+        ])
+      ]
       const resolved = await ipcApi.request('binary.resolve_tools', names)
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      setInventoryTools(inventory)
       setResolutions(resolved)
       setResolutionsReady(true)
     } catch (error) {
@@ -236,7 +252,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void window.api.openPath(separator > 0 ? binaryPath.slice(0, separator) : binaryPath)
   }
 
-  const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
+  // One unified inventory: presets first, then everything else BinaryManager
+  // knows about — user-added custom tools plus state-file entries installed by
+  // other features (code CLIs excluded; they are managed on the Code CLI page).
+  const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
+  const extraTools: ManagedBinary[] = [
+    ...customTools.filter((tool) => !CODE_CLI_BINARIES.has(tool.name)),
+    ...inventoryTools.filter(
+      (tool) => !presetNames.has(tool.name) && !customTools.some((custom) => custom.name === tool.name)
+    )
+  ]
+  const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
 
   if (mini) {
     if (!resolutionsReady) {
@@ -288,6 +314,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             title={t('settings.dependencies.installSettings.title')}>
             <Settings2 className="size-3" />
           </Button>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowAddDialog(true)}>
+            <Plus className="size-3.5" />
+            {t('settings.dependencies.addTool')}
+          </Button>
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
@@ -321,55 +351,34 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             />
           )
         })}
+        {extraTools.map((tool) => {
+          const resolution = resolutions[tool.name] ?? { source: 'none' as const }
+          const managed = resolution.source === 'managed'
+          const systemPath = resolution.source === 'system' ? resolution.path : undefined
+          const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
+          const installedVersion = managed ? resolution.version : undefined
+          const latestVersion = latestVersions?.[tool.name]
+          const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
+          const installState = installStates[tool.name]
+          return (
+            <CustomToolCard
+              key={tool.name}
+              tool={tool}
+              managed={managed}
+              systemPath={systemPath}
+              installedVersion={installedVersion}
+              latestVersion={hasUpdate ? latestVersion : undefined}
+              installing={installState?.status === 'installing'}
+              installError={installState?.status === 'failed' ? installState.error : undefined}
+              onShowError={(message) => setInstallError({ name: tool.name, message })}
+              onInstall={() => installTool(tool)}
+              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
+              onRemove={() => setDeleteTarget(tool.name)}
+            />
+          )
+        })}
       </div>
-
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center justify-between">
-          <h2 className="font-semibold text-[15px] text-foreground leading-6">
-            {t('settings.dependencies.customTools')}
-          </h2>
-          <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
-            <Plus className="size-3.5" />
-            {t('settings.dependencies.addTool')}
-          </Button>
-        </div>
-      </div>
-
-      {customTools.length > 0 ? (
-        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {customTools.map((tool) => {
-            const resolution = resolutions[tool.name] ?? { source: 'none' as const }
-            const managed = resolution.source === 'managed'
-            const systemPath = resolution.source === 'system' ? resolution.path : undefined
-            const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
-            const installedVersion = managed ? resolution.version : undefined
-            const latestVersion = latestVersions?.[tool.name]
-            const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
-            const installState = installStates[tool.name]
-            return (
-              <CustomToolCard
-                key={tool.name}
-                tool={tool}
-                managed={managed}
-                systemPath={systemPath}
-                installedVersion={installedVersion}
-                latestVersion={hasUpdate ? latestVersion : undefined}
-                installing={installState?.status === 'installing'}
-                installError={installState?.status === 'failed' ? installState.error : undefined}
-                onShowError={(message) => setInstallError({ name: tool.name, message })}
-                onInstall={() => installTool(tool)}
-                onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-                onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
-                onRemove={() => setDeleteTarget(tool.name)}
-              />
-            )
-          })}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
-          {t('settings.dependencies.customToolsEmpty')}
-        </div>
-      )}
 
       {!mini && <LocalModelsSection />}
 

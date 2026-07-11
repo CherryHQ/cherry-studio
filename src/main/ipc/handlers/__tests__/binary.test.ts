@@ -11,7 +11,8 @@ const binaryManager = {
   resolveTools: vi.fn(),
   searchRegistry: vi.fn(),
   getLatestVersions: vi.fn(),
-  getInstallStates: vi.fn()
+  getInstallStates: vi.fn(),
+  listTools: vi.fn()
 }
 
 beforeEach(() => {
@@ -62,5 +63,11 @@ describe('binaryHandlers', () => {
     binaryManager.getInstallStates.mockReturnValue({ fd: { status: 'installing' } })
     const result = await binaryHandlers['binary.get_install_states'](undefined, ctx)
     expect(result).toEqual({ fd: { status: 'installing' } })
+  })
+
+  it('list_tools returns the manager inventory', async () => {
+    binaryManager.listTools.mockReturnValue([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
+    const result = await binaryHandlers['binary.list_tools'](undefined, ctx)
+    expect(result).toEqual([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
   })
 })

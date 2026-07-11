@@ -355,13 +355,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
-  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI]),
-  CLI_BINARY_NAMES: {
-    [CodeCli.CLAUDE_CODE]: 'claude',
-    [CodeCli.OPENAI_CODEX]: 'codex',
-    [CodeCli.OPEN_CODE]: 'opencode',
-    [CodeCli.QODER_CLI]: 'qoderclicn'
-  }
+  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
 }))
 
 vi.mock('../hooks/useAvailableTerminals', () => ({
