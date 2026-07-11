@@ -225,11 +225,25 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
       name={fieldName}
       render={() => (
         <FormItem>
-          <FieldLabelWithHelp
-            label={t('library.config.knowledge.linked')}
-            help={t('library.config.knowledge.linked_hint')}
-            formLabel={formLabel}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabelWithHelp
+              label={t('library.config.knowledge.linked')}
+              help={t('library.config.knowledge.linked_hint')}
+              formLabel={formLabel}
+            />
+            <AddCatalogPopover
+              items={catalog}
+              enabledIds={new Set(value)}
+              onAdd={add}
+              triggerLabel={t('library.config.knowledge.add')}
+              searchPlaceholder={t('library.config.knowledge.search')}
+              emptyLabel={t('library.config.knowledge.no_more')}
+              disabled={isLoading}
+              align="end"
+              triggerPosition="end"
+              portalContainer={portalContainer}
+            />
+          </div>
           {linkedItems.length === 0 ? (
             <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
               <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
@@ -263,19 +277,6 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             </div>
           )}
 
-          <AddCatalogPopover
-            items={catalog}
-            enabledIds={new Set(value)}
-            onAdd={add}
-            triggerLabel={t('library.config.knowledge.add')}
-            searchPlaceholder={t('library.config.knowledge.search')}
-            emptyLabel={t('library.config.knowledge.no_more')}
-            disabled={isLoading}
-            align="start"
-            triggerPosition="start"
-            triggerClassName="mt-2"
-            portalContainer={portalContainer}
-          />
           <FormMessage />
         </FormItem>
       )}

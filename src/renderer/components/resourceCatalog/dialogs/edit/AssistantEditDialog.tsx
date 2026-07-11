@@ -12,7 +12,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Separator,
   Slider,
   Switch,
   TabsContent,
@@ -479,20 +478,20 @@ function AssistantPromptField({
       {showUndoButton ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           aria-label={t('common.undo')}
           onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+          className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground/80 transition-colors hover:text-foreground focus-visible:ring-0">
           <Undo2 size={10} />
         </Button>
       ) : null}
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         aria-label={t('library.config.prompt.generate')}
         onClick={handleGeneratePrompt}
         disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+        className="flex h-6 min-h-0 w-6 items-center justify-center p-0 text-muted-foreground/80 transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
         {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
       </Button>
     </>
@@ -555,7 +554,7 @@ function AssistantToolsFields({
         render={() => (
           <FormItem className="grid gap-3">
             <div className="flex items-center justify-between gap-3">
-              <FormLabel>{`${t('library.action.enable')} MCP`}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{`${t('library.action.enable')} MCP`}</FormLabel>
               <FormControl>
                 <Switch
                   size="sm"
@@ -569,7 +568,7 @@ function AssistantToolsFields({
             </div>
             {mcpEnabled ? (
               <div className="flex items-start justify-between gap-3">
-                <FormLabel className="pt-2">{mcpModeLabel}</FormLabel>
+                <FormLabel className="pt-2 font-normal text-[13px]">{mcpModeLabel}</FormLabel>
                 <div className="w-36 shrink-0">
                   <Select
                     value={mcpMode === 'manual' ? 'manual' : 'auto'}
@@ -693,31 +692,31 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tokens')}
-        valueLabel={
-          values.enableMaxTokens ? values.maxTokens.toLocaleString() : t('library.config.basic.default_value')
-        }
+        valueLabel={values.enableMaxTokens ? undefined : t('library.config.basic.default_value')}
         description={t('library.config.basic.field.max_tokens.hint')}
         enabled={values.enableMaxTokens}
-        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="maxTokens"
-          render={({ field }) => (
-            <EditableNumber
-              block
-              min={1}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              value={field.value}
-              onChange={(value) =>
-                field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
-              }
-            />
-          )}
-        />
-      </ToggleFieldGroup>
+        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxTokens"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
+                }
+              />
+            )}
+          />
+        }
+      />
 
       <FormField
         control={form.control}
@@ -747,31 +746,32 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}
-        valueLabel={values.enableMaxToolCalls ? values.maxToolCalls.toString() : t('library.config.basic.unlimited')}
+        valueLabel={values.enableMaxToolCalls ? undefined : t('library.config.basic.unlimited')}
         description={t('library.config.basic.field.max_tool_calls.hint')}
         enabled={values.enableMaxToolCalls}
-        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="maxToolCalls"
-          render={({ field }) => (
-            <EditableNumber
-              block
-              min={1}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              value={field.value}
-              onChange={(value) =>
-                field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
-              }
-            />
-          )}
-        />
-      </ToggleFieldGroup>
+        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxToolCalls"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
+                }
+              />
+            )}
+          />
+        }
+      />
 
-      <Separator className="bg-border/30" />
       <FormField
         control={form.control}
         name="customParameters"
@@ -793,27 +793,31 @@ function ToggleFieldGroup({
   description,
   enabled,
   onEnabledChange,
+  control,
   children
 }: {
   label: string
-  valueLabel: string
+  valueLabel?: string
   description: string
   enabled: boolean
   onEnabledChange: (checked: boolean) => void
-  children: ReactNode
+  /** Compact control rendered beside the switch when enabled (title-left / control-right row). */
+  control?: ReactNode
+  children?: ReactNode
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-            <span className="text-muted-foreground/80 text-sm">{valueLabel}</span>
-          </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <FieldLabelWithHelp label={label} help={description} formLabel={false} />
+          {valueLabel ? <span className="text-muted-foreground/80 text-sm">{valueLabel}</span> : null}
         </div>
-        <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
+        <div className="flex shrink-0 items-center gap-3">
+          {enabled && control ? <div className="w-36">{control}</div> : null}
+          <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
+        </div>
       </div>
-      {enabled ? <div className="mt-2">{children}</div> : null}
+      {enabled && children ? <div className="mt-2">{children}</div> : null}
     </div>
   )
 }
