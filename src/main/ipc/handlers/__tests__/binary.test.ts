@@ -8,11 +8,8 @@ import { binaryHandlers } from '../binary'
 const binaryManager = {
   installTool: vi.fn(),
   removeTool: vi.fn(),
-  getState: vi.fn(),
+  resolveTools: vi.fn(),
   searchRegistry: vi.fn(),
-  getToolDir: vi.fn(),
-  probeBundled: vi.fn(),
-  probeSystem: vi.fn(),
   getLatestVersions: vi.fn()
 }
 
@@ -39,10 +36,11 @@ describe('binaryHandlers', () => {
     expect(binaryManager.removeTool).toHaveBeenCalledWith('fd')
   })
 
-  it('get_state returns the manager state', async () => {
-    binaryManager.getState.mockReturnValue({ tools: { fd: { tool: 'fd', version: '1.0.0' } } })
-    const result = await binaryHandlers['binary.get_state'](undefined, ctx)
-    expect(result).toEqual({ tools: { fd: { tool: 'fd', version: '1.0.0' } } })
+  it('resolve_tools forwards names and returns the manager resolutions', async () => {
+    binaryManager.resolveTools.mockResolvedValue({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
+    const result = await binaryHandlers['binary.resolve_tools'](['fd'], ctx)
+    expect(binaryManager.resolveTools).toHaveBeenCalledWith(['fd'])
+    expect(result).toEqual({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
   })
 
   it('search_registry forwards the query', async () => {
@@ -50,26 +48,6 @@ describe('binaryHandlers', () => {
     const result = await binaryHandlers['binary.search_registry']('fd', ctx)
     expect(binaryManager.searchRegistry).toHaveBeenCalledWith('fd')
     expect(result).toEqual([{ name: 'fd', tool: 'fd' }])
-  })
-
-  it('get_tool_dir forwards the tool name', async () => {
-    binaryManager.getToolDir.mockResolvedValue('/bin/dir')
-    const result = await binaryHandlers['binary.get_tool_dir']('fd', ctx)
-    expect(binaryManager.getToolDir).toHaveBeenCalledWith('fd')
-    expect(result).toBe('/bin/dir')
-  })
-
-  it('probe_bundled returns the probe map', async () => {
-    binaryManager.probeBundled.mockReturnValue({ uv: '1.0.0', bun: null })
-    const result = await binaryHandlers['binary.probe_bundled'](undefined, ctx)
-    expect(result).toEqual({ uv: '1.0.0', bun: null })
-  })
-
-  it('probe_system forwards names and returns their resolved paths', async () => {
-    binaryManager.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
-    const result = await binaryHandlers['binary.probe_system'](['fd'], ctx)
-    expect(binaryManager.probeSystem).toHaveBeenCalledWith(['fd'])
-    expect(result).toEqual({ fd: '/usr/local/bin/fd' })
   })
 
   it('get_latest_versions forwards force and returns the manager latest-version map', async () => {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCliVersionStatuses } from '../useCliVersionStatuses'
 
 const ipcMocks = vi.hoisted(() => ({
+  resolveTools: vi.fn(),
   getState: vi.fn(),
   probeSystem: vi.fn(),
   latestVersions: vi.fn()
@@ -15,10 +16,8 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input?: unknown) => {
       switch (route) {
-        case 'binary.get_state':
-          return ipcMocks.getState()
-        case 'binary.probe_system':
-          return ipcMocks.probeSystem(input)
+        case 'binary.resolve_tools':
+          return ipcMocks.resolveTools(input)
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         default:
@@ -45,6 +44,17 @@ describe('useCliVersionStatuses', () => {
     ipcEventHandlers.clear()
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeSystem.mockResolvedValue({})
+    ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
+      const [state, system] = await Promise.all([ipcMocks.getState(), ipcMocks.probeSystem(names)])
+      return Object.fromEntries(
+        names.map((name) => {
+          const managed = state.tools[name]
+          if (managed) return [name, { source: 'managed', path: `/managed/${name}`, version: managed.version }]
+          if (system[name]) return [name, { source: 'system', path: system[name] }]
+          return [name, { source: 'none' }]
+        })
+      )
+    })
     ipcMocks.latestVersions.mockResolvedValue({})
   })
 
@@ -72,7 +82,18 @@ describe('useCliVersionStatuses', () => {
       latest: '2.0.0',
       canUpgrade: false
     })
-    expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true)
+    expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false)
+  })
+
+  it('refreshes latest versions only when the session cache is empty', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { claude: { tool: 'claude', version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockResolvedValueOnce({ claude: '1.1.0' })
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
   })
 
   it('treats a system PATH tool as installed without offering managed upgrades', async () => {
@@ -87,7 +108,7 @@ describe('useCliVersionStatuses', () => {
       systemPath: '/usr/local/bin/claude',
       canUpgrade: false
     })
-    expect(ipcMocks.probeSystem).toHaveBeenCalledWith(['claude'])
+    expect(ipcMocks.resolveTools).toHaveBeenCalledWith(['claude'])
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
@@ -98,7 +119,7 @@ describe('useCliVersionStatuses', () => {
 
     await waitFor(() => expect(result.current[CodeCli.OPENCLAW]).toBeDefined())
     expect(result.current[CodeCli.OPENCLAW]).toEqual({ installed: false, source: 'none', canUpgrade: false })
-    expect(ipcMocks.probeSystem).toHaveBeenCalledWith([])
+    expect(ipcMocks.resolveTools).toHaveBeenCalledWith(['openclaw'])
   })
 
   it('does not mark non-semver versions as upgradeable', async () => {
@@ -132,15 +153,17 @@ describe('useCliVersionStatuses', () => {
     await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
     expect(result.current[CodeCli.OPENAI_CODEX]?.canUpgrade).toBe(true)
 
+    ipcMocks.getState.mockResolvedValue({
+      tools: {
+        claude: { tool: 'claude', version: '1.1.0' },
+        codex: { tool: 'codex', version: '2.0.0' }
+      }
+    })
     act(() => {
-      ipcEventHandlers.get('binary.state_changed')?.({
-        tools: {
-          claude: { tool: 'claude', version: '1.1.0' },
-          codex: { tool: 'codex', version: '2.0.0' }
-        }
-      })
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
 
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.current).toBe('1.1.0'))
     expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({
       installed: true,
       current: '1.1.0',

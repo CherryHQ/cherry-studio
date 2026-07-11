@@ -37,9 +37,9 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
 | Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.probe_system`, `binary.get_latest_versions` | Renderer → main |
-| IPC events | `binary.state_changed`, `binary.reconcile_failed` | Main → renderer |
-| Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.resolve_tools`, `binary.search_registry`, `binary.get_latest_versions` | Renderer → main |
+| IPC events | `binary.availability_changed`, `binary.reconcile_failed` | Main → renderer |
+| Types | install state in `preferenceTypes.ts`; `BinaryResolution` in `src/shared/types/binary.ts` | Both sides |
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
 
@@ -47,15 +47,9 @@ These are the stable boundaries that survive across versions and renderer reload
 
 > **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binary.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
 
-## Path resolution: one resolver, two sources
+## Availability resolution
 
-```text
-getBinaryPath(name)  →  mise shim → cherry.bin → binary name (PATH fallback)
-                        ────────   ──────────   ─────────────────────────────
-                        mise-managed bundled     resolved by user shell at exec
-```
-
-`getBinaryPath()` in `src/main/utils/binaryResolver.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
+`BinaryManager.resolveTools()` is the single availability boundary for renderer and main consumers. It validates and resolves each requested name with managed → bundled → system → none precedence, returning a discriminated source plus an absolute path when available. The lower-level `getBinaryPath()` remains an internal Cherry-directory lookup; consumers must not combine it with PATH checks themselves. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath(...)`.
 
 ## Why state is a file, not DataApi / Preference
 
@@ -67,18 +61,18 @@ Four sources for a tool to be available, in order of precedence:
 
 | State | Detected by | UI label |
 |---|---|---|
-| **managed (mise)** | `BinaryState.tools[name]` is set after `mise use -g` | "v1.2.3" version chip |
-| **available (bundled)** | `binary.probe_bundled` finds the binary in `cherry.bin` after extraction | "bundled" chip + "Install via mise" CTA |
-| **available (system)** | `binary.probe_system` resolves the name on the user's login-shell PATH outside Cherry's dirs | "system" chip, with the path on hover |
-| **not installed** | None of the above | "Install" CTA |
+| **managed (mise)** | `resolve_tools` validates the persisted mise target | "v1.2.3" version chip |
+| **available (bundled)** | `resolve_tools` finds the extracted binary in `cherry.bin` | "bundled" chip + "Install via mise" CTA |
+| **available (system)** | `resolve_tools` resolves the login-shell PATH | "system" chip, with the path on hover |
+| **not installed** | `resolve_tools` returns `none` | "Install" CTA |
 
-`binary.probe_system` resolves against `getRawShellEnv`, the cached login-shell environment before Cherry injects its managed shim/bundled directories or isolated `MISE_*` values. This prevents stale Cherry shims from hiding a valid system installation while preserving the user's own mise configuration. Cherry-owned resolutions are also excluded defensively to retain the more specific managed or bundled source.
+The system fallback resolves against `getRawShellEnv`, before Cherry injects managed directories or isolated `MISE_*` values. This preserves the user's own PATH and mise configuration. Consumers receive facts (`source`, absolute `path`, optional version) and derive only presentation policy.
 
-**Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The probe-bundled IPC keeps the two sources orthogonal: BinaryState answers "what did the user install?", the filesystem probe answers "what shipped in the box?".
+**Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The internal checks remain orthogonal: install state answers "what did the user install?", while filesystem probing answers "what shipped in the box?". `resolve_tools` combines those facts only at the ownership boundary.
 
 The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible. RTK is installed on demand from Settings → Plugins instead of being extracted automatically at startup.
 
-**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-probes after install and updates the "managed / bundled" label accordingly.
+**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-resolves after install and updates the "managed / bundled" label accordingly.
 
 ## GitHub rate-limit opt-in
 
@@ -129,7 +123,7 @@ These are passthrough — if the user already has either var in their shell env,
 **To bundle the binary at build time** (so it's available without mise install — only for tools small enough to ship):
 
 1. Add the tool to `scripts/download-binaries.js` with platform-specific URLs and SHA256 checksums.
-2. Add it to the module-level `BUNDLED_TOOLS` array in `BinaryManager.ts` — a single source consumed by both `extractBundledBinaries()` (boot extraction) and `probeBundled()` (UI "bundled" state), so one entry wires up both.
+2. Add it to the module-level `BUNDLED_TOOLS` array in `BinaryManager.ts` — a single source consumed by extraction and the bundled stage of `resolveTools()`, so one entry wires up both.
 
 ## Consumer pattern
 

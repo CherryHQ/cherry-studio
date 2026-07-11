@@ -11,10 +11,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.install_tool': async (tool) => application.get('BinaryManager').installTool(tool),
   'binary.remove_tool': async (name) => application.get('BinaryManager').removeTool(name),
-  'binary.get_state': async () => application.get('BinaryManager').getState(),
+  'binary.resolve_tools': async (names) => application.get('BinaryManager').resolveTools(names),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
-  'binary.get_tool_dir': async (name) => application.get('BinaryManager').getToolDir(name),
-  'binary.probe_bundled': async () => application.get('BinaryManager').probeBundled(),
-  'binary.probe_system': async (names) => application.get('BinaryManager').probeSystem(names),
   'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force)
 }

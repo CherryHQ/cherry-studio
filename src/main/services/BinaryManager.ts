@@ -11,11 +11,12 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
+import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import type { BinaryResolution, BinaryResolutions } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 
@@ -194,28 +195,6 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  /** Current persisted install state. Consumed by the `binary.get_state` route. */
-  public getState(): BinaryState {
-    return this.loadState()
-  }
-
-  /**
-   * Directory holding the given tool's binary, for "open in file manager".
-   *
-   * getBinaryPath() falls back to returning the bare binary name when the tool
-   * isn't installed anywhere on disk. `path.dirname('claude')` is `'.'`, which the
-   * renderer would then pass to openPath() and end up opening the main-process CWD
-   * (root on packaged macOS, dev cwd in dev). Resolve to cherry.bin in that case so
-   * the user lands on the managed-binary root instead of somewhere arbitrary.
-   */
-  public async getToolDir(toolName: string): Promise<string> {
-    const binPath = await getBinaryPath(toolName)
-    if (!path.isAbsolute(binPath) || !fs.existsSync(binPath)) {
-      return application.getPath('cherry.bin')
-    }
-    return path.dirname(binPath)
-  }
-
   /**
    * Probe which user-facing predefined tools have a bundled copy in cherry.bin.
    *
@@ -227,13 +206,16 @@ export class BinaryManager extends BaseService {
    * or null when the marker is missing. Absent keys mean the binary is not
    * bundled or hasn't been extracted yet.
    */
-  public probeBundled(): Record<string, string | null> {
+  private probeBundled(): Record<string, string | null> {
     const binDir = application.getPath('cherry.bin')
     const result: Record<string, string | null> = {}
-    // Skip mise (internal infrastructure); probe by the first expected binary.
+    // Skip mise (internal infrastructure). Record every shipped executable so
+    // aliases such as uvx resolve through the same ownership boundary as uv.
     for (const tool of BUNDLED_TOOLS.filter((t) => !t.internal)) {
-      if (!fs.existsSync(path.join(binDir, getBinaryName(tool.binaries[0])))) continue
-      result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
+      const version = this.readVersionMarker(path.join(binDir, tool.versionFile))
+      for (const binary of tool.binaries) {
+        if (fs.existsSync(path.join(binDir, getBinaryName(binary)))) result[binary] = version
+      }
     }
     return result
   }
@@ -242,7 +224,8 @@ export class BinaryManager extends BaseService {
    * Probe which tools resolve on the user's login-shell PATH outside Cherry's
    * managed and bundled directories.
    */
-  public async probeSystem(names: string[]): Promise<Record<string, string>> {
+  private async probeSystem(names: string[]): Promise<Record<string, string>> {
+    if (names.length === 0) return {}
     const shellEnv = await getRawShellEnv()
     const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
 
@@ -256,6 +239,38 @@ export class BinaryManager extends BaseService {
       })
     )
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
+  }
+
+  /** Resolve each binary once using managed → bundled → system precedence. */
+  public async resolveTools(names: string[]): Promise<BinaryResolutions> {
+    const uniqueNames = [...new Set(names)]
+    if (uniqueNames.length === 0) return {}
+    const state = this.loadState()
+    const bundled = this.probeBundled()
+    const system = await this.probeSystem(uniqueNames.filter((name) => !state.tools[name] && !(name in bundled)))
+
+    const entries = await Promise.all(
+      uniqueNames.map(async (name): Promise<[string, BinaryResolution]> => {
+        const managed = state.tools[name]
+        if (managed) {
+          const managedPath = await this.resolveManagedBinaryPath(name)
+          if (managedPath) return [name, { source: 'managed', path: managedPath, version: managed.version }]
+        }
+
+        if (name in bundled) {
+          const version = bundled[name] ?? undefined
+          const binaryPath = path.join(application.getPath('cherry.bin'), getBinaryName(name))
+          return [
+            name,
+            version ? { source: 'bundled', path: binaryPath, version } : { source: 'bundled', path: binaryPath }
+          ]
+        }
+
+        const systemPath = system[name] ?? (managed ? (await this.probeSystem([name]))[name] : undefined)
+        return [name, systemPath ? { source: 'system', path: systemPath } : { source: 'none' }]
+      })
+    )
+    return Object.fromEntries(entries)
   }
 
   private async extractBundledBinaries(): Promise<void> {
@@ -489,21 +504,22 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private async isManagedBinaryReady(toolName: string): Promise<boolean> {
+  private async resolveManagedBinaryPath(toolName: string): Promise<string | null> {
     try {
       // `mise which` exits 0 if mise *thinks* the tool is installed; it does
-      // not stat the resolved file. If the install dir was manually deleted
-      // or AV stripped the exec bit, the file would be missing/unusable
-      // while mise still claims success. Verify the resolved path exists
-      // (and is executable, on POSIX) before declaring ready.
+      // not stat the resolved file. Verify the target before exposing it.
       const { stdout } = await this.runMise(['which', toolName])
       const resolved = stdout.trim().split(/\r?\n/)[0]
-      if (!resolved) return false
+      if (!resolved) return null
       await fsp.access(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-      return true
+      return resolved
     } catch {
-      return false
+      return null
     }
+  }
+
+  private async isManagedBinaryReady(toolName: string): Promise<boolean> {
+    return (await this.resolveManagedBinaryPath(toolName)) !== null
   }
 
   private async installWithMise(tool: ManagedBinary): Promise<string> {
@@ -598,7 +614,7 @@ export class BinaryManager extends BaseService {
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
     application.get('CacheService').deleteShared('feature.binary.latest_versions')
-    application.get('IpcApiService').broadcast('binary.state_changed', state)
+    application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
   }
 
   async reconcile(tools: ManagedBinary[]): Promise<ReconcileResult> {

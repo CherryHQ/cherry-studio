@@ -363,10 +363,10 @@ vi.mock('../hooks/useBinaryActions', () => ({
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
   useCliVersionStatuses: () => ({
-    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.OPENAI_CODEX]: { installed: true, canUpgrade: false },
-    [CodeCli.OPEN_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
+    [CodeCli.CLAUDE_CODE]: { installed: true, source: 'managed', canUpgrade: false },
+    [CodeCli.OPENAI_CODEX]: { installed: true, source: 'managed', canUpgrade: false },
+    [CodeCli.OPEN_CODE]: { installed: true, source: 'managed', canUpgrade: false },
+    [CodeCli.QODER_CLI]: { installed: true, source: 'managed', canUpgrade: false }
   })
 }))
 

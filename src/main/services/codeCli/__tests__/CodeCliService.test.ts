@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({
   installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
   removeTool: vi.fn(() => Promise.resolve()),
-  probeSystem: vi.fn(() => Promise.resolve({}))
+  resolveTools: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -68,12 +68,6 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
-vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryName: vi.fn().mockReturnValue('bun'),
-  getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
-  isBinaryExists: vi.fn().mockResolvedValue(false)
-}))
-
 vi.mock('child_process', () => ({
   // run() awaits the child's spawn/error race before reporting success, so the
   // fake child must emit 'spawn' to its listener.
@@ -126,7 +120,11 @@ describe('CodeCliService', () => {
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
     shellEnvMock.getRawShellEnv.mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
-    binaryManagerMock.probeSystem.mockResolvedValue({})
+    binaryManagerMock.resolveTools.mockImplementation(async (names: string[]) =>
+      Object.fromEntries(
+        names.map((name) => [name, { source: 'managed', path: `/mock/bin/${name}`, version: '1.0.0' }])
+      )
+    )
     binaryManagerMock.installTool.mockResolvedValue({ version: 'latest' })
   })
 
@@ -209,8 +207,6 @@ describe('CodeCliService', () => {
     beforeEach(async () => {
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     it('fails the launch instead of defaulting to a wrong provider name', async () => {
@@ -270,8 +266,6 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
@@ -279,9 +273,9 @@ describe('CodeCliService', () => {
     })
 
     it('launches a system PATH binary without installing a managed copy', async () => {
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(false)
-      binaryManagerMock.probeSystem.mockResolvedValue({ claude: '/usr/local/bin/claude' })
+      binaryManagerMock.resolveTools.mockResolvedValue({
+        claude: { source: 'system', path: '/usr/local/bin/claude' }
+      })
       const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()
 
@@ -293,7 +287,7 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
-      expect(binaryManagerMock.probeSystem).toHaveBeenCalledWith(['claude'])
+      expect(binaryManagerMock.resolveTools).toHaveBeenCalledWith(['claude'])
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)
       expect(launchCall).toBeDefined()
       const launchArgs = (launchCall?.[1] ?? []).join(' ')
@@ -340,8 +334,6 @@ describe('CodeCliService', () => {
       platformMock.isWin = true
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
@@ -395,8 +387,6 @@ describe('CodeCliService', () => {
       platformMock.isWin = false
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(async () => {

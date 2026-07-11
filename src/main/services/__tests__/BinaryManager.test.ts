@@ -1191,7 +1191,7 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('probeSystem', () => {
+  describe('resolveTools', () => {
     it('resolves system tools against the raw login-shell PATH', async () => {
       const { getRawShellEnv } = await import('@main/utils/shellEnv')
       vi.mocked(getRawShellEnv).mockResolvedValueOnce({ PATH: '/usr/local/bin:/usr/bin' })
@@ -1199,18 +1199,76 @@ describe('BinaryManager', () => {
         name === 'gemini' ? '/usr/local/bin/gemini' : null
       )
 
-      await expect(new BinaryManager().probeSystem(['gemini'])).resolves.toEqual({
-        gemini: '/usr/local/bin/gemini'
+      await expect(new BinaryManager().resolveTools(['gemini'])).resolves.toEqual({
+        gemini: { source: 'system', path: '/usr/local/bin/gemini' }
       })
       expect(findCommandInShellEnv).toHaveBeenCalledWith('gemini', {
         PATH: '/usr/local/bin:/usr/bin'
       })
     })
 
-    it('excludes a Cherry-owned result defensively', async () => {
+    it('returns none for a Cherry-owned result found by the system probe', async () => {
       vi.mocked(findCommandInShellEnv).mockResolvedValue('/mock/cherry.bin/uv')
 
-      await expect(new BinaryManager().probeSystem(['uv'])).resolves.toEqual({})
+      await expect(new BinaryManager().resolveTools(['uv'])).resolves.toEqual({ uv: { source: 'none' } })
+    })
+
+    it('prefers a bundled binary over the system PATH', async () => {
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === '/mock/cherry.bin/uv')
+      mockFs.readFileSync.mockImplementation((candidate: unknown) => {
+        if (candidate === '/mock/feature.binary.state_file') return JSON.stringify({ tools: {} })
+        if (candidate === '/mock/cherry.bin/.uv-version') return '1.0.0'
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/uv')
+
+      await expect(new BinaryManager().resolveTools(['uv'])).resolves.toEqual({
+        uv: { source: 'bundled', path: '/mock/cherry.bin/uv', version: '1.0.0' }
+      })
+      expect(findCommandInShellEnv).not.toHaveBeenCalledWith('uv', expect.anything())
+    })
+
+    it('resolves secondary bundled executables such as uvx', async () => {
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === '/mock/cherry.bin/uvx')
+      mockFs.readFileSync.mockImplementation((candidate: unknown) => {
+        if (candidate === '/mock/feature.binary.state_file') return JSON.stringify({ tools: {} })
+        if (candidate === '/mock/cherry.bin/.uv-version') return '1.0.0'
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      await expect(new BinaryManager().resolveTools(['uvx'])).resolves.toEqual({
+        uvx: { source: 'bundled', path: '/mock/cherry.bin/uvx', version: '1.0.0' }
+      })
+    })
+
+    it('prefers a valid managed binary over the system PATH', async () => {
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { gemini: { tool: 'npm:@google/gemini-cli', version: '1.2.3' } } })
+      )
+      mockExecFileAsync.mockResolvedValue({ stdout: '/mock/managed/gemini\n', stderr: '' })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      await expect(service.resolveTools(['gemini'])).resolves.toEqual({
+        gemini: { source: 'managed', path: '/mock/managed/gemini', version: '1.2.3' }
+      })
+      expect(findCommandInShellEnv).not.toHaveBeenCalledWith('gemini', expect.anything())
+    })
+
+    it('falls back to the system PATH when persisted managed state is stale', async () => {
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { gemini: { tool: 'npm:@google/gemini-cli', version: '1.2.3' } } })
+      )
+      mockExecFileAsync.mockRejectedValue(new Error('not installed'))
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/gemini')
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      await expect(service.resolveTools(['gemini'])).resolves.toEqual({
+        gemini: { source: 'system', path: '/usr/local/bin/gemini' }
+      })
     })
   })
 

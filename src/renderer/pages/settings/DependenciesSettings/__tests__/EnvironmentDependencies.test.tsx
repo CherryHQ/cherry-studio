@@ -12,6 +12,7 @@ const installSettingsRef = vi.hoisted(() => ({
 const setInstallSettingsMock = vi.hoisted(() => vi.fn())
 
 const ipcMocks = vi.hoisted(() => ({
+  resolveTools: vi.fn(),
   getState: vi.fn(),
   probeBundled: vi.fn(),
   probeSystem: vi.fn(),
@@ -27,18 +28,12 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input?: unknown) => {
       switch (route) {
-        case 'binary.get_state':
-          return ipcMocks.getState()
-        case 'binary.probe_bundled':
-          return ipcMocks.probeBundled()
-        case 'binary.probe_system':
-          return ipcMocks.probeSystem(input)
+        case 'binary.resolve_tools':
+          return ipcMocks.resolveTools(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
         case 'binary.remove_tool':
           return ipcMocks.removeTool(input)
-        case 'binary.get_tool_dir':
-          return ipcMocks.getToolDir(input)
         case 'local_model.get_status':
           return Promise.resolve({ status: 'unsupported' })
         case 'binary.get_latest_versions':
@@ -151,7 +146,25 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
-    ipcMocks.getToolDir.mockResolvedValue('/dir')
+    ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
+      const [state, bundled, system] = await Promise.all([
+        ipcMocks.getState(),
+        ipcMocks.probeBundled(),
+        ipcMocks.probeSystem(names)
+      ])
+      return Object.fromEntries(
+        names.map((name) => {
+          const managed = state.tools[name]
+          if (managed) return [name, { source: 'managed', path: `/managed/${name}`, version: managed.version }]
+          if (name in bundled) {
+            const version = bundled[name] ?? undefined
+            return [name, { source: 'bundled', path: `/bundled/${name}`, ...(version ? { version } : {}) }]
+          }
+          if (system[name]) return [name, { source: 'system', path: system[name] }]
+          return [name, { source: 'none' }]
+        })
+      )
+    })
     setInstallSettingsMock.mockResolvedValue(undefined)
   })
 
@@ -351,7 +364,7 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
 
     act(() => {
-      ipcEventHandlers.get('binary.state_changed')?.({ tools: { uv: { version: '1.0.0' } } })
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
 
     await waitFor(() => expect(screen.queryByText('v2.0.0')).not.toBeInTheDocument())

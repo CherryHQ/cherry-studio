@@ -7,7 +7,6 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { providerService } from '@main/data/services/ProviderService'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
@@ -375,16 +374,9 @@ export class CodeCliService extends BaseService {
     // Prefer Cherry-managed/bundled binaries, then the user's login-shell PATH.
     // Only install when neither source has the executable.
     const binaryManager = application.get('BinaryManager')
-    let executablePath: string | undefined
-    let isCherryManaged = false
-    if (await isBinaryExists(executableName)) {
-      executablePath = await getBinaryPath(executableName)
-      isCherryManaged = true
-    } else {
-      executablePath = (await binaryManager.probeSystem([executableName]))[executableName]
-    }
+    let resolution = (await binaryManager.resolveTools([executableName]))[executableName]
 
-    if (!executablePath) {
+    if (resolution.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
         await binaryManager.installTool(spec)
@@ -395,14 +387,16 @@ export class CodeCliService extends BaseService {
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
 
-      if (!(await isBinaryExists(executableName))) {
+      resolution = (await binaryManager.resolveTools([executableName]))[executableName]
+      if (resolution.source === 'none') {
         const message = `${cliTool} is not available after install`
         logger.error(message)
         return { success: false, message }
       }
-      executablePath = await getBinaryPath(executableName)
-      isCherryManaged = true
     }
+
+    const executablePath = resolution.path
+    const isCherryManaged = resolution.source !== 'system'
 
     // Cherry's MISE_* variables are required only by Cherry-managed shims. Injecting
     // them while launching a system mise shim redirects that shim to Cherry's

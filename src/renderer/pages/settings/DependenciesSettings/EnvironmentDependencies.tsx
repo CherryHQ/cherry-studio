@@ -26,8 +26,9 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import type { BinaryResolutions } from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -95,10 +96,8 @@ interface EnvironmentDependenciesProps {
 }
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
-  const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
-  const [binaryStateReady, setBinaryStateReady] = useState(false)
-  const [bundled, setBundled] = useState<Record<string, string | null>>({})
-  const [systemTools, setSystemTools] = useState<Record<string, string>>({})
+  const [resolutions, setResolutions] = useState<BinaryResolutions>({})
+  const [resolutionsReady, setResolutionsReady] = useState(false)
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
@@ -113,6 +112,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
+  const resolutionRequestIdRef = useRef(0)
   const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
@@ -123,18 +123,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [])
 
   const refreshState = useCallback(async () => {
+    const requestId = ++resolutionRequestIdRef.current
     try {
       const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
-      const [state, bundledMap, systemMap] = await Promise.all([
-        ipcApi.request('binary.get_state'),
-        ipcApi.request('binary.probe_bundled'),
-        ipcApi.request('binary.probe_system', names)
-      ])
-      if (!mountedRef.current) return
-      setBinaryState(state)
-      setBundled(bundledMap)
-      setSystemTools(systemMap)
-      setBinaryStateReady(true)
+      const resolved = await ipcApi.request('binary.resolve_tools', names)
+      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      setResolutions(resolved)
+      setResolutionsReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
     }
@@ -172,22 +167,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void fetchLatestVersions(false)
   }, [fetchLatestVersions, mini])
 
-  useIpcOn('binary.state_changed', (state) => {
-    setBinaryState(state)
-    setBinaryStateReady(true)
-    // Clear all latest-version badges: the managed-tool set changed, so any
-    // previously fetched latest-version hints are stale. Next explicit refresh
-    // (header button or per-tool Update) will repopulate per-tool results.
+  useIpcOn('binary.availability_changed', () => {
     setLatestVersions(null)
-    // mise install may shadow a bundled or system binary; re-probe both sources.
-    const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
-    void Promise.all([ipcApi.request('binary.probe_bundled'), ipcApi.request('binary.probe_system', names)]).then(
-      ([bundledMap, systemMap]) => {
-        if (!mountedRef.current) return
-        setBundled(bundledMap)
-        setSystemTools(systemMap)
-      }
-    )
+    void refreshState()
   })
   useIpcOn('binary.reconcile_failed', (names) => {
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
@@ -246,24 +228,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
-  const openToolDir = (toolName: string, systemPath?: string) => {
-    if (systemPath) {
-      const separator = Math.max(systemPath.lastIndexOf('/'), systemPath.lastIndexOf('\\'))
-      void window.api.openPath(separator > 0 ? systemPath.slice(0, separator) : systemPath)
-      return
-    }
-    void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
+  const openToolDir = (binaryPath: string) => {
+    const separator = Math.max(binaryPath.lastIndexOf('/'), binaryPath.lastIndexOf('\\'))
+    void window.api.openPath(separator > 0 ? binaryPath.slice(0, separator) : binaryPath)
   }
 
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
-    if (!binaryStateReady) {
+    if (!resolutionsReady) {
       return null
     }
 
-    const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled || 'uv' in systemTools
-    const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled || 'bun' in systemTools
+    const uvAvailable = !!resolutions.uv && resolutions.uv.source !== 'none'
+    const bunAvailable = !!resolutions.bun && resolutions.bun.source !== 'none'
     if (uvAvailable && bunAvailable) {
       return null
     }
@@ -313,30 +291,26 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
-          const installed = binaryState?.tools[tool.name]
-          const bundledVersion = bundled[tool.name]
-          const source: ToolSource = installed
-            ? 'managed'
-            : tool.name in bundled
-              ? 'bundled'
-              : tool.name in systemTools
-                ? 'system'
-                : 'none'
-          const installedVersion = installed?.version ?? bundledVersion ?? undefined
+          const resolution = resolutions[tool.name] ?? { source: 'none' as const }
+          const source: ToolSource = resolution.source
+          const systemPath = resolution.source === 'system' ? resolution.path : undefined
+          const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
+          const installedVersion =
+            resolution.source === 'managed' || resolution.source === 'bundled' ? resolution.version : undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
+          const hasUpdate = resolution.source === 'managed' && isNewerVersion(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
-              systemPath={systemTools[tool.name]}
+              systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-              onOpenPath={() => openToolDir(tool.name, source === 'system' ? systemTools[tool.name] : undefined)}
+              onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
           )
@@ -358,23 +332,25 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       {customTools.length > 0 ? (
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
-            const installed = binaryState?.tools[tool.name]
-            const systemPath = installed ? undefined : systemTools[tool.name]
-            const installedVersion = installed?.version
+            const resolution = resolutions[tool.name] ?? { source: 'none' as const }
+            const managed = resolution.source === 'managed'
+            const systemPath = resolution.source === 'system' ? resolution.path : undefined
+            const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
+            const installedVersion = managed ? resolution.version : undefined
             const latestVersion = latestVersions?.[tool.name]
-            const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
+            const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
             return (
               <CustomToolCard
                 key={tool.name}
                 tool={tool}
-                managed={!!installed}
+                managed={managed}
                 systemPath={systemPath}
                 installedVersion={installedVersion}
                 latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
                 onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-                onOpenPath={() => openToolDir(tool.name, systemPath)}
+                onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />
             )

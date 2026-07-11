@@ -110,7 +110,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {isInstalled && status.source !== 'system' && onRemove && (
+          {isInstalled && status.source === 'managed' && onRemove && (
             <Button
               variant="ghost"
               size="icon-sm"

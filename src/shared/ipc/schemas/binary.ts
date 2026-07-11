@@ -1,5 +1,6 @@
-import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
+import type { BinaryResolution } from '@shared/types/binary'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -33,9 +34,12 @@ const managedBinarySchema: z.ZodType<ManagedBinary> = z.object({
  */
 const toolNameSchema = z.string().regex(TOOL_NAME_RE)
 
-const binaryStateSchema: z.ZodType<BinaryState> = z.object({
-  tools: z.record(z.string(), z.object({ tool: z.string(), version: z.string() }))
-})
+const binaryResolutionSchema: z.ZodType<BinaryResolution> = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('managed'), path: z.string(), version: z.string() }),
+  z.object({ source: z.literal('bundled'), path: z.string(), version: z.string().optional() }),
+  z.object({ source: z.literal('system'), path: z.string() }),
+  z.object({ source: z.literal('none') })
+])
 
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
@@ -43,19 +47,19 @@ const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: managedBinarySchema, output: z.object({ version: z.string() }) }),
   'binary.remove_tool': defineRoute({ input: toolNameSchema, output: z.void() }),
-  'binary.get_state': defineRoute({ input: z.void(), output: binaryStateSchema }),
+  'binary.resolve_tools': defineRoute({
+    input: z.array(toolNameSchema),
+    output: z.record(z.string(), binaryResolutionSchema)
+  }),
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
-  'binary.get_tool_dir': defineRoute({ input: toolNameSchema, output: z.string() }),
-  'binary.probe_bundled': defineRoute({ input: z.void(), output: z.record(z.string(), z.string().nullable()) }),
-  'binary.probe_system': defineRoute({ input: z.array(toolNameSchema), output: z.record(z.string(), z.string()) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type BinaryEventSchemas = {
-  // Latest persisted install state — broadcast to all windows after every install/remove.
-  'binary.state_changed': BinaryState
+  // Availability may have changed — consumers re-resolve the tools they display.
+  'binary.availability_changed': void
   // Comma-joined names of tools that failed the boot-time reconcile.
   'binary.reconcile_failed': string
 }

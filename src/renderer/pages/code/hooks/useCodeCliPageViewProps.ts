@@ -236,7 +236,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           resolveProviderMeta,
           onInstall: () => void install(selectedCliTool),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          onRemove: versionStatus.source === 'system' ? undefined : () => removeDialog.requestRemove(selectedCliTool),
+          onRemove: versionStatus.source === 'managed' ? () => removeDialog.requestRemove(selectedCliTool) : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

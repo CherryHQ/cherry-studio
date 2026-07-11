@@ -10,7 +10,7 @@ export interface CodeToolMeta {
 /** Install/upgrade status for a single CLI tool binary. */
 export interface VersionStatus {
   installed: boolean
-  source?: 'managed' | 'system' | 'none'
+  source?: 'managed' | 'bundled' | 'system' | 'none'
   systemPath?: string
   current?: string
   latest?: string
