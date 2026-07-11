@@ -895,7 +895,7 @@ function buildLiveProcessSummary(entries: readonly PartEntry[], messageId: strin
     }
   }
 
-  const headerItem = lastWaitingItem ?? lastErrorItem ?? lastActiveItem ?? lastItem
+  const headerItem = lastWaitingItem ?? lastActiveItem ?? lastErrorItem ?? lastItem
   return {
     allToolsTerminal,
     hasToolError: lastErrorItem !== undefined,
@@ -1109,6 +1109,17 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       }),
     [message.id, rawHistoryEntries]
   )
+  const completedHistoryHasError = useMemo(() => {
+    if (!completedLayout) return false
+
+    for (let index = completedLayout.resultEntries.length - 1; index >= 0; index--) {
+      const entry = completedLayout.resultEntries[index]
+      if (!isPotentiallyVisibleEntry(entry, message.id)) continue
+      return (entry.part.type as string) === 'data-error'
+    }
+
+    return historyHasError
+  }, [completedLayout, historyHasError, message.id])
   const historyHasReasoning = hasVisibleReasoning(rawHistoryEntries)
   const historyEntries = useMemo(
     () => filterToolHistoryReasoningEntries(rawHistoryEntries, historyToolItems.length === 0),
@@ -1191,7 +1202,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
         <CompletedProcessHistory
           hasContent={historyHasContent}
-          hasError={historyHasError}
+          hasError={completedHistoryHasError}
           hasReasoning={historyHasReasoning}
           message={message}
           toolCount={historyToolCount}

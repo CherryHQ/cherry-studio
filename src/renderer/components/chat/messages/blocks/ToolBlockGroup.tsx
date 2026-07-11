@@ -46,12 +46,21 @@ function getActivityCandidateKey(label: React.ReactNode): string {
   return typeof label === 'string' || typeof label === 'number' ? `activity:${label}` : 'activity'
 }
 
-function shouldBypassHeaderStabilization(candidate: ToolHeaderCandidate): boolean {
+function isErrorHeaderCandidate(candidate: ToolHeaderCandidate): boolean {
   return (
     candidate.kind === 'tool' &&
-    (candidate.status === 'waiting' ||
-      candidate.status === 'error' ||
-      candidate.item.toolResponse.response?.isError === true)
+    (candidate.status === 'error' || candidate.item.toolResponse.response?.isError === true)
+  )
+}
+
+function shouldBypassHeaderStabilization(
+  currentCandidate: ToolHeaderCandidate,
+  nextCandidate: ToolHeaderCandidate
+): boolean {
+  return (
+    (nextCandidate.kind === 'tool' && nextCandidate.status === 'waiting') ||
+    isErrorHeaderCandidate(nextCandidate) ||
+    isErrorHeaderCandidate(currentCandidate)
   )
 }
 
@@ -85,7 +94,7 @@ function useStableHeaderCandidate(
       return clearPendingTimer
     }
 
-    if (!isLiveProgress || shouldBypassHeaderStabilization(nextCandidate)) {
+    if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
       clearPendingTimer()
       pendingCandidateRef.current = null
       commitCandidate(nextCandidate)
@@ -108,7 +117,7 @@ function useStableHeaderCandidate(
     return clearPendingTimer
   }, [isLiveProgress, nextCandidate])
 
-  if (!isLiveProgress || shouldBypassHeaderStabilization(nextCandidate)) {
+  if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
     return nextCandidate
   }
 

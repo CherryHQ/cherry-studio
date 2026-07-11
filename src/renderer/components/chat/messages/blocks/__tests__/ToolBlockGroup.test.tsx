@@ -312,4 +312,30 @@ describe('ToolBlockGroup', () => {
 
     expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Edit:error')
   })
+
+  it('switches immediately from an error header to new live progress', () => {
+    vi.useFakeTimers()
+
+    const { rerender } = render(
+      <ToolBlockGroupHeaderContent
+        items={[errorEditItem]}
+        summary="1 tool call"
+        isLiveProgress
+        showLatestWhenComplete
+      />
+    )
+
+    expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Edit:error')
+
+    rerender(
+      <ToolBlockGroupHeaderContent
+        items={[errorEditItem, items[0]]}
+        summary="2 tool calls"
+        isLiveProgress
+        showLatestWhenComplete
+      />
+    )
+
+    expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Read:invoking')
+  })
 })

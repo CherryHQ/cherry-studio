@@ -800,14 +800,29 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(1)
     })
 
-    it('surfaces an earlier tool failure in the collapsed live process row', () => {
+    it('shows the latest running tool after an earlier tool failure', () => {
       activateTurn('streaming')
       renderParts(
         [toolPart('failed', 'output-error'), toolPart('cleanup')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
       )
 
-      expect(screen.getByTestId('mock-tool-group-header')).toHaveAttribute('data-header-status', 'error')
+      const header = screen.getByTestId('mock-tool-group-header')
+      expect(header).toHaveAttribute('data-header-status', 'invoking')
+      expect(header).toHaveTextContent('cleanup')
+    })
+
+    it('shows live reasoning after an earlier tool failure', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          toolPart('failed', 'output-error'),
+          { type: 'reasoning', text: 'Recovering', state: 'streaming' }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Thinking...')
     })
 
     it('folds intermediate text while keeping interactive and side-channel tools as hard boundaries', () => {
@@ -1028,14 +1043,29 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: 'Processed 1 tool calls 1 second' })).toBeInTheDocument()
     })
 
-    it('surfaces any tool failure in the collapsed completed summary', () => {
-      renderParts([
-        toolPart('failed', 'output-error'),
-        toolPart('cleanup'),
-        { type: 'text', text: 'Recovered answer' }
-      ] as unknown as CherryMessagePart[])
+    it('shows a recovered result as processed while preserving the failed tool detail', () => {
+      renderParts(
+        [
+          toolPart('failed', 'output-error'),
+          toolPart('cleanup'),
+          { type: 'text', text: 'Recovered answer' }
+        ] as unknown as CherryMessagePart[],
+        msg({ updatedAt: '2026-01-01T00:00:01Z' })
+      )
 
-      expect(screen.getByRole('button', { name: 'Error 2 tool calls' })).toBeInTheDocument()
+      const historyTrigger = screen.getByRole('button', { name: 'Processed 2 tool calls 1 second' })
+      fireEvent.click(historyTrigger)
+
+      const failedTool = screen
+        .getAllByTestId('mock-message-tools')
+        .find((node) => node.getAttribute('data-tool-name') === 'failed')
+      expect(failedTool).toHaveAttribute('data-status', 'error')
+    })
+
+    it('keeps an unrecovered tool failure in the collapsed completed summary', () => {
+      renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
+
+      expect(screen.getByRole('button', { name: 'Error 1 tool calls' })).toBeInTheDocument()
     })
 
     it('prioritizes a completed error over a reasoning-only history label', () => {

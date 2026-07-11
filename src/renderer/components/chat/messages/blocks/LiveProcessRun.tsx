@@ -56,11 +56,10 @@ const LiveProcessRun = React.memo(function LiveProcessRun({
   })
   const { contentRef, hasOverflow, pauseForInteraction, viewportRef } = useProcessRunAutoScroll(requestFollowRecovery)
   const summary = toolCount > 0 ? t('message.tools.groupHeader', { count: toolCount }) : t('common.reasoning_content')
-  const activityLabel = hasToolError
-    ? undefined
-    : isLive && isReasoningTail
+  const activityLabel =
+    isLive && isReasoningTail
       ? t('message.tools.thinkingHeader')
-      : isLive && toolCount > 0 && allToolsTerminal && !hasToolError
+      : isLive && toolCount > 0 && allToolsTerminal
         ? t('message.tools.runningHeader')
         : undefined
 
