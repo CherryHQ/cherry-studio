@@ -1,3 +1,4 @@
+import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -230,6 +231,64 @@ describe('CodeCliService', () => {
       } finally {
         vi.useRealTimers()
       }
+    })
+  })
+
+  // gemini-cli ignores the model in ~/.gemini/settings.json (google-gemini/gemini-cli#5373), so the
+  // model must be passed on the command line at launch — and in gateway mode it must carry the
+  // providerId prefix the gateway addresses by, or the gateway rejects it with "Invalid model format".
+  describe('run (gemini-cli passes the model via --model)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launchScript = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        return (call![1] as string[]).join(' ')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('addresses the model as providerId:modelId in gateway mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'agent/deepseek-v4-flash',
+        providerId: '618d8838-1791-44df-8802-34f8444c0935',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash')
+    })
+
+    it('passes the bare model id in direct (non-gateway) mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'gemini-2.5-pro',
+        providerId: 'gemini',
+        directory: '/tmp/project'
+      })
+      expect(script).toContain('--model gemini-2.5-pro')
+      expect(script).not.toContain('gemini:gemini-2.5-pro')
     })
   })
 

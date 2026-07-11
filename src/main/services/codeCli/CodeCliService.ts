@@ -25,7 +25,7 @@ import { promisify } from 'util'
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
 import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
-import { posixQuote } from './shellQuote'
+import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -461,6 +461,23 @@ export class CodeCliService extends BaseService {
     // documented bypass, scoped to this one launched session only.
     if (cliTool === CodeCli.GEMINI_CLI) {
       env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
+
+      // gemini-cli ignores the model configured in ~/.gemini/settings.json — a hardcoded
+      // default / "auto" model routing overrides it (google-gemini/gemini-cli#5373) — so the
+      // model it actually calls must be passed on the command line, the one source it honors
+      // verbatim. In gateway mode it needs the `providerId:modelId` address the gateway parses
+      // from the URL path; direct mode passes the bare model id.
+      if (normal) {
+        const modelArg = normal.gateway ? `${normal.providerId}:${normal.model}` : normal.model
+        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
+        // model id carrying shell metacharacters rather than launch.
+        if (!isShellSafeModelId(modelArg)) {
+          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
+          logger.error(message)
+          return { success: false, message }
+        }
+        baseCommand = `${baseCommand} --model ${modelArg}`
+      }
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather
