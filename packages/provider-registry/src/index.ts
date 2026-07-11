@@ -18,12 +18,7 @@ export {
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
-export type {
-  ImageParamCatalogEntry,
-  ParamControlKind,
-  ParamValue,
-  ParamValues
-} from './schemas/imageParamCatalog'
+export type { ImageParamCatalogEntry, ParamValue, ParamValues } from './schemas/imageParamCatalog'
 export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,

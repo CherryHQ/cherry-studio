@@ -2,10 +2,11 @@
  * Central image-generation parameter catalog.
  *
  * The single source of truth for each canonical param's **value type** (the
- * zod `schema`), its default **control kind**, and its **vendor wire field
- * name** (`wire` — see {@link wireName}). Per-model `supports` (in the registry
- * data) keeps only the per-model constraints — options / default / range — and
- * is composed with this catalog by `buildParamsSchema`.
+ * zod `schema`) and its **vendor wire field name** (`wire` — see {@link wireName}).
+ * Per-model `supports` (in the registry data) keeps only the per-model constraints
+ * — options / default / range — and is composed with this catalog by
+ * `buildParamsSchema`. The renderer derives its control kind from `SupportSpec.type`
+ * (`imageGenerationToFields`), so no control kind lives here.
  *
  * Two invariants:
  *  - The catalog is **exhaustive** over `CanonicalParamKey`
@@ -21,14 +22,9 @@ import * as z from 'zod'
 
 import type { CanonicalParamKey } from './enums'
 
-/** The control the renderer uses to collect this param's value. */
-export type ParamControlKind = 'enum' | 'range' | 'switch' | 'text' | 'seedInput' | 'size'
-
 export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
   /** SINGLE source of truth for the param's value type. Always optional. */
   readonly schema: S
-  /** Default control kind (consumed once the form is catalog-driven). */
-  readonly control: ParamControlKind
   /** Vendor wire field name override. Omit when it's the auto camelCase→snake_case
    *  form (the common case — see {@link wireName}); set only for irregulars. */
   readonly wire?: string
@@ -47,48 +43,48 @@ const optInt = z.preprocess(blankToUndefined, z.coerce.number().int().optional()
  * survive for {@link ParamValue} (annotating the object would widen them).
  */
 export const IMAGE_PARAM_CATALOG = {
-  addWatermark: { schema: optBool, control: 'switch', wire: 'watermark' },
-  aspectRatio: { schema: optString, control: 'enum' },
-  background: { schema: optString, control: 'enum' },
-  bottomScale: { schema: optNumber, control: 'range' },
-  cfg: { schema: optNumber, control: 'range' },
-  customSize: { schema: optString, control: 'size' },
-  detail: { schema: optNumber, control: 'range' },
-  enableInterleave: { schema: optBool, control: 'switch' },
-  function: { schema: optString, control: 'enum' },
-  guidanceScale: { schema: optNumber, control: 'range' },
-  imageResolution: { schema: optString, control: 'enum', wire: 'size' },
-  imageWeight: { schema: optNumber, control: 'range' },
-  isSketch: { schema: optBool, control: 'switch' },
-  leftScale: { schema: optNumber, control: 'range' },
-  magicPromptOption: { schema: optBool, control: 'switch' },
-  maxImages: { schema: optInt, control: 'range' },
-  moderation: { schema: optString, control: 'enum' },
-  negativePrompt: { schema: optString, control: 'text' },
-  numImages: { schema: optInt, control: 'range' },
-  numInferenceSteps: { schema: optInt, control: 'range' },
-  outputFormat: { schema: optString, control: 'enum' },
-  personGeneration: { schema: optString, control: 'enum' },
-  promptEnhancement: { schema: optBool, control: 'switch' },
-  promptExtend: { schema: optBool, control: 'switch' },
-  quality: { schema: optString, control: 'enum' },
-  refMode: { schema: optString, control: 'enum' },
-  refStrength: { schema: optNumber, control: 'range' },
-  renderingSpeed: { schema: optString, control: 'enum' },
-  resemblance: { schema: optNumber, control: 'range' },
-  rightScale: { schema: optNumber, control: 'range' },
-  safetyTolerance: { schema: optInt, control: 'range' },
-  seed: { schema: optInt, control: 'seedInput' },
-  sequentialImageGeneration: { schema: optString, control: 'enum' },
-  size: { schema: optString, control: 'enum' },
-  sourceLang: { schema: optString, control: 'enum' },
-  strength: { schema: optNumber, control: 'range' },
-  style: { schema: optString, control: 'enum' },
-  styleType: { schema: optString, control: 'enum' },
-  targetLang: { schema: optString, control: 'enum' },
-  thinkingMode: { schema: optBool, control: 'switch' },
-  topScale: { schema: optNumber, control: 'range' },
-  upscaleFactor: { schema: optNumber, control: 'range' }
+  addWatermark: { schema: optBool, wire: 'watermark' },
+  aspectRatio: { schema: optString },
+  background: { schema: optString },
+  bottomScale: { schema: optNumber },
+  cfg: { schema: optNumber },
+  customSize: { schema: optString },
+  detail: { schema: optNumber },
+  enableInterleave: { schema: optBool },
+  function: { schema: optString },
+  guidanceScale: { schema: optNumber },
+  imageResolution: { schema: optString, wire: 'size' },
+  imageWeight: { schema: optNumber },
+  isSketch: { schema: optBool },
+  leftScale: { schema: optNumber },
+  magicPromptOption: { schema: optBool },
+  maxImages: { schema: optInt },
+  moderation: { schema: optString },
+  negativePrompt: { schema: optString },
+  numImages: { schema: optInt },
+  numInferenceSteps: { schema: optInt },
+  outputFormat: { schema: optString },
+  personGeneration: { schema: optString },
+  promptEnhancement: { schema: optBool },
+  promptExtend: { schema: optBool },
+  quality: { schema: optString },
+  refMode: { schema: optString },
+  refStrength: { schema: optNumber },
+  renderingSpeed: { schema: optString },
+  resemblance: { schema: optNumber },
+  rightScale: { schema: optNumber },
+  safetyTolerance: { schema: optInt },
+  seed: { schema: optInt },
+  sequentialImageGeneration: { schema: optString },
+  size: { schema: optString },
+  sourceLang: { schema: optString },
+  strength: { schema: optNumber },
+  style: { schema: optString },
+  styleType: { schema: optString },
+  targetLang: { schema: optString },
+  thinkingMode: { schema: optBool },
+  topScale: { schema: optNumber },
+  upscaleFactor: { schema: optNumber }
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
 /** Static value type of a canonical param, derived from its catalog schema. */
