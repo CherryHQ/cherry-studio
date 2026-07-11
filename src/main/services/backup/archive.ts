@@ -12,7 +12,8 @@
 // Lite mode omits files/ and knowledge/ (caller passes neither dir). Follows the
 // archiver pattern established by LegacyBackupManager.ts (zlib level 1 + zip64)
 // but adds two backup-critical guards that pattern lacks: ATOMIC write (write to
-// a sibling temp file → rename on success) and FAIL-LOUD on any archiver warning
+// a sibling temp file → link on success; rename fallback on hard-link-unsupported
+// volumes) and FAIL-LOUD on any archiver warning
 // (backup archives have no optional entries).
 
 import { randomBytes } from 'node:crypto'
@@ -41,7 +42,7 @@ export interface ArchiveInputs {
 
 /**
  * Pack the export inputs into `outPath` (a .cbu zip). Writes to a sibling temp
- * file then atomically renames → a write failure (ENOSPC etc.) can never leave a
+ * file then atomically links → a write failure (ENOSPC etc.) can never leave a
  * partial/corrupt archive at the user-visible `outPath`, nor destroy a prior good
  * backup that already lives there. Throws on any archiver error OR warning (every
  * entry in a backup archive is required).
@@ -51,11 +52,11 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
   // missing file and finalize successfully — producing a .cbu without backup.sqlite.
   await stat(inputs.dbCopyPath)
-  // No-clobber: refuse to overwrite an existing file. archive writes via a temp file
-  // + atomic rename, which silently overwrites on replace-supporting systems — a prior
-  // good backup (or any user file) at outPath would be destroyed. Defense-in-depth
-  // alongside BackupService.validateOutputPath (entry check); this brackets the small
-  // TOCTOU window between entry and archive completion.
+  // No-clobber: refuse to overwrite an existing file. archive publishes via link()
+  // (EEXIST = no-clobber, atomic) with a rename fallback only on hard-link-unsupported
+  // volumes (which can overwrite — guarded by this stat + the entry validateOutputPath).
+  // Defense-in-depth alongside BackupService.validateOutputPath (entry check); this
+  // brackets the small TOCTOU window between entry and archive completion.
   try {
     await stat(outPath)
     throw new OutputPathExistsError(outPath)
@@ -66,7 +67,7 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
   if (signal?.aborted) throw new BackupCancelledError()
 
   const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
-  // Sibling temp file guarantees the final rename is atomic (same filesystem; a
+  // Sibling temp file guarantees the final link is atomic (same filesystem; a
   // cross-filesystem tmp would EXDEV on rename). Hidden name so a crashed run
   // doesn't leave a visible partial .cbu.
   const tmpPath = join(dirname(outPath), `.${basename(outPath)}.${randomBytes(6).toString('hex')}.tmp`)
