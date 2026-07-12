@@ -44,7 +44,7 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should detect fixed keys as false', () => {
-      const fixedResult1: IsTemplateKey<'app.path.files'> = false
+      const fixedResult1: IsTemplateKey<'app.path.resources'> = false
       const fixedResult2: IsTemplateKey<'chat.web_search.searching'> = false
       expect(fixedResult1).toBe(false)
       expect(fixedResult2).toBe(false)
@@ -70,9 +70,9 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should leave fixed keys unchanged', () => {
-      type Expanded = ExpandTemplateKey<'app.path.files'>
-      const key: Expanded = 'app.path.files'
-      expect(key).toBe('app.path.files')
+      type Expanded = ExpandTemplateKey<'app.path.resources'>
+      const key: Expanded = 'app.path.resources'
+      expect(key).toBe('app.path.resources')
     })
   })
 
@@ -84,17 +84,17 @@ describe('Template Key Type Utilities', () => {
     })
 
     it('should keep fixed keys unchanged', () => {
-      type Processed = ProcessKey<'app.path.files'>
-      const key: Processed = 'app.path.files'
-      expect(key).toBe('app.path.files')
+      type Processed = ProcessKey<'app.path.resources'>
+      const key: Processed = 'app.path.resources'
+      expect(key).toBe('app.path.resources')
     })
   })
 
   describe('UseCacheKey', () => {
     it('should include fixed keys', () => {
-      const key1: UseCacheKey = 'app.path.files'
+      const key1: UseCacheKey = 'app.path.resources'
       const key2: UseCacheKey = 'chat.web_search.searching'
-      expect(key1).toBe('app.path.files')
+      expect(key1).toBe('app.path.resources')
       expect(key2).toBe('chat.web_search.searching')
     })
 
@@ -111,7 +111,7 @@ describe('Template Key Type Utilities', () => {
   describe('InferUseCacheValue', () => {
     it('should infer value type for fixed keys', () => {
       // These type assertions verify the type system works
-      const avatarType: InferUseCacheValue<'app.path.files'> = 'test'
+      const avatarType: InferUseCacheValue<'app.path.resources'> = 'test'
       const generatingType: InferUseCacheValue<'chat.web_search.searching'> = true
       expectTypeOf(avatarType).toBeString()
       expectTypeOf(generatingType).toBeBoolean()
@@ -134,7 +134,7 @@ describe('Template Key Type Utilities', () => {
   describe('UseCacheCasualKey', () => {
     it('should block fixed schema keys', () => {
       // Fixed keys should resolve to never
-      type BlockedFixed = UseCacheCasualKey<'app.path.files'>
+      type BlockedFixed = UseCacheCasualKey<'app.path.resources'>
       expectTypeOf<BlockedFixed>().toBeNever()
     })
 
@@ -158,7 +158,7 @@ describe('Template Key Type Utilities', () => {
 
       expect(isTemplate('scroll.position.${id}')).toBe(true)
       expect(isTemplate('entity.cache.${type}_${id}')).toBe(true)
-      expect(isTemplate('app.path.files')).toBe(false)
+      expect(isTemplate('app.path.resources')).toBe(false)
       expect(isTemplate('chat.web_search.searching')).toBe(false)
     })
   })

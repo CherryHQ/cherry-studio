@@ -85,7 +85,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token)
 
       if (result.success) {
-        setAllServers({ ...allServers, [provider.key]: result.allServers })
+        // Functional updater: merge against the latest stored value, not a
+        // render-time snapshot, so a concurrent write to another provider's
+        // entry is never clobbered.
+        setAllServers((prev) => ({ ...prev, [provider.key]: result.allServers }))
         toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
         toast.error(result.message)
@@ -96,7 +99,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     } finally {
       setIsFetching(false)
     }
-  }, [allServers, provider, setAllServers, t, token])
+  }, [provider, setAllServers, t, token])
 
   const isFetchDisabled = !token
   return (

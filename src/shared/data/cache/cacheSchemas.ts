@@ -115,7 +115,6 @@ export type UseCacheSchema = {
   // App state
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
 
-  'app.path.files': string
   'app.path.resources': string
 
   // Chat context
@@ -197,7 +196,6 @@ export const DefaultUseCache: UseCacheSchema = {
     ignore: false,
     manualCheck: false
   },
-  'app.path.files': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
