@@ -62,7 +62,7 @@ Four sources for a tool to be available, in order of precedence:
 | State | Detected by | UI label |
 |---|---|---|
 | **managed (mise)** | `resolve_tools` validates the persisted mise target | "v1.2.3" version chip |
-| **available (bundled)** | `resolve_tools` finds the extracted binary in `cherry.bin` | "bundled" chip + "Install via mise" CTA |
+| **available (bundled)** | `resolve_tools` finds the extracted binary in `cherry.bin` | "bundled" chip (no install CTA — it already works) |
 | **available (system)** | `resolve_tools` resolves the login-shell PATH | "system" chip, with the path on hover |
 | **not installed** | `resolve_tools` returns `none` | "Install" CTA |
 
@@ -72,7 +72,7 @@ The system fallback resolves against `getRawShellEnv`, before Cherry injects man
 
 The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible. RTK is installed on demand from Settings → Plugins instead of being extracted automatically at startup.
 
-**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-resolves after install and updates the "managed / bundled" label accordingly.
+**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a mise-managed copy of a bundled tool exists (e.g. `uv` installed via mise), it wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-resolves after install and updates the "managed / bundled" label accordingly.
 
 ## GitHub rate-limit opt-in
 
