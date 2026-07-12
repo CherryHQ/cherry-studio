@@ -96,6 +96,8 @@ const textPacks = {
     sseClients: 'SSE clients',
     stop: 'Stop',
     stopped: 'Stopped',
+    switchToDark: 'Switch to dark theme',
+    switchToLight: 'Switch to light theme',
     attachmentPending: 'Add file (coming soon)',
     newConversationTool: 'New conversation',
     thinkingPending: 'Thinking mode (coming soon)',
@@ -140,6 +142,8 @@ const textPacks = {
     sseClients: 'SSE 客户端',
     stop: '停止',
     stopped: '已停止',
+    switchToDark: '切换至深色主题',
+    switchToLight: '切换至浅色主题',
     attachmentPending: '添加文件（待开发）',
     newConversationTool: '新建会话',
     thinkingPending: '思维模式（待开发）',
@@ -184,6 +188,8 @@ const textPacks = {
     sseClients: 'SSE 用戶端',
     stop: '停止',
     stopped: '已停止',
+    switchToDark: '切換至深色主題',
+    switchToLight: '切換至淺色主題',
     attachmentPending: '加入檔案（待開發）',
     newConversationTool: '新增會話',
     thinkingPending: '思考模式（待開發）',
@@ -363,6 +369,9 @@ const App = defineComponent({
     const modelPickerOpen = ref(false)
     const modelUpdateState = ref<'idle' | 'updating' | 'error'>('idle')
     const mobileSidebarOpen = ref(false)
+    const themeMode = ref<'light' | 'dark'>(
+      window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    )
     const messageStack = ref<HTMLElement>()
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     let healthTimer: number | undefined
@@ -395,6 +404,7 @@ const App = defineComponent({
       if (percentage >= 75) return 'warning'
       return 'normal'
     })
+    const themeToggleLabel = computed(() => (themeMode.value === 'dark' ? text('switchToLight') : text('switchToDark')))
     const slashCommandSuggestions = computed(() => {
       const input = composerText.value.trimStart()
       if (modelPickerOpen.value || !input.startsWith('/')) return []
@@ -757,6 +767,15 @@ const App = defineComponent({
       if (!healthTimer) healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
     }
 
+    const applyThemeMode = () => {
+      document.documentElement.dataset.webuiTheme = themeMode.value
+    }
+
+    const toggleThemeMode = () => {
+      themeMode.value = themeMode.value === 'dark' ? 'light' : 'dark'
+      applyThemeMode()
+    }
+
     const loadAuthStatus = async () => {
       try {
         const status = await httpClient.getJson<WebUiAuthStatusResponse>('/api/auth/status')
@@ -815,6 +834,7 @@ const App = defineComponent({
     })
 
     onMounted(() => {
+      applyThemeMode()
       void loadAuthStatus()
     })
 
@@ -828,6 +848,7 @@ const App = defineComponent({
       unsubscribeDone()
       unsubscribeError()
       sseClient.close()
+      delete document.documentElement.dataset.webuiTheme
     })
 
     return () =>
@@ -960,6 +981,13 @@ const App = defineComponent({
               h('h2', selectedConversation.value?.title ?? text('selectConversation'))
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
+              h('button', {
+                class: ['theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
+                type: 'button',
+                title: themeToggleLabel.value,
+                'aria-label': themeToggleLabel.value,
+                onClick: toggleThemeMode
+              }),
               h(
                 'span',
                 {
@@ -1359,6 +1387,36 @@ style.textContent = `
     display: flex;
     gap: 10px;
     align-items: center;
+  }
+
+  .theme-toggle-button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .theme-toggle-button:hover,
+  .theme-toggle-button:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .theme-toggle-button::after {
+    font-size: 17px;
+    line-height: 1;
+    content: '\\263c';
+  }
+
+  .theme-toggle-button-dark::after {
+    content: '\\263e';
   }
 
   .eyebrow {
@@ -2264,6 +2322,142 @@ style.textContent = `
     }
   }
 
+  :root[data-webui-theme='dark'] {
+    color: #e5e7eb;
+    background: #111827;
+    color-scheme: dark;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-list,
+  :root[data-webui-theme='dark'] .status-panel,
+  :root[data-webui-theme='dark'] .message,
+  :root[data-webui-theme='dark'] .auth-panel,
+  :root[data-webui-theme='dark'] .new-conversation-dialog,
+  :root[data-webui-theme='dark'] textarea,
+  :root[data-webui-theme='dark'] input,
+  :root[data-webui-theme='dark'] select,
+  :root[data-webui-theme='dark'] .tool-call-data {
+    color: #e5e7eb;
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  :root[data-webui-theme='dark'] .chat-stage,
+  :root[data-webui-theme='dark'] .composer {
+    background: #111827;
+    border-color: #374151;
+  }
+
+  :root[data-webui-theme='dark'] .composer-surface {
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .composer-toolbar::before {
+    background: #334155;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-item,
+  :root[data-webui-theme='dark'] .tool-call,
+  :root[data-webui-theme='dark'] .reasoning-block,
+  :root[data-webui-theme='dark'] .markdown-content th,
+  :root[data-webui-theme='dark'] .secondary-button,
+  :root[data-webui-theme='dark'] .icon-button,
+  :root[data-webui-theme='dark'] .slash-command-menu,
+  :root[data-webui-theme='dark'] .model-picker-menu,
+  :root[data-webui-theme='dark'] .theme-toggle-button {
+    color: #e5e7eb;
+    background: #273449;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-item:hover,
+  :root[data-webui-theme='dark'] .conversation-item-selected,
+  :root[data-webui-theme='dark'] .model-picker-option:hover,
+  :root[data-webui-theme='dark'] .model-picker-option-selected,
+  :root[data-webui-theme='dark'] .slash-command-option:hover,
+  :root[data-webui-theme='dark'] .theme-toggle-button:hover {
+    background: #334155;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-title,
+  :root[data-webui-theme='dark'] .tool-call,
+  :root[data-webui-theme='dark'] .tool-call-data,
+  :root[data-webui-theme='dark'] .slash-command-option,
+  :root[data-webui-theme='dark'] .model-picker-option,
+  :root[data-webui-theme='dark'] .composer-tool-button {
+    color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='dark'] .composer-tool-button-pending,
+  :root[data-webui-theme='dark'] .slash-command-description,
+  :root[data-webui-theme='dark'] .model-picker-provider {
+    color: #94a3b8;
+  }
+
+  :root[data-webui-theme='light'] {
+    color: #1f2937;
+    background: #f6f7fb;
+    color-scheme: light;
+  }
+
+  :root[data-webui-theme='light'] .conversation-list,
+  :root[data-webui-theme='light'] .status-panel,
+  :root[data-webui-theme='light'] .message,
+  :root[data-webui-theme='light'] .auth-panel,
+  :root[data-webui-theme='light'] .new-conversation-dialog,
+  :root[data-webui-theme='light'] textarea,
+  :root[data-webui-theme='light'] input,
+  :root[data-webui-theme='light'] select,
+  :root[data-webui-theme='light'] .tool-call-data {
+    color: #111827;
+    background: #ffffff;
+    border-color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='light'] .chat-stage,
+  :root[data-webui-theme='light'] .composer {
+    background: #f6f7fb;
+    border-color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='light'] .composer-surface {
+    background: #ffffff;
+    border-color: #dbe1ea;
+  }
+
+  :root[data-webui-theme='light'] .conversation-item,
+  :root[data-webui-theme='light'] .tool-call,
+  :root[data-webui-theme='light'] .reasoning-block,
+  :root[data-webui-theme='light'] .markdown-content th,
+  :root[data-webui-theme='light'] .secondary-button,
+  :root[data-webui-theme='light'] .icon-button,
+  :root[data-webui-theme='light'] .slash-command-menu,
+  :root[data-webui-theme='light'] .model-picker-menu,
+  :root[data-webui-theme='light'] .theme-toggle-button {
+    color: #1f2937;
+    background: #ffffff;
+    border-color: #d1d5db;
+  }
+
+  :root[data-webui-theme='light'] .conversation-item:hover,
+  :root[data-webui-theme='light'] .conversation-item-selected,
+  :root[data-webui-theme='light'] .model-picker-option:hover,
+  :root[data-webui-theme='light'] .model-picker-option-selected,
+  :root[data-webui-theme='light'] .slash-command-option:hover,
+  :root[data-webui-theme='light'] .theme-toggle-button:hover {
+    background: #eef2ff;
+  }
+
+  :root[data-webui-theme='light'] .conversation-title,
+  :root[data-webui-theme='light'] .tool-call,
+  :root[data-webui-theme='light'] .tool-call-data,
+  :root[data-webui-theme='light'] .slash-command-option,
+  :root[data-webui-theme='light'] .model-picker-option,
+  :root[data-webui-theme='light'] .composer-tool-button {
+    color: #1f2937;
+  }
+
   @media (max-width: 900px) {
     .webui-shell {
       grid-template-columns: 1fr;
@@ -2549,6 +2743,35 @@ style.textContent = `
         background: #1f2937;
       }
     }
+  }
+  :root[data-webui-theme='dark'] .context-orb {
+    color: #cbd5e1;
+    background: radial-gradient(circle at center, #111827 62%, transparent 64%),
+      conic-gradient(var(--context-color) var(--context-usage), #475569 0);
+  }
+
+  :root[data-webui-theme='light'] .composer,
+  :root[data-webui-theme='light'] .composer-surface,
+  :root[data-webui-theme='light'] .composer-surface textarea {
+    background: #ffffff;
+    border-color: #dbe1ea;
+  }
+
+  :root[data-webui-theme='light'] .mobile-sidebar-button,
+  :root[data-webui-theme='light'] .theme-toggle-button {
+    color: #374151;
+    background: #ffffff;
+    border-color: #d1d5db;
+  }
+
+  :root[data-webui-theme='light'] .mobile-sidebar-button::after {
+    color: #374151;
+  }
+
+  :root[data-webui-theme='light'] .context-orb {
+    color: #334155;
+    background: radial-gradient(circle at center, #ffffff 62%, transparent 64%),
+      conic-gradient(var(--context-color) var(--context-usage), #e2e8f0 0);
   }
 `
 document.head.appendChild(style)
