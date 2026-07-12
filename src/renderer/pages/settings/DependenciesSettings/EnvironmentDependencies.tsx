@@ -33,7 +33,12 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import {
+  type BinaryToolPreset,
+  isRuntimeDependency,
+  PRESETS_BINARY_TOOLS,
+  validateManagedBinary
+} from '@shared/data/presets/binaryTools'
 import type { BinaryResolutions } from '@shared/types/binary'
 import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
@@ -368,6 +373,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             <CustomToolCard
               key={tool.name}
               tool={tool}
+              runtime={isRuntimeDependency(tool.tool)}
               managed={managed}
               systemPath={systemPath}
               installedVersion={installedVersion}
@@ -581,6 +587,7 @@ const BinaryToolPresetCard: FC<{
 const CustomToolCard: FC<{
   tool: ManagedBinary
   managed: boolean
+  runtime?: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
@@ -594,6 +601,7 @@ const CustomToolCard: FC<{
 }> = ({
   tool,
   managed,
+  runtime = false,
   systemPath,
   installedVersion,
   latestVersion,
@@ -636,6 +644,14 @@ const CustomToolCard: FC<{
                     {t('settings.dependencies.source.system')}
                   </Badge>
                 )}
+                {runtime && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 px-1.5 py-0 text-[11px] leading-4"
+                    title={t('settings.dependencies.runtimeDependencyHint')}>
+                    {t('settings.dependencies.runtimeDependency')}
+                  </Badge>
+                )}
                 {latestVersion && (
                   <Badge
                     variant="outline"
@@ -649,7 +665,10 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {managed && (
+          {/* Runtime deps are display-only: BinaryManager pins their version
+              (RUNTIME_DEPS), so user update/remove would fight the pin or
+              break every tool of that backend. */}
+          {managed && !runtime && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -675,15 +694,17 @@ const CustomToolCard: FC<{
               <FolderOpen className="size-3.5" />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-foreground/40 hover:text-destructive"
-            aria-label={t('settings.dependencies.remove')}
-            title={t('settings.dependencies.remove')}
-            onClick={onRemove}>
-            <Trash2 className="size-3.5" />
-          </Button>
+          {!runtime && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground/40 hover:text-destructive"
+              aria-label={t('settings.dependencies.remove')}
+              title={t('settings.dependencies.remove')}
+              onClick={onRemove}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 

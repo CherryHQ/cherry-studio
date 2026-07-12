@@ -15,7 +15,13 @@ import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import {
+  isRuntimeDependency,
+  PRESETS_BINARY_TOOLS,
+  TOOL_KEY_RE,
+  TOOL_NAME_RE,
+  validateManagedBinary
+} from '@shared/data/presets/binaryTools'
 import type { BinaryInstallState, BinaryInstallStates, BinaryResolution, BinaryResolutions } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
@@ -707,13 +713,43 @@ export class BinaryManager extends BaseService {
     return { ...this.installStates }
   }
 
-  /** Full inventory of mise-managed installs from the persisted state file. */
-  listTools(): Array<{ name: string; tool: string; version: string }> {
-    return Object.entries(this.loadState().tools).map(([name, entry]) => ({
+  /**
+   * Full inventory of mise-managed installs: the persisted state file merged
+   * with `mise ls`. The live query catches installs the state file never
+   * records — chiefly RUNTIME_DEPS interpreters (node/python) that ride along
+   * on `mise use` — so the UI reflects what is actually installed.
+   */
+  async listTools(): Promise<Array<{ name: string; tool: string; version: string }>> {
+    const tools = Object.entries(this.loadState().tools).map(([name, entry]) => ({
       name,
       tool: entry.tool,
       version: entry.version
     }))
+    if (!this.miseBin) return tools
+
+    try {
+      const { stdout } = await this.runMise(['ls', '--json'])
+      const installed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
+      // mise ls keys core-backend tools bare ('node'), while state entries may
+      // pin the backend ('core:node') — compare with the prefix stripped.
+      const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
+      const recorded = new Set(tools.map((tool) => normalize(tool.tool)))
+      for (const [spec, versions] of Object.entries(installed)) {
+        if (recorded.has(normalize(spec))) continue
+        // Unrecorded entries are realistically bare interpreter specs ('node');
+        // skip anything whose derived name is not addressable as a tool name,
+        // since downstream routes (resolve/remove) validate TOOL_NAME_RE.
+        const name = normalize(spec).split('@')[0]
+        if (!TOOL_NAME_RE.test(name)) continue
+        const version = versions.find((v) => v.active)?.version ?? versions.at(-1)?.version ?? ''
+        tools.push({ name, tool: spec, version })
+      }
+    } catch (err) {
+      logger.warn('Failed to merge mise ls into inventory', {
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
+    return tools
   }
 
   private setInstallState(name: string, state: BinaryInstallState | null) {
@@ -888,6 +924,12 @@ export class BinaryManager extends BaseService {
       const state = this.loadState()
       const existing = state.tools[toolName]
       if (!existing) return
+      // Runtime interpreters (node/python) back every tool of their backend;
+      // the UI hides their remove action, and the service refuses as well so
+      // no IPC path can break installed npm:/pipx: tools.
+      if (isRuntimeDependency(existing.tool)) {
+        throw new Error(`${toolName} is a runtime dependency of other tools and cannot be removed`)
+      }
 
       if (this.miseBin) {
         try {

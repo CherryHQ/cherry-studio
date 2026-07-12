@@ -65,8 +65,8 @@ export const binaryRequestSchemas = {
     input: z.void(),
     output: z.record(z.string(), binaryInstallStateSchema)
   }),
-  // Every tool recorded in BinaryManager's state file — the full inventory of
-  // mise-managed installs, independent of any preset or preference list.
+  // Full inventory of mise-managed installs: state-file entries merged with
+  // live `mise ls`, so unrecorded runtime deps (node/python) surface too.
   'binary.list_tools': defineRoute({
     input: z.void(),
     output: z.array(z.object({ name: z.string(), tool: z.string(), version: z.string() }))

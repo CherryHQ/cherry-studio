@@ -6,6 +6,19 @@ import type { ManagedBinary } from '../preference/preferenceTypes'
 export const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
 
+/**
+ * Whether a tool spec is a runtime interpreter that mise auto-installs for
+ * package backends (BinaryManager's RUNTIME_DEPS: npm → node, pipx → python).
+ * Runtime deps are displayed in the inventory but must not be removable —
+ * uninstalling them breaks every tool of that backend.
+ */
+export function isRuntimeDependency(toolSpec: string): boolean {
+  const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec
+  if (spec.includes(':')) return false
+  const base = spec.split('@')[0]
+  return base === 'node' || base === 'python'
+}
+
 export function validateManagedBinary(tool: ManagedBinary): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)

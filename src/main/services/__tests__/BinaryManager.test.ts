@@ -390,7 +390,7 @@ describe('BinaryManager', () => {
   })
 
   describe('listTools', () => {
-    it('maps state-file entries to the inventory shape', () => {
+    it('maps state-file entries to the inventory shape', async () => {
       const service = new BinaryManager()
 
       mockFs.existsSync.mockReturnValue(true)
@@ -403,23 +403,89 @@ describe('BinaryManager', () => {
         })
       )
 
-      expect(service.listTools()).toEqual([
+      await expect(service.listTools()).resolves.toEqual([
         { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
         { name: 'mytool', tool: 'npm:mytool', version: '1.2.3' }
       ])
     })
 
-    it('returns an empty inventory when no state file exists', () => {
+    it('returns an empty inventory when no state file exists', async () => {
       const service = new BinaryManager()
       mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
 
-      expect(service.listTools()).toEqual([])
+      await expect(service.listTools()).resolves.toEqual([])
+    })
+
+    it('merges mise-installed tools the state file never recorded', async () => {
+      // Runtime deps (node/python) ride along on `mise use` without a state
+      // entry — the live `mise ls` merge is what surfaces them in the UI.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { openclaw: { tool: 'npm:openclaw', version: '1.0.0' } } })
+      )
+      mockExecFileAsync.mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          'npm:openclaw': [{ version: '1.0.0' }],
+          node: [{ version: '22.23.1', active: true }, { version: '26.5.0' }]
+        }),
+        stderr: ''
+      })
+
+      await expect(service.listTools()).resolves.toEqual([
+        { name: 'openclaw', tool: 'npm:openclaw', version: '1.0.0' },
+        { name: 'node', tool: 'node', version: '22.23.1' }
+      ])
+    })
+
+    it('dedupes a core:-pinned state entry against the bare mise ls key', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { node: { tool: 'core:node', version: '22.23.1' } } })
+      )
+      mockExecFileAsync.mockResolvedValueOnce({
+        stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }] }),
+        stderr: ''
+      })
+
+      await expect(service.listTools()).resolves.toEqual([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+    })
+
+    it('falls back to the state file when mise ls fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ tools: { fd: { tool: 'fd', version: '10.0.0' } } }))
+      mockExecFileAsync.mockRejectedValueOnce(new Error('mise exploded'))
+
+      await expect(service.listTools()).resolves.toEqual([{ name: 'fd', tool: 'fd', version: '10.0.0' }])
     })
   })
 
   describe('removeTool', () => {
+    it('refuses to remove a runtime dependency', async () => {
+      const service = new BinaryManager()
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { node: { tool: 'core:node', version: '22.23.1' } } })
+      )
+
+      await expect(service.removeTool('node')).rejects.toThrow(/runtime dependency/)
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    })
+
     it('removes tool from state', async () => {
       const service = new BinaryManager()
 

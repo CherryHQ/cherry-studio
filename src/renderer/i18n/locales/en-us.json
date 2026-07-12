@@ -6163,6 +6163,8 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "runtimeDependency": "Runtime",
+      "runtimeDependencyHint": "Runtime for npm/pip tools, managed automatically — cannot be removed",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {

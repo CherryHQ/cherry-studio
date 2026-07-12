@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -308,6 +308,17 @@ describe('EnvironmentDependencies', () => {
 
     const card = (await screen.findByText('some-agent')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('v1.2.3')
+  })
+
+  it('shows a runtime dependency as display-only (badge, no remove/update)', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+    ipcMocks.getState.mockResolvedValue({ tools: { node: { version: '22.23.1' } } })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('settings.dependencies.runtimeDependency')
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+    expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
   })
 
   it('rejects adding a tool that already exists in the inventory', async () => {

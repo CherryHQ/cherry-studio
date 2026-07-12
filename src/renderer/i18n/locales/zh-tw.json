@@ -6163,6 +6163,8 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "runtimeDependency": "執行時依賴",
+      "runtimeDependencyHint": "npm/pip 工具的執行時，由應用自動管理，不可刪除",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
