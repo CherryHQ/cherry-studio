@@ -316,14 +316,25 @@ export interface BackupContributorPolicy {
  * (it's the importer's internal pre-scan).
  */
 export interface BackupContributorOperations {
+  // collectFileResources / beforeArchive / restoreResources run OUTSIDE the detached
+  // write tx (file IO, pre-merge staging) — async is allowed.
   collectFileResources?: (ctx: FileResourceContext) => Promise<Set<string>>
   beforeArchive?: (ctx: BeforeArchiveContext) => Promise<void>
-  /** Pure row transform; return null to skip the row. No db on the context. */
-  transformRow?: (ctx: RowTransformContext) => Promise<Readonly<Record<string, unknown>> | null>
-  afterImport?: (ctx: AfterImportContext) => Promise<void>
   restoreResources?: (ctx: RestoreResourceContext) => Promise<RestoreResourceResult>
+  // transformRow / afterImport / cloneAggregate run INSIDE the detached write tx
+  // (better-sqlite3 transaction fn MUST be synchronous — it rejects Promise callbacks).
+  // Returning a Promise would let the tx commit before the hook lands, breaking
+  // atomicity + defer_foreign_keys guarantees. Sync only (spec R3 / plan MAJOR 8).
+  // The return types below enforce this at the type boundary: `undefined` (not `void`)
+  // rejects `async () => Promise<void>` — TS lets a Promise satisfy `() => void` but not
+  // `() => undefined`. transformRow / cloneAggregate already reject async via non-void
+  // return types.
+  /** Pure row transform; return null to skip the row. No db on the context. */
+  transformRow?: (ctx: RowTransformContext) => Readonly<Record<string, unknown>> | null
+  /** FTS rebuild + in-tx derived writes via backupDb (own tables only). MUST be sync. */
+  afterImport?: (ctx: AfterImportContext) => undefined
   /** Return a new root row with the PK replaced by ctx.newRootKey. No db on the context. */
-  cloneAggregate?: (ctx: CloneAggregateContext) => Promise<{ rootRow: Readonly<Record<string, unknown>> }>
+  cloneAggregate?: (ctx: CloneAggregateContext) => { rootRow: Readonly<Record<string, unknown>> }
 }
 
 /** A frozen contributor constant: domain + static facts + optional hooks. */
