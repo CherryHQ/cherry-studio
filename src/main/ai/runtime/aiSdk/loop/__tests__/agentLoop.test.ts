@@ -1,6 +1,7 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { APICallError } from 'ai'
+import { APICallError, tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 const mockCreateAgent = vi.fn()
 
@@ -282,6 +283,62 @@ describe('Agent', () => {
       { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: 10 },
       { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: 25 }
     ])
+  })
+
+  it('uses configured tools when converting replayed tool results', async () => {
+    const aiSdkStream = vi.fn().mockResolvedValue({
+      toUIMessageStream: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.close()
+          }
+        })
+    })
+    mockCreateAgent.mockResolvedValue({ stream: aiSdkStream })
+
+    const imageData = 'A'.repeat(1024)
+    const screenshot = tool({
+      inputSchema: z.object({}),
+      toModelOutput: () => ({ type: 'text', value: '[Image: image/png, delivered to user]' })
+    })
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      tools: { screenshot }
+    })
+    const reader = agent
+      .stream(
+        [
+          {
+            id: 'a1',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-screenshot',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: {},
+                output: { content: [{ type: 'image', data: imageData, mimeType: 'image/png' }] }
+              }
+            ]
+          },
+          { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'continue' }] }
+        ],
+        new AbortController().signal
+      )
+      .getReader()
+    while (!(await reader.read()).done) {
+      /* drain to completion */
+    }
+
+    const modelMessages = aiSdkStream.mock.calls[0][0].messages
+    expect(modelMessages[1].content[0].output).toEqual({
+      type: 'text',
+      value: '[Image: image/png, delivered to user]'
+    })
+    expect(JSON.stringify(modelMessages)).not.toContain(imageData)
   })
 
   // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──

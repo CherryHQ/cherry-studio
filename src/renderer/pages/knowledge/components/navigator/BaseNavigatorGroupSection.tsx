@@ -17,6 +17,7 @@ const BaseNavigatorGroupSection = ({
   onRenameBase,
   onRenameGroup,
   onCreateBaseInGroup,
+  onCreateGroup,
   onDeleteGroup,
   onDeleteBase
 }: BaseNavigatorGroupSectionProps) => {
@@ -27,13 +28,12 @@ const BaseNavigatorGroupSection = ({
       {group ? (
         <KnowledgeGroupRow
           group={group}
-          itemCount={section.items.length}
           onRenameGroup={onRenameGroup}
           onCreateBase={onCreateBaseInGroup}
           onDeleteGroup={onDeleteGroup}
         />
       ) : (
-        <BaseNavigatorSectionTrigger label={groupLabel} itemCount={section.items.length} />
+        <BaseNavigatorSectionTrigger label={groupLabel} />
       )}
 
       <AccordionContent
@@ -49,6 +49,7 @@ const BaseNavigatorGroupSection = ({
               onSelectBase={onSelectBase}
               onMoveBase={onMoveBase}
               onRenameBase={onRenameBase}
+              onCreateGroup={onCreateGroup}
               onDeleteBase={onDeleteBase}
             />
           ))}

@@ -1,19 +1,19 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 
-const logger = loggerService.withContext('MainApp')
+import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 
-void preferenceService.preloadAll()
+const logger = loggerService.withContext('MainApp')
 
 // Behavior leaf inside the providers: runs the shared per-window init plus the
 // main-only app-update and storage-monitor hooks, and mounts the popup/toast hosts.
@@ -43,18 +43,22 @@ function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
   return (
-    <ThemeProvider>
-      <CodeStyleProvider>
-        <CommandContextKeyProvider>
-          <CommandProvider>
-            <TabsProvider>
-              <AppShell />
-              <MainWindowRuntime />
-            </TabsProvider>
-          </CommandProvider>
-        </CommandContextKeyProvider>
-      </CodeStyleProvider>
-    </ThemeProvider>
+    // The boundary must stay the ANCESTOR of every provider so a provider throwing
+    // during render (e.g. reading preferences) falls back instead of white-screening.
+    <ErrorBoundary fallbackComponent={WindowFatalFallback}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider>
+                <AppShell />
+                <MainWindowRuntime />
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

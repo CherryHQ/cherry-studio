@@ -257,6 +257,7 @@ describe('useProvider', () => {
     const { result } = renderHook(() => useProvider('openai'))
 
     expect(result.current.updateProvider).toBeDefined()
+    expect(result.current.enableProvider).toBeDefined()
     expect(result.current.deleteProvider).toBeDefined()
     expect(result.current.updateAuthConfig).toBeDefined()
     expect(result.current.updateApiKeys).toBeDefined()
@@ -369,6 +370,24 @@ describe('useProviderMutations', () => {
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { isEnabled: false } })
+  })
+
+  it('should enable a provider through the generic PATCH mutation', async () => {
+    const patchTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PATCH' && path === '/providers/:providerId' ? patchTrigger : vi.fn().mockResolvedValue(undefined),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await result.current.enableProvider()
+    })
+
+    expect(patchTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { isEnabled: true } })
   })
 
   it('should call deleteTrigger with providerId param when deleteProvider is invoked', async () => {

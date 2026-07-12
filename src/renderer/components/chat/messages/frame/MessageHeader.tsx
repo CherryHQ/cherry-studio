@@ -1,7 +1,8 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -50,7 +51,7 @@ const MessageHeader: FC<Props> = memo(
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
-    const ModelIcon = useMemo(() => getModelLogo(displayModel), [displayModel])
+    const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     const getUserName = useCallback(() => {
       if (message.role === 'assistant' && assistantProfile?.name) {
