@@ -8,6 +8,8 @@ import { createWebUiSseClient } from './service/sseClient'
 import { useWebUiChatStore } from './stores/chatStore'
 import type {
   WebUiAuthStatusResponse,
+  WebUiContextUsage,
+  WebUiContextUsageResponse,
   WebUiAgentSessionMessageEntity,
   WebUiAgentSessionEntity,
   WebUiAgentEntity,
@@ -29,6 +31,7 @@ type WebuiStatus = {
 }
 
 const fallbackLanguage = 'en-US'
+const webUiLogoPath = './icon.png'
 
 const normalizeLanguage = (language?: string | null) => {
   if (!language) return fallbackLanguage
@@ -63,6 +66,7 @@ const textPacks = {
     checkingBridge: 'Checking desktop bridge',
     close: 'Close',
     connected: 'Win11 desktop bridge connected',
+    context: 'Context',
     copy: 'Copy',
     create: 'Create',
     creating: 'Creating...',
@@ -75,6 +79,7 @@ const textPacks = {
     loadingMessages: 'Loading desktop messages',
     newConversation: 'New conversation',
     noAgents: 'No configured desktop Agents are available.',
+    noContext: 'No context usage available',
     noSessions: 'No desktop sessions yet',
     reasoning: 'Reasoning',
     runtime: 'Runtime',
@@ -101,6 +106,7 @@ const textPacks = {
     checkingBridge: '正在检查桌面桥接服务',
     close: '关闭',
     connected: 'Win11 桌面桥接已连接',
+    context: '上下文',
     copy: '复制',
     create: '创建',
     creating: '创建中...',
@@ -113,6 +119,7 @@ const textPacks = {
     loadingMessages: '正在加载桌面消息',
     newConversation: '新建会话',
     noAgents: '暂无可用的桌面智能体。',
+    noContext: '暂无上下文用量',
     noSessions: '暂无桌面会话',
     reasoning: '思考过程',
     runtime: '运行状态',
@@ -139,6 +146,7 @@ const textPacks = {
     checkingBridge: '正在檢查桌面橋接服務',
     close: '關閉',
     connected: 'Win11 桌面橋接已連線',
+    context: '上下文',
     copy: '複製',
     create: '建立',
     creating: '建立中...',
@@ -151,6 +159,7 @@ const textPacks = {
     loadingMessages: '正在載入桌面訊息',
     newConversation: '新增會話',
     noAgents: '尚無可用的桌面智慧體。',
+    noContext: '暫無上下文用量',
     noSessions: '尚無桌面會話',
     reasoning: '思考過程',
     runtime: '執行狀態',
@@ -288,6 +297,9 @@ const App = defineComponent({
     const newConversationState = ref<'idle' | 'loading' | 'creating' | 'error'>('idle')
     const newConversationError = ref('')
     const selectedAgentId = ref('')
+    const contextUsage = ref<WebUiContextUsage | null>(null)
+    const mobileToolsOpen = ref(false)
+    const mobileSidebarOpen = ref(false)
     const messageStack = ref<HTMLElement>()
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     let healthTimer: number | undefined
@@ -298,6 +310,10 @@ const App = defineComponent({
     const selectedConversation = computed(() =>
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
     )
+    const contextUsagePercentage = computed(() => {
+      if (!contextUsage.value?.maxTokens) return undefined
+      return Math.min(100, Math.round((contextUsage.value.totalTokens / contextUsage.value.maxTokens) * 100))
+    })
 
     const text = (key: TextKey) => {
       const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
@@ -407,11 +423,30 @@ const App = defineComponent({
       }
     }
 
+    const loadAgents = async () => {
+      const page = await httpClient.getJson<WebUiOffsetResponse<WebUiAgentEntity>>('/api/data/agents')
+      agents.value = page.items.filter((agent) => Boolean(agent.model))
+    }
+
+    const refreshComposerInfo = (conversationId = selectedConversationId.value) => {
+      if (!conversationId) return
+      void httpClient
+        .getJson<WebUiContextUsageResponse>(`/api/agent-sessions/${encodeURIComponent(conversationId)}/context-usage`)
+        .then((response) => {
+          if (selectedConversationId.value === conversationId) contextUsage.value = response.usage
+        })
+        .catch(() => {
+          if (selectedConversationId.value === conversationId) contextUsage.value = null
+        })
+    }
+
     const selectConversation = (conversationId: string) => {
       if (conversationId === selectedConversationId.value) return
 
       selectedConversationId.value = conversationId
+      mobileSidebarOpen.value = false
       void loadConversationMessages(conversationId)
+      refreshComposerInfo(conversationId)
     }
 
     const openNewConversation = async () => {
@@ -420,8 +455,7 @@ const App = defineComponent({
       newConversationError.value = ''
 
       try {
-        const page = await httpClient.getJson<WebUiOffsetResponse<WebUiAgentEntity>>('/api/data/agents')
-        agents.value = page.items.filter((agent) => Boolean(agent.model))
+        await loadAgents()
         selectedAgentId.value = agents.value[0]?.id ?? ''
         newConversationState.value = 'idle'
         if (!agents.value.length) newConversationError.value = text('noAgents')
@@ -458,7 +492,10 @@ const App = defineComponent({
       syncTimer = window.setTimeout(() => {
         syncTimer = undefined
         void loadConversations()
-        if (selectedConversationId.value) void loadConversationMessages(selectedConversationId.value)
+        if (selectedConversationId.value) {
+          void loadConversationMessages(selectedConversationId.value)
+          refreshComposerInfo(selectedConversationId.value)
+        }
       }, 180)
     }
 
@@ -621,6 +658,7 @@ const App = defineComponent({
     })
     const unsubscribeDone = sseClient.subscribe<{ conversationId?: string }>('done', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
+      if (data?.conversationId === selectedConversationId.value) refreshComposerInfo(data.conversationId)
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) {
@@ -649,7 +687,7 @@ const App = defineComponent({
       authRequired.value && !isAuthenticated.value
         ? h('main', { class: 'auth-shell' }, [
             h('section', { class: 'auth-panel' }, [
-              h('span', { class: 'brand-mark' }, 'CS'),
+              h('img', { class: 'brand-logo', src: webUiLogoPath, alt: 'Cherry Studio' }),
               h('h1', text('authTitle')),
               h('p', { class: 'empty-copy' }, text('authDescription')),
               h('label', { class: 'field-label', for: 'webui-auth-key' }, text('authKey')),
@@ -682,13 +720,36 @@ const App = defineComponent({
           ])
         :
       h('main', { class: 'webui-shell' }, [
-        h('section', { class: 'conversation-list', 'aria-label': text('newConversation') }, [
+        mobileSidebarOpen.value
+          ? h('button', {
+              class: 'mobile-sidebar-backdrop',
+              type: 'button',
+              'aria-label': text('close'),
+              onClick: () => {
+                mobileSidebarOpen.value = false
+              }
+            })
+          : undefined,
+        h('section', { class: ['conversation-list', { 'conversation-list-open': mobileSidebarOpen.value }], 'aria-label': text('newConversation') }, [
           h('header', { class: 'panel-header' }, [
-            h('span', { class: 'brand-mark' }, 'CS'),
+            h('img', { class: 'brand-logo', src: webUiLogoPath, alt: 'Cherry Studio' }),
             h('div', [
               h('p', { class: 'eyebrow' }, 'Cherry Studio'),
               h('h1', text('webui'))
-            ])
+            ]),
+            h(
+              'button',
+              {
+                class: 'mobile-close-button',
+                type: 'button',
+                title: text('close'),
+                'aria-label': text('close'),
+                onClick: () => {
+                  mobileSidebarOpen.value = false
+                }
+              },
+              '×'
+            )
           ]),
           h(
             'button',
@@ -733,8 +794,32 @@ const App = defineComponent({
         ]),
         h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
           h('header', { class: 'chat-header' }, [
-            h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? text('desktopSession')),
-            h('h2', selectedConversation.value?.title ?? text('selectConversation'))
+            h('div', [
+              h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? text('desktopSession')),
+              h('h2', selectedConversation.value?.title ?? text('selectConversation'))
+            ]),
+            h('div', { class: 'mobile-chat-actions' }, [
+              h('span', {
+                class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
+                role: 'status',
+                title: bridgeDetail.value,
+                'aria-label': bridgeDetail.value
+              }),
+              h(
+                'button',
+                {
+                  class: 'mobile-sidebar-button',
+                  type: 'button',
+                  title: text('desktopSession'),
+                  'aria-label': text('desktopSession'),
+                  'aria-expanded': mobileSidebarOpen.value,
+                  onClick: () => {
+                    mobileSidebarOpen.value = !mobileSidebarOpen.value
+                  }
+                },
+                '☰'
+              )
+            ])
           ]),
           h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack }, [
             messageLoadMessage.value ? h('p', { class: 'empty-copy' }, messageLoadMessage.value) : undefined,
@@ -791,7 +876,23 @@ const App = defineComponent({
             )
           ]),
           h('footer', { class: 'composer' }, [
-            h('textarea', {
+            h('div', { class: ['composer-meta', { 'composer-meta-open': mobileToolsOpen.value }] }, [
+              h('div', { class: 'context-usage', title: contextUsage.value?.model ?? text('noContext') }, [
+                h('span', { class: 'context-usage-label' }, text('context')),
+                h(
+                  'span',
+                  { class: 'context-usage-value' },
+                  contextUsage.value && contextUsagePercentage.value !== undefined
+                    ? `${contextUsage.value.totalTokens.toLocaleString()} / ${contextUsage.value.maxTokens.toLocaleString()} (${contextUsagePercentage.value}%)`
+                    : text('noContext')
+                ),
+                h('span', { class: 'context-usage-track' }, [
+                  h('span', { class: 'context-usage-progress', style: { width: `${contextUsagePercentage.value ?? 0}%` } })
+                ])
+              ])
+            ]),
+            h('div', { class: 'composer-row' }, [
+              h('textarea', {
               disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
               value: composerText.value,
               placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
@@ -821,7 +922,22 @@ const App = defineComponent({
                 }
               },
               activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
-            )
+              ),
+              h(
+                'button',
+                {
+                  class: 'mobile-composer-tools-button',
+                  type: 'button',
+                  title: text('context'),
+                  'aria-label': text('context'),
+                  'aria-expanded': mobileToolsOpen.value,
+                  onClick: () => {
+                    mobileToolsOpen.value = !mobileToolsOpen.value
+                  }
+                },
+                '⋯'
+              )
+            ])
           ]),
           submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
         ]),
@@ -983,15 +1099,17 @@ style.textContent = `
     margin-bottom: 24px;
   }
 
-  .brand-mark {
-    display: inline-grid;
+  .brand-logo {
+    display: block;
     width: 40px;
     height: 40px;
-    place-items: center;
-    color: #ffffff;
-    font-weight: 700;
-    background: #d7354a;
     border-radius: 8px;
+  }
+
+  .mobile-close-button,
+  .mobile-sidebar-button,
+  .mobile-chat-actions {
+    display: none;
   }
 
   .eyebrow {
@@ -1147,6 +1265,11 @@ style.textContent = `
     border-color: #2563eb;
   }
 
+  .user-message ::selection {
+    color: #111827;
+    background: #fef08a;
+  }
+
   .assistant-message {
     align-self: flex-start;
   }
@@ -1210,6 +1333,28 @@ style.textContent = `
 
   .markdown-content a {
     color: #1d4ed8;
+  }
+
+  .markdown-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    border: 1px solid #d1d5db;
+  }
+
+  .markdown-content th,
+  .markdown-content td {
+    min-width: 88px;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    border: 1px solid #d1d5db;
+  }
+
+  .markdown-content th {
+    font-weight: 600;
+    background: #f3f4f6;
   }
 
   .reasoning-block {
@@ -1341,13 +1486,66 @@ style.textContent = `
 
   .composer {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
-    align-items: end;
     margin-top: 12px;
     padding-top: 12px;
     background: #f6f7fb;
     border-top: 1px solid #e5e7eb;
+  }
+
+  .composer-meta,
+  .composer-row {
+    display: grid;
+    gap: 12px;
+  }
+
+  .composer-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .composer-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .mobile-composer-tools-button {
+    display: none;
+  }
+
+  .context-usage {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 10px;
+    min-width: 0;
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  .context-usage-label {
+    font-weight: 600;
+  }
+
+  .context-usage-value {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .context-usage-track {
+    grid-column: 1 / -1;
+    height: 5px;
+    overflow: hidden;
+    background: #d1d5db;
+    border-radius: 999px;
+  }
+
+  .context-usage-progress {
+    display: block;
+    height: 100%;
+    background: #16a34a;
+    border-radius: inherit;
+    transition: width 180ms ease-out;
   }
 
   textarea,
@@ -1459,33 +1657,141 @@ style.textContent = `
     font-size: 14px;
   }
 
-  @media (max-width: 900px) {
-    .webui-shell {
-      grid-template-rows: minmax(132px, 30dvh) minmax(0, 1fr);
-      grid-template-columns: 1fr;
-      height: 100dvh;
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color: #e5e7eb;
+      background: #111827;
+      color-scheme: dark;
     }
 
     .conversation-list,
-    .status-panel {
+    .status-panel,
+    .message,
+    .auth-panel,
+    .new-conversation-dialog,
+    textarea,
+    input,
+    select,
+    .tool-call-data {
+      color: #e5e7eb;
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .chat-stage,
+    .composer {
+      background: #111827;
+      border-color: #374151;
+    }
+
+    .conversation-item,
+    .tool-call,
+    .reasoning-block,
+    .markdown-content th {
+      color: #e5e7eb;
+      background: #273449;
+      border-color: #475569;
+    }
+
+    .conversation-item:hover,
+    .conversation-item-selected {
+      background: #263b5b;
+      border-color: #60a5fa;
+    }
+
+    .conversation-title,
+    .tool-call,
+    .tool-call-data {
+      color: #e5e7eb;
+    }
+
+    .markdown-content th,
+    .markdown-content td,
+    .markdown-content table {
+      border-color: #475569;
+    }
+
+    .markdown-content code:not(pre code) {
+      color: #fecdd3;
+      background: #4c1d2b;
+    }
+
+    .markdown-content a {
+      color: #93c5fd;
+    }
+
+    .secondary-button,
+    .icon-button {
+      color: #e5e7eb;
+      background: #273449;
+      border-color: #475569;
+    }
+
+    .mobile-sidebar-button {
+      color: #e5e7eb;
+      background: #273449;
+      border-color: #475569;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .webui-shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1fr);
+      height: 100dvh;
+    }
+
+    .mobile-sidebar-backdrop {
+      position: fixed;
+      z-index: 29;
+      inset: 0;
+      padding: 0;
+      background: rgb(15 23 42 / 52%);
       border: 0;
     }
 
     .conversation-list {
+      position: fixed;
+      z-index: 30;
+      top: 0;
+      bottom: 0;
+      left: 0;
       display: grid;
       grid-template-rows: auto auto auto minmax(0, 1fr);
+      width: min(320px, calc(100vw - 44px));
       min-height: 0;
       padding: 14px;
-      border-bottom: 1px solid #e5e7eb;
+      border: 0;
+      border-right: 1px solid #e5e7eb;
+      box-shadow: 16px 0 36px rgb(15 23 42 / 20%);
+      transform: translateX(-105%);
+      transition: transform 160ms ease-out;
+    }
+
+    .conversation-list-open {
+      transform: translateX(0);
     }
 
     .panel-header {
       margin-bottom: 12px;
     }
 
-    .brand-mark {
+    .brand-logo {
       width: 36px;
       height: 36px;
+    }
+
+    .mobile-close-button {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      margin-left: auto;
+      padding: 0;
+      place-items: center;
+      color: #6b7280;
+      font-size: 24px;
+      background: transparent;
+      border: 0;
     }
 
     .new-chat-button {
@@ -1514,7 +1820,57 @@ style.textContent = `
     }
 
     .chat-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
       padding-bottom: 12px;
+    }
+
+    .mobile-chat-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding-top: 2px;
+    }
+
+    .mobile-sidebar-button {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      place-items: center;
+      color: #374151;
+      font-size: 20px;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+
+    .mobile-bridge-indicator {
+      width: 10px;
+      height: 10px;
+      background: #dc2626;
+      border-radius: 999px;
+    }
+
+    .mobile-bridge-indicator-connected {
+      background: #16a34a;
+    }
+
+    .mobile-bridge-indicator-offline {
+      background: #dc2626;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .conversation-list {
+        border-color: #475569;
+      }
+
+      .mobile-sidebar-button {
+        color: #e5e7eb;
+        background: #273449;
+        border-color: #475569;
+      }
     }
 
     .message-stack {
@@ -1539,10 +1895,6 @@ style.textContent = `
   }
 
   @media (max-width: 640px) {
-    .webui-shell {
-      grid-template-rows: minmax(120px, 28dvh) minmax(0, 1fr);
-    }
-
     .conversation-list {
       padding: 12px;
     }
@@ -1571,14 +1923,80 @@ style.textContent = `
       grid-template-columns: 1fr;
     }
 
+    .composer-row {
+      grid-template-columns: minmax(0, 1fr) 48px;
+      grid-template-rows: minmax(0, 3fr) minmax(36px, 1fr);
+      gap: 6px;
+    }
+
+    .composer-meta {
+      display: none;
+      margin-bottom: 2px;
+      padding: 10px;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+
+    .composer-meta-open {
+      display: grid;
+    }
+
+    .composer-row textarea {
+      grid-row: 1 / -1;
+      min-height: 112px;
+      max-height: 160px;
+    }
+
+    .composer-row .send-button {
+      grid-column: 2;
+      grid-row: 1;
+      width: 48px;
+      min-height: 0;
+      height: 100%;
+      padding: 6px 0;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+
+    .mobile-composer-tools-button {
+      display: grid;
+      grid-column: 2;
+      grid-row: 2;
+      width: 48px;
+      height: 100%;
+      padding: 0;
+      place-items: center;
+      color: #374151;
+      font-size: 22px;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+
     .send-button {
-      width: 100%;
-      min-height: 44px;
+      min-height: 0;
     }
 
     textarea {
-      min-height: 72px;
-      max-height: 128px;
+      min-height: 112px;
+      max-height: 160px;
+    }
+
+    .markdown-content th,
+    .markdown-content td {
+      min-width: 76px;
+      padding: 7px 8px;
+      font-size: 13px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .composer-meta,
+      .mobile-composer-tools-button {
+        color: #e5e7eb;
+        background: #273449;
+        border-color: #475569;
+      }
     }
   }
 `

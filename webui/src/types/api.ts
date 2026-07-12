@@ -7,6 +7,20 @@ export type WebUiConversationSummary = {
   readonly workspaceLabel?: string
 }
 
+export type WebUiContextUsage = {
+  readonly model: string
+  readonly totalTokens: number
+  readonly maxTokens: number
+  readonly categories: readonly {
+    readonly name: string
+    readonly tokens: number
+  }[]
+}
+
+export type WebUiContextUsageResponse = {
+  readonly usage: WebUiContextUsage | null
+}
+
 export type WebUiMessageSnapshot = {
   readonly id: string
   readonly conversationId: string

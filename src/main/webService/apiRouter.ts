@@ -6,6 +6,7 @@ import { application } from '@application'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager/types'
 import { ApiServer } from '@main/data/api'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
@@ -88,6 +89,7 @@ const dataApiPrefix = '/api/data'
 const MAX_WEBUI_MESSAGE_CHARS = 40_000
 const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
 const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
+const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
 const readableDataApiPatterns = [
   /^\/agents$/,
   /^\/agent-sessions$/,
@@ -220,12 +222,13 @@ const handleDataApiProxy = async (
   }
 
   try {
+    const body = isSessionCreate ? await readJsonBody(request) : undefined
     const apiRequest: DataRequest = {
       id: randomUUID(),
       method: method as HttpMethod,
       path: dataPath,
       params: toQueryRecord(url.searchParams),
-      body: isSessionCreate ? await readJsonBody(request) : undefined,
+      body,
       metadata: {
         timestamp: Date.now()
       }
@@ -265,6 +268,7 @@ export const createWebUiApiRouter = ({
     const { pathname } = url
     const sendMatch = pathname.match(sessionMessagePath)
     const abortMatch = pathname.match(sessionAbortPath)
+    const contextUsageMatch = pathname.match(sessionContextUsagePath)
 
     if (pathname === '/api/auth/status') {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -280,6 +284,16 @@ export const createWebUiApiRouter = ({
     }
 
     if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
+
+    if (contextUsageMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      const encodedSessionId = contextUsageMatch[1]
+      if (!encodedSessionId) return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+      const sessionId = decodeURIComponent(encodedSessionId)
+      // WebUI远程扩展，仅Win11启用，最小侵入
+      const usage = application.get('CacheService').getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+      return { status: 200, body: { usage } }
+    }
 
     if (sendMatch) {
       if (method !== 'POST') return methodNotAllowed(['POST'])
