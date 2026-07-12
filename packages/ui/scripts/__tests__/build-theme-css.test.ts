@@ -12,7 +12,7 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain("@import './tokens.css';")
     expect(css).toContain('/* Runtime Theme Inputs */')
     expect(css).toContain('--cs-theme-primary: var(--cs-primary);')
-    expect(css).toContain('--cs-theme-ring: var(--color-border-active);')
+    expect(css).toContain('--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);')
     expect(css).not.toContain('--cs-user-font-family:')
     expect(css).not.toContain('--cs-user-code-font-family:')
     expect(css).toContain('/* Compatibility Aliases */')

@@ -65,7 +65,7 @@ export const KnowledgeModelSelect = ({
             aria-invalid={invalid || undefined}
             className={cn(
               'h-8 w-full justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
-              'aria-expanded:border-ring aria-expanded:ring-3 aria-expanded:ring-ring/50',
+              'aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
               hasValue ? 'text-foreground' : 'text-muted-foreground',
               invalid && 'border-destructive aria-expanded:border-destructive aria-expanded:ring-red-600/20'
             )}>

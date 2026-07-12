@@ -44,7 +44,7 @@ export function InlineRename({
         if (text.trim()) onConfirm(text.trim())
         else onCancel()
       }}
-      className={`h-auto rounded-md border border-border bg-background py-0.5 text-foreground text-xs shadow-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 ${className ?? ''}`}
+      className={`h-auto rounded-md border border-border bg-background py-0.5 text-foreground text-xs shadow-sm focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/15 ${className ?? ''}`}
       onClick={(e) => e.stopPropagation()}
     />
   )

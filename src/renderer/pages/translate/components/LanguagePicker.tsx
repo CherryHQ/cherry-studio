@@ -53,7 +53,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           aria-expanded={open}
           className={cn(
             'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-muted bg-transparent px-2.5 text-sm transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60',
-            open && 'border-ring ring-1 ring-ring/50',
+            open && 'border-primary/40 ring-1 ring-primary/15',
             className
           )}>
           <span className="flex min-w-0 items-center gap-1.5">

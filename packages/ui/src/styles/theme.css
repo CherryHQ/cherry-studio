@@ -272,7 +272,7 @@
   /* Runtime Theme Inputs */
   /* ==================== */
   --cs-theme-primary: var(--cs-primary);
-  --cs-theme-ring: var(--color-border-active);
+  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
 
   /* ==================== */
   /* Compatibility Aliases */
