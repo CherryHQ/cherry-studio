@@ -298,7 +298,6 @@ const App = defineComponent({
     const newConversationError = ref('')
     const selectedAgentId = ref('')
     const contextUsage = ref<WebUiContextUsage | null>(null)
-    const mobileToolsOpen = ref(false)
     const mobileSidebarOpen = ref(false)
     const messageStack = ref<HTMLElement>()
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
@@ -313,6 +312,10 @@ const App = defineComponent({
     const contextUsagePercentage = computed(() => {
       if (!contextUsage.value?.maxTokens) return undefined
       return Math.min(100, Math.round((contextUsage.value.totalTokens / contextUsage.value.maxTokens) * 100))
+    })
+    const contextUsageLabel = computed(() => {
+      if (contextUsagePercentage.value === undefined) return text('noContext')
+      return `${text('context')}: ${contextUsagePercentage.value}%`
     })
 
     const text = (key: TextKey) => {
@@ -799,6 +802,17 @@ const App = defineComponent({
               h('h2', selectedConversation.value?.title ?? text('selectConversation'))
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
+              h(
+                'span',
+                {
+                  class: ['context-orb', { 'context-orb-empty': contextUsagePercentage.value === undefined }],
+                  title: contextUsageLabel.value,
+                  role: 'img',
+                  'aria-label': contextUsageLabel.value,
+                  style: { '--context-usage': `${contextUsagePercentage.value ?? 0}%` }
+                },
+                contextUsagePercentage.value === undefined ? '·' : `${contextUsagePercentage.value}%`
+              ),
               h('span', {
                 class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
                 role: 'status',
@@ -876,21 +890,6 @@ const App = defineComponent({
             )
           ]),
           h('footer', { class: 'composer' }, [
-            h('div', { class: ['composer-meta', { 'composer-meta-open': mobileToolsOpen.value }] }, [
-              h('div', { class: 'context-usage', title: contextUsage.value?.model ?? text('noContext') }, [
-                h('span', { class: 'context-usage-label' }, text('context')),
-                h(
-                  'span',
-                  { class: 'context-usage-value' },
-                  contextUsage.value && contextUsagePercentage.value !== undefined
-                    ? `${contextUsage.value.totalTokens.toLocaleString()} / ${contextUsage.value.maxTokens.toLocaleString()} (${contextUsagePercentage.value}%)`
-                    : text('noContext')
-                ),
-                h('span', { class: 'context-usage-track' }, [
-                  h('span', { class: 'context-usage-progress', style: { width: `${contextUsagePercentage.value ?? 0}%` } })
-                ])
-              ])
-            ]),
             h('div', { class: 'composer-row' }, [
               h('textarea', {
               disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
@@ -922,20 +921,6 @@ const App = defineComponent({
                 }
               },
               activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
-              ),
-              h(
-                'button',
-                {
-                  class: 'mobile-composer-tools-button',
-                  type: 'button',
-                  title: text('context'),
-                  'aria-label': text('context'),
-                  'aria-expanded': mobileToolsOpen.value,
-                  onClick: () => {
-                    mobileToolsOpen.value = !mobileToolsOpen.value
-                  }
-                },
-                '⋯'
               )
             ])
           ]),
@@ -1107,9 +1092,14 @@ style.textContent = `
   }
 
   .mobile-close-button,
-  .mobile-sidebar-button,
-  .mobile-chat-actions {
+  .mobile-sidebar-button {
     display: none;
+  }
+
+  .mobile-chat-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
   }
 
   .eyebrow {
@@ -1241,12 +1231,47 @@ style.textContent = `
   }
 
   .chat-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
     padding-bottom: 16px;
     border-bottom: 1px solid #e5e7eb;
   }
 
   .chat-header h2 {
     margin-bottom: 0;
+  }
+
+  .chat-header > div:first-child {
+    min-width: 0;
+  }
+
+  .chat-header .eyebrow,
+  .chat-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .context-orb {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    place-items: center;
+    color: #334155;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    background: radial-gradient(circle at center, #ffffff 58%, transparent 60%),
+      conic-gradient(#22c55e var(--context-usage), #e2e8f0 0);
+    border-radius: 50%;
+  }
+
+  .context-orb-empty {
+    color: #94a3b8;
+    background: radial-gradient(circle at center, #ffffff 58%, transparent 60%), #e2e8f0;
   }
 
   .message {
@@ -1493,59 +1518,11 @@ style.textContent = `
     border-top: 1px solid #e5e7eb;
   }
 
-  .composer-meta,
-  .composer-row {
-    display: grid;
-    gap: 12px;
-  }
-
-  .composer-meta {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .composer-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
-
-  .mobile-composer-tools-button {
-    display: none;
-  }
-
-  .context-usage {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 4px 10px;
-    min-width: 0;
-    color: #6b7280;
-    font-size: 12px;
-  }
-
-  .context-usage-label {
-    font-weight: 600;
-  }
-
-  .context-usage-value {
-    overflow: hidden;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .context-usage-track {
-    grid-column: 1 / -1;
-    height: 5px;
-    overflow: hidden;
-    background: #d1d5db;
-    border-radius: 999px;
-  }
-
-  .context-usage-progress {
-    display: block;
-    height: 100%;
-    background: #16a34a;
-    border-radius: inherit;
-    transition: width 180ms ease-out;
+    gap: 12px;
+    align-items: end;
   }
 
   textarea,
@@ -1732,6 +1709,16 @@ style.textContent = `
       background: #273449;
       border-color: #475569;
     }
+
+    .context-orb {
+      color: #cbd5e1;
+      background: radial-gradient(circle at center, #111827 58%, transparent 60%),
+        conic-gradient(#4ade80 var(--context-usage), #475569 0);
+    }
+
+    .context-orb-empty {
+      background: radial-gradient(circle at center, #111827 58%, transparent 60%), #475569;
+    }
   }
 
   @media (max-width: 900px) {
@@ -1816,7 +1803,7 @@ style.textContent = `
     .chat-stage {
       height: auto;
       min-height: 0;
-      padding: 14px;
+      padding: 10px 12px 12px;
     }
 
     .chat-header {
@@ -1828,7 +1815,7 @@ style.textContent = `
 
     .mobile-chat-actions {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       padding-top: 2px;
     }
@@ -1885,8 +1872,12 @@ style.textContent = `
 
     .composer {
       gap: 10px;
-      margin-top: 8px;
-      padding-top: 10px;
+      margin: 8px 0 max(8px, env(safe-area-inset-bottom));
+      padding: 8px;
+      background: #ffffff;
+      border: 1px solid #dbe1ea;
+      border-radius: 22px;
+      box-shadow: 0 8px 28px rgb(15 23 42 / 10%);
     }
 
     .status-panel {
@@ -1919,59 +1910,38 @@ style.textContent = `
       gap: 8px;
     }
 
-    .composer {
-      grid-template-columns: 1fr;
-    }
-
     .composer-row {
-      grid-template-columns: minmax(0, 1fr) 48px;
-      grid-template-rows: minmax(0, 3fr) minmax(36px, 1fr);
-      gap: 6px;
-    }
-
-    .composer-meta {
-      display: none;
-      margin-bottom: 2px;
-      padding: 10px;
-      background: #ffffff;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-    }
-
-    .composer-meta-open {
-      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      gap: 8px;
+      align-items: end;
     }
 
     .composer-row textarea {
-      grid-row: 1 / -1;
-      min-height: 112px;
-      max-height: 160px;
+      min-height: 76px;
+      max-height: 148px;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 14px;
+      outline: 0;
     }
 
     .composer-row .send-button {
-      grid-column: 2;
-      grid-row: 1;
-      width: 48px;
-      min-height: 0;
-      height: 100%;
-      padding: 6px 0;
-      writing-mode: vertical-rl;
-      text-orientation: upright;
-    }
-
-    .mobile-composer-tools-button {
       display: grid;
-      grid-column: 2;
-      grid-row: 2;
-      width: 48px;
-      height: 100%;
+      width: 44px;
+      min-height: 44px;
+      height: 44px;
       padding: 0;
       place-items: center;
-      color: #374151;
-      font-size: 22px;
-      background: #ffffff;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
+      color: transparent;
+      background: #111827;
+      border-radius: 50%;
+    }
+
+    .composer-row .send-button::after {
+      content: '↑';
+      color: #ffffff;
+      font-size: 25px;
+      line-height: 1;
     }
 
     .send-button {
@@ -1979,8 +1949,8 @@ style.textContent = `
     }
 
     textarea {
-      min-height: 112px;
-      max-height: 160px;
+      min-height: 76px;
+      max-height: 148px;
     }
 
     .markdown-content th,
@@ -1991,11 +1961,13 @@ style.textContent = `
     }
 
     @media (prefers-color-scheme: dark) {
-      .composer-meta,
-      .mobile-composer-tools-button {
-        color: #e5e7eb;
-        background: #273449;
+      .composer {
+        background: #1f2937;
         border-color: #475569;
+      }
+
+      .composer-row textarea {
+        background: #1f2937;
       }
     }
   }
