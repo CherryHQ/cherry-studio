@@ -43,6 +43,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
+  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
@@ -678,8 +679,12 @@ async function buildToolPermissions(
     // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
     // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
-    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-    autoAllowRuntimeNamePrefixes: assistantMcpEnabled ? ['mcp__assistant__'] : [],
+    autoAllowRuntimeNames: [
+      ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+      // Assistant MCP: navigate only. diagnose reads local logs/source/config and must go through
+      // per-call approval — see ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES for the threat model.
+      ...(assistantMcpEnabled ? ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES : [])
+    ],
     // Mutating cherry-tools (kb_manage) must still prompt for approval.
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
@@ -1157,13 +1162,14 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 /**
  * Auto-approve allowlist for injected built-in MCP servers, so the
  * cherry-tools/agent-memory/assistant tools pass without per-call approval.
- * The auto-approved cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage
- * tool is excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
+ * The auto-approved cherry-tools and assistant tools are listed explicitly (not a wildcard) so the
+ * sensitive tools (mutating kb_manage, local-data-reading diagnose) are excluded from the SDK
+ * pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
-  if (assistantMcpEnabled) result.push('mcp__assistant__*')
+  if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
   return result
 }
 

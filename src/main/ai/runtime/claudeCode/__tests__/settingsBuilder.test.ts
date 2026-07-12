@@ -666,11 +666,15 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeDefined()
-    expect(settings.allowedTools).toContain('mcp__assistant__*')
-    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ autoAllowRuntimeNamePrefixes: ['mcp__assistant__'] })
-    )
+    // Only navigate is pre-approved. diagnose reads local logs/source/config and must go through
+    // per-call approval — a namespace wildcard would silently re-include it.
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__*')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
   it('excludes Assistant MCP capability for channel-linked sessions', async () => {
@@ -693,11 +697,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeUndefined()
-    expect(settings.allowedTools).not.toContain('mcp__assistant__*')
-    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ autoAllowRuntimeNamePrefixes: [] })
-    )
+    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -781,10 +783,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.anything(),
       expect.objectContaining({
         autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry-tools__notify']),
-        autoAllowRuntimeNamePrefixes: [],
         autoAllowRuntimeNameExceptions: exceptions
       })
     )
+    // No prefix-based auto-approval anywhere: a namespace prefix would silently pre-approve
+    // future sensitive tools (e.g. assistant diagnose). Auto-approval is explicit names only.
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+    expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
   it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
