@@ -60,12 +60,14 @@ const mockWindowManager = {
 
 /**
  * Minimal IpcApiService mock — services push main→renderer events via
- * `application.get('IpcApiService').send(windowId, event, payload)` (directed) or
- * `.broadcast(event, payload)` (all windows). Tests can assert on these spies.
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed),
+ * `.broadcast(event, payload)` (all windows), or
+ * `.broadcastToType(windowType, event, payload)` (one window type). Tests can assert on these spies.
  */
 const mockIpcApiService = {
   send: vi.fn(),
-  broadcast: vi.fn()
+  broadcast: vi.fn(),
+  broadcastToType: vi.fn()
 }
 
 /** Default service instances from existing mock files */
