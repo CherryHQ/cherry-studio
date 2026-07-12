@@ -18,6 +18,7 @@ type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -31,7 +32,8 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
-import type { FileUIPart } from '@shared/data/types/message'
+import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type {
@@ -535,22 +537,45 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 /**
  * Build SDK user content from a message entity. Supported image attachments
  * (png, jpeg, gif, webp) are materialized into native Anthropic image blocks;
- * non-image files and images that cannot be materialized fall back to
- * file-path references so the agent can inspect them with tools.
+ * first-party non-image files use the shared extracted-text routing. External
+ * files and images that cannot be materialized fall back to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity
 ): Promise<SDKUserMessage['message']['content']> {
-  const text = extractMessageText(message)
+  const parts = message.data?.parts ?? []
+  const firstPartyParts = parts.filter(
+    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+  )
+  const externalFileParts = parts.filter(
+    (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
+  )
+
+  let routedParts = firstPartyParts
+  if (firstPartyParts.some((part) => part.type === 'file')) {
+    const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    const [prepared] = await prepareChatMessages([userMessage], {
+      attachments: collectFileAttachments([userMessage]),
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    routedParts = prepared.parts
+  }
+
+  const text = routedParts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
 
-  for (const part of message.data?.parts ?? []) {
-    if (part.type !== 'file') continue
-
+  for (const part of [
+    ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...externalFileParts
+  ]) {
     const mediaType = part.mediaType?.toLowerCase()
     const canBeImage =
       !mediaType ||
@@ -586,7 +611,12 @@ async function materializeUserContent(
 
   const paths = extractAttachmentPaths(fallbackParts)
   let textContent = appendAttachmentPaths(text, paths)
-  textContent = appendUnavailableAttachments(textContent, unavailableParts)
+  if (unavailableParts.length > 0) {
+    const names = unavailableParts.map((part) => part.filename || 'attachment')
+    logger.warn('Claude Code attachments could not be sent', { attachments: names })
+    const note = `Unavailable attachments: ${names.join(', ')}`
+    textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
+  }
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
@@ -597,49 +627,6 @@ function appendAttachmentPaths(text: string, paths: string[]): string {
   const list = paths.map((path) => `- ${path}`).join('\n')
   const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function appendUnavailableAttachments(text: string, parts: readonly FileUIPart[]): string {
-  if (parts.length === 0) return text
-
-  logger.warn('Claude Code attachment could not be materialized or exposed as a local file path', {
-    attachments: parts.map((part) => ({
-      filename: part.filename,
-      mediaType: part.mediaType,
-      urlKind: describeAttachmentUrl(part.url)
-    }))
-  })
-
-  const list = parts.map((part) => `- ${formatUnavailableAttachment(part)}`).join('\n')
-  const section = `Unavailable attachments (could not be sent natively or exposed as local file paths):\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function formatUnavailableAttachment(part: FileUIPart): string {
-  const label = part.filename || part.mediaType || 'attachment'
-  const urlKind = describeAttachmentUrl(part.url)
-  return part.mediaType && part.mediaType !== label
-    ? `${label} (${part.mediaType}, ${urlKind})`
-    : `${label} (${urlKind})`
-}
-
-function describeAttachmentUrl(url: string | undefined): string {
-  if (!url) return 'missing URL'
-  if (url.startsWith('data:')) return 'data URL'
-  try {
-    return `${new URL(url).protocol || 'unknown:'} URL`
-  } catch {
-    return 'unrecognized URL'
-  }
-}
-
-function extractMessageText(message: AgentSessionMessageEntity): string {
-  return (
-    message.data?.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
-      .join('\n') ?? ''
-  )
 }
 
 /** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */

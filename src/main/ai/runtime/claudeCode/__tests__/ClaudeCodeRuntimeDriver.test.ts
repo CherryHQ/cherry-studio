@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
+  collectFileAttachments: vi.fn(),
+  prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
   adapterInstances: [] as any[]
 }))
@@ -21,6 +23,11 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest
+}))
+
+vi.mock('@main/ai/messages/attachmentRouting', () => ({
+  collectFileAttachments: mocks.collectFileAttachments,
+  prepareChatMessages: mocks.prepareChatMessages
 }))
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
@@ -132,6 +139,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.prepareTrace.mockResolvedValue(undefined)
+    mocks.collectFileAttachments.mockReturnValue([])
+    mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRequest.mockResolvedValue({
       key: 'warm-key',
@@ -258,18 +267,74 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'user',
         message: {
           role: 'user',
-          content:
-            'describe this\n\nUnavailable attachments (could not be sent natively or exposed as local file paths):\n- pixel.png (image/png, https: URL)'
+          content: 'describe this\n\nUnavailable attachments: pixel.png'
         }
       },
       done: false
     })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Claude Code attachment could not be materialized or exposed as a local file path',
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
+      attachments: ['pixel.png']
+    })
+    void connection.close()
+  })
+
+  it('routes first-party non-image attachments to extracted text before sending', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.collectFileAttachments.mockReturnValueOnce([
+      { fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }
+    ])
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
       {
-        attachments: [{ filename: 'pixel.png', mediaType: 'image/png', urlKind: 'https: URL' }]
+        ...message,
+        parts: [
+          { type: 'text', text: 'summarize this' },
+          { type: 'text', text: 'Attached file "spec.pdf":\nextracted PDF body' }
+        ]
       }
-    )
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'summarize this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: 'summarize this\nAttached file "spec.pdf":\nextracted PDF body'
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [{ fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
     void connection.close()
   })
 
