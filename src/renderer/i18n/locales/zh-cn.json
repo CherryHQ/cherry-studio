@@ -6799,6 +6799,7 @@
           "confirm": "确定要添加所有模型到列表吗？",
           "label": "添加全部模型"
         },
+        "add_success_enable_failed": "模型已添加，但服务商启用失败。",
         "add_whole_group": "添加整个分组",
         "clean_stale_models": "清理失效模型",
         "clean_stale_success": "已清理 {{count}} 个失效模型",
@@ -7210,6 +7211,7 @@
         "fill_after_create": "创建后请在详情页填写认证字段",
         "menu_label": "添加实例"
       },
+      "enable_failed_after_connection": "连接成功，但服务商启用失败。",
       "filter": {
         "agent": "支持 Agent",
         "all": "全部服务商",

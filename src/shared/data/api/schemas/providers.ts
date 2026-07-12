@@ -97,7 +97,11 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
-  /** Whether this provider is enabled */
+  /**
+   * Whether this provider is enabled. A persisted false-to-true transition also
+   * moves the provider to the first position atomically; redundant true updates
+   * preserve the existing order.
+   */
   isEnabled: z.boolean().optional()
   // Logo edits (preset key / image upload / clear) go through the
   // `provider.set_logo` IpcApi command, not this PATCH body.
