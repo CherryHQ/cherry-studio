@@ -69,6 +69,8 @@ export enum IpcChannel {
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
   Mcp_ServerLog = 'mcp:server-log',
+  // Hermes (OpenAI-compatible API server tool progress)
+  Hermes_ToolProgress = 'hermes:tool-progress',
   // Python
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
