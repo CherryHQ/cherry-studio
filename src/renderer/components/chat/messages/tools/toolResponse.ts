@@ -2,11 +2,12 @@ import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from 
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { AgentToolsType } from './agent/types'
 import { isMetaToolName } from './meta/metaToolNames'
+import { AgentToolsType } from './shared/agentToolTypes'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
@@ -40,6 +41,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
+}
+
+function isMcpContentArray(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every(isMcpContentBlock)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -83,7 +88,8 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    return { response: output.content, metadata: normalizedMeta }
+    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
+    return { response, metadata: normalizedMeta }
   }
 
   return { response: output }

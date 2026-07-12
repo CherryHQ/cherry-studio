@@ -9,7 +9,7 @@
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
@@ -22,6 +22,17 @@ export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
+export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentSkillUpdateSchema = z.strictObject({
+  skillId: z.string().min(1),
+  isEnabled: z.boolean()
+})
+export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transform((items) => {
+  const bySkillId = new Map<string, z.infer<typeof AgentSkillUpdateSchema>>()
+  for (const item of items) bySkillId.set(item.skillId, item)
+  return Array.from(bySkillId.values())
+})
+export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -34,7 +45,6 @@ export const AgentConfigurationSchema = z
     permission_mode: AgentPermissionModeSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
-    soul_enabled: z.boolean().optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),
@@ -173,11 +183,29 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
-export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS })
+export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
+  /**
+   * Create-only: ids of pre-existing global skills to enable for the new agent.
+   * Writes `agent_skill` join rows in the same create transaction. Builtin
+   * skills need no id here — they read as enabled by default for every agent
+   * (see `AgentGlobalSkillService.list()`) until a row explicitly disables one.
+   * Editing an existing agent's skills goes through the skill toggle IPC (which
+   * also manages workspace symlinks), NOT PATCH /agents — so this is
+   * intentionally absent from AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid
+   * a dual-write path.
+   */
+  skillIds: AgentSkillIdSetSchema.optional()
+})
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  /**
+   * Per-skill enablement changes for this agent. Omitted means "leave skills
+   * unchanged"; an empty array is a no-op. The server applies each update
+   * without replacing unrelated skill rows.
+   */
+  skillUpdates: AgentSkillUpdateListSchema.optional()
+})
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // ============================================================================
@@ -230,6 +258,20 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
+export const DeleteAgentQuerySchema = z.strictObject({
+  /**
+   * Delete the agent's sessions in the same main-process transaction.
+   * Omitted/false preserves the historical "delete agent only" behavior.
+   */
+  deleteSessions: z.boolean().optional()
+})
+export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
+
+export interface DeleteAgentResult {
+  deleted: boolean
+  deletedSessionIds?: string[]
+}
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -260,7 +302,8 @@ export type AgentSchemas = {
     }
     DELETE: {
       params: { agentId: string }
-      response: void
+      query?: DeleteAgentQueryParams
+      response: DeleteAgentResult
     }
   }
 

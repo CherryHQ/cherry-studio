@@ -53,7 +53,7 @@ Before the migration window is created, the gate validates the upgrade
 path using `core/versionPolicy.ts`. This catches manual installs that
 bypass the auto-updater's version filtering.
 
-**Required upgrade path**: `v1.old → v1.last (≥1.9.0) → v2.0.0 → v2.x`
+**Required upgrade path**: `v1.old → v1.last (≥1.9.12) → v2.0.0 → v2.x`
 
 ### Blocking rules
 
@@ -87,7 +87,7 @@ Path Safety section above.
 
 1. Extend `BaseMigrator` in `migrators/`
 2. Implement `prepare`, `execute`, `validate` methods
-3. Register in `migrators/index.ts`
+3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 
 ### Key Contracts
@@ -98,9 +98,9 @@ Path Safety section above.
 
 ### Foreign Keys Caveat
 
-The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` registers
-it via the patched `client.setPragma()`, which replays on every (re)connection (libsql defaults to
-`foreign_keys = ON` and resets PRAGMAs after each `transaction()`). **Migrators must NOT toggle FK
+The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` sets the
+pragma once after migrations run. better-sqlite3 keeps a single connection, so that pragma persists
+for the whole migration with no per-transaction replay. **Migrators must NOT toggle FK
 themselves.** Verify integrity with `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of
 `execute()` (own, fully-resolved tables only — exclude cross-domain-deferred and shared polymorphic
 tables); the engine runs a final whole-database `foreign_key_check` as backstop. See the

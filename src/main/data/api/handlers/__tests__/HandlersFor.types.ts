@@ -16,8 +16,8 @@
  * automatically.
  */
 
-import type { ApiHandler, ApiMethods, HandlersFor } from '@shared/data/api/apiTypes'
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
+import type { ApiHandler, ApiMethods, HandlersFor } from '@shared/data/api/types'
 
 // ----------------------------------------------------------------------------
 // Control: the pre-refactor hand-rolled mapped type, verbatim from how each
@@ -47,6 +47,7 @@ const assistantTopicsDeleteHandler = {
 const _p1_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -57,6 +58,7 @@ const _p1_new: HandlersFor<TopicSchemas> = {
 const _p1_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -87,6 +89,7 @@ const _n2_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   // @ts-expect-error - DELETE missing on '/topics/:id'
   '/topics/:id': { GET: ok, PATCH: ok },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -98,6 +101,7 @@ const _n2_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   // @ts-expect-error - DELETE missing on '/topics/:id'
   '/topics/:id': { GET: ok, PATCH: ok },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -113,6 +117,7 @@ const _n2_old: OldTopicHandlers = {
 const _n3_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -125,6 +130,7 @@ const _n3_new: HandlersFor<TopicSchemas> = {
 const _n3_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -143,6 +149,7 @@ const _n3_old: OldTopicHandlers = {
 const _n4_new: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -155,6 +162,7 @@ const _n4_new: HandlersFor<TopicSchemas> = {
 const _n4_old: OldTopicHandlers = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -179,6 +187,7 @@ const _n5_new: HandlersFor<TopicSchemas> = {
     PUT: ok
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -195,6 +204,7 @@ const _n5_old: OldTopicHandlers = {
     PUT: ok
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -218,6 +228,7 @@ const _n6_new: HandlersFor<TopicSchemas> = {
     PATCH: ok,
     DELETE: async () => undefined
   },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -236,6 +247,7 @@ const _n6_old: OldTopicHandlers = {
     PATCH: ok,
     DELETE: async () => undefined
   },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -260,6 +272,7 @@ const _n7_new: HandlersFor<TopicSchemas> = {
     }
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
@@ -278,6 +291,7 @@ const _n7_old: OldTopicHandlers = {
     }
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
+  '/topics/latest': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },

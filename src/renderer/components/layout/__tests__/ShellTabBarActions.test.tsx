@@ -37,7 +37,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: mocks.toggleTheme })
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
@@ -62,7 +62,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../WindowControls', () => ({
-  default: () => null
+  WindowControls: () => null
 }))
 
 import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'

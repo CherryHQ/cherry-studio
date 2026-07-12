@@ -1,13 +1,12 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
-import { ModelList } from './ModelList'
-import { ModelListHealthProvider, useModelListHealth } from './ModelList/modelListHealthContext'
+import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
@@ -17,12 +16,20 @@ interface ProviderSettingProps {
 
 function ProviderSettingSections({ providerId }: { providerId: string }) {
   const health = useModelListHealth()
+  const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
+  const requestModelPullGuide = useCallback(() => {
+    setModelPullGuideVersion((version) => version + 1)
+  }, [])
 
   return (
     <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
       <div className={providerDetailColumnClasses.sectionStack}>
-        <AuthenticationSection providerId={providerId} onOpenModelHealthCheck={health.openHealthCheck} />
-        <ModelList providerId={providerId} />
+        <AuthenticationSection
+          providerId={providerId}
+          onOpenModelHealthCheck={health.openHealthCheck}
+          onRequestModelPullGuide={requestModelPullGuide}
+        />
+        <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
       </div>
     </Scrollbar>
   )
@@ -32,7 +39,6 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   const { provider } = useProvider(providerId)
   const { theme } = useTheme()
 
-  useProviderAutoModelSync(providerId)
   useProviderOnboardingAutoEnable({
     providerId,
     isOnboarding

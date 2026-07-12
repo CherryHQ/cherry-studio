@@ -90,15 +90,25 @@ const MessageErrorInfo: React.FC<{
     (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
+  const classificationStatus =
+    typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
-  const classification = useMemo(
-    () => classifyError(error, providerId),
+  const classification = useMemo(() => {
+    const classificationError: SerializedError = {
+      name: null,
+      message: errorMessage ?? null,
+      stack: null,
+      ...(classificationStatus !== undefined
+        ? {
+            status: classificationStatus,
+            statusCode: classificationStatus
+          }
+        : {})
+    }
 
-    // primitives instead of the `error` object reference; `classifyError`
-    // only inspects fields covered by these scalars.
-    [errorMessage, errorStatus, errorProviderId, providerId]
-  )
+    return classifyError(classificationError, providerId)
+  }, [classificationStatus, errorMessage, providerId])
 
   useEffect(() => {
     if (classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError) return

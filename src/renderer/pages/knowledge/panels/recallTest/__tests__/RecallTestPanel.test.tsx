@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +13,6 @@ vi.mock('@renderer/ipc', () => ({
     request: (...args: unknown[]) => mockIpcRequest(...args)
   }
 }))
-const mockToastError = vi.fn()
 const mockClipboardWriteText = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
@@ -102,9 +102,11 @@ vi.mock('@data/hooks/useCache', async () => {
 
       return [
         value,
-        (nextValue: Record<string, string[]>) => {
-          mockCache.set(nextValue)
-          setValue(nextValue)
+        (nextValue: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
+          // Mirror the real hook: resolve a functional updater against the latest value.
+          const resolved = typeof nextValue === 'function' ? nextValue(value) : nextValue
+          mockCache.set(resolved)
+          setValue(resolved)
         }
       ]
     }
@@ -149,11 +151,6 @@ describe('RecallTestPanel', () => {
     }
     mockPerformanceNow.mockReturnValue(100)
     mockIpcRequest.mockResolvedValue(realSearchResults)
-    Object.assign(window, {
-      toast: {
-        error: mockToastError
-      }
-    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -339,7 +336,7 @@ describe('RecallTestPanel', () => {
     expect(mockClipboardWriteText).toHaveBeenCalledWith('real result from file name')
     expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument()
     expect(copyButton).toHaveClass('text-success', 'opacity-100')
-    expect(mockToastError).not.toHaveBeenCalledWith('message.copied')
+    expect(toast.error).not.toHaveBeenCalledWith('message.copied')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
@@ -489,7 +486,7 @@ describe('RecallTestPanel', () => {
     })
     expect(screen.getByText('0 个结果')).toBeInTheDocument()
     expect(screen.getByText('最高: 0.00')).toBeInTheDocument()
-    expect(mockToastError).toHaveBeenCalledWith('召回测试检索失败: search failed')
+    expect(toast.error).toHaveBeenCalledWith('召回测试检索失败: search failed')
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '复制片段' })).not.toBeInTheDocument()
   })

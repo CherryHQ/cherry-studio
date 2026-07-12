@@ -1,433 +1,634 @@
-import '@testing-library/jest-dom/vitest'
-
-import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli, TerminalApp } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const testState = vi.hoisted(() => ({
-  isBunInstalled: true,
-  selectedCliTool: 'github-copilot-cli',
-  selectedModel: null as string | null,
-  canLaunch: true,
-  codeCliRun: vi.fn(),
-  setModel: vi.fn(),
-  setTimeoutTimer: vi.fn(),
-  providers: [] as Provider[],
-  models: [] as Model[],
-  modelSelectorProps: [] as any[]
-}))
 
 import CodeCliPage from '../CodeCliPage'
 
-vi.mock('@cherrystudio/ui', async () => {
-  const React = await import('react')
+const {
+  clearCliConfigMock,
+  readCliConfigFilesMock,
+  extractConnectionFromCliConfigDraftMock,
+  writeCliConfigDraftMock,
+  writeOwnLoginCliConfigDraftMock,
+  useCodeCliMock,
+  upsertProviderConfigMock,
+  setCurrentProviderMock,
+  reorderProvidersMock,
+  selectToolMock,
+  setTerminalMock,
+  selectFolderMock,
+  installMock,
+  upgradeMock,
+  removeMock,
+  toastErrorMock,
+  navigateMock,
+  openSettingsTabMock,
+  mockProviders,
+  mockProviderConfigs
+} = vi.hoisted(() => ({
+  clearCliConfigMock: vi.fn(),
+  readCliConfigFilesMock: vi.fn(),
+  extractConnectionFromCliConfigDraftMock: vi.fn(),
+  writeCliConfigDraftMock: vi.fn(),
+  writeOwnLoginCliConfigDraftMock: vi.fn(),
+  useCodeCliMock: vi.fn(),
+  upsertProviderConfigMock: vi.fn(),
+  setCurrentProviderMock: vi.fn(),
+  reorderProvidersMock: vi.fn(),
+  selectToolMock: vi.fn(),
+  setTerminalMock: vi.fn(),
+  selectFolderMock: vi.fn(),
+  installMock: vi.fn(),
+  upgradeMock: vi.fn(),
+  removeMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  navigateMock: vi.fn(),
+  openSettingsTabMock: vi.fn(),
+  mockProviders: [] as Provider[],
+  mockProviderConfigs: {} as Record<string, CliProviderConfig>
+}))
 
-  return {
-    Button: ({ children, loading, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) =>
-      React.createElement('button', { type: 'button', ...props, disabled: props.disabled || loading }, children),
-    Checkbox: ({
-      className,
-      id,
-      onCheckedChange
-    }: {
-      className?: string
-      id?: string
-      onCheckedChange?: (v: boolean) => void
-    }) =>
-      React.createElement('button', {
-        id,
-        type: 'button',
-        role: 'checkbox',
-        className,
-        onClick: () => onCheckedChange?.(true)
-      }),
-    Label: ({ children, htmlFor, className }: { children: React.ReactNode; htmlFor?: string; className?: string }) =>
-      React.createElement('label', { htmlFor, className }, children),
-    Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-      open ? React.createElement('div', { role: 'dialog' }, children) : null,
-    DialogContent: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
-    DialogHeader: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
-    DialogTitle: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
-    DialogFooter: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
-    DialogClose: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
-    SelectDropdown: () => React.createElement('div', null),
-    Textarea: {
-      Input: ({ value, onValueChange }: { value?: string; onValueChange?: (value: string) => void }) =>
-        React.createElement('textarea', {
-          value,
-          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => onValueChange?.(event.currentTarget.value)
-        })
+const provider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  isEnabled: true,
+  endpointConfigs: {
+    'anthropic-messages': {
+      baseUrl: 'https://api.anthropic.com'
     }
   }
-})
+} as Provider
 
-vi.mock('@renderer/components/app/Navbar', () => ({
-  Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
-}))
-
-vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: () => null
-}))
-
-vi.mock('@renderer/components/Selector/model', async () => {
-  const React = await import('react')
-
-  return {
-    ModelSelector: (props: any) => {
-      testState.modelSelectorProps.push(props)
-
-      return React.createElement(
-        'div',
-        { 'data-testid': 'code-model-selector' },
-        props.trigger,
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: () => props.onSelect('openai::gpt-4o')
-          },
-          'select mock model'
-        )
-      )
-    }
+const cliConfigFiles: CliConfigFileDraft[] = [
+  {
+    target: 'claude-settings',
+    label: 'settings.json',
+    path: '/tmp/settings.json',
+    language: 'json',
+    content: '{"env":{"ANTHROPIC_MODEL":"claude-new"}}'
   }
-})
+]
 
-vi.mock('@renderer/utils/platform', () => ({
-  isMac: false,
-  isWin: false
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: vi.fn().mockResolvedValue({ version: '1.0.0' })
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    variant,
+    size,
+    loading,
+    children,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string
+    size?: string
+    loading?: boolean
+    children?: ReactNode
+  }) => {
+    void variant
+    void size
+    void loading
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
+  ConfirmDialog: ({ open, onConfirm }: { open?: boolean; onConfirm?: () => void | Promise<void> }) =>
+    open ? (
+      <button type="button" onClick={() => void onConfirm?.()}>
+        confirm remove
+      </button>
+    ) : null,
+  Select: ({
+    children,
+    value,
+    onValueChange
+  }: {
+    children: ReactNode
+    value?: string
+    onValueChange: (value: string) => void
+  }) => {
+    void onValueChange
+    return <div data-value={value}>{children}</div>
+  },
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
+  SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  SearchInput: ({
+    value,
+    placeholder,
+    onChange
+  }: {
+    value: string
+    placeholder?: string
+    onChange: (event: { target: { value: string } }) => void
+  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: vi.fn()
   }
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [testState.isBunInstalled, vi.fn()]
+  usePersistCache: () => [false, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
-  useCodeCli: () => ({
-    selectedCliTool: testState.selectedCliTool as CodeCli,
-    selectedModel: testState.selectedModel,
-    selectedTerminal: TerminalApp.SYSTEM_DEFAULT,
-    environmentVariables: '',
-    directories: [],
-    currentDirectory: '',
-    canLaunch: testState.canLaunch,
-    setCliTool: vi.fn().mockResolvedValue(undefined),
-    setModel: testState.setModel,
-    setTerminal: vi.fn(),
-    setEnvVars: vi.fn(),
-    setCurrentDir: vi.fn().mockResolvedValue(undefined),
-    removeDir: vi.fn().mockResolvedValue(undefined),
-    selectFolder: vi.fn().mockResolvedValue(undefined)
-  })
+  useCodeCli: () => useCodeCliMock()
+}))
+
+vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
+  useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: testState.providers }),
-  getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
+  useProviders: () => ({ providers: mockProviders })
 }))
 
-vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: testState.models })
-}))
-
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn()
+  }
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn()
+      error: vi.fn()
     })
   }
 }))
 
-vi.mock('@shared/config/providers', () => ({
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS: [],
-  isSiliconAnthropicCompatibleModel: () => false
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    type: '3rdParty',
-    init: vi.fn()
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => openSettingsTabMock(...args)
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
+}))
+
+vi.mock('@renderer/pages/code/constants/codeCliTools', () => ({
+  CLI_TOOL_PRESET_MAP: {
+    [CodeCli.CLAUDE_CODE]: {},
+    [CodeCli.OPENAI_CODEX]: {},
+    [CodeCli.OPEN_CODE]: {},
+    [CodeCli.QODER_CLI]: {}
+  }
+}))
+
+vi.mock('../cliConfig/claudeModels', () => ({
+  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
   },
-  useTranslation: () => ({ t: (key: string) => key })
+  hasClaudeDetailedModels: (config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
+  }
 }))
 
-vi.mock('../components/CodeToolGallery', () => ({
-  CodeToolGallery: ({
-    tools,
-    handleSelectTool
+vi.mock('../cliConfig/clear', () => ({
+  clearCliConfig: (...args: unknown[]) => clearCliConfigMock(...args)
+}))
+
+vi.mock('../cliConfig/draft', () => ({
+  readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
+  writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args),
+  writeOwnLoginCliConfigDraft: (...args: unknown[]) => writeOwnLoginCliConfigDraftMock(...args),
+  // Literal (not CodeCli.CLAUDE_CODE) — vi.mock factories are hoisted above imports.
+  isOwnLoginConfigurable: (cliTool: string) => cliTool === 'claude-code'
+}))
+
+vi.mock('../cliConfig/parser', () => ({
+  extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args)
+}))
+
+vi.mock('../cliConfig/providerMatching', () => ({
+  cliConfigConnectionMatchesProvider: () => true
+}))
+
+// `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
+// Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
+// still resolves; override only the sanitizer this test asserts on.
+vi.mock('../cliConfig/adapters', async (importOriginal) => ({
+  // oxlint-disable-next-line consistent-type-imports
+  ...(await importOriginal<typeof import('../cliConfig/adapters')>()),
+  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {}
+}))
+
+vi.mock('../components/CodeCliSidebar', () => ({
+  CodeCliSidebar: () => <div data-testid="code-cli-sidebar" />
+}))
+
+vi.mock('../components/ConfigList', () => ({
+  ConfigList: ({
+    providers,
+    onConfigure,
+    onToggleCurrent
   }: {
-    tools: Array<{ value: CodeCli; label: string }>
-    handleSelectTool: (value: CodeCli) => void
+    providers: Provider[]
+    onConfigure: (provider: Provider) => void
+    onToggleCurrent: (provider: Provider) => void
   }) => (
-    <button type="button" onClick={() => handleSelectTool(tools[0].value)}>
-      open tool
-    </button>
+    <div>
+      {providers.length === 0 && <div data-testid="empty-config-list" />}
+      {providers.map((item) => (
+        <div key={item.id}>
+          <button type="button" onClick={() => onToggleCurrent(item)}>
+            toggle {item.id}
+          </button>
+          <button type="button" onClick={() => onConfigure(item)}>
+            configure {item.id}
+          </button>
+        </div>
+      ))}
+    </div>
   )
 }))
 
-vi.mock('../components/FieldLabel', () => ({
-  FieldLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
+  ConfigEditPanel: ({
+    provider,
+    providerConfig,
+    onSubmit
+  }: {
+    provider: Provider
+    providerConfig: CliProviderConfig | null
+    onSubmit: (values: {
+      modelId?: string
+      cliConfigModelId?: string
+      config?: Record<string, unknown>
+      cliConfigFiles?: CliConfigFileDraft[]
+      writePrimaryModel?: boolean
+    }) => Promise<void>
+  }) => (
+    <div data-testid="config-panel" data-provider-id={provider.id} data-model-id={providerConfig?.modelId ?? ''}>
+      <button
+        type="button"
+        onClick={() =>
+          void onSubmit({
+            modelId: 'anthropic::claude-new',
+            config: { env: { TEST: 'true' } },
+            cliConfigFiles
+          })
+        }>
+        save model
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onSubmit({
+            modelId: undefined,
+            cliConfigModelId: 'anthropic::claude-new',
+            config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+            cliConfigFiles,
+            writePrimaryModel: false
+          })
+        }>
+        save detailed config
+      </button>
+    </div>
+  )
 }))
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  testState.isBunInstalled = true
-  testState.selectedCliTool = CodeCli.GITHUB_COPILOT_CLI
-  testState.selectedModel = null
-  testState.canLaunch = true
-  testState.codeCliRun.mockResolvedValue({ success: true })
-  testState.setModel.mockResolvedValue(undefined)
-  testState.providers = []
-  testState.models = []
-  testState.modelSelectorProps = []
-  Object.assign(window, {
-    api: {
-      isBinaryExist: vi.fn().mockResolvedValue(true),
-      codeCli: {
-        getAvailableTerminals: vi.fn().mockResolvedValue([]),
-        run: testState.codeCliRun
-      }
-    },
-    toast: {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn()
-    }
+vi.mock('../components/configEditPanel/OwnLoginConfigPanel', () => ({
+  OwnLoginConfigPanel: ({
+    toolName,
+    onSubmit
+  }: {
+    toolName: string
+    onSubmit: (values: { config: Record<string, unknown> }) => Promise<void>
+  }) => (
+    <div data-testid="own-login-config-panel" data-tool-name={toolName}>
+      <button type="button" onClick={() => void onSubmit({ config: { effortLevel: 'high' } })}>
+        save own-login
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('../components/LaunchDialog', () => ({
+  LaunchDialog: () => null
+}))
+
+vi.mock('../components/VersionStatusCard', () => ({
+  VersionStatusCard: ({ canLaunch, onRemove }: { canLaunch?: boolean; onRemove?: () => void }) => (
+    <div data-can-launch={String(canLaunch)} data-testid="version-status-card">
+      {onRemove && (
+        <button type="button" onClick={onRemove}>
+          remove tool
+        </button>
+      )}
+    </div>
+  )
+}))
+
+vi.mock('../constants/cliTools', () => ({
+  CLI_TOOLS: [
+    { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
+    { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
+    { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
+    { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
+  ],
+  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
+}))
+
+vi.mock('../hooks/useAvailableTerminals', () => ({
+  useAvailableTerminals: () => []
+}))
+
+vi.mock('../hooks/useBinaryActions', () => ({
+  useBinaryActions: () => ({
+    install: installMock,
+    upgrade: upgradeMock,
+    remove: removeMock,
+    installingTools: new Set(),
+    upgradingTools: new Set()
   })
-})
+}))
 
-async function openCodeToolDialog() {
-  render(<CodeCliPage />)
-  await waitFor(() => expect(window.api.isBinaryExist).toHaveBeenCalledWith('bun'))
-  fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
-  await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
-}
+vi.mock('../hooks/useCliVersionStatuses', () => ({
+  useCliVersionStatuses: () => ({
+    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
+    [CodeCli.OPENAI_CODEX]: { installed: true, canUpgrade: false },
+    [CodeCli.OPEN_CODE]: { installed: true, canUpgrade: false },
+    [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
+  })
+}))
 
-function makeProvider(
-  id: string,
-  defaultChatEndpoint: EndpointType | undefined = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  overrides: Partial<Provider> = {}
-): Provider {
-  return {
-    id,
-    name: id,
-    apiKeys: [],
-    authType: 'api-key',
-    defaultChatEndpoint,
-    endpointConfigs: {},
-    apiFeatures: {},
-    settings: {},
-    isEnabled: true,
-    ...overrides
-  } as Provider
-}
+vi.mock('../hooks/useConfigMetadata', () => ({
+  useConfigMetadata: () => ({
+    filterProviders: (providers: Provider[]) => providers,
+    makeModelFilter: () => () => true,
+    resolveProviderMeta: (item: Provider, config?: CliProviderConfig) => ({
+      providerName: item.name,
+      modelName: config?.modelId
+    }),
+    resolveProviderMetaForTool: (_toolId: CodeCli, item: Provider, config?: CliProviderConfig) => ({
+      providerName: item.name,
+      modelName: config?.modelId
+    })
+  })
+}))
 
-function makeModel(id: string, providerId: string, overrides: Partial<Model> = {}): Model {
-  return {
-    id,
-    providerId,
-    name: id.split('::')[1] ?? id,
-    capabilities: [],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false,
-    ...overrides
-  } as Model
-}
+function mockCodeCliState({
+  providerConfigs = {},
+  currentProviderId = null,
+  selectedCliTool = CodeCli.CLAUDE_CODE
+}: {
+  providerConfigs?: Record<string, CliProviderConfig>
+  currentProviderId?: string | null
+  selectedCliTool?: CodeCli
+} = {}) {
+  Object.keys(mockProviderConfigs).forEach((key) => delete mockProviderConfigs[key])
+  Object.assign(mockProviderConfigs, providerConfigs)
 
-function latestModelSelectorProps() {
-  return testState.modelSelectorProps.at(-1)
+  const currentToolState: CodeCliToolState = {
+    providers: mockProviderConfigs,
+    current: currentProviderId
+  }
+
+  useCodeCliMock.mockReturnValue({
+    configs: { [selectedCliTool]: currentToolState },
+    selectedCliTool,
+    currentToolState,
+    currentProviderId,
+    currentProviderConfig: currentProviderId ? (mockProviderConfigs[currentProviderId] ?? null) : null,
+    providerConfigs: mockProviderConfigs,
+    directory: '/tmp/project',
+    selectedTerminal: undefined,
+    upsertProviderConfig: upsertProviderConfigMock,
+    setCurrentProvider: setCurrentProviderMock,
+    reorderProviders: reorderProvidersMock,
+    selectTool: selectToolMock,
+    setTerminal: setTerminalMock,
+    selectFolder: selectFolderMock
+  })
 }
 
 describe('CodeCliPage', () => {
-  it('uses the shared model selector for non-copilot tools and writes selected ids back', async () => {
-    testState.selectedCliTool = CodeCli.QWEN_CODE
-
-    await openCodeToolDialog()
-
-    expect(screen.getByTestId('code-model-selector')).toBeInTheDocument()
-    expect(latestModelSelectorProps()).toMatchObject({
-      multiple: false,
-      selectionType: 'id',
-      showTagFilter: false
-    })
-    await waitFor(() => expect(latestModelSelectorProps().portalContainer).toBeInstanceOf(HTMLElement))
-    expect(latestModelSelectorProps().portalContainer.closest('[role="dialog"]')).toBe(screen.getByRole('dialog'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'select mock model' }))
-
-    await waitFor(() => expect(testState.setModel).toHaveBeenCalledWith('openai::gpt-4o'))
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockProviders.splice(0, mockProviders.length, provider)
+    mockCodeCliState()
+    clearCliConfigMock.mockResolvedValue(undefined)
+    readCliConfigFilesMock.mockResolvedValue([])
+    extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
+    writeCliConfigDraftMock.mockResolvedValue(undefined)
+    upsertProviderConfigMock.mockResolvedValue('anthropic')
+    setCurrentProviderMock.mockResolvedValue(undefined)
+    reorderProvidersMock.mockResolvedValue(undefined)
+    selectFolderMock.mockResolvedValue('/tmp/project')
+    navigateMock.mockResolvedValue(undefined)
   })
 
-  it('does not pass malformed stored model ids to the shared model selector', async () => {
-    testState.selectedCliTool = CodeCli.QWEN_CODE
-    testState.selectedModel = 'legacy-model-id'
+  it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
+    render(<CodeCliPage />)
 
-    await openCodeToolDialog()
+    fireEvent.click(screen.getByText('toggle anthropic'))
 
-    expect(latestModelSelectorProps().value).toBeUndefined()
+    expect(await screen.findByTestId('config-panel')).toHaveAttribute('data-provider-id', 'anthropic')
+    expect(screen.getByTestId('config-panel')).toHaveAttribute('data-model-id', '')
+    expect(upsertProviderConfigMock).not.toHaveBeenCalled()
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
+    expect(setCurrentProviderMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the code-cli provider and model filter when using the shared model selector', async () => {
-    testState.selectedCliTool = CodeCli.QWEN_CODE
-    testState.providers = [
-      makeProvider('openai'),
-      makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
-      makeProvider('cherryai')
-    ]
-    const chatModel = makeModel('openai::gpt-4o', 'openai', {
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-    const anthropicModel = makeModel('anthropic::claude-3-5-sonnet', 'anthropic', {
-      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-    })
-    const embeddingModel = makeModel('openai::text-embedding-3-small', 'openai', {
-      capabilities: [MODEL_CAPABILITY.EMBEDDING],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-    const rerankModel = makeModel('openai::rerank', 'openai', {
-      capabilities: [MODEL_CAPABILITY.RERANK],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-    const imageModel = makeModel('openai::image', 'openai', {
-      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-    const cherryAiModel = makeModel('cherryai::gpt-4o', 'cherryai', {
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
+  it('enables the provider after the user selects and saves a model from the pending config dialog', async () => {
+    render(<CodeCliPage />)
 
-    await openCodeToolDialog()
+    fireEvent.click(screen.getByText('toggle anthropic'))
+    fireEvent.click(await screen.findByText('save model'))
 
-    const filter = latestModelSelectorProps().filter as (model: Model) => boolean
-    expect(filter(chatModel)).toBe(true)
-    expect(filter(anthropicModel)).toBe(false)
-    expect(filter(embeddingModel)).toBe(false)
-    expect(filter(rerankModel)).toBe(false)
-    expect(filter(imageModel)).toBe(false)
-    expect(filter(cherryAiModel)).toBe(false)
-  })
-
-  it('keeps the OpenCode provider fallback equivalent to the pre-v2 frontend filter', async () => {
-    testState.selectedCliTool = CodeCli.OPEN_CODE
-    testState.providers = [
-      makeProvider('openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
-      makeProvider('new-api', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, {
-        presetProviderId: 'new-api',
-        defaultChatEndpoint: undefined
-      }),
-      makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
-      makeProvider('gateway', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, {
-        presetProviderId: 'gateway',
-        defaultChatEndpoint: undefined
-      })
-    ]
-
-    await openCodeToolDialog()
-
-    const filter = latestModelSelectorProps().filter as (model: Model) => boolean
-    expect(filter(makeModel('openai-chat::gpt-4o', 'openai-chat'))).toBe(true)
-    expect(filter(makeModel('new-api::claude-3-5-sonnet', 'new-api'))).toBe(true)
-    expect(filter(makeModel('anthropic::claude-3-5-sonnet', 'anthropic'))).toBe(true)
-    expect(
-      filter(
-        makeModel('gateway::gpt-4o', 'gateway', {
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-        })
-      )
-    ).toBe(false)
-  })
-
-  it('does not render the model selector for GitHub Copilot CLI', async () => {
-    testState.selectedCliTool = CodeCli.GITHUB_COPILOT_CLI
-
-    await openCodeToolDialog()
-
-    expect(screen.queryByTestId('code-model-selector')).not.toBeInTheDocument()
-  })
-
-  it('keeps the auto-update checkbox neutral instead of primary themed', async () => {
-    await openCodeToolDialog()
-
-    const checkbox = await screen.findByRole('checkbox')
-
-    // Behavioral guard: page must not theme the auto-update checkbox with the global primary token.
-    expect(checkbox.className).not.toMatch(/primary/)
-    expect(screen.getByText('code.auto_update_to_latest')).toHaveClass('font-normal')
-  })
-
-  it('disables launch when the tool cannot launch', async () => {
-    testState.canLaunch = false
-
-    await openCodeToolDialog()
-
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
-  })
-
-  it('disables launch when bun is not installed', async () => {
-    testState.isBunInstalled = false
-
-    await openCodeToolDialog()
-
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
-  })
-
-  it('shows launching state and prevents duplicate launch submissions', async () => {
-    let resolveRun!: (value: { success: boolean }) => void
-    testState.codeCliRun.mockReturnValue(
-      new Promise<{ success: boolean }>((resolve) => {
-        resolveRun = resolve
+    await waitFor(() =>
+      expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
+        modelId: 'anthropic::claude-new',
+        config: { env: { TEST: 'true' } }
       })
     )
-
-    await openCodeToolDialog()
-
-    const launchButton = screen.getByRole('button', { name: 'code.launch.label' })
-    fireEvent.click(launchButton)
-
-    const launchingButton = await screen.findByRole('button', { name: 'code.launching' })
-    expect(launchingButton).toBeDisabled()
-    fireEvent.click(launchingButton)
-    expect(testState.codeCliRun).toHaveBeenCalledTimes(1)
-
-    resolveRun({ success: true })
-    await waitFor(() => expect(window.toast.success).toHaveBeenCalledWith('code.launch.success'))
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.CLAUDE_CODE,
+      modelId: 'anthropic::claude-new',
+      configBlob: { env: { TEST: 'true' } },
+      files: cliConfigFiles,
+      writePrimaryModel: true
+    })
+    expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('shows launched state after a successful launch and schedules reset', async () => {
-    await openCodeToolDialog()
+  it('enables the provider after saving detailed config from the pending dialog', async () => {
+    render(<CodeCliPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'code.launch.label' }))
+    fireEvent.click(screen.getByText('toggle anthropic'))
+    fireEvent.click(await screen.findByText('save detailed config'))
 
-    expect(await screen.findByRole('button', { name: /code.launch.launched/ })).toBeEnabled()
-    expect(testState.setTimeoutTimer).toHaveBeenCalledWith('launchSuccess', expect.any(Function), 2500)
+    await waitFor(() =>
+      expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
+        modelId: null,
+        config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+      })
+    )
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.CLAUDE_CODE,
+      modelId: 'anthropic::claude-new',
+      configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+      files: cliConfigFiles,
+      writePrimaryModel: false
+    })
+    expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('returns to idle and shows an error when launch fails', async () => {
-    testState.codeCliRun.mockResolvedValue({ success: false, message: 'launch failed' })
+  it('enables an existing detailed-only provider without writing a common model', async () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: {
+          modelId: null,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+        }
+      }
+    })
+    render(<CodeCliPage />)
 
-    await openCodeToolDialog()
+    fireEvent.click(screen.getByText('toggle anthropic'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'code.launch.label' }))
+    await waitFor(() =>
+      expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-new',
+        configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+        writePrimaryModel: false
+      })
+    )
+    expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('launch failed'))
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+  it('auto-sorts a provider to the first position after it is enabled', async () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: {
+          modelId: null,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+        }
+      }
+    })
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+
+    await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
+    await waitFor(() => expect(reorderProvidersMock).toHaveBeenCalled())
+    const orderedIds = reorderProvidersMock.mock.calls.at(-1)?.[0]
+    expect(orderedIds?.[0]).toBe('anthropic')
+  })
+
+  it('shows a provider selection hint when launch needs a current provider', () => {
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('code.select_provider_before_launch')).toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'false')
+  })
+
+  it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ })).toBeInTheDocument()
+  })
+
+  it('opens the provider settings tab (keeping the code page) from the add-provider hint', () => {
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ }))
+
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider')
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the OpenAI Responses endpoint hint for Codex provider setup', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint_openai_responses/ })).toBeInTheDocument()
+  })
+
+  it('shows the generic provider setup hint for other provider-backed tools', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint/ })).toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
+  })
+
+  it('hides the provider selection hint once a current provider is selected', () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: { modelId: 'anthropic::claude-new', config: {} }
+      },
+      currentProviderId: 'anthropic'
+    })
+
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+  })
+
+  it('does not show the provider selection hint for provider-less tools', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
+
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+  })
+
+  it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
+    mockProviders.splice(0, mockProviders.length)
+    mockCodeCliState()
+
+    render(<CodeCliPage />)
+
+    // Login-capable tools always surface the virtual own-login row, so there is no empty state and
+    // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
+    expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
+  })
+
+  it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {
+    mockCodeCliState({
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    removeMock.mockResolvedValue(true)
+    clearCliConfigMock.mockRejectedValue(new Error('EACCES'))
+
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('remove tool'))
+    fireEvent.click(await screen.findByText('confirm remove'))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
+    // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
+    expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
   })
 })

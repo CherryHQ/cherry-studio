@@ -1,5 +1,5 @@
 import { AttachmentToolRuntime } from '@renderer/components/composer/tools/components/AttachmentButton'
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 import { composerFileTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 
@@ -54,6 +54,5 @@ const attachmentTool = defineTool({
 })
 
 // Register the tool
-registerTool(attachmentTool)
 
 export default attachmentTool

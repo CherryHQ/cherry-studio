@@ -39,6 +39,10 @@ describe('createFilePathHandle — runtime validation', () => {
   it('rejects file:// URLs (use FileUrlString instead)', () => {
     expect(() => createFilePathHandle('file:///Users/me/doc.pdf' as FilePath)).toThrow(TypeError)
   })
+
+  it('rejects null bytes', () => {
+    expect(() => createFilePathHandle('/tmp/doc\0.pdf' as FilePath)).toThrow(TypeError)
+  })
 })
 
 describe('handle type guards', () => {

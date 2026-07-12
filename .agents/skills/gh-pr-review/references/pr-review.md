@@ -10,6 +10,7 @@ is critical for review accuracy.
 |------|---------|
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
+| `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries and reference routing |
 | `judgment-matrix.md` | Worth-fixing criteria and special rules |
 | `checklist-evolution.md` | Checklist update flow and rules |
 
@@ -18,16 +19,6 @@ is critical for review accuracy.
 ## Step 1: Create worktree
 
 If `$ARGUMENTS` is a URL, extract the PR number from it.
-
-Clean up leftover worktrees from previous sessions:
-```bash
-for dir in /tmp/pr-review-*; do
-    [ -d "$dir" ] || continue
-    n=$(basename "$dir" | sed 's/pr-review-//')
-    git worktree remove "$dir" 2>/dev/null
-    git branch -D "pr-${n}" 2>/dev/null
-done
-```
 
 Validate PR target:
 ```bash
@@ -42,16 +33,23 @@ If `$ARGUMENTS` is a URL containing `{owner}/{repo}`, verify it matches
 supported and abort.
 If `STATE` is not `OPEN`, inform the user and exit.
 
-**If current branch equals `PR_BRANCH` and HEAD equals `HEAD_SHA`**, skip
-worktree creation — the code is already local.
+Always create an isolated detached worktree. Never reuse the caller's current
+worktree, even when its branch and HEAD match the PR: review must read the exact
+remote PR snapshot without mixing in caller-side uncommitted changes. Use a
+PR-and-SHA-specific path so unrelated review worktrees are never swept or
+deleted. Record the absolute path `/tmp/pr-review-{number}-{short_HEAD_SHA}`
+as `REVIEW_DIR` and the caller repository's `git rev-parse --show-toplevel`
+result as `MAIN_REPO_DIR` in coordinator state; do not rely on shell variables
+or `cd` persisting across tool calls.
 
-**Otherwise**, create a worktree:
+Before adding, check whether that exact path is already registered with
+`git worktree list --porcelain`. If it exists, reuse it only when it points to
+`HEAD_SHA` and `git -C {REVIEW_DIR} status --porcelain` is empty. Never remove
+or overwrite a dirty, mismatched, or unrelated worktree without user approval.
+Otherwise create it:
 ```bash
-# The fetch creates local branch `pr-{number}` (no upstream tracking needed).
-# --no-track is implied by the refspec `pull/N/head:pr-N`.
-git fetch origin pull/{number}/head:pr-{number}
-git worktree add /tmp/pr-review-{number} pr-{number}
-cd /tmp/pr-review-{number}
+git fetch origin pull/{number}/head
+git worktree add --detach "{REVIEW_DIR}" "{HEAD_SHA}"
 ```
 
 If the fetch fails with `couldn't find remote ref`, the local `origin` is
@@ -61,32 +59,37 @@ likely a fork (typical for contributors). Inspect remotes and retry against
 git remote -v
 # If `origin` points to your fork and `upstream` points to the canonical
 # repo, fetch from upstream instead:
-git fetch upstream pull/{number}/head:pr-{number}
-git worktree add /tmp/pr-review-{number} pr-{number}
-cd /tmp/pr-review-{number}
+git fetch upstream pull/{number}/head
+git worktree add --detach "{REVIEW_DIR}" "{HEAD_SHA}"
 ```
 If `upstream` is not configured, ask the user for the canonical remote URL
 before retrying. Do not guess.
 
 If worktree creation fails for any other reason, inform the user and abort.
 
-> **Platform note (Windows)**: After `git worktree add /tmp/pr-review-{N}`,
-> the `/tmp/...` path is not directly readable by Claude Code's Read tool
-> (which expects Windows paths). Convert with `cygpath -w /tmp/pr-review-{N}`
-> in Git Bash before passing to Read. On macOS/Linux, use the path as-is.
+For later review and validation filesystem/command calls, pass the recorded
+absolute `REVIEW_DIR` as the explicit working directory. For shell snippets
+that cannot set a working directory, use `git -C "{REVIEW_DIR}" ...`. Never
+assume a prior `cd`, environment variable, or shell session still exists.
+Cleanup is the exception: run it from `MAIN_REPO_DIR`, never from inside the
+worktree being removed.
+
+> **Platform note (Windows)**: If the active runtime cannot read the Git Bash
+> `/tmp/...` path, convert the recorded `REVIEW_DIR` with `cygpath -w` before
+> passing it to filesystem tools. On macOS/Linux, use the path as-is.
 
 ---
 
 ## Step 2: Collect diff and context
 
 ```bash
-git fetch origin {BASE_BRANCH}
-git merge-base origin/{BASE_BRANCH} HEAD
-git diff <merge-base-sha>
+git -C "{REVIEW_DIR}" fetch origin {BASE_BRANCH}
+git -C "{REVIEW_DIR}" merge-base origin/{BASE_BRANCH} HEAD
+git -C "{REVIEW_DIR}" diff <merge-base-sha>
 ```
 If the diff exceeds 200 lines, first run `git diff --stat` to get an overview,
-then read the diff per file using `git diff -- {file}` to avoid output
-truncation.
+then read the diff per file using `git -C "{REVIEW_DIR}" diff -- {file}` to
+avoid output truncation.
 
 If diff is empty → clean up worktree and exit.
 
@@ -94,6 +97,13 @@ Fetch existing PR review comments for de-duplication:
 ```bash
 gh api repos/{OWNER_REPO}/pulls/{number}/comments
 ```
+
+Inspect CI with:
+```bash
+gh pr checks {number} --repo {OWNER_REPO}
+```
+Record failing, pending, and successful checks as the review's validation
+signal. Do not replace CI with local lint, test, or format runs.
 
 ---
 
@@ -105,9 +115,12 @@ gh api repos/{OWNER_REPO}/pulls/{number}/comments
    change's correctness (e.g., surrounding logic, base classes, callers).
 2. Read `PR_BODY` to understand the stated motivation. Verify the
    implementation actually achieves what the author describes.
-3. Apply `code-checklist.md` to code files, `doc-checklist.md` to
-   documentation files. For React component changes, also consult
-   `vercel-react-best-practices` skill for detailed performance patterns. Use `judgment-matrix.md` to decide whether each issue
+3. Apply `code-checklist.md` to code files and `doc-checklist.md` to
+   documentation files. Apply `cherry-review-guidance.md` to code, mixed,
+   Cherry architecture documentation, and project-skill changes, loading only
+   the internal references it routes to for the changed areas. For React
+   component changes, also consult `vercel-react-best-practices` for detailed
+   performance patterns. Use `judgment-matrix.md` to decide whether each issue
    is worth reporting.
 4. Check whether issues raised in previous PR comments have been fixed.
 5. For each potential issue, perform a second-pass verification: re-read the
@@ -127,16 +140,15 @@ but ruled out.
 
 If a worktree was created, clean it up:
 ```bash
-cd -
-git worktree remove /tmp/pr-review-{number}
-git branch -D pr-{number}
+git -C "{MAIN_REPO_DIR}" worktree remove "{REVIEW_DIR}"
 ```
 
 > **Cleanup is best-effort.** If `git worktree remove` fails (e.g.,
 > `Permission denied` on Windows when a file handle is still open), the
 > review result is still valid — do not block on cleanup. From the main
 > repo, run `git worktree prune` to clear stale worktree references; the
-> directory can be removed manually afterward.
+> directory can be removed manually afterward. Never force-remove a worktree
+> containing unexplained changes; inspect it and request approval first.
 
 Present results to user:
 - Summary: one paragraph describing the purpose and scope of the change.

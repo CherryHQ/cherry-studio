@@ -5,8 +5,7 @@ import * as z from 'zod'
 import { createAihubmixImageModel } from '../../aihubmix/aihubmixImageModel'
 import { runWithResponse } from './captureRequest'
 
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
-vi.mock('i18next', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * Inbound (response) boundary for the AiHubMix Ideogram branches: V_3 generate
@@ -43,6 +42,18 @@ describe('AiHubMix response boundary (Ideogram branches)', () => {
       createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(opts({}))
     )
     expect(result.images).toMatchSnapshot()
+  })
+
+  it('V_3 generate → drops data[] items that carry no usable url', async () => {
+    // AiHubMix is an aggregator gateway and Ideogram can flag an image
+    // (`is_image_safe: false`), so a `data[]` entry may arrive without a `url`.
+    // The V_1/V_2 path in this same file already filters those out; the V_3
+    // branch must too, otherwise `undefined` leaks into `images`.
+    const response = { data: [{ url: 'https://img/ok.png' }, { is_image_safe: false, resolution: '1024x1024' }] }
+    const result = await runWithResponse(response, (fetch) =>
+      createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(opts({}))
+    )
+    expect(result.images).toEqual(['https://img/ok.png'])
   })
 
   it('V_2 generate → output.b64_json[].bytesBase64 (wrapped → data: URLs)', async () => {

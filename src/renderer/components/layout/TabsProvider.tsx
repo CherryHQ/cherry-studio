@@ -22,6 +22,61 @@ const DEFAULT_TAB: Tab = {
   isDormant: false
 }
 
+function createLaunchpadFallbackTab(): Tab {
+  return {
+    id: uuid(),
+    type: 'route',
+    url: '/app/launchpad',
+    title: getDefaultRouteTitle('/app/launchpad'),
+    lastAccessTime: Date.now(),
+    isDormant: false
+  }
+}
+
+// Route no longer served — its orphaned pinned tabs are dropped on restore.
+const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
+// OpenClaw was folded into the Code page (its sidebar entry + `/app/openclaw` route were removed),
+// so an already-persisted OpenClaw pin is redirected here rather than restoring to a dead route.
+const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
+const CODE_ROUTE_PATH = '/app/code'
+
+function routePathOfTab(tab: Tab): string | null {
+  if (tab.type !== 'route') return null
+  try {
+    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
+ * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
+ * redirect never produces a second Code pin). `changed` is true when anything was dropped or
+ * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
+ */
+export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
+  let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
+  const tabs: Tab[] = []
+  let changed = false
+  for (const tab of pinnedTabs) {
+    const path = routePathOfTab(tab)
+    if (path === LEGACY_LIBRARY_ROUTE_PATH) {
+      changed = true
+      continue
+    }
+    if (path === LEGACY_OPENCLAW_ROUTE_PATH) {
+      changed = true
+      if (hasCodePin) continue // a Code pin already exists — drop rather than duplicate it
+      hasCodePin = true
+      tabs.push({ ...tab, url: CODE_ROUTE_PATH, title: getDefaultRouteTitle(CODE_ROUTE_PATH) })
+      continue
+    }
+    tabs.push(tab)
+  }
+  return { tabs, changed }
+}
+
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
   // Chat / agent tabs are page-titled (topic / session name + assistant / agent
@@ -30,10 +85,18 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
-  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
+  //
+  // The `home` tab follows the SAME rule — it must not be special-cased into an
+  // unconditional route-default title. When the home tab is reused for a
+  // per-entity route (e.g. opening a mini-app from the sidebar), forcing the
+  // route default here clobbers the caller-supplied title every render and
+  // fights MiniAppPage's title-sync effect, spinning into an infinite
+  // `updateTab` loop ("Maximum update depth exceeded"). On top-level / settings
+  // routes the branch below still relocalizes the home tab, so language changes
+  // are unaffected.
   if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
@@ -56,25 +119,10 @@ export function TabsProvider({
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
 
-  // Pinned tabs - persistent storage
-  const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
-
-  // Use ref to keep a reference to the latest pinnedTabs, avoiding closure issues
-  const pinnedTabsRef = useRef(pinnedTabs)
-  pinnedTabsRef.current = pinnedTabs
-
-  // Wrap setter to support functional updates
-  const setPinnedTabs = useCallback(
-    (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
-      if (typeof updater === 'function') {
-        const newValue = updater(pinnedTabsRef.current || [])
-        setPinnedTabsRaw(newValue)
-      } else {
-        setPinnedTabsRaw(updater)
-      }
-    },
-    [setPinnedTabsRaw]
-  )
+  // Pinned tabs - persistent storage. The setter natively supports functional
+  // updates resolved against the latest persisted value, so callers can use
+  // `setPinnedTabs(prev => ...)` directly (no manual ref mirroring needed).
+  const [pinnedTabs, setPinnedTabs] = usePersistCache('ui.tab.pinned_tabs')
 
   // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
   // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
@@ -85,6 +133,19 @@ export function TabsProvider({
     (tab: Pick<Tab, 'isPinned'>) => includePinnedTabs && !!tab.isPinned,
     [includePinnedTabs]
   )
+  const restoredPinnedTabs = useMemo(() => pinnedTabs || [], [pinnedTabs])
+  const migratedPinnedTabs = useMemo(() => migratePinnedTabs(restoredPinnedTabs), [restoredPinnedTabs])
+  const availablePinnedTabs = migratedPinnedTabs.tabs
+
+  useEffect(() => {
+    if (!includePinnedTabs || !migratedPinnedTabs.changed) return
+
+    setPinnedTabs(migratedPinnedTabs.tabs)
+    logger.info('Reconciled pinned tabs against removed/relocated routes', {
+      before: restoredPinnedTabs.length,
+      after: migratedPinnedTabs.tabs.length
+    })
+  }, [includePinnedTabs, migratedPinnedTabs, restoredPinnedTabs, setPinnedTabs])
 
   // Normal tabs - in-memory storage (cleared on restart)
   const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
@@ -117,9 +178,9 @@ export function TabsProvider({
 
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
+    const currentPinnedTabs = includePinnedTabs ? availablePinnedTabs : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [includePinnedTabs, pinnedTabs, normalTabs, i18n.language])
+  }, [availablePinnedTabs, includePinnedTabs, normalTabs, i18n.language])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
@@ -190,30 +251,46 @@ export function TabsProvider({
     [tabs, setActiveTab, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
-      if (!tab) return
+  const closeTabs = useCallback(
+    (ids: readonly string[]) => {
+      const closingIdSet = new Set(ids)
+      if (closingIdSet.size === 0) return
 
-      // Calculate new activeTabId
+      const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
+      if (closingTabs.length === 0) return
+
+      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
+      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
+
       let newActiveId = activeTabId
-      if (activeTabId === id) {
-        const index = tabs.findIndex((t) => t.id === id)
-        const remainingTabs = tabs.filter((t) => t.id !== id)
-        const nextTab = remainingTabs[index - 1] || remainingTabs[index] || remainingTabs[0]
-        newActiveId = nextTab ? nextTab.id : ''
+      if (fallbackTab) {
+        newActiveId = fallbackTab.id
+      } else if (closingIdSet.has(activeTabId)) {
+        const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+        const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+        const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+        newActiveId = (leftTab ?? rightTab)?.id ?? ''
       }
 
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
-      } else {
-        setNormalTabs((prev) => prev.filter((t) => t.id !== id))
+      const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
+      const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
+
+      if (pinnedIds.size > 0) {
+        setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
+      }
+      if (normalIds.size > 0 || fallbackTab) {
+        setNormalTabs((prev) => {
+          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          return fallbackTab ? [fallbackTab] : next
+        })
       }
 
       setActiveTabIdState(newActiveId)
     },
     [tabs, activeTabId, setPinnedTabs, storesPinned]
   )
+
+  const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
 
   /**
    * Open a Tab - reuses existing tab or creates new one
@@ -390,6 +467,7 @@ export function TabsProvider({
     // Basic operations
     addTab,
     closeTab,
+    closeTabs,
     setActiveTab,
     updateTab,
 

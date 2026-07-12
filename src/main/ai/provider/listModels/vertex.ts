@@ -69,7 +69,7 @@ export async function createVertexModelListRequest(
     return undefined
   }
 
-  const authConfig = await providerService.getAuthConfig(provider.id)
+  const authConfig = providerService.getAuthConfig(provider.id)
   if (authConfig?.type !== 'iam-gcp') {
     return failOrSkip('provider is not configured with iam-gcp auth', {
       providerId: provider.id,

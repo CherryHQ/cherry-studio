@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,8 +39,13 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     files: [file],
     selectedIds: new Set(),
     onSelect: vi.fn(),
-    onContextMenuOpen: vi.fn(),
     onOpen: vi.fn(),
+    onSelectAll: vi.fn(),
+    visibleSelectionState: false,
+    onDelete: vi.fn(),
+    onRestore: vi.fn(),
+    onRename: vi.fn(),
+    onShowInFolder: vi.fn(),
     isTrash: false,
     menuActions,
     sortKey: 'name',
@@ -97,5 +102,66 @@ describe('FileList', () => {
     expect(input).toHaveFocus()
     expect(input.selectionStart).toBe(0)
     expect(input.selectionEnd).toBe('report'.length)
+  })
+
+  it('selects files only through checkboxes', () => {
+    const onSelect = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText(file.name))
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_file' }))
+    expect(onSelect).toHaveBeenCalledWith(file.id)
+  })
+
+  it('shows the row show-in-folder action for active files', () => {
+    const externalFile: FileItem = {
+      ...file,
+      id: 'external-file',
+      origin: 'external'
+    }
+
+    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
+
+    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
+
+    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
+
+    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
+  })
+
+  it('uses remove-from-library wording for external row deletes', () => {
+    const externalFile: FileItem = {
+      ...file,
+      id: 'external-file',
+      origin: 'external'
+    }
+
+    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
+
+    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+
+    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
+
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
+  })
+
+  it('hides invalid row actions for missing files', () => {
+    const missingExternalFile: FileItem = {
+      ...file,
+      id: 'missing-external-file',
+      origin: 'external',
+      isMissing: true
+    }
+
+    render(<FileList {...fileListProps(null)} files={[missingExternalFile]} />)
+
+    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
   })
 })

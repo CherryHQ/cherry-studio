@@ -1,1 +1,11 @@
-export { Shell, useOptionalShellState, useShellActions, useShellState } from './Shell'
+export {
+  RESOURCE_PANE_TAB,
+  type ResourcePaneConfig,
+  ResourcePaneLocateOpener,
+  ResourcePanePanel,
+  ResourcePaneProvider,
+  ResourcePaneTab,
+  useResourcePane
+} from './resourcePane'
+export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
+export { Shell, useOptionalShellActions, useOptionalShellState, useShellActions, useShellState } from './Shell'

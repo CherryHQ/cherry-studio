@@ -5,6 +5,7 @@ export {
   getTrailingApiVersion,
   hasApiVersion,
   isWithTrailingSharp,
+  joinApiKeyString,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp,

@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-05-22T11:31:58.028Z
- * Total icons: 159
+ * Generated at: 2026-07-11T04:56:00.338Z
+ * Total icons: 160
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -32,9 +32,9 @@ export { BochaIcon as Bocha } from './bocha'
 export { BoltNewIcon as BoltNew } from './bolt-new'
 export { BurncloudIcon as Burncloud } from './burncloud'
 export { BytedanceIcon as Bytedance } from './bytedance'
-export { CephalonIcon as Cephalon } from './cephalon'
 export { CerebrasIcon as Cerebras } from './cerebras'
 export { CherryinIcon as Cherryin } from './cherryin'
+export { ClaudeCodeIcon as ClaudeCode } from './claude-code'
 export { CloudflareIcon as Cloudflare } from './cloudflare'
 export { CohereIcon as Cohere } from './cohere'
 export { ComposioIcon as Composio } from './composio'
@@ -56,6 +56,7 @@ export { ElevenlabsIcon as Elevenlabs } from './elevenlabs'
 export { EssentialAiIcon as EssentialAi } from './essential-ai'
 export { ExaIcon as Exa } from './exa'
 export { FeloIcon as Felo } from './felo'
+export { FirecrawlIcon as Firecrawl } from './firecrawl'
 export { FireworksIcon as Fireworks } from './fireworks'
 export { FlowithIcon as Flowith } from './flowith'
 export { GensparkIcon as Genspark } from './genspark'
@@ -116,6 +117,7 @@ export { OcoolaiIcon as Ocoolai } from './ocoolai'
 export { OllamaIcon as Ollama } from './ollama'
 export { OpenaiIcon as Openai } from './openai'
 export { OpenclawIcon as Openclaw } from './openclaw'
+export { OpenCodeGoIcon as OpenCodeGo } from './opencode'
 export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PaddleocrIcon as Paddleocr } from './paddleocr'
 export { PerplexityIcon as Perplexity } from './perplexity'
@@ -146,7 +148,6 @@ export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'
 export { TngIcon as Tng } from './tng'
 export { TogetherIcon as Together } from './together'
-export { TokenfluxIcon as Tokenflux } from './tokenflux'
 export { TwitterIcon as Twitter } from './twitter'
 export { UpstageIcon as Upstage } from './upstage'
 export { VercelIcon as Vercel } from './vercel'

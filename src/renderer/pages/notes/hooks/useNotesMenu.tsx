@@ -1,11 +1,14 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
-import { DeleteIcon } from '@renderer/components/Icons'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { exportNote } from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { exportNote } from '@renderer/utils/export'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -53,17 +56,17 @@ export const useNotesMenu = ({
     async (note: NotesTreeNode) => {
       try {
         if (bases.length === 0) {
-          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
+          toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
           return
         }
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.toast.success(t('notes.export_success', { count: result.savedCount }))
+          toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
@@ -81,7 +84,7 @@ export const useNotesMenu = ({
         await exportNote({ node, platform })
       } catch (error) {
         logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       }
     },
     [activeNode, onSelectNode, t]
@@ -93,28 +96,33 @@ export const useNotesMenu = ({
         await fn()
       } catch (error) {
         logger.error('note export failed', error as Error)
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
       }
     },
     [t]
   )
 
+  const handleObsidianExport = useCallback(async (node: NotesTreeNode) => {
+    const content = await window.api.file.readExternal(node.externalPath)
+    await ObsidianExportPopup.show({ title: node.name, processingMethod: '1', rawContent: content })
+  }, [])
+
   const handleDeleteNodeWrapper = useCallback(
-    (node: NotesTreeNode) => {
+    async (node: NotesTreeNode) => {
       const confirmText =
         node.type === 'folder'
           ? t('notes.delete_folder_confirm', { name: node.name })
           : t('notes.delete_note_confirm', { name: node.name })
 
-      window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('notes.delete'),
         content: confirmText,
         centered: true,
-        okButtonProps: { danger: true },
-        onOk: () => {
-          onDeleteNode(node.id)
-        }
+        okButtonProps: { danger: true }
       })
+      if (!confirmed) return
+
+      onDeleteNode(node.id)
     },
     [onDeleteNode, t]
   )
@@ -194,7 +202,7 @@ export const useNotesMenu = ({
         const addExport = (
           id: string,
           label: string,
-          platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan'
+          platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan'
         ) =>
           exportChildren.push({
             type: 'item',
@@ -222,7 +230,14 @@ export const useNotesMenu = ({
         if (exportMenuOptions.docx) addExport('notes.export.docx', t('chat.topics.export.word'), 'docx')
         if (exportMenuOptions.notion) addExport('notes.export.notion', t('chat.topics.export.notion'), 'notion')
         if (exportMenuOptions.yuque) addExport('notes.export.yuque', t('chat.topics.export.yuque'), 'yuque')
-        if (exportMenuOptions.obsidian) addExport('notes.export.obsidian', t('chat.topics.export.obsidian'), 'obsidian')
+        if (exportMenuOptions.obsidian) {
+          exportChildren.push({
+            type: 'item',
+            id: 'notes.export.obsidian',
+            label: t('chat.topics.export.obsidian'),
+            onSelect: () => void runExport(() => handleObsidianExport(node))
+          })
+        }
         if (exportMenuOptions.joplin) addExport('notes.export.joplin', t('chat.topics.export.joplin'), 'joplin')
         if (exportMenuOptions.siyuan) addExport('notes.export.siyuan', t('chat.topics.export.siyuan'), 'siyuan')
 
@@ -257,6 +272,7 @@ export const useNotesMenu = ({
       onToggleStar,
       handleExportKnowledge,
       handleImageAction,
+      handleObsidianExport,
       handleDeleteNodeWrapper,
       renamingNodeIds,
       handleAutoRename,

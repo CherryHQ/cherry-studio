@@ -9,8 +9,7 @@
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AgentSessionMessagesListQuerySchema,
@@ -18,8 +17,10 @@ import {
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
+import type { HandlersFor } from '@shared/data/api/types'
 import * as z from 'zod'
 
 const AgentSessionsParamsSchema = z.strictObject({
@@ -31,36 +32,50 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.listByCursor(parsed.data)
+      return agentSessionService.listByCursor(parsed.data)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.create(parsed.data)
+      return agentSessionService.create(parsed.data)
     },
 
     DELETE: async ({ query }) => {
       const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.deleteByIds(parsed.data.ids)
+      return agentSessionService.deleteByIds(parsed.data.ids)
+    }
+  },
+
+  '/agent-sessions/latest': {
+    GET: async () => {
+      return { session: agentSessionService.getLatestUpdated() }
     }
   },
 
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
-      return await agentSessionService.getById(params.sessionId)
+      return agentSessionService.getById(params.sessionId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.update(params.sessionId, parsed.data)
+      return agentSessionService.update(params.sessionId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
-      await agentSessionService.delete(params.sessionId)
+      agentSessionService.delete(params.sessionId)
       return undefined
+    }
+  },
+
+  '/agent-sessions/:sessionId/workspace': {
+    PUT: async ({ params, body }) => {
+      const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.setWorkspace(params.sessionId, parsed.data)
     }
   },
 
@@ -68,13 +83,13 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+      return agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
     }
   },
 
   '/agent-sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
-      await agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
+      agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
     }
   },
@@ -83,14 +98,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async ({ params }) => {
       const parsed = AgentSessionsParamsSchema.safeParse(params)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.deleteByAgentId(parsed.data.agentId)
+      return agentSessionService.deleteByAgentId(parsed.data.agentId)
     }
   },
 
   '/agent-sessions/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await agentSessionService.reorder(params.id, parsed)
+      agentSessionService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -98,7 +113,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await agentSessionService.reorderBatch(parsed.moves)
+      agentSessionService.reorderBatch(parsed.moves)
       return undefined
     }
   }

@@ -5,8 +5,7 @@ import * as z from 'zod'
 import { createAihubmixImageModel } from '../../aihubmix/aihubmixImageModel'
 import { captureWithFetch } from './captureRequest'
 
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
-vi.mock('i18next', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * AiHubMix image-model boundary — the bespoke Ideogram branches (NOT the

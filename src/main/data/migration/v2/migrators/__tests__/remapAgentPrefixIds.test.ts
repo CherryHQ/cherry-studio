@@ -48,7 +48,7 @@ describe('remapAgentPrefixIds', () => {
     // remapAgentPrefixIds no longer toggles FK itself — it runs inside the engine's
     // migration-wide FK=OFF window (MigrationDbService). Mirror that here so the id-remap
     // UPDATEs don't trip FK enforcement during the transient parent/child id mismatch.
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
   })
 
   it('migrates agent_* prefix IDs to UUIDs and updates FK references', async () => {
@@ -82,7 +82,7 @@ describe('remapAgentPrefixIds', () => {
     expect(junction[0].agentId).toBe(agents[0].id)
     expect(junction[0].mcpServerId).toBe('mcp-server-1')
 
-    const violations = await dbh.db.all(sql`PRAGMA foreign_key_check`)
+    const violations = dbh.db.all(sql`PRAGMA foreign_key_check`)
     expect(violations).toHaveLength(0)
   })
 
@@ -147,7 +147,7 @@ describe('remapAgentPrefixIds', () => {
 
     await remapAgentPrefixIds(dbh.db)
 
-    const violations = await dbh.db.all(sql`PRAGMA foreign_key_check`)
+    const violations = dbh.db.all(sql`PRAGMA foreign_key_check`)
     expect(violations).toHaveLength(0)
   })
 })

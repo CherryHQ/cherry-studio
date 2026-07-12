@@ -1,8 +1,7 @@
 import Spinner from '@renderer/components/Spinner'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
-import { FileSearch } from 'lucide-react'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 
@@ -23,10 +22,6 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
     />
   ) : (
     <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
-      <FileSearch
-        size={14}
-        className="shrink-0 text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary"
-      />
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
   )

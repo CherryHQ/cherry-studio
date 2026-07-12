@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
@@ -17,8 +18,7 @@ const mocks = vi.hoisted(() => ({
   setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
-  windowOpen: vi.fn(),
-  toastError: vi.fn()
+  windowOpen: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -40,9 +40,14 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
-    ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-      <div {...props}>{children}</div>
-    ),
+    ButtonGroup: ({
+      children,
+      ...props
+    }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'> & { attached?: boolean }>) => {
+      const domProps = { ...props }
+      delete domProps.attached
+      return <div {...domProps}>{children}</div>
+    },
     MenuItem: ({
       label,
       icon,
@@ -69,9 +74,10 @@ vi.mock('@cherrystudio/ui', async () => {
       const { open } = ReactActual.use(PopoverContext)
       return open ? <div>{children}</div> : null
     },
-    PopoverTrigger: ({ children }: PropsWithChildren) => {
+    PopoverTrigger: ({ children }: PropsWithChildren<{ asChild?: boolean }>) => {
       const { setOpen } = ReactActual.use(PopoverContext)
       return ReactActual.isValidElement(children) ? (
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         ReactActual.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
           onClick: () => setOpen(true)
         })
@@ -86,7 +92,7 @@ vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [mocks.lastUsedTarget, mocks.setLastUsedTarget]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 
@@ -99,8 +105,11 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: () => ({ data: mocks.externalApps })
 }))
 
-vi.mock('@renderer/utils/editorUtils', () => ({
-  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`,
+vi.mock('@renderer/utils/editor', () => ({
+  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`
+}))
+
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 
@@ -155,10 +164,6 @@ describe('OpenExternalAppButton', () => {
       configurable: true,
       value: mocks.windowOpen
     })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: { error: mocks.toastError }
-    })
   })
 
   it('opens the workspace in the file manager when no code editor is available', async () => {
@@ -190,6 +195,14 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
+    const primaryButton = screen.getByRole('button', { name: 'Open in VS Code' })
+    const moreButton = screen.getByRole('button', { name: 'More' })
+    expect(primaryButton.parentElement).toHaveClass('h-8', 'border', 'border-border-subtle')
+    expect(primaryButton).toHaveClass('h-full')
+    expect(primaryButton).not.toHaveClass('border')
+    expect(moreButton).toHaveClass('h-full')
+    expect(moreButton).not.toHaveClass('border')
+
     // Menu targets live behind the split button's "More" popover trigger.
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
@@ -208,7 +221,7 @@ describe('OpenExternalAppButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
   })
 
   it('opens the selected file with the default app without changing the editor target', async () => {

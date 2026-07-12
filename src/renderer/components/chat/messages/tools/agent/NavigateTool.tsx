@@ -10,22 +10,22 @@ interface NavigateToolInput {
 const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Top-level pages
   '/': { icon: '🏠', label: 'Home' },
-  '/store': { icon: '🏪', label: 'Store' },
   '/paintings': { icon: '🎨', label: 'Paintings' },
   '/translate': { icon: '🌐', label: 'Translate' },
   '/files': { icon: '📁', label: 'Files' },
   '/notes': { icon: '📝', label: 'Notes' },
   '/knowledge': { icon: '📚', label: 'Knowledge' },
   '/apps': { icon: '📦', label: 'Mini Apps' },
-  '/code': { icon: '💻', label: 'Code Tools' },
-  '/openclaw': { icon: '🦞', label: 'OpenClaw' },
+  '/code': { icon: '💻', label: 'Code Switch' },
   '/launchpad': { icon: '🚀', label: 'Launchpad' },
   '/agents': { icon: '🤖', label: 'Agents' },
 
   // Settings pages
   '/settings/provider': { icon: '🔑', label: 'Provider' },
   '/settings/model': { icon: '🤖', label: 'Models' },
-  '/settings/general': { icon: '⚙️', label: 'Common Settings' },
+  '/settings/appearance': { icon: '🎨', label: 'Appearance' },
+  '/settings/notifications': { icon: '🔔', label: 'Notifications' },
+  '/settings/system': { icon: '⚙️', label: 'System' },
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },

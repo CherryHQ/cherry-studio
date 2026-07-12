@@ -8,8 +8,8 @@ import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChu
 
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
-import type { AgentLoopHooks, AgentLoopParams } from './loop'
-import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
+import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
+import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
@@ -172,7 +172,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for the
       // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
-      const modelMessages = await toModelMessages(initialMessages, params.mediaCapabilities)
+      const modelMessages = await toModelMessages(initialMessages, params.mediaCapabilities, params.tools)
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({

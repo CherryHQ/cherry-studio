@@ -10,6 +10,7 @@
  * (`heartbeat.md`, agent memory) instead of session history.
  */
 
+import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -17,13 +18,11 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
-import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
-import { application } from '@main/core/application'
+import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -70,12 +69,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   // schedule-fired jobs carry `scheduleId` on the row; manual ad-hoc enqueues
   // (no schedule) degrade gracefully: skip channel notification.
-  const jobSnapshot = await jobService.getById(ctx.jobId)
+  const jobSnapshot = jobService.getById(ctx.jobId)
   const scheduleId = jobSnapshot?.scheduleId ?? null
-  const scheduleSnapshot = scheduleId ? await jobScheduleService.getById(scheduleId) : null
+  const scheduleSnapshot = scheduleId ? jobScheduleService.getById(scheduleId) : null
   const taskName = scheduleSnapshot?.name ?? null
 
-  const agent = await agentService.getAgent(agentId)
+  const agent = agentService.getAgent(agentId)
   if (!agent) {
     throw new Error(`Agent not found: ${agentId}`)
   }
@@ -91,6 +90,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (disabled)' }
     }
+    if (config.builtin_role === 'assistant') {
+      logger.debug('Heartbeat skipped (assistant role)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (assistant role)' }
+    }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
@@ -104,7 +107,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     }
     let workspaceRow: Awaited<ReturnType<typeof agentWorkspaceService.getById>>
     try {
-      workspaceRow = await agentWorkspaceService.getById(workspace.workspaceId)
+      workspaceRow = agentWorkspaceService.getById(workspace.workspaceId)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         logger.debug('Heartbeat skipped (workspace deleted)', {
@@ -138,13 +141,19 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await agentSessionService.create({
+  // The session inherits the workspace bound on the task at creation time —
+  // system for regular tasks (the picker defaults there), the validated user
+  // workspace for heartbeats.
+  const session = agentSessionService.create({
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
   })
 
-  const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
+  // Guards legacy rows and races that data hygiene cannot catch.
+  const subscribedChannels = scheduleId
+    ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
+    : []
 
   const channelManager = application.get('ChannelManager')
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
@@ -215,7 +224,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: effectivePrompt }],
-      listeners: [sentinel, ...channelListeners]
+      listeners: [sentinel, ...channelListeners],
+      headless: true
     })
 
     resultText = await executionDone
