@@ -58,7 +58,8 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveIcon: () => null
+  resolveIconRef: () => undefined,
+  useIcon: () => undefined
 }))
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({

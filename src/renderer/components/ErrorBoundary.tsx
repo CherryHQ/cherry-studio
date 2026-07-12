@@ -1,6 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -21,7 +21,7 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
       <Alert
         message={t('error.boundary.default.message')}
         showIcon
-        description={formatErrorMessage(error)}
+        description={formatErrorDetails(error)}
         type="error"
         action={
           <div className="flex items-center gap-2">

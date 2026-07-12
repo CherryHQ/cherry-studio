@@ -12,8 +12,8 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
 | 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
-| 3 | `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
-| 4 | `runCustomMigrations()` | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
+| 3 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
+| 4 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
 | 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
 
 **Single persistent connection — PRAGMAs set once.** better-sqlite3 keeps **one connection** open for the whole process, so the per-connection PRAGMAs (`synchronous=NORMAL`, `foreign_keys=ON`) are applied a single time in `configurePragmas()` and stay in effect — there is no transaction-boundary reconnect that could reset them, and no per-statement replay machinery is needed. `WAL` is also set once and persisted in the file.
@@ -53,7 +53,7 @@ A DB column `DEFAULT` is effectively **near-permanent** (SQLite has no `ALTER CO
 
 ## 3. Custom SQL (`CUSTOM_SQL_STATEMENTS`)
 
-Drizzle cannot manage **virtual tables (FTS5) or triggers**, so they are NOT in any `.sql`. They live as `string[]` in the schema files (`MESSAGE_FTS_STATEMENTS` in `schemas/message.ts`, `AGENT_SESSION_MESSAGE_FTS_STATEMENTS` in `schemas/agentSessionMessage.ts`), are aggregated in `customSqls.ts` (`CUSTOM_SQL_STATEMENTS`), and `DbService.runCustomMigrations()` replays them after `migrate()` on **every boot**. This is mandatory: a table rebuild's `DROP TABLE` silently drops the table's triggers, so they must be re-asserted afterward — which happens in the same boot (self-healing).
+Drizzle cannot manage **virtual tables (FTS5) or triggers**, so they are NOT in any `.sql`. They live as `string[]` in the schema files (`MESSAGE_FTS_STATEMENTS` in `schemas/message.ts`, `AGENT_SESSION_MESSAGE_FTS_STATEMENTS` in `schemas/agentSessionMessage.ts`), are aggregated in `customSqls.ts` (`CUSTOM_SQL_STATEMENTS`), and `applyMigrations()` (`src/main/data/db/applyMigrations.ts` — the migration path shared by `DbService.onInit()`, the test harness, and the backup restore pipeline) replays them after `migrate()` on **every boot**. This is mandatory: a table rebuild's `DROP TABLE` silently drops the table's triggers, so they must be re-asserted afterward — which happens in the same boot (self-healing).
 
 ### Cost: O(1) metadata, ~0.1 ms — do NOT gate it on "did a migration run"
 

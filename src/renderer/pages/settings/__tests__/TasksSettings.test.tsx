@@ -127,13 +127,19 @@ vi.mock('@renderer/components/ListItem', () => ({
   )
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    i18n: { language: 'en-US' },
-    t: (key: string) => key
-  })
-}))
+vi.mock('react-i18next', () => {
+  // Stable `t` reference (matches real i18next) so callbacks/effects depending
+  // on `t` don't churn — an unstable `t` re-runs TasksSettings' loadData effect
+  // on every render, causing a refetch storm that flakes waitFor under CI load.
+  const t = (key: string) => key
+  return {
+    initReactI18next: { type: '3rdParty', init: vi.fn() },
+    useTranslation: () => ({
+      i18n: { language: 'en-US' },
+      t
+    })
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext<{
