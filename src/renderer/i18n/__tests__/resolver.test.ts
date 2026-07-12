@@ -34,6 +34,14 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Copy')
   })
 
+  it('lazy-loads the Filipino pack', async () => {
+    await i18n.changeLanguage('fil-PH')
+
+    expect(i18n.language).toBe('fil-PH')
+    expect(i18n.hasResourceBundle('fil-PH', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('Kopyahin')
+  })
+
   it('falls back to en-US for a non-catalog language without throwing', async () => {
     await expect(i18n.changeLanguage('en-GB')).resolves.toBeTypeOf('function')
 

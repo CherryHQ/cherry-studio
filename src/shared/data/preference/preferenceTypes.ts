@@ -69,6 +69,7 @@ export type LanguageVarious =
   | 'el-GR'
   | 'en-US'
   | 'es-ES'
+  | 'fil-PH'
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'

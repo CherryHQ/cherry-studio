@@ -53,6 +53,7 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   '无题',
   '無題',
   'không tên',
+  'walang pangalan',
   'sem nome',
   'без имени',
   'χωρίς όνομα',

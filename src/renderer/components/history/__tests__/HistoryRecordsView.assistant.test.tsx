@@ -10,6 +10,7 @@ import zhTW from '../../../i18n/locales/zh-tw.json'
 import deDE from '../../../i18n/translate/de-de.json'
 import elGR from '../../../i18n/translate/el-gr.json'
 import esES from '../../../i18n/translate/es-es.json'
+import filPH from '../../../i18n/translate/fil-ph.json'
 import frFR from '../../../i18n/translate/fr-fr.json'
 import jaJP from '../../../i18n/translate/ja-jp.json'
 import ptPT from '../../../i18n/translate/pt-pt.json'
@@ -1373,7 +1374,7 @@ describe('HistoryRecordsView locale resources', () => {
       'title'
     ]
     const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN]
+    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, filPH, frFR, jaJP, ptPT, roRO, ruRU, viVN]
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {

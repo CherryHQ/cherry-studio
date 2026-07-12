@@ -41,6 +41,11 @@ describe('main i18n', () => {
       expect(t('dialog.save_file')).toBe('Save File')
     })
 
+    it('selects the Filipino catalog', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'fil-PH')
+      expect(t('dialog.save_file')).toBe('I-save ang File')
+    })
+
     it('interpolates {{var}} placeholders', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('agent.session.workspace_status.inaccessible', { path: '/tmp/x' })).toBe(

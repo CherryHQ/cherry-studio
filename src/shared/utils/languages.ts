@@ -5,6 +5,7 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'el-GR': 'Greek',
   'en-US': 'English',
   'es-ES': 'Spanish',
+  'fil-PH': 'Filipino',
   'fr-FR': 'French',
   'ja-JP': 'Japanese',
   'pt-PT': 'Portuguese',

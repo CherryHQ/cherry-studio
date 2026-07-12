@@ -79,6 +79,7 @@ const unnamedTranslations = [
   'translate/de-de',
   'translate/el-gr',
   'translate/es-es',
+  'translate/fil-ph',
   'translate/fr-fr',
   'translate/ja-jp',
   'translate/pt-pt',
