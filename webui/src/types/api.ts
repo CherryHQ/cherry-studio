@@ -13,7 +13,25 @@ export type WebUiMessageSnapshot = {
   readonly role: WebUiRole
   readonly content: string
   readonly reasoning?: string
+  readonly toolCalls?: readonly WebUiToolCallSnapshot[]
   readonly createdAt: string
+}
+
+export type WebUiToolCallState =
+  | 'input-streaming'
+  | 'input-available'
+  | 'approval-requested'
+  | 'output-available'
+  | 'output-error'
+  | 'output-denied'
+
+export type WebUiToolCallSnapshot = {
+  readonly id: string
+  readonly name: string
+  readonly state: WebUiToolCallState
+  readonly input?: string
+  readonly output?: string
+  readonly errorText?: string
 }
 
 export type WebUiSseEventName = 'ready' | 'chunk' | 'sync' | 'error' | 'done'
@@ -26,8 +44,19 @@ export type WebUiSseMessage<TData = unknown> = {
 export type WebUiChunkPayload = {
   readonly conversationId: string
   readonly messageId: string
-  readonly kind: 'text' | 'reasoning' | 'meta'
-  readonly delta: string
+  readonly chunk: WebUiStreamChunk
+}
+
+export type WebUiStreamChunk = {
+  readonly type: string
+  readonly id?: string
+  readonly delta?: string
+  readonly toolCallId?: string
+  readonly toolName?: string
+  readonly inputTextDelta?: string
+  readonly input?: unknown
+  readonly output?: unknown
+  readonly errorText?: string
 }
 
 export type WebUiApiError = {
@@ -82,6 +111,12 @@ export type WebUiAgentSessionEntity = {
 export type WebUiMessagePart = {
   readonly type: string
   readonly text?: string
+  readonly toolCallId?: string
+  readonly toolName?: string
+  readonly state?: string
+  readonly input?: unknown
+  readonly output?: unknown
+  readonly errorText?: string
 }
 
 export type WebUiAgentSessionMessageEntity = {

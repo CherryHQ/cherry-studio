@@ -16,7 +16,10 @@ import type {
   WebUiCursorResponse,
   WebUiHealthResponse,
   WebUiMessageSnapshot,
-  WebUiOffsetResponse
+  WebUiOffsetResponse,
+  WebUiMessagePart,
+  WebUiToolCallSnapshot,
+  WebUiToolCallState
 } from './types/api'
 import { renderMarkdown } from './utils/renderMarkdown'
 
@@ -179,6 +182,62 @@ const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversat
   workspaceLabel: session.workspace?.name ?? session.workspace?.path
 })
 
+const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set(['output-available', 'output-error', 'output-denied'])
+
+const toDisplayText = (value: unknown): string | undefined => {
+  if (value === undefined) return undefined
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+const toToolName = (type: string, toolName?: string) => {
+  if (toolName) return toolName
+  if (type === 'dynamic-tool') return 'Tool'
+  return type.startsWith('tool-') ? type.slice('tool-'.length) : type
+}
+
+const toToolState = (state?: string): WebUiToolCallState => {
+  switch (state) {
+    case 'input-streaming':
+    case 'approval-requested':
+    case 'output-available':
+    case 'output-error':
+    case 'output-denied':
+      return state
+    default:
+      return 'input-available'
+  }
+}
+
+const toToolCalls = (parts: readonly WebUiMessagePart[]) => {
+  const tools = new Map<string, WebUiToolCallSnapshot>()
+
+  for (const part of parts) {
+    if (!part.type.startsWith('tool-') && part.type !== 'dynamic-tool') continue
+    const id = part.toolCallId
+    if (!id) continue
+    const state = part.state ?? 'input-available'
+    const input = toDisplayText(part.input)
+    const output = toDisplayText(part.output)
+    const tool: WebUiToolCallSnapshot = {
+      id,
+      name: toToolName(part.type, part.toolName),
+      state: toToolState(state),
+      ...(input ? { input } : {}),
+      ...(output ? { output } : {}),
+      ...(part.errorText ? { errorText: part.errorText } : {})
+    }
+    tools.set(id, tool)
+  }
+
+  return [...tools.values()]
+}
+
 const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessageSnapshot => {
   const parts = message.data.parts ?? []
   const content = parts
@@ -189,6 +248,7 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     .filter((part) => part.type === 'reasoning' && typeof part.text === 'string')
     .map((part) => part.text as string)
     .join('')
+  const toolCalls = toToolCalls(parts)
 
   return {
     id: message.id,
@@ -196,6 +256,7 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     role: message.role,
     content: content || message.searchableText || '',
     ...(reasoning ? { reasoning } : {}),
+    ...(toolCalls.length ? { toolCalls } : {}),
     createdAt: message.createdAt
   }
 }
@@ -410,10 +471,50 @@ const App = defineComponent({
       const nextMessages = [...messages.value]
       const message = nextMessages[messageIndex]
       if (!message) return
-      nextMessages[messageIndex] =
-        payload.kind === 'reasoning'
-          ? { ...message, reasoning: `${message.reasoning ?? ''}${payload.delta}` }
-          : { ...message, content: `${message.content}${payload.delta}` }
+      const chunk = payload.chunk
+      if (chunk.type === 'text-delta' && chunk.delta) {
+        nextMessages[messageIndex] = { ...message, content: `${message.content}${chunk.delta}` }
+      } else if (chunk.type === 'reasoning-delta' && chunk.delta) {
+        nextMessages[messageIndex] = { ...message, reasoning: `${message.reasoning ?? ''}${chunk.delta}` }
+      } else if (chunk.toolCallId) {
+        const previousTools = message.toolCalls ?? []
+        const previousTool = previousTools.find((tool) => tool.id === chunk.toolCallId)
+        const input = toDisplayText(chunk.input)
+        const output = toDisplayText(chunk.output)
+        const nextTool: WebUiToolCallSnapshot = {
+          id: chunk.toolCallId,
+          name: chunk.toolName ?? previousTool?.name ?? 'Tool',
+          state:
+            chunk.type === 'tool-approval-request'
+              ? 'approval-requested'
+              : chunk.type === 'tool-output-available'
+                ? 'output-available'
+                : chunk.type === 'tool-output-error'
+                  ? 'output-error'
+                  : chunk.type === 'tool-output-denied'
+                    ? 'output-denied'
+                    : chunk.type === 'tool-input-start'
+                      ? 'input-streaming'
+                      : chunk.type === 'tool-input-available'
+                        ? 'input-available'
+                        : previousTool?.state ?? 'input-streaming',
+          ...(chunk.type === 'tool-input-delta'
+            ? { input: `${previousTool?.input ?? ''}${chunk.inputTextDelta ?? ''}` }
+            : input
+              ? { input }
+              : previousTool?.input
+                ? { input: previousTool.input }
+                : {}),
+          ...(output ? { output } : previousTool?.output ? { output: previousTool.output } : {}),
+          ...(chunk.errorText ? { errorText: chunk.errorText } : previousTool?.errorText ? { errorText: previousTool.errorText } : {})
+        }
+        nextMessages[messageIndex] = {
+          ...message,
+          toolCalls: [...previousTools.filter((tool) => tool.id !== chunk.toolCallId), nextTool]
+        }
+      } else {
+        return
+      }
       messages.value = nextMessages
     }
 
@@ -665,9 +766,25 @@ const App = defineComponent({
                         h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
                       ])
                     : undefined,
+                  ...(message.toolCalls ?? []).map((tool) =>
+                    h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: !terminalToolStates.has(tool.state) }, [
+                      h('summary', [
+                        h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
+                        h('span', { class: 'tool-call-name' }, tool.name),
+                        h('span', { class: 'tool-call-state' }, tool.state.replaceAll('-', ' '))
+                      ]),
+                      h('div', { class: 'tool-call-body' }, [
+                        tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
+                        tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
+                        tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
+                      ])
+                    ])
+                  ),
                   message.content
                     ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
-                    : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
+                    : message.toolCalls?.length
+                      ? undefined
+                      : h('span', { class: 'streaming-placeholder', 'aria-label': text('generating') }),
                   h('time', { class: 'message-time', datetime: message.createdAt }, new Date(message.createdAt).toLocaleString())
                 ]
               )
@@ -1112,6 +1229,94 @@ style.textContent = `
 
   .reasoning-block[open] summary {
     margin-bottom: 8px;
+  }
+
+  .tool-call {
+    margin: 0 0 10px;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+
+  .tool-call summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 10px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .tool-call summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .tool-state-indicator {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    background: #6b7280;
+    border-radius: 999px;
+  }
+
+  .tool-call-input-streaming .tool-state-indicator,
+  .tool-call-approval-requested .tool-state-indicator {
+    background: #d97706;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  .tool-call-output-available .tool-state-indicator {
+    background: #16a34a;
+  }
+
+  .tool-call-output-error .tool-state-indicator,
+  .tool-call-output-denied .tool-state-indicator {
+    background: #dc2626;
+  }
+
+  .tool-call-name {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tool-call-state {
+    margin-left: auto;
+    color: #6b7280;
+    font-size: 12px;
+    text-transform: capitalize;
+  }
+
+  .tool-call-body {
+    padding: 0 10px 10px;
+  }
+
+  .tool-call-data {
+    max-height: 240px;
+    margin: 0;
+    padding: 9px;
+    overflow: auto;
+    color: #374151;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+  }
+
+  .tool-call-data + .tool-call-data,
+  .tool-call-error {
+    margin-top: 8px;
+  }
+
+  .tool-call-error {
+    margin-bottom: 0;
+    color: #b91c1c;
+    font-size: 13px;
   }
 
   .streaming-placeholder {

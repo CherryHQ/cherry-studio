@@ -6,7 +6,6 @@ import { application } from '@application'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager/types'
 import { ApiServer } from '@main/data/api'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
 import type { UIMessageChunk } from 'ai'
@@ -144,15 +143,15 @@ class WebUiStreamListener implements StreamListener {
   }
 
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
-    if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') return
-
+    // WebUI远程扩展，仅Win11启用，最小侵入
+    // Forward the upstream-normalized UI message chunk unchanged so the WebUI
+    // can render tool activity without maintaining a second stream protocol.
     this.sseRelay.broadcast({
       event: 'chunk',
       data: {
         conversationId: this.sessionId,
         messageId: anchorMessageId ?? chunk.id,
-        kind: chunk.type === 'text-delta' ? 'text' : 'reasoning',
-        delta: chunk.delta
+        chunk
       }
     })
   }
