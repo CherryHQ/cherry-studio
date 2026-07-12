@@ -1,6 +1,6 @@
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
-import type { BinaryInstallState, BinaryInstallStates, BinaryResolution } from '@shared/types/binary'
+import type { BinaryResolution } from '@shared/types/binary'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -43,11 +43,6 @@ const binaryResolutionSchema: z.ZodType<BinaryResolution> = z.discriminatedUnion
 
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
-const binaryInstallStateSchema: z.ZodType<BinaryInstallState> = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('installing') }),
-  z.object({ status: z.literal('failed'), error: z.string() })
-])
-
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: managedBinarySchema, output: z.object({ version: z.string() }) }),
@@ -59,12 +54,6 @@ export const binaryRequestSchemas = {
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) }),
-  // Hydration for windows that mount mid-install; live updates arrive via the
-  // binary.install_states_changed event.
-  'binary.get_install_states': defineRoute({
-    input: z.void(),
-    output: z.record(z.string(), binaryInstallStateSchema)
-  }),
   // Full inventory of mise-managed installs: state-file entries merged with
   // live `mise ls`, so unrecorded runtime deps (node/python) surface too.
   'binary.list_tools': defineRoute({
@@ -79,6 +68,4 @@ export type BinaryEventSchemas = {
   'binary.availability_changed': void
   // Comma-joined names of tools that failed the boot-time reconcile.
   'binary.reconcile_failed': string
-  // Full install-state map (not a delta) — replaces the consumer's copy wholesale.
-  'binary.install_states_changed': BinaryInstallStates
 }

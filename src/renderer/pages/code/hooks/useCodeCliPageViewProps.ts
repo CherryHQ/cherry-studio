@@ -1,4 +1,4 @@
-import { useBinaryInstallStates } from '@renderer/hooks/useBinaryInstallStates'
+import { useSharedCache } from '@data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
@@ -60,10 +60,10 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
-  const installStates = useBinaryInstallStates()
+  const [installStates] = useSharedCache('feature.binary.install_states', {})
   // Local busy Sets give instant feedback for installs started in this window;
-  // the main-process map covers installs started elsewhere (other window, a
-  // page mounted mid-install). Merge them, keyed back to CLI tool ids.
+  // the main-owned shared-cache map covers installs started elsewhere (other
+  // window, a page mounted mid-install). Merge them, keyed back to CLI tool ids.
   const mergedInstallingTools = useMemo(() => {
     const merged = new Set<string>(installingTools)
     for (const tool of CLI_TOOLS) {

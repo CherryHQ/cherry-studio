@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { BinaryInstallStates } from '@shared/types/binary'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -265,6 +266,9 @@ export type SharedCacheSchema = {
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
   'feature.binary.latest_versions': Record<string, string>
+  // Live install activity (tool name → installing/failed), owned by BinaryManager
+  // in main. Session-only; "installed" derives from binary.resolve_tools.
+  'feature.binary.install_states': BinaryInstallStates
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -289,6 +293,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.openclaw.gateway_status': 'stopped',
   'feature.api_gateway.running': false,
   'feature.binary.latest_versions': {},
+  'feature.binary.install_states': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
   // Template defaults are placeholders never consumed at runtime — concrete

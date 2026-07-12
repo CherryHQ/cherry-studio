@@ -14,6 +14,5 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.resolve_tools': async (names) => application.get('BinaryManager').resolveTools(names),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
   'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force),
-  'binary.get_install_states': async () => application.get('BinaryManager').getInstallStates(),
   'binary.list_tools': async () => application.get('BinaryManager').listTools()
 }

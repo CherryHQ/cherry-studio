@@ -37,7 +37,8 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
 | Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.resolve_tools`, `binary.search_registry`, `binary.get_latest_versions` | Renderer → main |
+| Shared cache key | `feature.binary.install_states` → `BinaryInstallStates` | Live install activity (installing/failed), main-owned |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.resolve_tools`, `binary.search_registry`, `binary.get_latest_versions`, `binary.list_tools` | Renderer → main |
 | IPC events | `binary.availability_changed`, `binary.reconcile_failed` | Main → renderer |
 | Types | install state in `preferenceTypes.ts`; `BinaryResolution` in `src/shared/types/binary.ts` | Both sides |
 

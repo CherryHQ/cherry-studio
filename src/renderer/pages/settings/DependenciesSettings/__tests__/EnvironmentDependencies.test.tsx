@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +21,6 @@ const ipcMocks = vi.hoisted(() => ({
   installTool: vi.fn(),
   removeTool: vi.fn(),
   getToolDir: vi.fn(),
-  getInstallStates: vi.fn(),
   listTools: vi.fn(),
   searchRegistry: vi.fn()
 }))
@@ -42,8 +42,6 @@ vi.mock('@renderer/ipc', () => ({
           return Promise.resolve({ status: 'unsupported' })
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
-        case 'binary.get_install_states':
-          return ipcMocks.getInstallStates()
         case 'binary.list_tools':
           return ipcMocks.listTools()
         case 'binary.search_registry':
@@ -156,6 +154,7 @@ vi.mock('@cherrystudio/ui', () => {
 describe('EnvironmentDependencies', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     ipcEventHandlers.clear()
     customToolsRef.value = []
     installSettingsRef.value = {
@@ -171,7 +170,6 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
-    ipcMocks.getInstallStates.mockResolvedValue({})
     ipcMocks.listTools.mockResolvedValue([])
     ipcMocks.searchRegistry.mockResolvedValue([])
     ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
@@ -498,15 +496,16 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
-  it('renders a persistent failure row from the install-state broadcast and opens details on demand', async () => {
-    render(<EnvironmentDependencies />)
+  it('renders a persistent failure row from the shared install-state map and opens details on demand', async () => {
+    const { rerender } = render(<EnvironmentDependencies />)
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
 
-    act(() => {
-      ipcEventHandlers.get('binary.install_states_changed')?.({
-        uv: { status: 'failed', error: 'mise failed\nnetwork timeout' }
-      })
+    // The mock useSharedCache is not reactive — update the store, then rerender
+    // to pick it up (production reactivity is covered by useCache's own tests).
+    MockUseCacheUtils.setSharedCacheValue('feature.binary.install_states', {
+      uv: { status: 'failed', error: 'mise failed\nnetwork timeout' }
     })
+    rerender(<EnvironmentDependencies />)
 
     // First-level notification: failure row on the card, no auto-popped dialog.
     const failureRow = await screen.findByText('settings.dependencies.viewErrorDetails')
@@ -520,20 +519,19 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.installErrorHint')
   })
 
-  it('shows installing state and the duration hint from the install-state broadcast', async () => {
-    render(<EnvironmentDependencies />)
+  it('shows installing state and the duration hint from the shared install-state map', async () => {
+    const { rerender } = render(<EnvironmentDependencies />)
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
 
-    act(() => {
-      ipcEventHandlers.get('binary.install_states_changed')?.({ uv: { status: 'installing' } })
-    })
+    MockUseCacheUtils.setSharedCacheValue('feature.binary.install_states', { uv: { status: 'installing' } })
+    rerender(<EnvironmentDependencies />)
 
     expect(await screen.findByText('settings.dependencies.installing')).toBeInTheDocument()
     expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
-  it('hydrates install states for a window mounted mid-install', async () => {
-    ipcMocks.getInstallStates.mockResolvedValue({ uv: { status: 'installing' } })
+  it('shows an install already in flight when the window mounts mid-install', async () => {
+    MockUseCacheUtils.setSharedCacheValue('feature.binary.install_states', { uv: { status: 'installing' } })
 
     render(<EnvironmentDependencies />)
 

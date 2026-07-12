@@ -22,7 +22,7 @@ import {
   TOOL_NAME_RE,
   validateManagedBinary
 } from '@shared/data/presets/binaryTools'
-import type { BinaryInstallState, BinaryInstallStates, BinaryResolution, BinaryResolutions } from '@shared/types/binary'
+import type { BinaryInstallState, BinaryResolution, BinaryResolutions } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 
@@ -159,9 +159,6 @@ export class BinaryManager extends BaseService {
   // concurrent callers can't clobber state.json or each other's mise mutations.
   private readonly stateMutex = new Mutex()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
-  // Session-only install activity (see BinaryInstallState). Deliberately not
-  // persisted: a stale "installing" after a crash would be a lie.
-  private installStates: BinaryInstallStates = {}
 
   protected async onInit() {
     await this.extractBundledBinaries()
@@ -709,10 +706,6 @@ export class BinaryManager extends BaseService {
     })
   }
 
-  getInstallStates(): BinaryInstallStates {
-    return { ...this.installStates }
-  }
-
   /**
    * Full inventory of mise-managed installs: the persisted state file merged
    * with `mise ls`. The live query catches installs the state file never
@@ -752,13 +745,20 @@ export class BinaryManager extends BaseService {
     return tools
   }
 
+  /**
+   * Session-only install activity (see BinaryInstallState), kept in the shared
+   * cache so every window observes it. Deliberately not persisted: a stale
+   * "installing" after a crash would be a lie.
+   */
   private setInstallState(name: string, state: BinaryInstallState | null) {
+    const cacheService = application.get('CacheService')
+    const states = { ...cacheService.getShared('feature.binary.install_states') }
     if (state) {
-      this.installStates[name] = state
+      states[name] = state
     } else {
-      delete this.installStates[name]
+      delete states[name]
     }
-    application.get('IpcApiService').broadcast('binary.install_states_changed', this.getInstallStates())
+    cacheService.setShared('feature.binary.install_states', states)
   }
 
   async installTool(tool: ManagedBinary): Promise<{ version: string }> {
@@ -917,7 +917,8 @@ export class BinaryManager extends BaseService {
 
   async removeTool(toolName: string): Promise<void> {
     // Removing a tool retires any lingering failed-install banner for it.
-    if (this.installStates[toolName]?.status === 'failed') {
+    const installStates = application.get('CacheService').getShared('feature.binary.install_states')
+    if (installStates?.[toolName]?.status === 'failed') {
       this.setInstallState(toolName, null)
     }
     return this.stateMutex.runExclusive(async () => {

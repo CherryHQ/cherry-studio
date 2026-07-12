@@ -19,6 +19,7 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
+import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
@@ -27,7 +28,6 @@ import {
   BinaryInstallFailureRow,
   BinaryInstallingHint
 } from '@renderer/components/BinaryInstallErrorDialog'
-import { useBinaryInstallStates } from '@renderer/hooks/useBinaryInstallStates'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -117,7 +117,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [inventoryTools, setInventoryTools] = useState<Array<{ name: string; tool: string; version: string }>>([])
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
-  const installStates = useBinaryInstallStates()
+  const [installStates] = useSharedCache('feature.binary.install_states', {})
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
@@ -200,8 +200,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
-  // Installing/failed indication comes from the main-process install-state
-  // broadcast (useBinaryInstallStates) — shared with the Code CLI page and
+  // Installing/failed indication comes from the main-owned shared-cache map
+  // ('feature.binary.install_states') — shared with the Code CLI page and
   // alive across navigation. Failed cards open the detail dialog on demand;
   // only the add-tool flow surfaces it immediately (the tool is not persisted
   // on failure, so there is no card to carry the error).
