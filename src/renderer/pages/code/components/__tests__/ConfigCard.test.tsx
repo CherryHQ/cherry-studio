@@ -9,10 +9,18 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveProviderIcon: (id: string) =>
-    id === 'anthropic' ? () => <span data-testid={`provider-icon-${id}`} /> : undefined
-}))
+vi.mock('@cherrystudio/ui/icons', () => {
+  const ProviderIcon = ({ id }: { id: string }) => <span data-testid={`provider-icon-${id}`} />
+  return {
+    resolveProviderIconRef: (id: string) =>
+      id === 'anthropic' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+    useIcon: (ref: { key: string } | undefined) => {
+      if (!ref) return undefined
+      const Icon = () => <ProviderIcon id={ref.key} />
+      return Icon
+    }
+  }
+})
 
 const provider = {
   id: 'anthropic',

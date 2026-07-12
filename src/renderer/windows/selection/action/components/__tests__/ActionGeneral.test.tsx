@@ -15,6 +15,13 @@ const state = vi.hoisted(() => ({
 
 import ActionGeneral from '../ActionGeneral'
 
+const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
+
+vi.mock('../ActionResultContent', () => {
+  resultContentChunk.evaluated()
+  return { default: () => null }
+})
+
 vi.mock('@ai-sdk/react', () => ({
   useChat: ({ id }: { id: string }) => {
     state.useChatIds.push(id)
@@ -104,6 +111,20 @@ describe('ActionGeneral', () => {
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
     state.useChatIds = []
+  })
+
+  // MUST run first in this file: if a future test ever renders a result, the
+  // lazy module would load through React.lazy and permanently mark
+  // `resultContentChunk.evaluated` (module caches defeat mockClear). Running
+  // before any result has ever rendered is what makes this assertion prove
+  // the mount preload specifically.
+  it('preloads the result-content chunk on mount, before any result arrives', async () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    // liveAssistants stays empty in this setup, so nothing result-related is
+    // rendered — the chunk import must still fire so its download overlaps the
+    // model's network latency instead of waiting for the first message.
+    await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
   })
 
   it('leases a no-assistant temporary topic and sends for default model actions', async () => {

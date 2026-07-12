@@ -493,7 +493,7 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
         }
       ]
     }
@@ -652,11 +652,11 @@ export default defineConfig([
             meta: {
               type: 'problem',
               docs: {
-                description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
+                description: '⚠️ Avoid template literals in t() — they make rendering output unpredictable',
                 recommended: true
               },
               messages: {
-                noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
+                noTemplateInT: '⚠️ Avoid template literals in t() — they make rendering output unpredictable'
               }
             },
             create(context) {

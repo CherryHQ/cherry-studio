@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -201,9 +201,9 @@ const TranslatePage: FC = () => {
 
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
-  const selectedModelIcon = selectedModel
-    ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
-    : undefined
+  const selectedModelIcon = useIcon(
+    selectedModel ? resolveIconRef(getModelIdentifier(selectedModel), selectedModel.providerId) : undefined
+  )
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {

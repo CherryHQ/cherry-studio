@@ -1,7 +1,8 @@
 import { Avatar, AvatarFallback, Badge, Button, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
@@ -46,7 +47,7 @@ function modelIdLine(model: Model) {
 }
 
 const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
-  const Icon = getModelLogo(model)
+  const Icon = useIcon(getModelLogoRef(model))
   if (Icon) {
     return (
       <span className={modelListClasses.rowAvatar}>
