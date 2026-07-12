@@ -7,7 +7,7 @@ import { paintingTable } from '@main/data/db/schemas/painting'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { collectPaintingFileIds, PAINTINGS_CONTRIBUTOR } from '../backupContributor-paintings'
+import { collectPaintingFileIds, PAINTINGS_CONTRIBUTOR } from '../backupContributorPaintings'
 
 describe('PAINTINGS contributor', () => {
   it('owns painting + painting_file_ref', () => {

@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { MINIAPPS_CONTRIBUTOR } from '../backupContributor-miniapps'
+import { MINIAPPS_CONTRIBUTOR } from '../backupContributorMiniapps'
 
 describe('MINIAPPS contributor', () => {
   it('owns mini_app', () => {

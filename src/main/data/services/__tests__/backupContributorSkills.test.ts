@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { SKILLS_CONTRIBUTOR } from '../backupContributor-skills'
+import { SKILLS_CONTRIBUTOR } from '../backupContributorSkills'
 
 describe('SKILLS contributor', () => {
   it('owns exactly agent_global_skill (NOT agent_skill, which belongs to AGENTS)', () => {

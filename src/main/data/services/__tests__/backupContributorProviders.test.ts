@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { PROVIDERS_CONTRIBUTOR } from '../backupContributor-providers'
+import { PROVIDERS_CONTRIBUTOR } from '../backupContributorProviders'
 
 describe('PROVIDERS contributor', () => {
   it('owns user_provider + user_model', () => {

@@ -3,7 +3,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { PROMPTS_CONTRIBUTOR } from '../backupContributor-prompts'
+import { PROMPTS_CONTRIBUTOR } from '../backupContributorPrompts'
 
 describe('PROMPTS contributor', () => {
   it('owns exactly the prompt table', () => {

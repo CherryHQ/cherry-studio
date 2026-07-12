@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { TAGS_GROUPS_CONTRIBUTOR } from '../backupContributor-tags-groups'
+import { TAGS_GROUPS_CONTRIBUTOR } from '../backupContributorTagsGroups'
 
 describe('TAGS_GROUPS contributor', () => {
   it('owns tag, entity_tag, group, pin', () => {
