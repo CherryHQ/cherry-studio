@@ -418,24 +418,21 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of this.providers) {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         // v1 stored custom provider logos in Dexie settings under
-        // `image://provider-{id}` — either a base64 data URL (an uploaded logo) or a
-        // built-in icon ref (`icon:<id>`) from ProviderLogoPicker, under the same key.
-        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo
-        // ref row (the single source of truth, logoKey nulled); an icon ref is kept
-        // verbatim on logoKey (mirrors MiniAppMappings) — dropping it would silently
-        // lose the user's icon choice. A provider logo is never a URL.
+        // `image://provider-{id}`: either a base64 data URL (an uploaded logo, or a
+        // small built-in logo vite inlined) or a built-in-logo build-asset URL from
+        // ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`, a hashed bundle path for
+        // logos over vite's 4 KB inline limit). A data URL is promoted to an on-disk
+        // WebP file_entry referenced by the logo ref row (the single source of truth,
+        // logoKey nulled). A non-`data:` value is a v1 build asset whose hashed URL no
+        // longer exists in v2 and is NOT a valid v2 icon ref, so it is dropped —
+        // logoKey stays null and v2 renders the bundled icon by presetProviderId. It is
+        // never written onto logoKey (an arbitrary URL there breaks the avatar).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
           ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
           : null
-        if (logoFile) {
-          providerLogoFiles.push(logoFile)
-          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
-        } else if (logo && !logo.startsWith('data:')) {
-          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo })
-        } else {
-          providerRowsWithoutOrderKey.push(row)
-        }
+        if (logoFile) providerLogoFiles.push(logoFile)
+        providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
       }
 
       ctx.db.transaction((tx) => {

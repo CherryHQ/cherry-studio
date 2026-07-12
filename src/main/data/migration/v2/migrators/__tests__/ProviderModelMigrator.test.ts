@@ -491,14 +491,21 @@ describe('ProviderModelMigrator', () => {
       expect(noLogoRefs).toHaveLength(0)
     })
 
-    it('preserves a v1 built-in provider icon ref (icon:<id>) on logoKey', async () => {
-      // v1 stores a picked built-in icon as `icon:<id>` under the same
-      // `image://provider-*` key an uploaded logo uses; it must survive migration,
-      // not be dropped (the non-data branch used to lose it).
+    it('drops a v1 built-in provider logo (a non-data build-asset URL) instead of writing it to logoKey', async () => {
+      // Released v1 stores a picked built-in logo as `PROVIDER_LOGO_MAP[id]` — a hashed
+      // build-asset URL (bundle path for logos over vite's 4 KB inline limit), NOT an
+      // `icon:<id>` ref. That URL no longer resolves in v2 and is not a valid icon ref,
+      // so it is dropped (logoKey null → v2 renders the bundled icon by presetProviderId)
+      // rather than written onto logoKey, which would render a broken image.
       const migrationContext = createContext(
         dbh.db,
-        { llm: { providers: [makeProvider('with-icon')] } },
-        { 'image://provider-with-icon': 'icon:openai' },
+        { llm: { providers: [makeProvider('with-bundled-logo'), makeProvider('with-unknown-key')] } },
+        {
+          // A vite build-asset URL (the dominant real case), and a bare non-data string
+          // (e.g. a renamed/unknown icon key) — both must drop, not pass through.
+          'image://provider-with-bundled-logo': '/assets/openai-a1b2c3d4.png',
+          'image://provider-with-unknown-key': 'icon:aiOnly'
+        },
         ''
       )
       await migrator.prepare(migrationContext)
@@ -506,18 +513,20 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
 
-      const [provider] = await dbh.db
-        .select()
-        .from(userProviderTable)
-        .where(eq(userProviderTable.providerId, 'with-icon'))
-      expect(provider.logoKey).toBe('icon:openai')
+      for (const providerId of ['with-bundled-logo', 'with-unknown-key']) {
+        const [provider] = await dbh.db
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+        expect(provider.logoKey).toBeNull()
 
-      // A non-data value is kept on logoKey verbatim — no file_entry, no ref row.
-      const refs = await dbh.db
-        .select()
-        .from(providerLogoFileRefTable)
-        .where(eq(providerLogoFileRefTable.sourceId, 'with-icon'))
-      expect(refs).toHaveLength(0)
+        // No file_entry and no ref row for a dropped non-data value.
+        const refs = await dbh.db
+          .select()
+          .from(providerLogoFileRefTable)
+          .where(eq(providerLogoFileRefTable.sourceId, providerId))
+        expect(refs).toHaveLength(0)
+      }
     })
 
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
