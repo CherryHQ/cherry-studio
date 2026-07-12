@@ -491,20 +491,31 @@ describe('ProviderModelMigrator', () => {
       expect(noLogoRefs).toHaveLength(0)
     })
 
-    it('drops a v1 built-in provider logo (a non-data build-asset URL) instead of writing it to logoKey', async () => {
+    it('recovers a v1 built-in provider logo (non-data asset value) as an icon: ref, dropping unknowns', async () => {
       // Released v1 stores a picked built-in logo as `PROVIDER_LOGO_MAP[id]` — a hashed
-      // build-asset URL (bundle path for logos over vite's 4 KB inline limit), NOT an
-      // `icon:<id>` ref. That URL no longer resolves in v2 and is not a valid icon ref,
-      // so it is dropped (logoKey null → v2 renders the bundled icon by presetProviderId)
-      // rather than written onto logoKey, which would render a broken image.
+      // build-asset URL (or the literal `'poe'`), NOT an `icon:<id>` ref. That value no
+      // longer resolves in v2. For a *custom* provider (random UUID id that doesn't
+      // resolve in the icon catalog) logoKey is the only logo it has, so the picked brand
+      // is recovered from the asset name and re-expressed as `icon:<catalogKey>`. An
+      // unrecognized value drops to null (no broken image). Never a file_entry / ref row.
       const migrationContext = createContext(
         dbh.db,
-        { llm: { providers: [makeProvider('with-bundled-logo'), makeProvider('with-unknown-key')] } },
         {
-          // A vite build-asset URL (the dominant real case), and a bare non-data string
-          // (e.g. a renamed/unknown icon key) — both must drop, not pass through.
-          'image://provider-with-bundled-logo': '/assets/openai-a1b2c3d4.png',
-          'image://provider-with-unknown-key': 'icon:aiOnly'
+          llm: {
+            providers: [
+              // Custom (UUID) providers — id won't resolve, so logoKey drives the avatar.
+              makeProvider('018f-uuid-openai'), // hashed bundled URL
+              makeProvider('018f-uuid-azure'), // asset named after a different brand (microsoft.png → azureai)
+              makeProvider('018f-uuid-poe'), // v1 literal 'poe'
+              makeProvider('018f-uuid-renamed') // unknown/renamed key → drops
+            ]
+          }
+        },
+        {
+          'image://provider-018f-uuid-openai': '/assets/openai-a1b2c3d4.png',
+          'image://provider-018f-uuid-azure': '/assets/microsoft-deadbeef.png',
+          'image://provider-018f-uuid-poe': 'poe',
+          'image://provider-018f-uuid-renamed': 'icon:aiStudio'
         },
         ''
       )
@@ -513,14 +524,20 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
 
-      for (const providerId of ['with-bundled-logo', 'with-unknown-key']) {
+      const expected: Record<string, string | null> = {
+        '018f-uuid-openai': 'icon:openai',
+        '018f-uuid-azure': 'icon:azureai',
+        '018f-uuid-poe': 'icon:poe',
+        '018f-uuid-renamed': null
+      }
+      for (const [providerId, logoKey] of Object.entries(expected)) {
         const [provider] = await dbh.db
           .select()
           .from(userProviderTable)
           .where(eq(userProviderTable.providerId, providerId))
-        expect(provider.logoKey).toBeNull()
+        expect(provider.logoKey).toBe(logoKey)
 
-        // No file_entry and no ref row for a dropped non-data value.
+        // A recovered icon ref lives on logoKey only — never a file_entry / ref row.
         const refs = await dbh.db
           .select()
           .from(providerLogoFileRefTable)

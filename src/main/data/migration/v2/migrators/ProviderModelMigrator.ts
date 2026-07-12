@@ -44,6 +44,7 @@ import {
   type PreparedEntityImageFile,
   unlinkPreparedImages
 } from './utils/logoMigration'
+import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -417,22 +418,28 @@ export class ProviderModelMigrator extends BaseMigrator {
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
-        // v1 stored custom provider logos in Dexie settings under
-        // `image://provider-{id}`: either a base64 data URL (an uploaded logo, or a
-        // small built-in logo vite inlined) or a built-in-logo build-asset URL from
-        // ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`, a hashed bundle path for
-        // logos over vite's 4 KB inline limit). A data URL is promoted to an on-disk
-        // WebP file_entry referenced by the logo ref row (the single source of truth,
-        // logoKey nulled). A non-`data:` value is a v1 build asset whose hashed URL no
-        // longer exists in v2 and is NOT a valid v2 icon ref, so it is dropped —
-        // logoKey stays null and v2 renders the bundled icon by presetProviderId. It is
-        // never written onto logoKey (an arbitrary URL there breaks the avatar).
+        // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
+        // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
+        // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`
+        // — a hashed bundle path for logos over vite's 4 KB inline limit, never an `icon:` ref).
+        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo ref row
+        // (the single source of truth, logoKey nulled). A non-`data:` value is a stale build
+        // asset that no longer exists in v2 and is not a valid v2 icon ref; writing it onto
+        // logoKey verbatim renders a broken image (`ProviderAvatar` treats it as an image URL),
+        // and for a custom provider — whose id doesn't resolve in the icon catalog — that is the
+        // only logo it has. So recover the picked brand from the asset name and re-express it as
+        // a v2 `icon:<catalogKey>` ref; an unrecognized value drops to null (bundled icon by id
+        // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
           ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
           : null
-        if (logoFile) providerLogoFiles.push(logoFile)
-        providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        if (logoFile) {
+          providerLogoFiles.push(logoFile)
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        } else {
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo ? recoverV1ProviderLogoIconKey(logo) : null })
+        }
       }
 
       ctx.db.transaction((tx) => {
