@@ -23,6 +23,7 @@ import type {
   WebUiMessageSnapshot,
   WebUiOffsetResponse,
   WebUiMessagePart,
+  WebUiRole,
   WebUiToolCallSnapshot,
   WebUiToolCallState
 } from './types/api'
