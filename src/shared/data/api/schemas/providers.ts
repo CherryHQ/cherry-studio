@@ -90,7 +90,11 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
-  /** Whether this provider is enabled */
+  /**
+   * Whether this provider is enabled. A persisted false-to-true transition also
+   * moves the provider to the first position atomically; redundant true updates
+   * preserve the existing order.
+   */
   isEnabled: z.boolean().optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>

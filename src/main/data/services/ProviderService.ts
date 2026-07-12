@@ -230,7 +230,9 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider
+   * Update an existing provider. A false-to-true enabled transition moves the
+   * provider to the first position in the same transaction; redundant enabled
+   * writes preserve the user's current order.
    */
   update(providerId: string, dto: UpdateProviderDto): Provider {
     assertManagedCherryAiProviderPatchAllowed(providerId, dto)
@@ -246,7 +248,10 @@ class ProviderService {
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
-        .select({ providerSettings: userProviderTable.providerSettings })
+        .select({
+          providerSettings: userProviderTable.providerSettings,
+          isEnabled: userProviderTable.isEnabled
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -267,6 +272,16 @@ class ProviderService {
         updates.providerSettings = {
           ...(current.providerSettings as Partial<ProviderSettings> | null),
           ...dto.providerSettings
+        }
+      }
+
+      if (dto.isEnabled === true && !current.isEnabled) {
+        try {
+          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
+            pkColumn: userProviderTable.providerId
+          })
+        } catch (error) {
+          this.rethrowOrderError(error)
         }
       }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
