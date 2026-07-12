@@ -6,6 +6,7 @@ import { application } from '@application'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager/types'
 import { ApiServer } from '@main/data/api'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
 import type { UIMessageChunk } from 'ai'
@@ -146,11 +147,15 @@ class WebUiStreamListener implements StreamListener {
     // WebUI远程扩展，仅Win11启用，最小侵入
     // Forward the upstream-normalized UI message chunk unchanged so the WebUI
     // can render tool activity without maintaining a second stream protocol.
+    const chunkMessageId = 'id' in chunk && typeof chunk.id === 'string' ? chunk.id : undefined
+    const messageId = anchorMessageId ?? chunkMessageId
+    if (!messageId) return
+
     this.sseRelay.broadcast({
       event: 'chunk',
       data: {
         conversationId: this.sessionId,
-        messageId: anchorMessageId ?? chunk.id,
+        messageId,
         chunk
       }
     })
