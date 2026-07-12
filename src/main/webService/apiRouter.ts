@@ -281,6 +281,8 @@ export const createWebUiApiRouter = ({
         body: {
           authRequired: Boolean(normalizeAuthKey(getAuthKey())),
           language: getLanguage(),
+          // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+          userName: application.get('PreferenceService').get('app.user.name'),
           timestamp: new Date().toISOString()
         }
       }

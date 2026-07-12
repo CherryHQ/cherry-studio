@@ -188,6 +188,7 @@ const toErrorMessage = (error: unknown) => {
 
 const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversationSummary => ({
   id: session.id,
+  agentId: session.agentId,
   title: session.name || 'Untitled session',
   updatedAt: session.updatedAt,
   workspaceLabel: session.workspace?.name ?? session.workspace?.path
@@ -285,6 +286,7 @@ const App = defineComponent({
     const isAuthenticated = ref(true)
     const authKeyDraft = ref('')
     const authError = ref('')
+    const userName = ref('')
     const bridgeDetail = ref('')
     const serviceStartedAt = ref('Pending')
     const sseClientCount = ref('0')
@@ -312,6 +314,10 @@ const App = defineComponent({
     const selectedConversation = computed(() =>
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
     )
+    const selectedAgentName = computed(() => {
+      const agentId = selectedConversation.value?.agentId
+      return agents.value.find((agent) => agent.id === agentId)?.name
+    })
     const contextUsagePercentage = computed(() => {
       if (!contextUsage.value?.maxTokens) return undefined
       return Math.min(100, Math.round((contextUsage.value.totalTokens / contextUsage.value.maxTokens) * 100))
@@ -327,6 +333,11 @@ const App = defineComponent({
       const query = input.slice(1).toLowerCase()
       return slashCommands.value.filter((command) => command.name.toLowerCase().startsWith(query)).slice(0, 6)
     })
+    const messageAuthorName = (role: WebUiRole) => {
+      if (role === 'user') return userName.value || role
+      if (role === 'assistant') return selectedAgentName.value || role
+      return role
+    }
 
     const text = (key: TextKey) => {
       const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
@@ -637,6 +648,9 @@ const App = defineComponent({
     const startAuthenticatedSession = () => {
       void refreshHealth()
       void loadConversations()
+      void loadAgents().catch(() => {
+        agents.value = []
+      })
       sseClient.connect()
       if (!healthTimer) healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
     }
@@ -645,6 +659,7 @@ const App = defineComponent({
       try {
         const status = await httpClient.getJson<WebUiAuthStatusResponse>('/api/auth/status')
         language.value = normalizeLanguage(status.language)
+        userName.value = status.userName?.trim() ?? ''
         authRequired.value = status.authRequired
         isAuthenticated.value = !status.authRequired
         bridgeDetail.value = text('checkingBridge')
@@ -873,7 +888,7 @@ const App = defineComponent({
                 },
                 [
                   h('header', { class: 'message-header' }, [
-                    h('p', { class: 'message-role' }, message.role),
+                    h('p', { class: 'message-role' }, messageAuthorName(message.role)),
                     message.content
                       ? h(
                           'button',

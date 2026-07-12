@@ -2,6 +2,7 @@ export type WebUiRole = 'user' | 'assistant' | 'system' | 'tool'
 
 export type WebUiConversationSummary = {
   readonly id: string
+  readonly agentId: string | null
   readonly title: string
   readonly updatedAt: string
   readonly workspaceLabel?: string
@@ -99,6 +100,7 @@ export type WebUiHealthResponse = {
 export type WebUiAuthStatusResponse = {
   readonly authRequired: boolean
   readonly language?: string | null
+  readonly userName?: string | null
   readonly timestamp: string
 }
 
