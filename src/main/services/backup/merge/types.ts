@@ -99,10 +99,11 @@ export interface MergeResult {
 }
 
 /**
- * Context the MergeEngine consumes. Carries the migrated backup.sqlite (read-only),
- * the user's optional strategy override, the file_entry IDs whose blobs were not
- * staged (skip during import), the role-aware identityMap (built during import), and
- * the write-quiesce lease (released in finally even if cleanup throws).
+ * Context the MergeEngine consumes. Carries the selected domains, the user's optional
+ * strategy override, and the file_entry IDs whose blobs were not staged (skipped during
+ * import). The role-aware identityMap + write-quiesce lease are engine-internal — built in
+ * `mergeBackupIntoWork`, not passed by the caller (see plan (b) Stage 3 wiring for the
+ * ArchiveContext that does cross the spine boundary).
  */
 export interface MergeContext {
   /** Selected domains for this restore (drives topo sort + which aggregates are scanned). */

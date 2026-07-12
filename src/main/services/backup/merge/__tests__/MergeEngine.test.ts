@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MergeContext } from '..'
 import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '..'
+import { FtsCentralHelper } from '../FtsCentralHelper'
 
 describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   // Live test DB = the merge base (work.sqlite). Production migrations + FTS5
@@ -284,5 +285,43 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       skippedFileEntryIds: new Set<string>()
     })
     expect(result).toMatchObject({ degradedToSkips: [] })
+  })
+
+  it('preserves the app_state key-set across the merge tx (no add/drop)', async () => {
+    // app_state is ALWAYS_STRIP (backup holds none); the merge tx must not touch its key-set.
+    // PREFERENCES may UPDATE values (forward-compat), but the key-set is invariant — a
+    // canary key surviving merge proves the engine doesn't write app_state out of contract.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(`INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, '{}', ?, ?)`)
+      .run('migration_v2_status', now, now)
+    dbh.sqlite
+      .prepare(`INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, '{}', ?, ?)`)
+      .run('renderer.theme', now, now)
+    const keysBefore = new Set(
+      (dbh.sqlite.prepare(`SELECT key FROM app_state`).all() as { key: string }[]).map((r) => r.key)
+    )
+
+    seedBackup((db) => insertTopic(db, 'tpc-appstate'))
+    await runMerge(topCtx())
+
+    const keysAfter = new Set(
+      (dbh.sqlite.prepare(`SELECT key FROM app_state`).all() as { key: string }[]).map((r) => r.key)
+    )
+    expect(keysAfter).toEqual(keysBefore)
+  })
+
+  it('rebuilds message_fts in-tx so the FTS index stays consistent with imported content', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-fts')
+      insertMessage(db, 'msg-fts', 'tpc-fts', 'root', null)
+    })
+
+    await runMerge(topCtx())
+
+    // The pipeline ran FtsCentralHelper.rebuild → integrityCheck in-tx (no throw during merge
+    // = the index was consistent at COMMIT). Re-check externally to confirm it still matches
+    // the imported content after the connection re-enters autocommit.
+    expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
   })
 })
