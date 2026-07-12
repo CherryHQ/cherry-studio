@@ -1,4 +1,4 @@
-import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
+import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
@@ -11,14 +11,25 @@ interface Props {
 }
 
 const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
+  // Branching is decided synchronously from the ref; the CompoundIcon itself
+  // loads async — a size-stable placeholder covers the brief loading window.
+  const logoRef = getMiniAppsLogoRef(app.logo || undefined)
+  const Icon = useMiniAppLogo(app.logo || undefined)
+
   // Preset-derived apps already include seeded display fields.
   if (app.logo) {
-    const logo = getMiniAppsLogo(app.logo)
     const chromeless = appearance === 'plain' || appearance === 'bare'
 
     // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
-    if (logo && typeof logo !== 'string') {
-      const Icon = logo
+    if (logoRef) {
+      if (!Icon) {
+        return (
+          <span
+            className="flex shrink-0 items-center justify-center"
+            style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
+          />
+        )
+      }
       if (chromeless) {
         return (
           <span
@@ -44,7 +55,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
     if (appearance === 'bare') {
       return (
         <img
-          src={typeof logo === 'string' ? logo : app.logo}
+          src={app.logo}
           className="shrink-0 select-none object-contain"
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
           draggable={false}
@@ -55,7 +66,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
 
     return (
       <img
-        src={typeof logo === 'string' ? logo : app.logo}
+        src={app.logo}
         className="select-none rounded-2xl border border-border"
         style={{
           width: `${size}px`,
