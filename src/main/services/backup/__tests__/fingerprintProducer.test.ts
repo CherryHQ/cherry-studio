@@ -1,10 +1,11 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/data/db/restore/hashDbFile', () => ({
   hashDbFile: vi.fn()
 }))
 
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
+
 import { captureLiveFingerprint } from '../fingerprintProducer'
 
 describe('captureLiveFingerprint', () => {

@@ -25,15 +25,15 @@
 // cancel/progress/validate channels and the restore progress UI land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { fileEntryTable } from '@main/data/db/schemas/file'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/legacyFile'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'

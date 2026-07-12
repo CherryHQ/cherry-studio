@@ -62,7 +62,7 @@ const BACKUP_DOMAINS_SET: ReadonlySet<string> = new Set<string>(BACKUP_DOMAINS)
  */
 function isLegalGlob(glob: string): boolean {
   // Allowed characters: alphanumerics + glob metacharacters + path separators.
-  if (!/^[A-Za-z0-9.*?\[\]\-_/]*$/.test(glob)) return false
+  if (!/^[A-Za-z0-9.*?[\]\-_/]*$/.test(glob)) return false
   // Bracket groups must be balanced (each '[' has a matching ']').
   let depth = 0
   for (const ch of glob) {
