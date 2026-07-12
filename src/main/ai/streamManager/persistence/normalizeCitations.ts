@@ -118,7 +118,10 @@ function extractMarkdownReferenceResults(content: string): WebCitationResult[] {
     const url = urlMatch?.[0].replace(/[),.;]+$/, '') ?? ''
     const beforeUrl = urlMatch?.index === undefined ? referenceText : referenceText.slice(0, urlMatch.index).trim()
     const emphasizedTitle = beforeUrl.match(/\*([^*]+)\*/)?.[1]
-    const title = cleanReferenceText(emphasizedTitle || beforeUrl)
+    // Fall back to the bare URL when a reference has no descriptive text,
+    // otherwise a line like `[1] https://example.com` yields an empty title
+    // and gets dropped, leaving its inline [1] marker without a source.
+    const title = cleanReferenceText(emphasizedTitle || beforeUrl) || url
     if (!title) continue
 
     seenNumbers.add(number)
