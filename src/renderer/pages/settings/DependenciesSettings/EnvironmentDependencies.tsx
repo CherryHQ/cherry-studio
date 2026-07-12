@@ -221,7 +221,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('invalid')
     }
 
-    const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
+    const allNames = [
+      ...PRESETS_BINARY_TOOLS.map((p) => p.name),
+      ...customTools.map((c) => c.name),
+      ...inventoryTools.map((i) => i.name)
+    ]
     if (allNames.includes(tool.name)) {
       toast.error(t('settings.dependencies.duplicateName'))
       throw new Error('duplicate')

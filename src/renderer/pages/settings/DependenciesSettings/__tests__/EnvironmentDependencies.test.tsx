@@ -21,8 +21,10 @@ const ipcMocks = vi.hoisted(() => ({
   removeTool: vi.fn(),
   getToolDir: vi.fn(),
   getInstallStates: vi.fn(),
-  listTools: vi.fn()
+  listTools: vi.fn(),
+  searchRegistry: vi.fn()
 }))
+const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 
 // Route ipcApi.request by binary.* route to the per-method mocks above.
@@ -44,6 +46,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.getInstallStates()
         case 'binary.list_tools':
           return ipcMocks.listTools()
+        case 'binary.search_registry':
+          return ipcMocks.searchRegistry(input)
         default:
           throw new Error(`unexpected route: ${route}`)
       }
@@ -57,6 +61,8 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/ipc/useIpcOn', () => ({
   useIpcOn: vi.fn()
 }))
+
+vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -167,6 +173,7 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getInstallStates.mockResolvedValue({})
     ipcMocks.listTools.mockResolvedValue([])
+    ipcMocks.searchRegistry.mockResolvedValue([])
     ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
       const [state, bundled, system] = await Promise.all([
         ipcMocks.getState(),
@@ -301,6 +308,23 @@ describe('EnvironmentDependencies', () => {
 
     const card = (await screen.findByText('some-agent')).closest('[role="listitem"]') as HTMLElement
     expect(card).toHaveTextContent('v1.2.3')
+  })
+
+  it('rejects adding a tool that already exists in the inventory', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
+    render(<EnvironmentDependencies />)
+    await screen.findByText('node')
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'node' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /core:node/ }))
+    fireEvent.click(screen.getByText('common.add'))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.duplicateName'))
+    expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
   it('excludes code CLI binaries from the inventory grid', async () => {
