@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
+// Mirror production: only preset keys resolve to a CompoundIcon; everything else
+// (an uploaded logo's `file://` URL) returns undefined and renders as an image.
 vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   const CompoundLogo = ({
     'aria-label': ariaLabel,
@@ -37,25 +39,25 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
 })
 
 describe('MiniAppIcon', () => {
-  const mockApp = {
+  const baseApp = {
     appId: 'test-app-1' as any,
     presetMiniAppId: 'test-preset',
     status: 'enabled' as const,
     orderKey: 'a0',
     name: 'Test App',
     url: 'https://test.com',
-    logo: '/test-logo-1.png',
-    bordered: true,
     background: '#f0f0f0'
   }
 
-  it('should render correctly with various props', () => {
+  it('renders an uploaded logo (main-resolved logoSrc) as an image', () => {
     const customStyle = { marginTop: '10px' }
-    const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} />)
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} size={64} style={customStyle} />
+    )
 
     const img = container.querySelector('img')
     expect(img).toBeInTheDocument()
-    expect(img).toHaveAttribute('src', '/test-logo-1.png')
+    expect(img).toHaveAttribute('src', 'file:///files/abc123.webp')
     expect(img).toHaveAttribute('alt', 'Test App')
     expect(img).toHaveAttribute('draggable', 'false')
     expect(img).toHaveStyle({
@@ -66,22 +68,31 @@ describe('MiniAppIcon', () => {
     })
   })
 
-  it('should return null when app is not found in allMiniApps', () => {
-    const unknownApp = {
-      appId: 'unknown-app' as any,
-      presetMiniAppId: 'test-preset',
-      status: 'enabled' as const,
-      orderKey: 'a0',
-      name: 'Unknown App',
-      url: 'https://unknown.com'
-    }
-    const { container } = render(<MiniAppIcon app={unknownApp} />)
+  it('renders logoSrc as an image in bare mode', () => {
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} appearance="bare" size={32} />
+    )
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///files/abc123.webp')
+  })
+
+  it('renders a pre-resolved url carried on `logo` (sidebar tab) as an image', () => {
+    // Sidebar tabs carry a single pre-resolved `logo` and no `logoSrc`.
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logo: 'file:///files/tab.webp' }} appearance="bare" size={32} />
+    )
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'file:///files/tab.webp')
+  })
+
+  it('returns null when there is neither a logo nor a logoSrc', () => {
+    const { container } = render(<MiniAppIcon app={baseApp} />)
 
     expect(container.firstChild).toBeNull()
   })
 
   it('renders compound icons as avatar by default', () => {
-    const { container } = render(<MiniAppIcon app={{ ...mockApp, logo: 'compound-logo' }} size={48} />)
+    const { container } = render(<MiniAppIcon app={{ ...baseApp, logo: 'compound-logo' }} size={48} />)
 
     const avatar = container.querySelector('[data-testid="compound-logo-avatar"]')
     expect(avatar).toBeInTheDocument()
@@ -91,7 +102,7 @@ describe('MiniAppIcon', () => {
 
   it('renders plain compound icons without avatar chrome', () => {
     const { container } = render(
-      <MiniAppIcon app={{ ...mockApp, logo: 'compound-logo' }} appearance="plain" size={48} />
+      <MiniAppIcon app={{ ...baseApp, logo: 'compound-logo' }} appearance="plain" size={48} />
     )
 
     expect(container.querySelector('[data-testid="compound-logo-avatar"]')).not.toBeInTheDocument()
@@ -100,7 +111,7 @@ describe('MiniAppIcon', () => {
 
   it('preserves direct icon sizing and automatic theme variants in plain mode', () => {
     const { container } = render(
-      <MiniAppIcon app={{ ...mockApp, logo: 'compound-logo' }} appearance="plain" size={40} />
+      <MiniAppIcon app={{ ...baseApp, logo: 'compound-logo' }} appearance="plain" size={40} />
     )
 
     expect(container.querySelector('[data-testid="compound-logo"]')).toHaveAttribute('data-variant', 'auto')

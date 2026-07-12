@@ -1,13 +1,11 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import db from '@renderer/databases/db'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import i18n, { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import useFullScreenNotice from './useFullScreenNotice'
@@ -17,7 +15,7 @@ import useNavBackgroundColor from './useNavBackgroundColor'
  * REFACTOR(window-runtime-init) — KNOWN TECH DEBT; awaiting a dedicated refactor. Do NOT extend.
  *
  * A grab-bag of unrelated "mount = behavior" side effects (spinner teardown,
- * i18n/dayjs locale, custom-CSS injection, avatar cache, app-path cache, nav
+ * i18n/dayjs locale, custom-CSS injection, app-path cache, nav
  * background, fullscreen notice + ESC-to-exit, topic/agent auto-rename sync). This
  * is the same god-component pattern that made the retired full-screen view stack
  * unmaintainable — retiring that stack only RELOCATED these effects here (out of its
@@ -25,8 +23,6 @@ import useNavBackgroundColor from './useNavBackgroundColor'
  * them. The name is kept as `useAppInit` on purpose: it is a misnomer — this runs
  * once PER WINDOW (the main, settings and subWindow roots each mount it), not once
  * for "the app" — and that mismatch is the smell flagging the work still to be done.
- * It also still reads a v1 Dexie table (`db.settings.get('image://avatar')`), which
- * belongs to the dexie-deletion plan.
  *
  * Intended end state: each concern owned by its proper module / init lifecycle
  * instead of lumped into one opaque hook. Until then, mount it from a leaf that sits
@@ -40,7 +36,6 @@ export function useAppInit() {
   const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
-  const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const navBackgroundColor = useNavBackgroundColor()
 
   useFullScreenNotice()
@@ -54,10 +49,6 @@ export function useAppInit() {
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
   }, [])
-
-  useEffect(() => {
-    savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
-  }, [savedAvatar])
 
   useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage

@@ -8,10 +8,13 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
+import { miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { printRequestSchemas } from './print'
+import { profileRequestSchemas } from './profile'
+import { providerRequestSchemas } from './provider'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -33,10 +36,13 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,
+  ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
   ...printRequestSchemas,
+  ...profileRequestSchemas,
+  ...providerRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas

@@ -341,9 +341,11 @@ export const useMiniApps = () => {
       }
 
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = updated.logoSrc ?? updated.logo
       for (const tab of tabsContext?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon: updated.logo })
+          tabsContext?.updateTab(tab.id, { title, icon })
         }
       }
     },
@@ -404,6 +406,24 @@ export const useMiniApps = () => {
       }
     },
     [patchAppTrigger, syncOpenedCustomMiniApp]
+  )
+
+  const refreshCustomMiniApp = useCallback(
+    async (appId: string) => {
+      try {
+        const updated = await dataApiService.get(`/mini-apps/${encodeURIComponent(appId)}`)
+        syncOpenedCustomMiniApp(updated)
+      } catch (syncError) {
+        logger.error('Failed to sync custom mini app after logo update', { appId, error: syncError })
+      }
+
+      try {
+        await invalidate('/mini-apps')
+      } catch (refreshError) {
+        logger.error('Failed to refresh mini apps after logo update', { appId, error: refreshError })
+      }
+    },
+    [invalidate, syncOpenedCustomMiniApp]
   )
 
   const removeCustomMiniApp = useCallback(
@@ -492,6 +512,7 @@ export const useMiniApps = () => {
     setAppStatusBulk,
     createCustomMiniApp,
     updateCustomMiniApp,
+    refreshCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
     reorderMiniAppsByStatus

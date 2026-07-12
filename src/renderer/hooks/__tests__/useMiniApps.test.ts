@@ -300,17 +300,17 @@ describe('useMiniApps', () => {
       await act(async () => {
         await result.current.updateCustomMiniApp('custom-app', {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: 'new-logo'
+          url: 'https://new.example.com'
         })
       })
 
+      // Logo edits go through the `mini_app.set_logo` command, not this PATCH;
+      // the tab icon still resolves from the service's returned `logo`.
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },
         body: {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: 'new-logo'
+          url: 'https://new.example.com'
         }
       })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
@@ -318,6 +318,33 @@ describe('useMiniApps', () => {
       expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
+    })
+
+    it('uses the service-resolved logoSrc as the file:// tab icon when syncing', async () => {
+      const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      // The service returns an uploaded logo pre-resolved onto `logoSrc`.
+      const updated = { ...existing, name: 'New App', logoSrc: `file:///files/${storedId}.webp` }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', {
+          name: 'New App'
+        })
+      })
+
+      expect(trigger).toHaveBeenCalledWith({
+        params: { appId: 'custom-app' },
+        body: { name: 'New App' }
+      })
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'New App',
+        icon: `file:///files/${storedId}.webp`
+      })
     })
 
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {

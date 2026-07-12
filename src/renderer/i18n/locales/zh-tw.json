@@ -3594,6 +3594,7 @@
     },
     "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
     "error": {
+      "avatar_image_too_large": "圖片過大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "copy": "複製失敗",
       "dimension_too_large": "內容尺寸過大",
@@ -3615,6 +3616,7 @@
         "text_extraction_failed": "無法從 {{name}} 中擷取文字"
       },
       "get_embedding_dimensions": "取得嵌入維度失敗",
+      "image_process_failed": "圖片處理失敗，請重試",
       "invalid": {
         "api": {
           "host": "無效的 API 位址",

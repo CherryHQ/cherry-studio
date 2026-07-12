@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-05T13:08:15.693Z
+ * Generated at: 2026-07-11T04:23:04.106Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -769,6 +769,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.auto_detection_method'
   },
   {
+    originalKey: 'image://avatar',
+    targetKey: 'app.user.avatar'
+  },
+  {
     originalKey: 'translate:markdown:enabled',
     targetKey: 'feature.translate.page.enable_markdown'
   },
@@ -801,9 +805,9 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * - ElectronStore项: 1
  * - Redux Store项: 176
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
- * - DexieSettings项: 4
+ * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 181
+ * - 总配置项: 182
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

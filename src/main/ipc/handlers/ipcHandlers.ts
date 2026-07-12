@@ -10,10 +10,13 @@ import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { localModelHandlers } from './localModel'
+import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
 import { printHandlers } from './print'
+import { profileHandlers } from './profile'
+import { providerHandlers } from './provider'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -37,10 +40,13 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
   ...localModelHandlers,
+  ...miniAppHandlers,
   ...navigationHandlers,
   ...oauthHandlers,
   ...openclawHandlers,
   ...printHandlers,
+  ...profileHandlers,
+  ...providerHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers

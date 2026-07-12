@@ -298,7 +298,11 @@ export const useMiniAppPopup = () => {
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
       // URL, not pool membership. Webview re-use stays correct: when cached we
       // don't recreate the entry or reset `src`, only the tab route activates.
-      openTab(`/app/mini-app/${app.appId}`, { title: app.name, icon: app.logo })
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: app.name,
+        icon: app.logoSrc ?? app.logo
+      })
     },
     [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )
