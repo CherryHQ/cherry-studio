@@ -90,6 +90,7 @@ export type WebUiApiError = {
 
 export type WebUiHealthResponse = {
   readonly ok: true
+  readonly appVersion?: string
   readonly language?: string | null
   readonly service: 'cherry-studio-webui'
   readonly startedAt: string
@@ -126,9 +127,20 @@ export type WebUiModel = {
   readonly id: string
   readonly name: string
   readonly providerId: string
+  readonly group?: string
   readonly isEnabled: boolean
   readonly isHidden: boolean
   readonly capabilities: readonly string[]
+}
+
+export type WebUiModelGroup = {
+  readonly id: string
+  readonly name: string
+  readonly models: readonly WebUiModel[]
+}
+
+export type WebUiModelsResponse = {
+  readonly groups: readonly WebUiModelGroup[]
 }
 
 export type WebUiAgentSessionEntity = {

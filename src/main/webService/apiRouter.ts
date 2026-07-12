@@ -9,13 +9,16 @@ import { ApiServer } from '@main/data/api'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
 import { isNonChatModel } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
 import type { UIMessageChunk } from 'ai'
+import { app } from 'electron'
 
 import type { WebUiSseRelay } from './sseRelay'
 
@@ -96,6 +99,7 @@ const unauthorized = (): WebUiApiRouteResult => ({
 
 const dataApiPrefix = '/api/data'
 const MAX_WEBUI_MESSAGE_CHARS = 40_000
+const webUiModelsPath = '/api/webui/models'
 const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
 const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
 const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
@@ -152,6 +156,44 @@ const parseUpdateSessionModelBody = (value: unknown): WebUiUpdateSessionModelBod
 
   const model = (value as { model: string }).model
   return isUniqueModelId(model) ? { model } : undefined
+}
+
+const listWebUiChatModelGroups = () => {
+  // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+  const providers = providerService.list({ enabled: true }).filter((provider) => !isExternalCliProvider(provider))
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+  const models = modelService
+    .list({ enabled: true })
+    .filter((model) => providerById.has(model.providerId) && !model.isHidden && !isNonChatModel(model))
+
+  return providers.flatMap((provider) => {
+    const providerModels = models
+      .filter((model) => model.providerId === provider.id)
+      .sort((left, right) => {
+        const leftGroup = left.group ?? ''
+        const rightGroup = right.group ?? ''
+        return leftGroup.localeCompare(rightGroup) || left.name.localeCompare(right.name)
+      })
+
+    if (providerModels.length === 0) return []
+
+    return [
+      {
+        id: provider.id,
+        name: provider.name || provider.id,
+        models: providerModels
+      }
+    ]
+  })
+}
+
+const findWebUiChatModel = (modelId: UniqueModelId) => {
+  for (const group of listWebUiChatModelGroups()) {
+    const model = group.models.find((candidate) => candidate.id === modelId)
+    if (model) return model
+  }
+
+  return undefined
 }
 
 class WebUiStreamListener implements StreamListener {
@@ -308,6 +350,12 @@ export const createWebUiApiRouter = ({
 
     if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
 
+    if (pathname === webUiModelsPath) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return { status: 200, body: { groups: listWebUiChatModelGroups() } }
+    }
+
     if (contextUsageMatch) {
       if (method !== 'GET') return methodNotAllowed(['GET'])
       const encodedSessionId = contextUsageMatch[1]
@@ -350,8 +398,8 @@ export const createWebUiApiRouter = ({
         const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
         if (!session.agentId) return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
 
-        const model = modelService.list({ enabled: true }).find((candidate) => candidate.id === body.model)
-        if (!model || model.isHidden || isNonChatModel(model)) {
+        const model = findWebUiChatModel(body.model)
+        if (!model) {
           return { status: 422, body: { code: 'WEBUI_MODEL_UNAVAILABLE', message: 'The selected desktop model is unavailable for this Agent' } }
         }
 
@@ -447,6 +495,7 @@ export const createWebUiApiRouter = ({
         status: 200,
         body: {
           ok: true,
+          appVersion: app.getVersion(),
           language: getLanguage(),
           service: 'cherry-studio-webui',
           startedAt,

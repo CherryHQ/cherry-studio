@@ -16,6 +16,8 @@ import type {
   WebUiAgentSessionEntity,
   WebUiAgentEntity,
   WebUiModel,
+  WebUiModelGroup,
+  WebUiModelsResponse,
   WebUiConversationSummary,
   WebUiChunkPayload,
   WebUiCursorResponse,
@@ -36,6 +38,7 @@ type WebuiStatus = {
 
 const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
+const webUiVersion = '0.1.0'
 const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
 const webUiLanguages = [
   { id: 'en-US', label: 'English' },
@@ -68,6 +71,7 @@ const normalizeLanguage = (language?: string | null) => {
 const textPacks = {
   'en-US': {
     agent: 'Agent',
+    appVersion: 'Cherry Studio',
     authDescription: 'Enter the WebUI access key configured in Cherry Studio.',
     authKey: 'Access key',
     authTitle: 'WebUI verification',
@@ -89,6 +93,7 @@ const textPacks = {
     invalidKey: 'Invalid access key',
     loadingConversations: 'Loading conversations',
     loadingMessages: 'Loading desktop messages',
+    model: 'Model',
     newConversation: 'New conversation',
     noAgents: 'No configured desktop Agents are available.',
     noContext: 'No context usage available',
@@ -108,14 +113,15 @@ const textPacks = {
     switchToLight: 'Switch to light theme',
     attachmentPending: 'Add file (coming soon)',
     newConversationTool: 'New conversation',
-    thinkingPending: 'Thinking mode (coming soon)',
+    thinkingPending: 'Reasoning length (coming soon)',
     unavailable: 'Unavailable',
     verify: 'Verify',
     webui: 'WebUI',
-    webSearchPending: 'Web search (coming soon)'
+    webUiVersion: 'WebUI'
   },
   'zh-CN': {
     agent: '智能体',
+    appVersion: 'Cherry Studio',
     authDescription: '请输入 Cherry Studio 设置中配置的 WebUI 访问 KEY。',
     authKey: '访问 KEY',
     authTitle: 'WebUI 安全验证',
@@ -137,6 +143,7 @@ const textPacks = {
     invalidKey: '访问 KEY 无效',
     loadingConversations: '正在加载会话',
     loadingMessages: '正在加载桌面消息',
+    model: '模型',
     newConversation: '新建会话',
     noAgents: '暂无可用的桌面智能体。',
     noContext: '暂无上下文用量',
@@ -156,14 +163,15 @@ const textPacks = {
     switchToLight: '切换至浅色主题',
     attachmentPending: '添加文件（待开发）',
     newConversationTool: '新建会话',
-    thinkingPending: '思维模式（待开发）',
+    thinkingPending: '思维链长度（待开发）',
     unavailable: '不可用',
     verify: '验证',
     webui: 'WebUI',
-    webSearchPending: '网络搜索（待开发）'
+    webUiVersion: 'WebUI'
   },
   'zh-TW': {
     agent: '智慧體',
+    appVersion: 'Cherry Studio',
     authDescription: '請輸入 Cherry Studio 設定中配置的 WebUI 存取 KEY。',
     authKey: '存取 KEY',
     authTitle: 'WebUI 安全驗證',
@@ -185,6 +193,7 @@ const textPacks = {
     invalidKey: '存取 KEY 無效',
     loadingConversations: '正在載入會話',
     loadingMessages: '正在載入桌面訊息',
+    model: '模型',
     newConversation: '新增會話',
     noAgents: '尚無可用的桌面智慧體。',
     noContext: '暫無上下文用量',
@@ -204,11 +213,11 @@ const textPacks = {
     switchToLight: '切換至淺色主題',
     attachmentPending: '加入檔案（待開發）',
     newConversationTool: '新增會話',
-    thinkingPending: '思考模式（待開發）',
+    thinkingPending: '思維鏈長度（待開發）',
     unavailable: '不可用',
     verify: '驗證',
     webui: 'WebUI',
-    webSearchPending: '網路搜尋（待開發）'
+    webUiVersion: 'WebUI'
   }
 } as const
 
@@ -228,7 +237,7 @@ const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversat
 
 const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set(['output-available', 'output-error', 'output-denied'])
 
-type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking' | 'webSearch'
+type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking'
 
 // Mirrors the compact line-icon treatment used by the desktop ComposerSurface.
 const renderComposerToolIcon = (name: ComposerToolIconName) => {
@@ -265,10 +274,48 @@ const renderComposerToolIcon = (name: ComposerToolIconName) => {
   }
 
   return h('svg', baseProps, [
-    h('circle', { cx: 11, cy: 11, r: 6 }),
-    h('path', { d: 'm20 20-4.2-4.2' })
+    h('path', { d: 'M9 18h6' }),
+    h('path', { d: 'M10 22h4' }),
+    h('path', { d: 'M8.5 14.5A6.5 6.5 0 1 1 15.5 14c-1.1.8-1.5 1.6-1.5 2.5h-4c0-.9-.4-1.5-1.5-2' })
   ])
 }
+
+const renderLanguageIcon = () =>
+  h(
+    'svg',
+    {
+      width: 18,
+      height: 18,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': 2,
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+      'aria-hidden': 'true'
+    },
+    [
+      h('circle', { cx: 12, cy: 12, r: 10 }),
+      h('path', { d: 'M2 12h20' }),
+      h('path', { d: 'M12 2a15.3 15.3 0 0 1 0 20' }),
+      h('path', { d: 'M12 2a15.3 15.3 0 0 0 0 20' })
+    ]
+  )
+
+const renderGithubIcon = () =>
+  h(
+    'svg',
+    {
+      width: 18,
+      height: 18,
+      viewBox: '0 0 24 24',
+      fill: 'currentColor',
+      'aria-hidden': 'true'
+    },
+    h('path', {
+      d: 'M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.19-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.15-4.56-5.12 0-1.13.39-2.05 1.03-2.78-.1-.26-.45-1.32.1-2.75 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.86c.85 0 1.7.12 2.5.35 1.91-1.34 2.75-1.06 2.75-1.06.55 1.43.2 2.49.1 2.75.64.73 1.03 1.65 1.03 2.78 0 3.98-2.34 4.86-4.57 5.11.36.32.68.93.68 1.88 0 1.36-.01 2.45-.01 2.78 0 .27.18.59.69.49A10.23 10.23 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z'
+    })
+  )
 
 const toDisplayText = (value: unknown): string | undefined => {
   if (value === undefined) return undefined
@@ -364,6 +411,7 @@ const App = defineComponent({
     const authError = ref('')
     const userName = ref('')
     const bridgeDetail = ref('')
+    const appVersion = ref('')
     const serviceStartedAt = ref('Pending')
     const sseClientCount = ref('0')
     const conversationLoadState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -373,7 +421,7 @@ const App = defineComponent({
     const composerText = ref('')
     const submitError = ref('')
     const agents = ref<readonly WebUiAgentEntity[]>([])
-    const models = ref<readonly WebUiModel[]>([])
+    const modelGroups = ref<readonly WebUiModelGroup[]>([])
     const newConversationOpen = ref(false)
     const newConversationState = ref<'idle' | 'loading' | 'creating' | 'error'>('idle')
     const newConversationError = ref('')
@@ -401,6 +449,7 @@ const App = defineComponent({
       return agents.value.find((agent) => agent.id === agentId)?.name
     })
     const selectedAgent = computed(() => agents.value.find((agent) => agent.id === selectedConversation.value?.agentId))
+    const models = computed(() => modelGroups.value.flatMap((group) => group.models))
     const selectedModel = computed(() => models.value.find((model) => model.id === selectedAgent.value?.model))
     const modelPickerLabel = computed(() => selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? text('agent'))
     const contextUsagePercentage = computed(() => {
@@ -458,6 +507,16 @@ const App = defineComponent({
         value: sseClientCount.value
       }
     ])
+    const versionItems = computed<readonly WebuiStatus[]>(() => [
+      {
+        label: text('appVersion'),
+        value: appVersion.value || text('unavailable')
+      },
+      {
+        label: text('webUiVersion'),
+        value: webUiVersion
+      }
+    ])
 
     const refreshHealth = async () => {
       try {
@@ -465,11 +524,13 @@ const App = defineComponent({
         if (!languageOverride.value) language.value = normalizeLanguage(health.language)
         bridgeState.value = health.ok ? 'connected' : 'offline'
         bridgeDetail.value = health.ok ? text('connected') : text('disconnected')
+        appVersion.value = health.appVersion ?? ''
         serviceStartedAt.value = new Date(health.startedAt).toLocaleString()
         sseClientCount.value = String(health.sseClients)
       } catch (error) {
         bridgeState.value = 'offline'
         bridgeDetail.value = toErrorMessage(error)
+        appVersion.value = ''
         serviceStartedAt.value = text('unavailable')
         sseClientCount.value = '0'
       }
@@ -553,15 +614,8 @@ const App = defineComponent({
     }
 
     const loadModels = async () => {
-      const availableModels = await httpClient.getJson<readonly WebUiModel[]>('/api/data/models')
-      models.value = availableModels.filter(
-        (model) =>
-          model.isEnabled &&
-          !model.isHidden &&
-          !model.capabilities.includes('embedding') &&
-          !model.capabilities.includes('rerank') &&
-          !model.capabilities.includes('image-generation')
-      )
+      const response = await httpClient.getJson<WebUiModelsResponse>('/api/webui/models')
+      modelGroups.value = response.groups
     }
 
     const updateSessionModel = async (model: WebUiModel) => {
@@ -775,6 +829,24 @@ const App = defineComponent({
       }
     }
 
+    const copyText = async (value: string) => {
+      try {
+        await navigator.clipboard.writeText(value)
+        return
+      } catch {
+        const fallback = document.createElement('textarea')
+        fallback.value = value
+        fallback.setAttribute('readonly', 'true')
+        fallback.style.position = 'fixed'
+        fallback.style.top = '-1000px'
+        fallback.style.opacity = '0'
+        document.body.appendChild(fallback)
+        fallback.select()
+        document.execCommand('copy')
+        fallback.remove()
+      }
+    }
+
     const startAuthenticatedSession = () => {
       void refreshHealth()
       void loadConversations()
@@ -782,7 +854,7 @@ const App = defineComponent({
         agents.value = []
       })
       void loadModels().catch(() => {
-        models.value = []
+        modelGroups.value = []
       })
       sseClient.connect()
       if (!healthTimer) healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
@@ -880,99 +952,39 @@ const App = defineComponent({
               h('h1', text('authTitle')),
               h('p', { class: 'empty-copy' }, text('authDescription')),
               h('label', { class: 'field-label', for: 'webui-auth-key' }, text('authKey')),
-              h('input', {
-                id: 'webui-auth-key',
-                autocomplete: 'current-password',
-                type: 'password',
-                value: authKeyDraft.value,
-                onInput: (event: Event) => {
-                  authKeyDraft.value = (event.target as HTMLInputElement).value
-                },
-                onKeydown: (event: KeyboardEvent) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void verifyAuthKey()
+              h('div', { class: 'auth-field-row' }, [
+                h('input', {
+                  id: 'webui-auth-key',
+                  autocomplete: 'current-password',
+                  type: 'password',
+                  value: authKeyDraft.value,
+                  onInput: (event: Event) => {
+                    authKeyDraft.value = (event.target as HTMLInputElement).value
+                  },
+                  onKeydown: (event: KeyboardEvent) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void verifyAuthKey()
+                    }
                   }
-                }
-              }),
+                }),
+                h(
+                  'button',
+                  {
+                    class: 'auth-submit-button',
+                    type: 'button',
+                    title: text('verify'),
+                    'aria-label': text('verify'),
+                    onClick: () => void verifyAuthKey()
+                  },
+                  '↑'
+                )
+              ]),
               authError.value ? h('p', { class: 'composer-error', role: 'alert' }, authError.value) : undefined,
-              h(
-                'button',
-                {
-                  class: 'send-button',
-                  type: 'button',
-                  onClick: () => void verifyAuthKey()
-                },
-                text('verify')
-              )
             ])
           ])
         :
       h('main', { class: 'webui-shell' }, [
-        h('nav', { class: 'page-toolbar', 'aria-label': 'WebUI controls' }, [
-          h(
-            'a',
-            {
-              class: 'page-toolbar-button github-button',
-              href: projectRepositoryUrl,
-              target: '_blank',
-              rel: 'noreferrer',
-              title: text('githubProject'),
-              'aria-label': text('githubProject')
-            },
-            h(
-              'svg',
-              {
-                width: 18,
-                height: 18,
-                viewBox: '0 0 24 24',
-                fill: 'currentColor',
-                'aria-hidden': 'true'
-              },
-              h('path', {
-                d: 'M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.19-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.15-4.56-5.12 0-1.13.39-2.05 1.03-2.78-.1-.26-.45-1.32.1-2.75 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.86c.85 0 1.7.12 2.5.35 1.91-1.34 2.75-1.06 2.75-1.06.55 1.43.2 2.49.1 2.75.64.73 1.03 1.65 1.03 2.78 0 3.98-2.34 4.86-4.57 5.11.36.32.68.93.68 1.88 0 1.36-.01 2.45-.01 2.78 0 .27.18.59.69.49A10.23 10.23 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z'
-              })
-            )
-          ),
-          h('div', { class: 'language-menu-wrap' }, [
-            h('button', {
-              class: 'page-toolbar-button language-toggle-button',
-              type: 'button',
-              title: text('changeLanguage'),
-              'aria-label': text('changeLanguage'),
-              'aria-expanded': languagePickerOpen.value,
-              onClick: () => {
-                languagePickerOpen.value = !languagePickerOpen.value
-              }
-            }),
-            languagePickerOpen.value
-              ? h(
-                  'div',
-                  { class: 'language-picker-menu', role: 'menu' },
-                  webUiLanguages.map((item) =>
-                    h(
-                      'button',
-                      {
-                        class: ['language-picker-option', { 'language-picker-option-selected': language.value === item.id }],
-                        type: 'button',
-                        role: 'menuitemradio',
-                        'aria-checked': language.value === item.id,
-                        onClick: () => selectLanguage(item.id)
-                      },
-                      item.label
-                    )
-                  )
-                )
-              : undefined
-          ]),
-          h('button', {
-            class: ['page-toolbar-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
-            type: 'button',
-            title: themeToggleLabel.value,
-            'aria-label': themeToggleLabel.value,
-            onClick: toggleThemeMode
-          })
-        ]),
         mobileSidebarOpen.value
           ? h('button', {
               class: 'mobile-sidebar-backdrop',
@@ -989,6 +1001,50 @@ const App = defineComponent({
             h('div', [
               h('p', { class: 'eyebrow' }, 'Cherry Studio'),
               h('h1', text('webui'))
+            ]),
+            h('div', { class: 'panel-actions' }, [
+              h('div', { class: 'language-menu-wrap' }, [
+                h(
+                  'button',
+                  {
+                    class: 'panel-icon-button language-toggle-button',
+                    type: 'button',
+                    title: text('changeLanguage'),
+                    'aria-label': text('changeLanguage'),
+                    'aria-expanded': languagePickerOpen.value,
+                    onClick: () => {
+                      languagePickerOpen.value = !languagePickerOpen.value
+                    }
+                  },
+                  renderLanguageIcon()
+                ),
+                languagePickerOpen.value
+                  ? h(
+                      'div',
+                      { class: 'language-picker-menu', role: 'menu' },
+                      webUiLanguages.map((item) =>
+                        h(
+                          'button',
+                          {
+                            class: ['language-picker-option', { 'language-picker-option-selected': language.value === item.id }],
+                            type: 'button',
+                            role: 'menuitemradio',
+                            'aria-checked': language.value === item.id,
+                            onClick: () => selectLanguage(item.id)
+                          },
+                          item.label
+                        )
+                      )
+                    )
+                  : undefined
+              ]),
+              h('button', {
+                class: ['panel-icon-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
+                type: 'button',
+                title: themeToggleLabel.value,
+                'aria-label': themeToggleLabel.value,
+                onClick: toggleThemeMode
+              })
             ]),
             h(
               'button',
@@ -1117,7 +1173,7 @@ const App = defineComponent({
                           {
                             class: 'copy-button',
                             type: 'button',
-                            onClick: () => void navigator.clipboard.writeText(message.content)
+                            onClick: () => void copyText(message.content)
                           },
                           text('copy')
                         )
@@ -1183,11 +1239,10 @@ const App = defineComponent({
                     },
                     renderComposerToolIcon('newConversation')
                   ),
-                  ...(['webSearch', 'attachment', 'thinking'] as const).map((tool) => {
+                  ...(['attachment', 'thinking'] as const).map((tool) => {
                     const labels = {
                       attachment: text('attachmentPending'),
-                      thinking: text('thinkingPending'),
-                      webSearch: text('webSearchPending')
+                      thinking: text('thinkingPending')
                     }
                     return h(
                       'button',
@@ -1239,23 +1294,26 @@ const App = defineComponent({
               ? h(
                   'div',
                   { class: 'model-picker-menu', role: 'listbox' },
-                  models.value.map((model) =>
-                    h(
-                      'button',
-                      {
-                        class: ['model-picker-option', { 'model-picker-option-selected': model.id === selectedAgent.value?.model }],
-                        key: model.id,
-                        type: 'button',
-                        role: 'option',
-                        'aria-selected': model.id === selectedAgent.value?.model,
-                        onClick: () => void updateSessionModel(model)
-                      },
-                      [
-                        h('span', { class: 'model-picker-name' }, model.name),
-                        h('span', { class: 'model-picker-provider' }, model.providerId)
-                      ]
+                  modelGroups.value.flatMap((group) => [
+                    h('p', { class: 'model-picker-group', key: `group-${group.id}` }, group.name),
+                    ...group.models.map((model) =>
+                      h(
+                        'button',
+                        {
+                          class: ['model-picker-option', { 'model-picker-option-selected': model.id === selectedAgent.value?.model }],
+                          key: model.id,
+                          type: 'button',
+                          role: 'option',
+                          'aria-selected': model.id === selectedAgent.value?.model,
+                          onClick: () => void updateSessionModel(model)
+                        },
+                        [
+                          h('span', { class: 'model-picker-name' }, model.name),
+                          h('span', { class: 'model-picker-provider' }, model.group ?? model.providerId)
+                        ]
+                      )
                     )
-                  )
+                  ])
                 )
               : undefined,
             slashCommandSuggestions.value.length
@@ -1300,7 +1358,27 @@ const App = defineComponent({
               h('dt', item.label),
               h('dd', item.value)
             ])
-          )
+          ),
+          h('div', { class: 'version-block' }, [
+            ...versionItems.value.map((item) =>
+              h('dl', { class: 'status-row version-row', key: item.label }, [
+                h('dt', item.label),
+                h('dd', item.value)
+              ])
+            ),
+            h(
+              'a',
+              {
+                class: 'status-github-link',
+                href: projectRepositoryUrl,
+                target: '_blank',
+                rel: 'noreferrer',
+                title: text('githubProject'),
+                'aria-label': text('githubProject')
+              },
+              renderGithubIcon()
+            )
+          ])
         ]),
         newConversationOpen.value
           ? h('div', { class: 'modal-backdrop' }, [
@@ -1422,6 +1500,28 @@ style.textContent = `
     box-shadow: 0 18px 48px rgb(17 24 39 / 10%);
   }
 
+  .auth-field-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .auth-submit-button {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    place-items: center;
+    color: #ffffff;
+    font-size: 21px;
+    line-height: 1;
+    background: #111827;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
   .conversation-list,
   .status-panel {
     min-height: 0;
@@ -1439,7 +1539,7 @@ style.textContent = `
 
   .status-panel {
     overflow-y: auto;
-    padding-top: 58px;
+    padding-top: 20px;
     border-left: 1px solid #e5e7eb;
   }
 
@@ -1448,6 +1548,17 @@ style.textContent = `
     gap: 12px;
     align-items: center;
     margin-bottom: 14px;
+  }
+
+  .panel-header > div:not(.panel-actions) {
+    min-width: 0;
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-left: auto;
   }
 
   .brand-logo {
@@ -1468,6 +1579,7 @@ style.textContent = `
     align-items: center;
   }
 
+  .panel-icon-button,
   .theme-toggle-button {
     display: grid;
     width: 32px;
@@ -1481,6 +1593,8 @@ style.textContent = `
     cursor: pointer;
   }
 
+  .panel-icon-button:hover,
+  .panel-icon-button:focus-visible,
   .theme-toggle-button:hover,
   .theme-toggle-button:focus-visible {
     color: #111827;
@@ -1498,44 +1612,8 @@ style.textContent = `
     content: '\\263e';
   }
 
-  .page-toolbar {
-    position: fixed;
-    z-index: 50;
-    top: 12px;
-    right: 16px;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .page-toolbar-button {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    place-items: center;
-    color: #475569;
-    background: #ffffff;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .page-toolbar-button:hover,
-  .page-toolbar-button:focus-visible {
-    color: #111827;
-    background: #f1f5f9;
-    outline: 0;
-  }
-
   .language-menu-wrap {
     position: relative;
-  }
-
-  .language-toggle-button::after {
-    font-size: 14px;
-    font-weight: 700;
-    content: 'A';
   }
 
   .language-picker-menu {
@@ -1687,7 +1765,7 @@ style.textContent = `
     height: 100dvh;
     min-width: 0;
     overflow: hidden;
-    padding: 58px 20px 10px;
+    padding: 20px 20px 10px;
   }
 
   .message-stack {
@@ -2072,7 +2150,7 @@ style.textContent = `
     height: 30px;
     padding: 0;
     place-items: center;
-    color: #475569;
+    color: #64748b;
     background: transparent;
     border: 0;
     border-radius: 6px;
@@ -2081,8 +2159,8 @@ style.textContent = `
 
   .composer-tool-button:hover,
   .composer-tool-button:focus-visible {
-    color: #111827;
-    background: #eef2f7;
+    color: #0f172a;
+    background: #f1f5f9;
     outline: 0;
   }
 
@@ -2099,11 +2177,14 @@ style.textContent = `
     padding: 0;
     place-items: center;
     color: transparent;
+    font-size: 0;
+    line-height: 1;
     border-radius: 50%;
     cursor: pointer;
   }
 
   .send-button::after {
+    display: block;
     color: #ffffff;
     font-size: 20px;
     font-weight: 700;
@@ -2130,6 +2211,14 @@ style.textContent = `
     border: 1px solid #dbe1ea;
     border-radius: 12px;
     box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  }
+
+  .model-picker-group {
+    margin: 6px 6px 4px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
   }
 
   .model-picker-option {
@@ -2323,6 +2412,36 @@ style.textContent = `
     font-size: 14px;
   }
 
+  .version-block {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f1f4;
+  }
+
+  .version-row {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .status-github-link {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    text-decoration: none;
+  }
+
+  .status-github-link:hover,
+  .status-github-link:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
   @media (prefers-color-scheme: dark) {
     :root {
       color: #e5e7eb;
@@ -2423,6 +2542,13 @@ style.textContent = `
       border-color: #475569;
     }
 
+    .panel-icon-button,
+    .status-github-link {
+      color: #e5e7eb;
+      background: #273449;
+      border-color: #475569;
+    }
+
     .slash-command-option {
       color: #e5e7eb;
     }
@@ -2516,7 +2642,8 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-menu,
   :root[data-webui-theme='dark'] .model-picker-menu,
   :root[data-webui-theme='dark'] .theme-toggle-button,
-  :root[data-webui-theme='dark'] .page-toolbar-button,
+  :root[data-webui-theme='dark'] .panel-icon-button,
+  :root[data-webui-theme='dark'] .status-github-link,
   :root[data-webui-theme='dark'] .language-picker-menu {
     color: #e5e7eb;
     background: #273449;
@@ -2596,7 +2723,8 @@ style.textContent = `
   :root[data-webui-theme='light'] .slash-command-menu,
   :root[data-webui-theme='light'] .model-picker-menu,
   :root[data-webui-theme='light'] .theme-toggle-button,
-  :root[data-webui-theme='light'] .page-toolbar-button,
+  :root[data-webui-theme='light'] .panel-icon-button,
+  :root[data-webui-theme='light'] .status-github-link,
   :root[data-webui-theme='light'] .language-picker-menu {
     color: #1f2937;
     background: #ffffff;
@@ -2672,7 +2800,7 @@ style.textContent = `
       display: grid;
       width: 36px;
       height: 36px;
-      margin-left: auto;
+      margin-left: 0;
       padding: 0;
       place-items: center;
       color: #6b7280;
@@ -2703,12 +2831,7 @@ style.textContent = `
     .chat-stage {
       height: auto;
       min-height: 0;
-      padding: 52px 12px 8px;
-    }
-
-    .page-toolbar {
-      top: 8px;
-      right: 12px;
+      padding: 10px 12px 4px;
     }
 
     .chat-header {
@@ -2800,8 +2923,8 @@ style.textContent = `
     }
 
     .composer {
-      margin: 4px 0 max(4px, env(safe-area-inset-bottom));
-      padding: 6px;
+      margin: 2px 0 max(2px, env(safe-area-inset-bottom));
+      padding: 4px;
       background: #ffffff;
       border: 1px solid #dbe1ea;
       border-radius: 22px;
@@ -2827,7 +2950,7 @@ style.textContent = `
     }
 
     .chat-stage {
-      padding: 12px;
+      padding: 8px 10px 4px;
     }
 
     .message {
@@ -2866,25 +2989,6 @@ style.textContent = `
       padding: 6px 6px 8px;
     }
 
-    .composer-row .send-button {
-      display: grid;
-      width: 44px;
-      min-height: 44px;
-      height: 44px;
-      padding: 0;
-      place-items: center;
-      color: transparent;
-      background: #111827;
-      border-radius: 50%;
-    }
-
-    .composer-row .send-button::after {
-      content: '↑';
-      color: #ffffff;
-      font-size: 25px;
-      line-height: 1;
-    }
-
     .send-button {
       min-height: 0;
     }
@@ -2907,9 +3011,6 @@ style.textContent = `
         border-color: #475569;
       }
 
-      .composer-row textarea {
-        background: #1f2937;
-      }
     }
   }
   :root[data-webui-theme='dark'] .context-orb {
@@ -2926,7 +3027,8 @@ style.textContent = `
   }
 
   :root[data-webui-theme='light'] .mobile-sidebar-button,
-  :root[data-webui-theme='light'] .theme-toggle-button {
+  :root[data-webui-theme='light'] .theme-toggle-button,
+  :root[data-webui-theme='light'] .panel-icon-button {
     color: #374151;
     background: #ffffff;
     border-color: #d1d5db;
