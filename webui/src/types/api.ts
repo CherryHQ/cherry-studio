@@ -21,6 +21,15 @@ export type WebUiContextUsageResponse = {
   readonly usage: WebUiContextUsage | null
 }
 
+export type WebUiSlashCommand = {
+  readonly name: string
+  readonly description?: string
+}
+
+export type WebUiSlashCommandsResponse = {
+  readonly commands: readonly WebUiSlashCommand[]
+}
+
 export type WebUiMessageSnapshot = {
   readonly id: string
   readonly conversationId: string

@@ -10,6 +10,8 @@ import type {
   WebUiAuthStatusResponse,
   WebUiContextUsage,
   WebUiContextUsageResponse,
+  WebUiSlashCommand,
+  WebUiSlashCommandsResponse,
   WebUiAgentSessionMessageEntity,
   WebUiAgentSessionEntity,
   WebUiAgentEntity,
@@ -298,6 +300,7 @@ const App = defineComponent({
     const newConversationError = ref('')
     const selectedAgentId = ref('')
     const contextUsage = ref<WebUiContextUsage | null>(null)
+    const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const mobileSidebarOpen = ref(false)
     const messageStack = ref<HTMLElement>()
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
@@ -316,6 +319,13 @@ const App = defineComponent({
     const contextUsageLabel = computed(() => {
       if (contextUsagePercentage.value === undefined) return text('noContext')
       return `${text('context')}: ${contextUsagePercentage.value}%`
+    })
+    const slashCommandSuggestions = computed(() => {
+      const input = composerText.value.trimStart()
+      if (!input.startsWith('/')) return []
+
+      const query = input.slice(1).toLowerCase()
+      return slashCommands.value.filter((command) => command.name.toLowerCase().startsWith(query)).slice(0, 6)
     })
 
     const text = (key: TextKey) => {
@@ -443,6 +453,18 @@ const App = defineComponent({
         })
     }
 
+    const refreshSlashCommands = (conversationId = selectedConversationId.value) => {
+      if (!conversationId) return
+      void httpClient
+        .getJson<WebUiSlashCommandsResponse>(`/api/agent-sessions/${encodeURIComponent(conversationId)}/slash-commands`)
+        .then((response) => {
+          if (selectedConversationId.value === conversationId) slashCommands.value = response.commands
+        })
+        .catch(() => {
+          if (selectedConversationId.value === conversationId) slashCommands.value = []
+        })
+    }
+
     const selectConversation = (conversationId: string) => {
       if (conversationId === selectedConversationId.value) return
 
@@ -450,6 +472,7 @@ const App = defineComponent({
       mobileSidebarOpen.value = false
       void loadConversationMessages(conversationId)
       refreshComposerInfo(conversationId)
+      refreshSlashCommands(conversationId)
     }
 
     const openNewConversation = async () => {
@@ -592,6 +615,7 @@ const App = defineComponent({
         await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/messages`, { text })
         composerText.value = ''
         await loadConversationMessages(conversationId)
+        refreshSlashCommands(conversationId)
       } catch (error) {
         submitError.value = toErrorMessage(error)
         activeRunConversationId.value = undefined
@@ -661,7 +685,10 @@ const App = defineComponent({
     })
     const unsubscribeDone = sseClient.subscribe<{ conversationId?: string }>('done', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
-      if (data?.conversationId === selectedConversationId.value) refreshComposerInfo(data.conversationId)
+      if (data?.conversationId === selectedConversationId.value) {
+        refreshComposerInfo(data.conversationId)
+        refreshSlashCommands(data.conversationId)
+      }
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) {
@@ -906,6 +933,30 @@ const App = defineComponent({
                 }
               }
             }),
+            slashCommandSuggestions.value.length
+              ? h(
+                  'div',
+                  { class: 'slash-command-menu', role: 'listbox' },
+                  slashCommandSuggestions.value.map((command) =>
+                    h(
+                      'button',
+                      {
+                        class: 'slash-command-option',
+                        key: command.name,
+                        type: 'button',
+                        role: 'option',
+                        onClick: () => {
+                          composerText.value = `/${command.name} `
+                        }
+                      },
+                      [
+                        h('span', { class: 'slash-command-name' }, `/${command.name}`),
+                        command.description ? h('span', { class: 'slash-command-description' }, command.description) : undefined
+                      ]
+                    )
+                  )
+                )
+              : undefined,
             h(
               'button',
               {
@@ -1523,6 +1574,56 @@ style.textContent = `
     display: grid;
     gap: 12px;
     align-items: end;
+    position: relative;
+  }
+
+  .slash-command-menu {
+    position: absolute;
+    z-index: 5;
+    right: 52px;
+    bottom: calc(100% + 8px);
+    left: 0;
+    display: grid;
+    max-height: min(252px, 36dvh);
+    overflow-y: auto;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  }
+
+  .slash-command-option {
+    display: grid;
+    grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    text-align: left;
+    color: #1f2937;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .slash-command-option:hover,
+  .slash-command-option:focus-visible {
+    background: #eef2ff;
+    outline: 0;
+  }
+
+  .slash-command-name {
+    font: 600 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .slash-command-description {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   textarea,
@@ -1698,10 +1799,24 @@ style.textContent = `
     }
 
     .secondary-button,
-    .icon-button {
+    .icon-button,
+    .slash-command-menu {
       color: #e5e7eb;
       background: #273449;
       border-color: #475569;
+    }
+
+    .slash-command-option {
+      color: #e5e7eb;
+    }
+
+    .slash-command-option:hover,
+    .slash-command-option:focus-visible {
+      background: #334155;
+    }
+
+    .slash-command-description {
+      color: #94a3b8;
     }
 
     .mobile-sidebar-button {
@@ -1914,6 +2029,17 @@ style.textContent = `
       grid-template-columns: minmax(0, 1fr) 44px;
       gap: 8px;
       align-items: end;
+    }
+
+    .slash-command-menu {
+      right: 0;
+      bottom: calc(100% + 10px);
+      max-height: min(230px, 32dvh);
+    }
+
+    .slash-command-option {
+      grid-template-columns: 1fr;
+      gap: 2px;
     }
 
     .composer-row textarea {

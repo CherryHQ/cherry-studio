@@ -7,6 +7,7 @@ import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessi
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager/types'
 import { ApiServer } from '@main/data/api'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
@@ -90,6 +91,7 @@ const MAX_WEBUI_MESSAGE_CHARS = 40_000
 const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
 const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
 const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
+const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-commands$/
 const readableDataApiPatterns = [
   /^\/agents$/,
   /^\/agent-sessions$/,
@@ -269,6 +271,7 @@ export const createWebUiApiRouter = ({
     const sendMatch = pathname.match(sessionMessagePath)
     const abortMatch = pathname.match(sessionAbortPath)
     const contextUsageMatch = pathname.match(sessionContextUsagePath)
+    const slashCommandsMatch = pathname.match(sessionSlashCommandsPath)
 
     if (pathname === '/api/auth/status') {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -293,6 +296,16 @@ export const createWebUiApiRouter = ({
       // WebUI远程扩展，仅Win11启用，最小侵入
       const usage = application.get('CacheService').getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
       return { status: 200, body: { usage } }
+    }
+
+    if (slashCommandsMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      const encodedSessionId = slashCommandsMatch[1]
+      if (!encodedSessionId) return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+      const sessionId = decodeURIComponent(encodedSessionId)
+      // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+      const commands = application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+      return { status: 200, body: { commands } }
     }
 
     if (sendMatch) {
