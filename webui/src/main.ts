@@ -334,6 +334,13 @@ const App = defineComponent({
       if (contextUsagePercentage.value === undefined) return text('noContext')
       return `${text('context')}: ${contextUsagePercentage.value}%`
     })
+    const contextUsageTone = computed(() => {
+      const percentage = contextUsagePercentage.value
+      if (percentage === undefined) return 'empty'
+      if (percentage >= 90) return 'critical'
+      if (percentage >= 75) return 'warning'
+      return 'normal'
+    })
     const slashCommandSuggestions = computed(() => {
       const input = composerText.value.trimStart()
       if (modelPickerOpen.value || !input.startsWith('/')) return []
@@ -461,9 +468,10 @@ const App = defineComponent({
     }
 
     const loadModels = async () => {
-      const availableModels = await httpClient.getJson<readonly WebUiModel[]>('/api/data/models?enabled=true')
+      const availableModels = await httpClient.getJson<readonly WebUiModel[]>('/api/data/models')
       models.value = availableModels.filter(
         (model) =>
+          model.isEnabled &&
           !model.isHidden &&
           !model.capabilities.includes('embedding') &&
           !model.capabilities.includes('rerank') &&
@@ -887,7 +895,7 @@ const App = defineComponent({
               h(
                 'span',
                 {
-                  class: ['context-orb', { 'context-orb-empty': contextUsagePercentage.value === undefined }],
+                  class: ['context-orb', `context-orb-${contextUsageTone.value}`],
                   title: contextUsageLabel.value,
                   role: 'img',
                   'aria-label': contextUsageLabel.value,
@@ -972,36 +980,56 @@ const App = defineComponent({
             )
           ]),
           h('footer', { class: 'composer' }, [
-            h('div', { class: 'composer-row' }, [
+            h('div', { class: 'composer-surface' }, [
               h('textarea', {
-              disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
-              value: composerText.value,
-              placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
-              rows: 3,
-              onInput: (event: Event) => {
-                composerText.value = (event.target as HTMLTextAreaElement).value
-              },
-              onKeydown: (event: KeyboardEvent) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                  event.preventDefault()
-                  void submitMessage()
+                disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
+                value: composerText.value,
+                placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
+                rows: 3,
+                onInput: (event: Event) => {
+                  composerText.value = (event.target as HTMLTextAreaElement).value
+                },
+                onKeydown: (event: KeyboardEvent) => {
+                  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    void submitMessage()
+                  }
                 }
-              }
-            }),
-            h(
-              'button',
-              {
-                class: 'model-selector-button',
-                type: 'button',
-                disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
-                title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
-                'aria-expanded': modelPickerOpen.value,
-                onClick: () => {
-                  modelPickerOpen.value = !modelPickerOpen.value
-                }
-              },
-              modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
-            ),
+              }),
+              h('div', { class: 'composer-toolbar' }, [
+                h(
+                  'button',
+                  {
+                    class: 'model-selector-button',
+                    type: 'button',
+                    disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
+                    title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
+                    'aria-expanded': modelPickerOpen.value,
+                    onClick: () => {
+                      modelPickerOpen.value = !modelPickerOpen.value
+                    }
+                  },
+                  modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
+                ),
+                h(
+                  'button',
+                  {
+                    class: ['send-button', { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }],
+                    type: 'button',
+                    disabled: !selectedConversation.value || (!composerText.value.trim() && activeRunConversationId.value !== selectedConversationId.value),
+                    'aria-label': activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
+                    title: activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
+                    onClick: () => {
+                      if (activeRunConversationId.value === selectedConversationId.value) {
+                        void abortMessage()
+                        return
+                      }
+                      void submitMessage()
+                    }
+                  },
+                  activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
+                )
+              ]),
             modelPickerOpen.value
               ? h(
                   'div',
@@ -1049,22 +1077,6 @@ const App = defineComponent({
                   )
                 )
               : undefined,
-            h(
-              'button',
-              {
-                class: 'send-button',
-                type: 'button',
-                disabled: !selectedConversation.value || (!composerText.value.trim() && activeRunConversationId.value !== selectedConversationId.value),
-                onClick: () => {
-                  if (activeRunConversationId.value === selectedConversationId.value) {
-                    void abortMessage()
-                    return
-                  }
-                  void submitMessage()
-                }
-              },
-              activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
-              )
             ])
           ]),
           submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
@@ -1399,22 +1411,34 @@ style.textContent = `
 
   .context-orb {
     display: grid;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     flex: 0 0 auto;
     place-items: center;
     color: #334155;
-    font-size: 10px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
     font-weight: 700;
-    background: radial-gradient(circle at center, #ffffff 58%, transparent 60%),
-      conic-gradient(#22c55e var(--context-usage), #e2e8f0 0);
+    background: radial-gradient(circle at center, #ffffff 62%, transparent 64%),
+      conic-gradient(var(--context-color) var(--context-usage), #e2e8f0 0);
     border-radius: 50%;
+  }
+
+  .context-orb-normal {
+    --context-color: #22c55e;
+  }
+
+  .context-orb-warning {
+    --context-color: #f59e0b;
+  }
+
+  .context-orb-critical {
+    --context-color: #ef4444;
   }
 
   .context-orb-empty {
     color: #94a3b8;
-    background: radial-gradient(circle at center, #ffffff 58%, transparent 60%), #e2e8f0;
+    background: radial-gradient(circle at center, #ffffff 62%, transparent 64%), #e2e8f0;
   }
 
   .message {
@@ -1653,34 +1677,55 @@ style.textContent = `
   }
 
   .composer {
-    display: grid;
-    gap: 12px;
     margin-top: 12px;
     padding-top: 12px;
     background: #f6f7fb;
     border-top: 1px solid #e5e7eb;
   }
 
-  .composer-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    display: grid;
-    gap: 12px;
-    align-items: end;
+  .composer-surface {
     position: relative;
+    overflow: visible;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 18px;
+    box-shadow: 0 1px 5px rgb(15 23 42 / 5%);
   }
 
-  .composer-row textarea {
-    padding-bottom: 42px;
+  .composer-surface textarea {
+    display: block;
+    min-height: 100px;
+    padding: 14px 14px 8px;
+    resize: vertical;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    outline: 0;
+  }
+
+  .composer-toolbar {
+    display: flex;
+    min-height: 48px;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px 8px;
+  }
+
+  .composer-toolbar::before {
+    position: absolute;
+    right: 12px;
+    bottom: 48px;
+    left: 12px;
+    height: 1px;
+    content: '';
+    background: #f1f5f9;
   }
 
   .model-selector-button {
-    position: absolute;
-    z-index: 2;
-    bottom: 9px;
-    left: 10px;
-    max-width: calc(100% - 84px);
-    min-height: 26px;
-    padding: 0 9px;
+    min-width: 0;
+    max-width: min(70vw, 420px);
+    min-height: 30px;
+    padding: 0 10px;
     overflow: hidden;
     color: #475569;
     font-size: 12px;
@@ -1689,14 +1734,40 @@ style.textContent = `
     white-space: nowrap;
     background: #f1f5f9;
     border: 0;
-    border-radius: 13px;
+    border-radius: 15px;
     cursor: pointer;
+  }
+
+  .send-button {
+    display: grid;
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    height: 40px;
+    padding: 0;
+    place-items: center;
+    color: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .send-button::after {
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    content: '\\2191';
+  }
+
+  .send-button-is-stop::after {
+    font-size: 15px;
+    content: '\\25a0';
   }
 
   .model-picker-menu {
     position: absolute;
     z-index: 6;
-    right: 52px;
+    right: 8px;
     bottom: calc(100% + 8px);
     left: 0;
     display: grid;
@@ -1745,7 +1816,7 @@ style.textContent = `
   .slash-command-menu {
     position: absolute;
     z-index: 5;
-    right: 52px;
+    right: 8px;
     bottom: calc(100% + 8px);
     left: 0;
     display: grid;
@@ -1927,6 +1998,20 @@ style.textContent = `
       border-color: #374151;
     }
 
+    .composer-surface {
+      background: #1f2937;
+      border-color: #475569;
+      box-shadow: 0 1px 5px rgb(0 0 0 / 14%);
+    }
+
+    .composer-surface textarea {
+      background: #1f2937;
+    }
+
+    .composer-toolbar::before {
+      background: #334155;
+    }
+
     .conversation-item,
     .tool-call,
     .reasoning-block,
@@ -2012,12 +2097,12 @@ style.textContent = `
 
     .context-orb {
       color: #cbd5e1;
-      background: radial-gradient(circle at center, #111827 58%, transparent 60%),
-        conic-gradient(#4ade80 var(--context-usage), #475569 0);
+      background: radial-gradient(circle at center, #111827 62%, transparent 64%),
+        conic-gradient(var(--context-color) var(--context-usage), #475569 0);
     }
 
     .context-orb-empty {
-      background: radial-gradient(circle at center, #111827 58%, transparent 60%), #475569;
+      background: radial-gradient(circle at center, #111827 62%, transparent 64%), #475569;
     }
   }
 
@@ -2210,12 +2295,6 @@ style.textContent = `
       gap: 8px;
     }
 
-    .composer-row {
-      grid-template-columns: minmax(0, 1fr) 44px;
-      gap: 8px;
-      align-items: end;
-    }
-
     .slash-command-menu {
       right: 0;
       bottom: calc(100% + 10px);
@@ -2233,13 +2312,15 @@ style.textContent = `
       gap: 2px;
     }
 
-    .composer-row textarea {
+    .composer-surface textarea {
       min-height: 76px;
       max-height: 148px;
-      padding: 10px 12px 42px;
-      border: 0;
-      border-radius: 14px;
-      outline: 0;
+      padding: 10px 12px 8px;
+    }
+
+    .composer-toolbar {
+      min-height: 52px;
+      padding: 6px 6px 8px;
     }
 
     .composer-row .send-button {
