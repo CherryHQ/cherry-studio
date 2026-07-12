@@ -40,7 +40,8 @@ import {
   insertPreparedImageEntryTx,
   insertPreparedImageRefTx,
   prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
 } from './utils/logoMigration'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
@@ -410,16 +411,16 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedProviders = 0
     let processedModels = 0
 
+    const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
-      const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         // v1 stored custom provider logos in Dexie settings under
-        // `image://provider-{id}` (via ImageStorage) as a base64 data URL.
-        // Promote it to an on-disk WebP file_entry referenced by the logo ref
-        // row (the single source of truth); `logoKey` stays for preset/url refs
-        // only and is nulled for an uploaded logo.
+        // `image://provider-{id}` as a base64 data URL. Promote it to an on-disk
+        // WebP file_entry referenced by the logo ref row (the single source of
+        // truth); `logoKey` stays for a preset icon ref only (a provider logo is
+        // never a URL) and is nulled for an uploaded logo.
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
           ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
@@ -516,6 +517,8 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
+      // Unlink any logo WebP written before the tx failed — no orphans on retry.
+      await unlinkPreparedImages(providerLogoFiles)
       const phaseError = createPhaseError(
         `Provider/model execution failed after ${processedProviders} provider(s)`,
         error

@@ -21,7 +21,8 @@ import {
 import {
   insertPreparedImageEntryTx,
   prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
 } from './utils/logoMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
@@ -225,13 +226,11 @@ export class PreferencesMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
+    const avatarFiles: PreparedEntityImageFile[] = []
     try {
       const db = ctx.db
       const scope = 'default'
       const timestamp = Date.now()
-
-      // Use transaction for atomic insert
-      const avatarFiles: PreparedEntityImageFile[] = []
 
       // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
       // file_entry, then store a `file:<id>` ref instead of the raw base64. No
@@ -285,6 +284,8 @@ export class PreferencesMigrator extends BaseMigrator {
         processedCount: this.preparedItems.length
       }
     } catch (error) {
+      // Unlink any avatar WebP written before the tx failed — no orphan on retry.
+      await unlinkPreparedImages(avatarFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

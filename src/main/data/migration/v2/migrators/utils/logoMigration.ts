@@ -102,12 +102,16 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
       ref
     }
   } catch (error) {
-    logger.warn('Failed to persist v1 image file_entry; dropping it', {
-      sourceType: ref.sourceType,
-      sourceId: ref.sourceId,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return null
+    // Systemic persistence failure (ENOSPC / permission / disk) recurs for every
+    // subsequent image, so throw to fail the migration for a clean retry instead
+    // of silently dropping every logo + the avatar while reporting success. (A
+    // transcode failure above is a legitimate per-image drop; this is not.) The
+    // caller unlinks any already-prepared files on its failure path.
+    logger.error(
+      `Failed to persist v1 image (${ref.sourceType}/${ref.sourceId}); failing migration for retry`,
+      error as Error
+    )
+    throw error
   }
 }
 
@@ -117,14 +121,6 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
  */
 export function insertPreparedImageEntryTx(tx: Pick<DbType, 'insert'>, image: PreparedEntityImageFile): void {
   tx.insert(fileEntryTable).values(image.fileEntry).run()
-}
-
-export function insertPreparedImageFileTx(
-  tx: Pick<DbType, 'insert'>,
-  image: PreparedEntityImageFile<EntityImageRef>
-): void {
-  insertPreparedImageEntryTx(tx, image)
-  insertPreparedImageRefTx(tx, image)
 }
 
 /**
@@ -140,25 +136,11 @@ export function insertPreparedImageRefTx(
   insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
 }
 
-export async function migrateBase64ImageToFileEntry(
-  tx: Pick<DbType, 'insert'>,
-  filesDataDir: string,
-  ref: EntityImageRef,
-  value: string
-): Promise<FileEntryId | null> {
-  const image = await prepareBase64ImageFileEntry(filesDataDir, ref, value)
-  if (!image) return null
-
-  try {
-    insertPreparedImageFileTx(tx, image)
-    return image.id
-  } catch (error) {
-    await fs.unlink(image.physicalPath).catch(() => {})
-    logger.warn('Failed to persist v1 image file_entry; dropping it', {
-      sourceType: ref.sourceType,
-      sourceId: ref.sourceId,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return null
-  }
+/**
+ * Best-effort cleanup of prepared physical image files. A migrator writes the
+ * WebP to disk before its SQLite transaction; call this on the failure path so a
+ * rolled-back (or never-run) transaction leaves no orphan file behind.
+ */
+export async function unlinkPreparedImages(images: readonly PreparedEntityImageFile[]): Promise<void> {
+  await Promise.all(images.map((image) => fs.unlink(image.physicalPath).catch(() => {})))
 }

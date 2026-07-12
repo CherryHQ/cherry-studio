@@ -21,7 +21,8 @@ import {
   insertPreparedImageEntryTx,
   insertPreparedImageRefTx,
   prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
 } from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
@@ -191,11 +192,11 @@ export class MiniAppMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
+    const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
       let processed = 0
 
       const BATCH_SIZE = 100
-      const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
 
       // Promote any base64 data-URL logo to an on-disk WebP file_entry + logo
       // ref row (the single source of truth); base64 never stays on logoKey,
@@ -240,6 +241,9 @@ export class MiniAppMigrator extends BaseMigrator {
 
       return { success: true, processedCount: processed }
     } catch (error) {
+      // The WebP files are written before the tx; unlink them so a rolled-back
+      // transaction leaves no orphans behind for the retry.
+      await unlinkPreparedImages(logoFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,
