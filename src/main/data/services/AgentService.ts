@@ -69,6 +69,17 @@ function buildAgentSearchPredicate(search: string): SQL {
   return or(nameMatch, descriptionMatch, builtinDescriptionMatch)!
 }
 
+/**
+ * `builtin_role` is a capability identity, not user data: it drives the system prompt, bundle
+ * provisioning, settings-source isolation, Assistant MCP injection, and tool auto-approval. It is
+ * server-owned — only internal seeding (`createAgentTx`) may write it; the public DataApi surface
+ * must not let an ordinary agent forge, change, or drop it.
+ */
+function getBuiltinRole(configuration: unknown): unknown {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  return (configuration as { builtin_role?: unknown }).builtin_role
+}
+
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -135,6 +146,13 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   createAgent(req: CreateAgentDto): AgentEntity {
+    // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
+    if (getBuiltinRole(req.configuration) !== undefined) {
+      throw DataApiErrorFactory.invalidOperation(
+        'create agent',
+        'configuration.builtin_role is reserved for system agents'
+      )
+    }
     const id = uuidv4()
     const mcps = req.mcps ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -344,6 +362,23 @@ export class AgentService {
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
     const existing = this.getAgent(id)
     if (!existing) return null
+
+    // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
+    // Forging or changing it is rejected; omitting it re-injects the stored value so a whole-blob
+    // configuration update cannot strip the identity either.
+    if (updates.configuration !== undefined) {
+      const existingRole = getBuiltinRole(existing.configuration)
+      const incomingRole = getBuiltinRole(updates.configuration)
+      if (incomingRole !== undefined && incomingRole !== existingRole) {
+        throw DataApiErrorFactory.invalidOperation(
+          'update agent',
+          'configuration.builtin_role is reserved for system agents'
+        )
+      }
+      if (existingRole !== undefined && incomingRole === undefined) {
+        updates = { ...updates, configuration: { ...updates.configuration, builtin_role: existingRole } }
+      }
+    }
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()

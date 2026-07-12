@@ -206,6 +206,70 @@ describe('AgentService', () => {
     })
   })
 
+  describe('builtin_role write protection', () => {
+    it('rejects createAgent when configuration carries a builtin_role', async () => {
+      const error = captureError(() =>
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Forged Assistant',
+          model: TEST_MODEL_ID,
+          configuration: { builtin_role: 'assistant' }
+        })
+      )
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('builtin_role')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Assistant'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { configuration: { builtin_role: 'assistant' } })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(created.id)?.configuration?.builtin_role).toBeUndefined()
+    })
+
+    it('rejects updateAgent changing an existing builtin_role', async () => {
+      // Seed through the internal tx path, as the Cherry Assistant seeder does.
+      const agentId = 'agent_builtin_change'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
+    })
+
+    it('preserves the builtin_role when an update omits it from configuration', async () => {
+      const agentId = 'agent_builtin_preserve'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+
+      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🅰️')
+    })
+
+    it('accepts an update that carries the existing builtin_role unchanged', async () => {
+      const agentId = 'agent_builtin_roundtrip'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const updated = agentService.updateAgent(agentId, {
+        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+      })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🍒')
+    })
+  })
+
   describe('disabledTools round-trip', () => {
     it('persists disabledTools on create and update', async () => {
       const created = agentService.createAgent({
