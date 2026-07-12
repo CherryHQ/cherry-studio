@@ -321,6 +321,20 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
   })
 
+  it('treats an unrecorded runtime dependency as installed, never offering install', async () => {
+    // Fresh installs leave runtime deps out of the state file (mise ls only),
+    // so resolution comes back 'none' — the card must still read as installed.
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1' }])
+    render(<EnvironmentDependencies />)
+
+    // Name and tool spec are both the bare string 'node' — grab the card once.
+    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('v22.23.1')
+    expect(card).toHaveTextContent('settings.dependencies.runtimeDependency')
+    expect(card).not.toHaveTextContent('settings.mcp.install')
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
   it('rejects adding a tool that already exists in the inventory', async () => {
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])

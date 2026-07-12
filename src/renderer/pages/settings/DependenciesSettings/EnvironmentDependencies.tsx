@@ -362,10 +362,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         })}
         {extraTools.map((tool) => {
           const resolution = resolutions[tool.name] ?? { source: 'none' as const }
-          const managed = resolution.source === 'managed'
-          const systemPath = resolution.source === 'system' ? resolution.path : undefined
+          // Runtime deps come from the live mise inventory but may have no
+          // state-file record, so resolution can miss them — they are installed
+          // by construction and must never offer the install action.
+          const runtime = isRuntimeDependency(tool.tool)
+          const managed = resolution.source === 'managed' || runtime
+          const systemPath = !runtime && resolution.source === 'system' ? resolution.path : undefined
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
-          const installedVersion = managed ? resolution.version : undefined
+          const installedVersion =
+            resolution.source === 'managed' ? resolution.version : runtime ? tool.version || undefined : undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
           const installState = installStates[tool.name]
@@ -373,7 +378,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             <CustomToolCard
               key={tool.name}
               tool={tool}
-              runtime={isRuntimeDependency(tool.tool)}
+              runtime={runtime}
               managed={managed}
               systemPath={systemPath}
               installedVersion={installedVersion}
