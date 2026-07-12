@@ -12,6 +12,7 @@ import { application } from '@application'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -417,10 +418,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of this.providers) {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         // v1 stored custom provider logos in Dexie settings under
-        // `image://provider-{id}` as a base64 data URL. Promote it to an on-disk
-        // WebP file_entry referenced by the logo ref row (the single source of
-        // truth); `logoKey` stays for a preset icon ref only (a provider logo is
-        // never a URL) and is nulled for an uploaded logo.
+        // `image://provider-{id}` — either a base64 data URL (an uploaded logo) or a
+        // built-in icon ref (`icon:<id>`) from ProviderLogoPicker, under the same key.
+        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo
+        // ref row (the single source of truth, logoKey nulled); an icon ref is kept
+        // verbatim on logoKey (mirrors MiniAppMappings) — dropping it would silently
+        // lose the user's icon choice. A provider logo is never a URL.
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
           ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
@@ -428,6 +431,8 @@ export class ProviderModelMigrator extends BaseMigrator {
         if (logoFile) {
           providerLogoFiles.push(logoFile)
           providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        } else if (logo && !logo.startsWith('data:')) {
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo })
         } else {
           providerRowsWithoutOrderKey.push(row)
         }
@@ -505,6 +510,11 @@ export class ProviderModelMigrator extends BaseMigrator {
           tx.insert(pinTable).values(pinRows).onConflictDoNothing().run()
         }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // user_provider) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [providerLogoFileRefTable])
 
       logger.info('Execute completed', {
         processedProviders,

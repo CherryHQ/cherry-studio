@@ -491,6 +491,35 @@ describe('ProviderModelMigrator', () => {
       expect(noLogoRefs).toHaveLength(0)
     })
 
+    it('preserves a v1 built-in provider icon ref (icon:<id>) on logoKey', async () => {
+      // v1 stores a picked built-in icon as `icon:<id>` under the same
+      // `image://provider-*` key an uploaded logo uses; it must survive migration,
+      // not be dropped (the non-data branch used to lose it).
+      const migrationContext = createContext(
+        dbh.db,
+        { llm: { providers: [makeProvider('with-icon')] } },
+        { 'image://provider-with-icon': 'icon:openai' },
+        ''
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [provider] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'with-icon'))
+      expect(provider.logoKey).toBe('icon:openai')
+
+      // A non-data value is kept on logoKey verbatim — no file_entry, no ref row.
+      const refs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'with-icon'))
+      expect(refs).toHaveLength(0)
+    })
+
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
       // aihubmix's anthropic-messages endpoint routes through adapterFamily
       // 'aihubmix' (vendor-specific multi-provider relay), which is strictly

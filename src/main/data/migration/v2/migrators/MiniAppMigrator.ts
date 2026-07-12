@@ -4,6 +4,7 @@
 
 import fs from 'node:fs/promises'
 
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import type { InsertMiniAppRow, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
@@ -231,6 +232,11 @@ export class MiniAppMigrator extends BaseMigrator {
           insertPreparedImageRefTx(tx, logoFile)
         }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // mini_app) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [miniAppLogoFileRefTable])
 
       this.reportProgress(100, `Migrated ${processed} miniApps`, {
         key: 'migration.progress.migrated_miniapps',
