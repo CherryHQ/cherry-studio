@@ -23,7 +23,7 @@ import {
   type PrimaryKeyFact
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
-import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributor-knowledge'
+import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributorKnowledge'
 import { describe, expect, it } from 'vitest'
 
 import { ContributorFinalizeError } from '../ContributorFinalizeError'
@@ -444,7 +444,7 @@ describe('finalize invariants', () => {
         ? {
             ...c,
             schema: { ...c.schema, aggregates: [{ root: 'preference' as DbTableName, renamable: true }] },
-            operations: { cloneAggregate: async () => ({ rootRow: {} }) }
+            operations: { cloneAggregate: () => ({ rootRow: {} }) }
           }
         : c
     )
@@ -458,7 +458,7 @@ describe('finalize invariants', () => {
         ? {
             ...c,
             schema: { ...c.schema, aggregates: [{ root: 'prompt' as DbTableName, renamable: true }] },
-            operations: { cloneAggregate: async () => ({ rootRow: {} }) }
+            operations: { cloneAggregate: () => ({ rootRow: {} }) }
           }
         : c
     )
