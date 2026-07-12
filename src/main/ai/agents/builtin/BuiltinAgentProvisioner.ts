@@ -60,9 +60,11 @@ function copyDirSync(src: string, dest: string): void {
   }
 }
 
+// No `description` here: the builtin agent's display/search description is owned by i18n
+// (`agent.builtin.cherry_assistant.description`), not the bundle — a bundle copy would be a
+// drift-prone second source of truth.
 export interface BuiltinAgentConfig {
   name?: string
-  description?: string
   instructions?: string
   configuration?: Record<string, unknown>
 }
@@ -81,7 +83,6 @@ export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentCon
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
     return {
       name: agentConfig.name,
-      description: resolveLocalizedField(agentConfig.description),
       instructions: resolveLocalizedField(agentConfig.instructions),
       configuration: agentConfig.configuration
     } as BuiltinAgentConfig
