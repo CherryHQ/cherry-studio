@@ -1,4 +1,5 @@
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type ReactType from 'react'
@@ -125,7 +126,7 @@ vi.mock('@renderer/utils/naming', () => ({
 
 // Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
 vi.mock('@renderer/utils/image', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/utils/image')>()),
+  ...(await importOriginal<typeof ImageUtils>()),
   prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
