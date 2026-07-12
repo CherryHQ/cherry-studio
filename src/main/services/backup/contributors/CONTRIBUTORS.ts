@@ -11,20 +11,20 @@
 // PAINTINGS, MINIAPPS, TOPICS, AGENTS (Wave 2). Finalize invariant #1
 // (registry.length === 14) is satisfied.
 
-import { PREFERENCES_CONTRIBUTOR } from '@main/data/backupContributor-preferences'
+import { PREFERENCES_CONTRIBUTOR } from '@main/data/backupContributorPreferences'
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
-import { AGENTS_CONTRIBUTOR } from '@main/data/services/backupContributor-agents'
-import { ASSISTANTS_CONTRIBUTOR } from '@main/data/services/backupContributor-assistants'
-import { FILE_STORAGE_CONTRIBUTOR } from '@main/data/services/backupContributor-file-storage'
-import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributor-knowledge'
-import { MCP_SERVERS_CONTRIBUTOR } from '@main/data/services/backupContributor-mcp-servers'
-import { MINIAPPS_CONTRIBUTOR } from '@main/data/services/backupContributor-miniapps'
-import { PAINTINGS_CONTRIBUTOR } from '@main/data/services/backupContributor-paintings'
-import { PROMPTS_CONTRIBUTOR } from '@main/data/services/backupContributor-prompts'
-import { PROVIDERS_CONTRIBUTOR } from '@main/data/services/backupContributor-providers'
-import { SKILLS_CONTRIBUTOR } from '@main/data/services/backupContributor-skills'
-import { TAGS_GROUPS_CONTRIBUTOR } from '@main/data/services/backupContributor-tags-groups'
-import { TOPICS_CONTRIBUTOR } from '@main/data/services/backupContributor-topics'
+import { AGENTS_CONTRIBUTOR } from '@main/data/services/backupContributorAgents'
+import { ASSISTANTS_CONTRIBUTOR } from '@main/data/services/backupContributorAssistants'
+import { FILE_STORAGE_CONTRIBUTOR } from '@main/data/services/backupContributorFileStorage'
+import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributorKnowledge'
+import { MCP_SERVERS_CONTRIBUTOR } from '@main/data/services/backupContributorMcpServers'
+import { MINIAPPS_CONTRIBUTOR } from '@main/data/services/backupContributorMiniapps'
+import { PAINTINGS_CONTRIBUTOR } from '@main/data/services/backupContributorPaintings'
+import { PROMPTS_CONTRIBUTOR } from '@main/data/services/backupContributorPrompts'
+import { PROVIDERS_CONTRIBUTOR } from '@main/data/services/backupContributorProviders'
+import { SKILLS_CONTRIBUTOR } from '@main/data/services/backupContributorSkills'
+import { TAGS_GROUPS_CONTRIBUTOR } from '@main/data/services/backupContributorTagsGroups'
+import { TOPICS_CONTRIBUTOR } from '@main/data/services/backupContributorTopics'
 import { TRANSLATE_HISTORY_CONTRIBUTOR } from '@main/services/translate/backupContributor'
 
 // Re-export the domain contributor constants so consumers can reach an individual

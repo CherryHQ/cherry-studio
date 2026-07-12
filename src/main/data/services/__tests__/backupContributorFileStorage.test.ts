@@ -5,7 +5,7 @@ import { fileEntryTable } from '@main/data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { collectFileEntryIds, FILE_STORAGE_CONTRIBUTOR } from '../backupContributor-file-storage'
+import { collectFileEntryIds, FILE_STORAGE_CONTRIBUTOR } from '../backupContributorFileStorage'
 
 describe('FILE_STORAGE contributor', () => {
   it('owns file_entry only (post-#16532 file_ref split moved junctions to source domains)', () => {

@@ -5,7 +5,7 @@ import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { collectKnowledgeBaseIds, KNOWLEDGE_CONTRIBUTOR } from '../backupContributor-knowledge'
+import { collectKnowledgeBaseIds, KNOWLEDGE_CONTRIBUTOR } from '../backupContributorKnowledge'
 
 describe('KNOWLEDGE contributor', () => {
   it('owns knowledge_base + knowledge_item', () => {

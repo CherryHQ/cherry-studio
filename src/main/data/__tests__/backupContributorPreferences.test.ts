@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { PREFERENCES_CONTRIBUTOR } from '../backupContributor-preferences'
+import { PREFERENCES_CONTRIBUTOR } from '../backupContributorPreferences'
 
 describe('PREFERENCES contributor', () => {
   it('owns preference + note', () => {

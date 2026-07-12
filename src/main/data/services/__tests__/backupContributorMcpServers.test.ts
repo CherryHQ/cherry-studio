@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { MCP_SERVERS_CONTRIBUTOR } from '../backupContributor-mcp-servers'
+import { MCP_SERVERS_CONTRIBUTOR } from '../backupContributorMcpServers'
 
 describe('MCP_SERVERS contributor', () => {
   it('owns exactly the mcp_server table', () => {

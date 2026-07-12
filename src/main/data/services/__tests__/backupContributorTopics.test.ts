@@ -9,7 +9,7 @@ import { topicTable } from '@main/data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { collectChatMessageFileIds, TOPICS_CONTRIBUTOR } from '../backupContributor-topics'
+import { collectChatMessageFileIds, TOPICS_CONTRIBUTOR } from '../backupContributorTopics'
 
 describe('TOPICS contributor', () => {
   it('owns topic + message + chat_message_file_ref', () => {

@@ -2,7 +2,7 @@
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { AGENTS_CONTRIBUTOR } from '../backupContributor-agents'
+import { AGENTS_CONTRIBUTOR } from '../backupContributorAgents'
 
 describe('AGENTS contributor', () => {
   it('owns the 9 agent tables (8 graph tables + job_schedule row-scope)', () => {

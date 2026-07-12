@@ -3,7 +3,7 @@ import type { CloneAggregateContext } from '@main/data/db/backup/contributorType
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { describe, expect, it } from 'vitest'
 
-import { ASSISTANTS_CONTRIBUTOR } from '../backupContributor-assistants'
+import { ASSISTANTS_CONTRIBUTOR } from '../backupContributorAssistants'
 
 describe('ASSISTANTS contributor', () => {
   it('owns assistant + assistant_mcp_server + assistant_knowledge_base', () => {
