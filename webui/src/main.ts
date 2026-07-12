@@ -36,6 +36,12 @@ type WebuiStatus = {
 
 const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
+const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
+const webUiLanguages = [
+  { id: 'en-US', label: 'English' },
+  { id: 'zh-CN', label: '中文' },
+  { id: 'zh-TW', label: '繁體中文' }
+] as const
 
 const normalizeLanguage = (language?: string | null) => {
   if (!language) return fallbackLanguage
@@ -66,6 +72,7 @@ const textPacks = {
     authKey: 'Access key',
     authTitle: 'WebUI verification',
     bridgeStatus: 'Bridge status',
+    changeLanguage: 'Change language',
     cancel: 'Cancel',
     checkingBridge: 'Checking desktop bridge',
     close: 'Close',
@@ -78,6 +85,7 @@ const textPacks = {
     disconnected: 'Desktop bridge unavailable',
     emptyConversation: 'This desktop conversation has no messages yet.',
     generating: 'Generating',
+    githubProject: 'Open project repository',
     invalidKey: 'Invalid access key',
     loadingConversations: 'Loading conversations',
     loadingMessages: 'Loading desktop messages',
@@ -112,6 +120,7 @@ const textPacks = {
     authKey: '访问 KEY',
     authTitle: 'WebUI 安全验证',
     bridgeStatus: '连接状态',
+    changeLanguage: '切换语言',
     cancel: '取消',
     checkingBridge: '正在检查桌面桥接服务',
     close: '关闭',
@@ -124,6 +133,7 @@ const textPacks = {
     disconnected: '桌面桥接不可用',
     emptyConversation: '此桌面会话暂无消息。',
     generating: '生成中',
+    githubProject: '打开项目仓库',
     invalidKey: '访问 KEY 无效',
     loadingConversations: '正在加载会话',
     loadingMessages: '正在加载桌面消息',
@@ -158,6 +168,7 @@ const textPacks = {
     authKey: '存取 KEY',
     authTitle: 'WebUI 安全驗證',
     bridgeStatus: '連線狀態',
+    changeLanguage: '切換語言',
     cancel: '取消',
     checkingBridge: '正在檢查桌面橋接服務',
     close: '關閉',
@@ -170,6 +181,7 @@ const textPacks = {
     disconnected: '桌面橋接不可用',
     emptyConversation: '此桌面會話尚無訊息。',
     generating: '生成中',
+    githubProject: '開啟專案倉庫',
     invalidKey: '存取 KEY 無效',
     loadingConversations: '正在載入會話',
     loadingMessages: '正在載入桌面訊息',
@@ -344,6 +356,8 @@ const App = defineComponent({
     const { activeRunConversationId, conversations, messages, selectedConversationId } = storeToRefs(chatStore)
     const bridgeState = ref<'checking' | 'connected' | 'offline'>('checking')
     const language = ref(normalizeLanguage(navigator.language))
+    const languageOverride = ref(false)
+    const languagePickerOpen = ref(false)
     const authRequired = ref(false)
     const isAuthenticated = ref(true)
     const authKeyDraft = ref('')
@@ -423,6 +437,13 @@ const App = defineComponent({
       return pack[key] ?? textPacks[fallbackLanguage][key]
     }
 
+    const selectLanguage = (nextLanguage: (typeof webUiLanguages)[number]['id']) => {
+      language.value = nextLanguage
+      languageOverride.value = true
+      languagePickerOpen.value = false
+      bridgeDetail.value = bridgeState.value === 'connected' ? text('connected') : text('disconnected')
+    }
+
     const statusItems = computed<readonly WebuiStatus[]>(() => [
       {
         label: text('runtime'),
@@ -441,7 +462,7 @@ const App = defineComponent({
     const refreshHealth = async () => {
       try {
         const health = await httpClient.getJson<WebUiHealthResponse>('/api/health')
-        language.value = normalizeLanguage(health.language)
+        if (!languageOverride.value) language.value = normalizeLanguage(health.language)
         bridgeState.value = health.ok ? 'connected' : 'offline'
         bridgeDetail.value = health.ok ? text('connected') : text('disconnected')
         serviceStartedAt.value = new Date(health.startedAt).toLocaleString()
@@ -779,7 +800,7 @@ const App = defineComponent({
     const loadAuthStatus = async () => {
       try {
         const status = await httpClient.getJson<WebUiAuthStatusResponse>('/api/auth/status')
-        language.value = normalizeLanguage(status.language)
+        if (!languageOverride.value) language.value = normalizeLanguage(status.language)
         userName.value = status.userName?.trim() ?? ''
         authRequired.value = status.authRequired
         isAuthenticated.value = !status.authRequired
@@ -888,6 +909,70 @@ const App = defineComponent({
           ])
         :
       h('main', { class: 'webui-shell' }, [
+        h('nav', { class: 'page-toolbar', 'aria-label': 'WebUI controls' }, [
+          h(
+            'a',
+            {
+              class: 'page-toolbar-button github-button',
+              href: projectRepositoryUrl,
+              target: '_blank',
+              rel: 'noreferrer',
+              title: text('githubProject'),
+              'aria-label': text('githubProject')
+            },
+            h(
+              'svg',
+              {
+                width: 18,
+                height: 18,
+                viewBox: '0 0 24 24',
+                fill: 'currentColor',
+                'aria-hidden': 'true'
+              },
+              h('path', {
+                d: 'M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.19-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.15-4.56-5.12 0-1.13.39-2.05 1.03-2.78-.1-.26-.45-1.32.1-2.75 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.86c.85 0 1.7.12 2.5.35 1.91-1.34 2.75-1.06 2.75-1.06.55 1.43.2 2.49.1 2.75.64.73 1.03 1.65 1.03 2.78 0 3.98-2.34 4.86-4.57 5.11.36.32.68.93.68 1.88 0 1.36-.01 2.45-.01 2.78 0 .27.18.59.69.49A10.23 10.23 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z'
+              })
+            )
+          ),
+          h('div', { class: 'language-menu-wrap' }, [
+            h('button', {
+              class: 'page-toolbar-button language-toggle-button',
+              type: 'button',
+              title: text('changeLanguage'),
+              'aria-label': text('changeLanguage'),
+              'aria-expanded': languagePickerOpen.value,
+              onClick: () => {
+                languagePickerOpen.value = !languagePickerOpen.value
+              }
+            }),
+            languagePickerOpen.value
+              ? h(
+                  'div',
+                  { class: 'language-picker-menu', role: 'menu' },
+                  webUiLanguages.map((item) =>
+                    h(
+                      'button',
+                      {
+                        class: ['language-picker-option', { 'language-picker-option-selected': language.value === item.id }],
+                        type: 'button',
+                        role: 'menuitemradio',
+                        'aria-checked': language.value === item.id,
+                        onClick: () => selectLanguage(item.id)
+                      },
+                      item.label
+                    )
+                  )
+                )
+              : undefined
+          ]),
+          h('button', {
+            class: ['page-toolbar-button', 'theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
+            type: 'button',
+            title: themeToggleLabel.value,
+            'aria-label': themeToggleLabel.value,
+            onClick: toggleThemeMode
+          })
+        ]),
         mobileSidebarOpen.value
           ? h('button', {
               class: 'mobile-sidebar-backdrop',
@@ -981,13 +1066,6 @@ const App = defineComponent({
               h('h2', selectedConversation.value?.title ?? text('selectConversation'))
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
-              h('button', {
-                class: ['theme-toggle-button', `theme-toggle-button-${themeMode.value}`],
-                type: 'button',
-                title: themeToggleLabel.value,
-                'aria-label': themeToggleLabel.value,
-                onClick: toggleThemeMode
-              }),
               h(
                 'span',
                 {
@@ -1361,6 +1439,7 @@ style.textContent = `
 
   .status-panel {
     overflow-y: auto;
+    padding-top: 58px;
     border-left: 1px solid #e5e7eb;
   }
 
@@ -1417,6 +1496,77 @@ style.textContent = `
 
   .theme-toggle-button-dark::after {
     content: '\\263e';
+  }
+
+  .page-toolbar {
+    position: fixed;
+    z-index: 50;
+    top: 12px;
+    right: 16px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .page-toolbar-button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .page-toolbar-button:hover,
+  .page-toolbar-button:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .language-menu-wrap {
+    position: relative;
+  }
+
+  .language-toggle-button::after {
+    font-size: 14px;
+    font-weight: 700;
+    content: 'A';
+  }
+
+  .language-picker-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    display: grid;
+    min-width: 112px;
+    padding: 4px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 10px 24px rgb(15 23 42 / 14%);
+  }
+
+  .language-picker-option {
+    padding: 7px 8px;
+    color: #1f2937;
+    font-size: 13px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .language-picker-option:hover,
+  .language-picker-option:focus-visible,
+  .language-picker-option-selected {
+    background: #eef2ff;
+    outline: 0;
   }
 
   .eyebrow {
@@ -1537,7 +1687,7 @@ style.textContent = `
     height: 100dvh;
     min-width: 0;
     overflow: hidden;
-    padding: 14px 20px 10px;
+    padding: 58px 20px 10px;
   }
 
   .message-stack {
@@ -2365,7 +2515,9 @@ style.textContent = `
   :root[data-webui-theme='dark'] .icon-button,
   :root[data-webui-theme='dark'] .slash-command-menu,
   :root[data-webui-theme='dark'] .model-picker-menu,
-  :root[data-webui-theme='dark'] .theme-toggle-button {
+  :root[data-webui-theme='dark'] .theme-toggle-button,
+  :root[data-webui-theme='dark'] .page-toolbar-button,
+  :root[data-webui-theme='dark'] .language-picker-menu {
     color: #e5e7eb;
     background: #273449;
     border-color: #475569;
@@ -2393,6 +2545,15 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-description,
   :root[data-webui-theme='dark'] .model-picker-provider {
     color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .language-picker-option {
+    color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='dark'] .language-picker-option:hover,
+  :root[data-webui-theme='dark'] .language-picker-option-selected {
+    background: #334155;
   }
 
   :root[data-webui-theme='light'] {
@@ -2434,7 +2595,9 @@ style.textContent = `
   :root[data-webui-theme='light'] .icon-button,
   :root[data-webui-theme='light'] .slash-command-menu,
   :root[data-webui-theme='light'] .model-picker-menu,
-  :root[data-webui-theme='light'] .theme-toggle-button {
+  :root[data-webui-theme='light'] .theme-toggle-button,
+  :root[data-webui-theme='light'] .page-toolbar-button,
+  :root[data-webui-theme='light'] .language-picker-menu {
     color: #1f2937;
     background: #ffffff;
     border-color: #d1d5db;
@@ -2540,7 +2703,12 @@ style.textContent = `
     .chat-stage {
       height: auto;
       min-height: 0;
-      padding: 8px 12px;
+      padding: 52px 12px 8px;
+    }
+
+    .page-toolbar {
+      top: 8px;
+      right: 12px;
     }
 
     .chat-header {
