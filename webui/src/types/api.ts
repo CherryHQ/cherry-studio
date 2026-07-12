@@ -122,6 +122,15 @@ export type WebUiAgentEntity = {
   readonly modelName: string | null
 }
 
+export type WebUiModel = {
+  readonly id: string
+  readonly name: string
+  readonly providerId: string
+  readonly isEnabled: boolean
+  readonly isHidden: boolean
+  readonly capabilities: readonly string[]
+}
+
 export type WebUiAgentSessionEntity = {
   readonly id: string
   readonly name: string

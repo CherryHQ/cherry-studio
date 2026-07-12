@@ -6,11 +6,15 @@ import { application } from '@application'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager/types'
 import { ApiServer } from '@main/data/api'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentService } from '@data/services/AgentService'
+import { modelService } from '@data/services/ModelService'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
+import { isNonChatModel } from '@shared/utils/model'
 import type { UIMessageChunk } from 'ai'
 
 import type { WebUiSseRelay } from './sseRelay'
@@ -33,6 +37,10 @@ type WebUiApiRouteResult = {
 
 type WebUiSendMessageBody = {
   readonly text: string
+}
+
+type WebUiUpdateSessionModelBody = {
+  readonly model: UniqueModelId
 }
 
 const jsonHeaders = {
@@ -92,8 +100,10 @@ const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
 const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
 const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
 const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-commands$/
+const sessionModelPath = /^\/api\/agent-sessions\/([^/]+)\/model$/
 const readableDataApiPatterns = [
   /^\/agents$/,
+  /^\/models$/,
   /^\/agent-sessions$/,
   /^\/agent-sessions\/latest$/,
   /^\/agent-sessions\/[^/]+$/,
@@ -135,6 +145,13 @@ const parseSendMessageBody = (value: unknown): WebUiSendMessageBody | undefined 
   const text = (value as { text: string }).text.trim()
   if (!text || text.length > MAX_WEBUI_MESSAGE_CHARS) return undefined
   return { text }
+}
+
+const parseUpdateSessionModelBody = (value: unknown): WebUiUpdateSessionModelBody | undefined => {
+  if (!value || typeof value !== 'object' || typeof (value as { model?: unknown }).model !== 'string') return undefined
+
+  const model = (value as { model: string }).model
+  return isUniqueModelId(model) ? { model } : undefined
 }
 
 class WebUiStreamListener implements StreamListener {
@@ -272,6 +289,7 @@ export const createWebUiApiRouter = ({
     const abortMatch = pathname.match(sessionAbortPath)
     const contextUsageMatch = pathname.match(sessionContextUsagePath)
     const slashCommandsMatch = pathname.match(sessionSlashCommandsPath)
+    const sessionModelMatch = pathname.match(sessionModelPath)
 
     if (pathname === '/api/auth/status') {
       if (method !== 'GET') return methodNotAllowed(['GET'])
@@ -308,6 +326,36 @@ export const createWebUiApiRouter = ({
       // WebUI 远程扩展，仅 Win11 启用，最小侵入。
       const commands = application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
       return { status: 200, body: { commands } }
+    }
+
+    if (sessionModelMatch) {
+      if (method !== 'PATCH') return methodNotAllowed(['PATCH'])
+
+      try {
+        const body = parseUpdateSessionModelBody(await readJsonBody(request))
+        if (!body) return { status: 400, body: { code: 'WEBUI_INVALID_MODEL', message: 'A valid model id is required' } }
+
+        const encodedSessionId = sessionModelMatch[1]
+        if (!encodedSessionId) return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        if (!session.agentId) return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
+
+        const model = modelService.list({ enabled: true }).find((candidate) => candidate.id === body.model)
+        if (!model || model.isHidden || isNonChatModel(model)) {
+          return { status: 422, body: { code: 'WEBUI_MODEL_UNAVAILABLE', message: 'The selected desktop model is unavailable for this Agent' } }
+        }
+
+        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        const agent = agentService.updateAgent(session.agentId, { model: body.model })
+        if (!agent) return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+        sseRelay.broadcast({ event: 'sync', data: { conversationId: session.id, reason: 'agent-model-updated' } })
+        return { status: 200, body: { agent } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: { code: 'WEBUI_MODEL_UPDATE_REJECTED', message: error instanceof Error ? error.message : 'Desktop Agent model update rejected' }
+        }
+      }
     }
 
     if (sendMatch) {

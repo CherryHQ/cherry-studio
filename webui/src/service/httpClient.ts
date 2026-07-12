@@ -72,6 +72,11 @@ export const createWebUiHttpClient = ({
         body: JSON.stringify(body),
         method: 'POST'
       }),
+    patchJson: <TResponse>(path: string, body: unknown) =>
+      requestJson<TResponse>(path, {
+        body: JSON.stringify(body),
+        method: 'PATCH'
+      }),
     setAuthKey: (key: string) => {
       authKey = key.trim()
     }

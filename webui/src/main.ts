@@ -15,6 +15,7 @@ import type {
   WebUiAgentSessionMessageEntity,
   WebUiAgentSessionEntity,
   WebUiAgentEntity,
+  WebUiModel,
   WebUiConversationSummary,
   WebUiChunkPayload,
   WebUiCursorResponse,
@@ -297,12 +298,15 @@ const App = defineComponent({
     const composerText = ref('')
     const submitError = ref('')
     const agents = ref<readonly WebUiAgentEntity[]>([])
+    const models = ref<readonly WebUiModel[]>([])
     const newConversationOpen = ref(false)
     const newConversationState = ref<'idle' | 'loading' | 'creating' | 'error'>('idle')
     const newConversationError = ref('')
     const selectedAgentId = ref('')
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
+    const modelPickerOpen = ref(false)
+    const modelUpdateState = ref<'idle' | 'updating' | 'error'>('idle')
     const mobileSidebarOpen = ref(false)
     const messageStack = ref<HTMLElement>()
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
@@ -318,6 +322,9 @@ const App = defineComponent({
       const agentId = selectedConversation.value?.agentId
       return agents.value.find((agent) => agent.id === agentId)?.name
     })
+    const selectedAgent = computed(() => agents.value.find((agent) => agent.id === selectedConversation.value?.agentId))
+    const selectedModel = computed(() => models.value.find((model) => model.id === selectedAgent.value?.model))
+    const modelPickerLabel = computed(() => selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? text('agent'))
     const contextUsagePercentage = computed(() => {
       if (!contextUsage.value?.maxTokens) return undefined
       return Math.min(100, Math.round((contextUsage.value.totalTokens / contextUsage.value.maxTokens) * 100))
@@ -328,7 +335,7 @@ const App = defineComponent({
     })
     const slashCommandSuggestions = computed(() => {
       const input = composerText.value.trimStart()
-      if (!input.startsWith('/')) return []
+      if (modelPickerOpen.value || !input.startsWith('/')) return []
 
       const query = input.slice(1).toLowerCase()
       return slashCommands.value.filter((command) => command.name.toLowerCase().startsWith(query)).slice(0, 6)
@@ -450,6 +457,35 @@ const App = defineComponent({
     const loadAgents = async () => {
       const page = await httpClient.getJson<WebUiOffsetResponse<WebUiAgentEntity>>('/api/data/agents')
       agents.value = page.items.filter((agent) => Boolean(agent.model))
+    }
+
+    const loadModels = async () => {
+      const availableModels = await httpClient.getJson<readonly WebUiModel[]>('/api/data/models?enabled=true')
+      models.value = availableModels.filter(
+        (model) =>
+          !model.isHidden &&
+          !model.capabilities.includes('embedding') &&
+          !model.capabilities.includes('rerank') &&
+          !model.capabilities.includes('image-generation')
+      )
+    }
+
+    const updateSessionModel = async (model: WebUiModel) => {
+      const conversationId = selectedConversationId.value
+      if (!conversationId || model.id === selectedAgent.value?.model || modelUpdateState.value === 'updating') return
+
+      modelUpdateState.value = 'updating'
+      submitError.value = ''
+      try {
+        await httpClient.patchJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/model`, { model: model.id })
+        await loadAgents()
+        refreshComposerInfo(conversationId)
+        modelPickerOpen.value = false
+        modelUpdateState.value = 'idle'
+      } catch (error) {
+        submitError.value = toErrorMessage(error)
+        modelUpdateState.value = 'error'
+      }
     }
 
     const refreshComposerInfo = (conversationId = selectedConversationId.value) => {
@@ -650,6 +686,9 @@ const App = defineComponent({
       void loadConversations()
       void loadAgents().catch(() => {
         agents.value = []
+      })
+      void loadModels().catch(() => {
+        models.value = []
       })
       sseClient.connect()
       if (!healthTimer) healthTimer = window.setInterval(() => void refreshHealth(), 15_000)
@@ -948,6 +987,43 @@ const App = defineComponent({
                 }
               }
             }),
+            h(
+              'button',
+              {
+                class: 'model-selector-button',
+                type: 'button',
+                disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
+                title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
+                'aria-expanded': modelPickerOpen.value,
+                onClick: () => {
+                  modelPickerOpen.value = !modelPickerOpen.value
+                }
+              },
+              modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
+            ),
+            modelPickerOpen.value
+              ? h(
+                  'div',
+                  { class: 'model-picker-menu', role: 'listbox' },
+                  models.value.map((model) =>
+                    h(
+                      'button',
+                      {
+                        class: ['model-picker-option', { 'model-picker-option-selected': model.id === selectedAgent.value?.model }],
+                        key: model.id,
+                        type: 'button',
+                        role: 'option',
+                        'aria-selected': model.id === selectedAgent.value?.model,
+                        onClick: () => void updateSessionModel(model)
+                      },
+                      [
+                        h('span', { class: 'model-picker-name' }, model.name),
+                        h('span', { class: 'model-picker-provider' }, model.providerId)
+                      ]
+                    )
+                  )
+                )
+              : undefined,
             slashCommandSuggestions.value.length
               ? h(
                   'div',
@@ -1592,6 +1668,79 @@ style.textContent = `
     position: relative;
   }
 
+  .composer-row textarea {
+    padding-bottom: 42px;
+  }
+
+  .model-selector-button {
+    position: absolute;
+    z-index: 2;
+    bottom: 9px;
+    left: 10px;
+    max-width: calc(100% - 84px);
+    min-height: 26px;
+    padding: 0 9px;
+    overflow: hidden;
+    color: #475569;
+    font-size: 12px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: #f1f5f9;
+    border: 0;
+    border-radius: 13px;
+    cursor: pointer;
+  }
+
+  .model-picker-menu {
+    position: absolute;
+    z-index: 6;
+    right: 52px;
+    bottom: calc(100% + 8px);
+    left: 0;
+    display: grid;
+    max-height: min(276px, 42dvh);
+    overflow-y: auto;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  }
+
+  .model-picker-option {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    padding: 9px 10px;
+    text-align: left;
+    color: #1f2937;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .model-picker-option:hover,
+  .model-picker-option:focus-visible,
+  .model-picker-option-selected {
+    background: #eef2ff;
+    outline: 0;
+  }
+
+  .model-picker-name {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .model-picker-provider {
+    color: #64748b;
+    font-size: 12px;
+  }
+
   .slash-command-menu {
     position: absolute;
     z-index: 5;
@@ -1815,7 +1964,8 @@ style.textContent = `
 
     .secondary-button,
     .icon-button,
-    .slash-command-menu {
+    .slash-command-menu,
+    .model-picker-menu {
       color: #e5e7eb;
       background: #273449;
       border-color: #475569;
@@ -1825,13 +1975,32 @@ style.textContent = `
       color: #e5e7eb;
     }
 
+    .model-picker-option {
+      color: #e5e7eb;
+    }
+
     .slash-command-option:hover,
     .slash-command-option:focus-visible {
       background: #334155;
     }
 
+    .model-picker-option:hover,
+    .model-picker-option:focus-visible,
+    .model-picker-option-selected {
+      background: #334155;
+    }
+
     .slash-command-description {
       color: #94a3b8;
+    }
+
+    .model-picker-provider,
+    .model-selector-button {
+      color: #cbd5e1;
+    }
+
+    .model-selector-button {
+      background: #334155;
     }
 
     .mobile-sidebar-button {
@@ -2052,6 +2221,12 @@ style.textContent = `
       max-height: min(230px, 32dvh);
     }
 
+    .model-picker-menu {
+      right: 0;
+      bottom: calc(100% + 10px);
+      max-height: min(256px, 36dvh);
+    }
+
     .slash-command-option {
       grid-template-columns: 1fr;
       gap: 2px;
@@ -2060,7 +2235,7 @@ style.textContent = `
     .composer-row textarea {
       min-height: 76px;
       max-height: 148px;
-      padding: 10px 12px;
+      padding: 10px 12px 42px;
       border: 0;
       border-radius: 14px;
       outline: 0;
