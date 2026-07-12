@@ -62,7 +62,7 @@ export function useAppInit() {
 
   useEffect(() => {
     // set app paths
-    void window.api.getAppInfo().then((info) => {
+    void ipcApi.request('app.get_info').then((info) => {
       setInlineFilePathHomePath(info.homePath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })

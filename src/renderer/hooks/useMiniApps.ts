@@ -8,6 +8,7 @@ import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -82,7 +83,7 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
 
   regionDetectionPromise = (async () => {
     try {
-      const country = await window.api.getIpCountry()
+      const country = await ipcApi.request('system.get_ip_country')
       return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
     } catch (err) {
       // Default to CN so mainland China users — the primary audience — never

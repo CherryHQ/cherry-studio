@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
@@ -90,14 +91,14 @@ function openExternalMiniAppUrl(url: string) {
   try {
     const parsed = new URL(url)
     if (parsed.protocol === 'file:') {
-      void window.api.openPath(fileUrlToPath(parsed))
+      void ipcApi.request('system.shell.open_path', fileUrlToPath(parsed))
       return
     }
   } catch {
     // Fall through to openWebsite so the existing main-process URL guard handles it.
   }
 
-  void window.api.openWebsite(url)
+  void ipcApi.request('system.shell.open_website', url)
 }
 
 /**

@@ -128,7 +128,6 @@ export class LanTransferService extends BaseService {
 
   private registerIpcHandlers(): void {
     // Discovery
-    this.ipcHandle(IpcChannel.LanTransfer_ListServices, () => this.getState())
     this.ipcHandle(IpcChannel.LanTransfer_StartScan, () => this.startDiscovery({ resetList: true }))
     this.ipcHandle(IpcChannel.LanTransfer_StopScan, () => this.stopDiscovery())
 
