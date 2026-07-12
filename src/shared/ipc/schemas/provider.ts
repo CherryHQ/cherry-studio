@@ -6,7 +6,7 @@ import { LogoImageIntentSchema } from './entityImage'
 /**
  * Provider imperative IPC commands. `provider.set_logo` sends business intent +
  * raw bytes (a logo edit can't go through DataApi, which carries no bytes); the
- * main handler delegates to `EntityLogoService`, which creates the `file_entry`,
+ * main handler delegates to `setProviderLogo`, which creates the `file_entry`,
  * binds it via the provider's `file_ref` slot, and compensates on failure.
  */
 export const providerRequestSchemas = {

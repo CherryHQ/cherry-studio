@@ -1,8 +1,11 @@
 import { application } from '@application'
+import type { LogoBindInput } from '@data/services/utils/logoRef'
+import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
-import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'
+
+const logger = loggerService.withContext('entityImageBinding')
 
 type MaybePromise<T> = T | Promise<T>
 
@@ -24,7 +27,12 @@ export async function withCreatedImageEntry<T>(
   try {
     return await bind(entry.id)
   } catch (error) {
-    await fileManager.permanentDelete(entry.id).catch(() => {})
+    // Compensating delete is best-effort, but if it ALSO fails (often correlated
+    // with whatever broke bind) the file_entry + WebP are orphaned — log so the
+    // orphan is traceable rather than silently voiding the no-orphan guarantee.
+    await fileManager.permanentDelete(entry.id).catch((cleanupError) => {
+      logger.error(`Failed to delete orphaned file_entry ${entry.id} after bind failure`, cleanupError as Error)
+    })
     throw error
   }
 }

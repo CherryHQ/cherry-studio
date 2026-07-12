@@ -2,6 +2,8 @@ import sharp from 'sharp'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
+/** Decode-work bound: a small file can still declare huge dimensions (bomb). */
+const MAX_ENTITY_INPUT_PIXELS = 100_000_000
 
 /**
  * Normalize arbitrary image bytes to a 128×128 cover-cropped WebP buffer — the
@@ -11,6 +13,9 @@ const ENTITY_IMAGE_DIMENSION = 128
  * decides how to react).
  */
 export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> {
-  // ponytail: first frame for animated gifs — fine for a 128² entity image.
-  return sharp(bytes).resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' }).webp().toBuffer()
+  // Only the first frame of an animated GIF is used — fine for a 128² entity image.
+  return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS })
+    .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
+    .webp()
+    .toBuffer()
 }

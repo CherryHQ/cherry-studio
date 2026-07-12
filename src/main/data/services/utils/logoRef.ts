@@ -4,7 +4,7 @@
  * Shared by ProviderService / MiniAppService (logo slots). The single-file
  * association row (`provider_logo_file_ref`, `mini_app_logo_file_ref`) is the
  * **single source of truth** for an owner's uploaded logo — the owner row keeps
- * only `logo_key` (preset / URL refs), never a duplicate `logo_file_id`. Each
+ * only `logo_key` (a preset icon ref), never a duplicate `logo_file_id`. Each
  * owner holds at most one file per slot, so a write clears the existing row
  * before inserting the new one; reads look the file id back up via
  * {@link getLogoFileId}.
@@ -18,11 +18,18 @@
 import { application } from '@application'
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import type { DbOrTx, DbType } from '@data/db/types'
-import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId } from '@shared/data/types/file'
 import { miniAppLogoRef, providerLogoRef } from '@shared/data/types/file'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+
+/**
+ * Service-internal logo bind input consumed by {@link reconcileLogoSlotTx}. The
+ * `file` variant is supplied only by the main-side set-logo orchestrator (after
+ * it mints the `file_entry`), never by the renderer — so this type stays in the
+ * main layer, not `@shared`. The renderer-facing counterpart is `CreateLogoSchema`.
+ */
+export type LogoBindInput = { kind: 'key'; key: string } | { kind: 'file'; fileId: FileEntryId } | { kind: 'default' }
 
 /** The persistent single-file (logo) ref source types. */
 export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
@@ -102,7 +109,7 @@ export function insertSingleFileRefTx(tx: Pick<DbType, 'insert'>, slot: SingleFi
 /**
  * Point `slot` at `fileId`, clearing any existing row first, inside `tx`.
  */
-export function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: FileEntryId): void {
+function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: FileEntryId): void {
   clearSingleFileRefTx(tx, slot)
   insertSingleFileRefTx(tx, slot, fileId)
 }

@@ -21,7 +21,7 @@ export const profileRequestSchemas = {
   'profile.set_avatar': defineRoute({
     input: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
-      z.strictObject({ kind: z.literal('emoji'), emoji: z.string().min(1) }),
+      z.strictObject({ kind: z.literal('emoji'), emoji: z.emoji().max(64) }),
       z.strictObject({ kind: z.literal('default') })
     ]),
     output: z.void()

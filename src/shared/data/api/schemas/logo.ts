@@ -1,21 +1,18 @@
-import { FileEntryIdSchema } from '@shared/data/types/file'
 import * as z from 'zod'
 
+import { LogoKeySchema } from './logoKey'
+
 /**
- * Entity-logo schemas (provider / mini-app).
+ * Renderer-facing entity-logo create schema (provider / mini-app).
  *
- * Two layers, deliberately split:
- *
- * - **Renderer-facing** ({@link CreateLogoSchema}) — only a preset key. A custom
- *   *uploaded* logo is NOT expressible in a DataApi DTO; uploads (and all logo
- *   *edits*) go through the dedicated IpcApi commands `provider.set_logo` /
- *   `mini_app.set_logo`, which take bytes, create the `file_entry` main-side,
- *   and bind it. This is why DataApi services never see raw bytes (pure DB).
- *
- * - **Service-internal** ({@link LogoBindInputSchema}, key | file | clear) — what
- *   the command orchestrator hands to the service's `reconcileLogoSlotTx` after
- *   it has minted the `file_entry`. The `file` variant only ever originates
- *   main-side, never from the renderer.
+ * Only a preset key is expressible here. A custom *uploaded* logo is NOT part of
+ * a DataApi DTO; uploads (and all logo *edits*) go through the dedicated IpcApi
+ * commands `provider.set_logo` / `mini_app.set_logo`, which take bytes, create
+ * the `file_entry` main-side, and bind it — which is why DataApi services never
+ * see raw bytes (pure DB). The service-internal bind input the command
+ * orchestrator hands to `reconcileLogoSlotTx` after minting the `file_entry`
+ * lives in the main layer (`LogoBindInput` in `@data/services/utils/logoRef`),
+ * never here — its `file` variant never originates from the renderer.
  *
  * An uploaded logo lives only in the single-file `file_ref` slot (the source of
  * truth); the owner row keeps just `logoKey`. The DTO exposes `logo` (the key)
@@ -23,31 +20,6 @@ import * as z from 'zod'
  * exclusive.
  */
 
-/**
- * Preset icon id / `icon:<id>` ref. Short — uploads go through the set-logo
- * command. Inline bytes (`data:`), stored-file refs (`file:` / `file://`), and
- * remote URLs (`http:` / `https:`) are rejected: a key must never carry image
- * bytes, mint a stored-image `file_ref`, or (re)open a remote-image write
- * surface. Legacy URL/data values stay isolated to the migration/compat
- * boundary, not this write contract.
- */
-export const LogoKeySchema = z
-  .string()
-  .min(1)
-  .max(2048)
-  .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
-
-const LogoKeyVariant = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })
-const LogoFileVariant = z.strictObject({ kind: z.literal('file'), fileId: FileEntryIdSchema })
-const LogoDefaultVariant = z.strictObject({ kind: z.literal('default') })
-
 /** Renderer-facing create logo — a preset key only (uploads use the set-logo command). */
-export const CreateLogoSchema = LogoKeyVariant
+export const CreateLogoSchema = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })
 export type CreateLogoInput = z.infer<typeof CreateLogoSchema>
-
-/**
- * Service-internal bind input consumed by `reconcileLogoSlotTx`. `file` is
- * supplied only by the main-side command orchestrator (never the renderer).
- */
-export const LogoBindInputSchema = z.discriminatedUnion('kind', [LogoKeyVariant, LogoFileVariant, LogoDefaultVariant])
-export type LogoBindInput = z.infer<typeof LogoBindInputSchema>

@@ -598,7 +598,7 @@ export const paintingFileRefSchema = createRefSchema(paintingRefFields)
  * member schema from `refCommonFields` directly (not `createRefSchema`, which
  * requires a `role`). Returns the source-type literal, ref fields, and schema.
  */
-export function defineSingleFileRef<const T extends string>(sourceType: T) {
+function defineSingleFileRef<const T extends string>(sourceType: T) {
   const refFields = {
     sourceType: z.literal(sourceType),
     sourceId: z.string().min(1)

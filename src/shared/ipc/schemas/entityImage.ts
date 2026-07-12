@@ -1,24 +1,13 @@
+import { LogoKeySchema } from '@shared/data/api/schemas/logoKey'
 import * as z from 'zod'
 
 /**
  * Shared entity-image schema atoms — the `LogoImageIntent` union and its byte
  * guard, reused by the per-domain set-logo commands (`provider.set_logo` in
  * `./provider`, `mini_app.set_logo` in `./miniApp`). The routes live in those
- * domain files; this module holds only the shared pieces.
+ * domain files; this module holds only the shared pieces. `LogoKeySchema` is the
+ * shared no-dep leaf, also used by the DataApi `logo.ts`.
  */
-
-/**
- * Preset icon id / `icon:<id>` ref. Mirrors `LogoKeySchema` in
- * `@shared/data/api/schemas/logo` (kept local so the IPC schema graph does not
- * depend on the DataApi DTO module and its `file_entry` brand) — including the
- * rejection of `data:` / `file:` / `http(s):` refs so a key can never smuggle
- * inline bytes, a stored-file ref, or a remote-image URL into `logo_key`.
- */
-const LogoKeySchema = z
-  .string()
-  .min(1)
-  .max(2048)
-  .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
 
 /**
  * Max image bytes accepted over IPC. The renderer normalizes uploads to a 128×128

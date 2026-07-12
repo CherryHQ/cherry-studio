@@ -14,13 +14,17 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { clearSingleFileRefTx, getLogoFileId, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
+import {
+  clearSingleFileRefTx,
+  getLogoFileId,
+  type LogoBindInput,
+  reconcileLogoSlotTx
+} from '@data/services/utils/logoRef'
 import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
