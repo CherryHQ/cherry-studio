@@ -150,7 +150,7 @@ export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // Additionally, topic.activeNodeId is a scalar soft ref to a message id with no
     // FK (§5.3): on RENAME it MUST be rewritten to the cloned message's new id, or
     // the restored topic points at the old aggregate's node / dangles.
-    cloneAggregate: async (ctx) => {
+    cloneAggregate: (ctx) => {
       const pkColumn = ctx.registry.getPrimaryKey(ctx.aggregate.root).columns[0]
       // Map old message id → cloned message id from the importer's memberKeyMap, and
       // rewrite activeNodeId so the renamed topic points inside its own clone.

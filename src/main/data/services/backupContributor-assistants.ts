@@ -88,7 +88,7 @@ export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // (not hardcoded) so this stays correct for any single-column-PK renamable
     // root — finalize #26 guarantees the root PK is single-column. The importer
     // remaps member `assistantId` columns via its memberKeyMap.
-    cloneAggregate: async (ctx) => {
+    cloneAggregate: (ctx) => {
       const pkColumn = ctx.registry.getPrimaryKey(ctx.aggregate.root).columns[0]
       return { rootRow: { ...ctx.rootRow, [pkColumn]: ctx.newRootKey } }
     }
