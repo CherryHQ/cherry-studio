@@ -5,9 +5,8 @@
 // the BackupV2_StartBackup IPC channel + useBackupV2 hook have a real consumer
 // (demand-first) and so the pipeline can be exercised end-to-end from the app.
 // Labels are hardcoded throwaway dev UX, intentionally NOT i18n'd.
-import { useState } from 'react'
-
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
+import { useState } from 'react'
 
 type Preset = 'full' | 'lite'
 
