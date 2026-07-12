@@ -96,9 +96,13 @@ const textPacks = {
     sseClients: 'SSE clients',
     stop: 'Stop',
     stopped: 'Stopped',
+    attachmentPending: 'Add file (coming soon)',
+    newConversationTool: 'New conversation',
+    thinkingPending: 'Thinking mode (coming soon)',
     unavailable: 'Unavailable',
     verify: 'Verify',
-    webui: 'WebUI'
+    webui: 'WebUI',
+    webSearchPending: 'Web search (coming soon)'
   },
   'zh-CN': {
     agent: '智能体',
@@ -136,9 +140,13 @@ const textPacks = {
     sseClients: 'SSE 客户端',
     stop: '停止',
     stopped: '已停止',
+    attachmentPending: '添加文件（待开发）',
+    newConversationTool: '新建会话',
+    thinkingPending: '思维模式（待开发）',
     unavailable: '不可用',
     verify: '验证',
-    webui: 'WebUI'
+    webui: 'WebUI',
+    webSearchPending: '网络搜索（待开发）'
   },
   'zh-TW': {
     agent: '智慧體',
@@ -176,9 +184,13 @@ const textPacks = {
     sseClients: 'SSE 用戶端',
     stop: '停止',
     stopped: '已停止',
+    attachmentPending: '加入檔案（待開發）',
+    newConversationTool: '新增會話',
+    thinkingPending: '思考模式（待開發）',
     unavailable: '不可用',
     verify: '驗證',
-    webui: 'WebUI'
+    webui: 'WebUI',
+    webSearchPending: '網路搜尋（待開發）'
   }
 } as const
 
@@ -197,6 +209,48 @@ const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversat
 })
 
 const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set(['output-available', 'output-error', 'output-denied'])
+
+type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking' | 'webSearch'
+
+// Mirrors the compact line-icon treatment used by the desktop ComposerSurface.
+const renderComposerToolIcon = (name: ComposerToolIconName) => {
+  const baseProps = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true'
+  }
+
+  if (name === 'newConversation') {
+    return h('svg', baseProps, [
+      h('path', { d: 'M13 4H6a2 2 0 0 0-2 2v13l4-3h10a2 2 0 0 0 2-2v-3' }),
+      h('path', { d: 'M18 3.5v5' }),
+      h('path', { d: 'M15.5 6h5' })
+    ])
+  }
+
+  if (name === 'attachment') {
+    return h('svg', baseProps, h('path', { d: 'm21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5' }))
+  }
+
+  if (name === 'thinking') {
+    return h('svg', baseProps, [
+      h('path', { d: 'M9 18h6' }),
+      h('path', { d: 'M10 22h4' }),
+      h('path', { d: 'M8.5 14.5A6.5 6.5 0 1 1 15.5 14c-1.1.8-1.5 1.6-1.5 2.5h-4c0-.9-.4-1.5-1.5-2' })
+    ])
+  }
+
+  return h('svg', baseProps, [
+    h('circle', { cx: 11, cy: 11, r: 6 }),
+    h('path', { d: 'm20 20-4.2-4.2' })
+  ])
+}
 
 const toDisplayText = (value: unknown): string | undefined => {
   if (value === undefined) return undefined
@@ -887,6 +941,20 @@ const App = defineComponent({
         ]),
         h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
           h('header', { class: 'chat-header' }, [
+            h(
+              'button',
+              {
+                class: 'mobile-sidebar-button',
+                type: 'button',
+                title: text('desktopSession'),
+                'aria-label': text('desktopSession'),
+                'aria-expanded': mobileSidebarOpen.value,
+                onClick: () => {
+                  mobileSidebarOpen.value = !mobileSidebarOpen.value
+                }
+              },
+              'Menu'
+            ),
             h('div', [
               h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? text('desktopSession')),
               h('h2', selectedConversation.value?.title ?? text('selectConversation'))
@@ -997,20 +1065,51 @@ const App = defineComponent({
                 }
               }),
               h('div', { class: 'composer-toolbar' }, [
-                h(
-                  'button',
-                  {
-                    class: 'model-selector-button',
-                    type: 'button',
-                    disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
-                    title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
-                    'aria-expanded': modelPickerOpen.value,
-                    onClick: () => {
-                      modelPickerOpen.value = !modelPickerOpen.value
+                h('div', { class: 'composer-tools' }, [
+                  h(
+                    'button',
+                    {
+                      class: 'composer-tool-button',
+                      type: 'button',
+                      title: text('newConversationTool'),
+                      'aria-label': text('newConversationTool'),
+                      onClick: () => void openNewConversation()
+                    },
+                    renderComposerToolIcon('newConversation')
+                  ),
+                  ...(['webSearch', 'attachment', 'thinking'] as const).map((tool) => {
+                    const labels = {
+                      attachment: text('attachmentPending'),
+                      thinking: text('thinkingPending'),
+                      webSearch: text('webSearchPending')
                     }
-                  },
-                  modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
-                ),
+                    return h(
+                      'button',
+                      {
+                        class: ['composer-tool-button', 'composer-tool-button-pending'],
+                        type: 'button',
+                        title: labels[tool],
+                        'aria-label': labels[tool],
+                        'aria-disabled': 'true'
+                      },
+                      renderComposerToolIcon(tool)
+                    )
+                  }),
+                  h(
+                    'button',
+                    {
+                      class: 'model-selector-button',
+                      type: 'button',
+                      disabled: !selectedConversation.value || !models.value.length || modelUpdateState.value === 'updating',
+                      title: selectedAgentName.value ? `${selectedAgentName.value}: ${modelPickerLabel.value}` : modelPickerLabel.value,
+                      'aria-expanded': modelPickerOpen.value,
+                      onClick: () => {
+                        modelPickerOpen.value = !modelPickerOpen.value
+                      }
+                    },
+                    modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
+                  )
+                ]),
                 h(
                   'button',
                   {
@@ -1086,7 +1185,9 @@ const App = defineComponent({
           h('div', {
             class: ['bridge-indicator', `bridge-indicator-${bridgeState.value}`],
             role: 'status',
-            'aria-live': 'polite'
+            'aria-live': 'polite',
+            title: bridgeDetail.value,
+            'aria-label': bridgeDetail.value
           }),
           ...statusItems.value.map((item) =>
             h('dl', { class: 'status-row', key: item.label }, [
@@ -1218,17 +1319,20 @@ style.textContent = `
   .conversation-list,
   .status-panel {
     min-height: 0;
-    overflow-y: auto;
     padding: 20px;
     background: #ffffff;
     border-color: #e5e7eb;
   }
 
   .conversation-list {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    overflow: hidden;
     border-right: 1px solid #e5e7eb;
   }
 
   .status-panel {
+    overflow-y: auto;
     border-left: 1px solid #e5e7eb;
   }
 
@@ -1236,7 +1340,7 @@ style.textContent = `
     display: flex;
     gap: 12px;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
   }
 
   .brand-logo {
@@ -1328,7 +1432,9 @@ style.textContent = `
   .conversation-nav {
     display: grid;
     gap: 8px;
+    min-height: 0;
     margin-top: 18px;
+    overflow-y: auto;
   }
 
   .conversation-item {
@@ -1373,7 +1479,7 @@ style.textContent = `
     height: 100dvh;
     min-width: 0;
     overflow: hidden;
-    padding: 20px 28px 16px;
+    padding: 14px 20px 10px;
   }
 
   .message-stack {
@@ -1382,7 +1488,7 @@ style.textContent = `
     gap: 14px;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 4px 12px;
+    padding: 12px 4px 8px;
   }
 
   .chat-header {
@@ -1398,7 +1504,7 @@ style.textContent = `
     margin-bottom: 0;
   }
 
-  .chat-header > div:first-child {
+  .chat-header > div:not(.mobile-chat-actions) {
     min-width: 0;
   }
 
@@ -1677,8 +1783,8 @@ style.textContent = `
   }
 
   .composer {
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
     background: #f6f7fb;
     border-top: 1px solid #e5e7eb;
   }
@@ -1705,16 +1811,16 @@ style.textContent = `
   .composer-toolbar {
     display: flex;
     min-height: 48px;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 8px 8px;
+    padding: 5px 8px 6px;
   }
 
   .composer-toolbar::before {
     position: absolute;
     right: 12px;
-    bottom: 48px;
+    bottom: 51px;
     left: 12px;
     height: 1px;
     content: '';
@@ -1736,6 +1842,44 @@ style.textContent = `
     border: 0;
     border-radius: 15px;
     cursor: pointer;
+  }
+
+  .composer-tools {
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .composer-tools::-webkit-scrollbar {
+    display: none;
+  }
+
+  .composer-tool-button {
+    display: grid;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    place-items: center;
+    color: #475569;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .composer-tool-button:hover,
+  .composer-tool-button:focus-visible {
+    color: #111827;
+    background: #eef2f7;
+    outline: 0;
+  }
+
+  .composer-tool-button-pending {
+    color: #94a3b8;
   }
 
   .send-button {
@@ -2012,6 +2156,20 @@ style.textContent = `
       background: #334155;
     }
 
+    .composer-tool-button {
+      color: #cbd5e1;
+    }
+
+    .composer-tool-button:hover,
+    .composer-tool-button:focus-visible {
+      color: #ffffff;
+      background: #334155;
+    }
+
+    .composer-tool-button-pending {
+      color: #64748b;
+    }
+
     .conversation-item,
     .tool-call,
     .reasoning-block,
@@ -2188,14 +2346,15 @@ style.textContent = `
     .chat-stage {
       height: auto;
       min-height: 0;
-      padding: 10px 12px 12px;
+      padding: 8px 12px;
     }
 
     .chat-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      padding-bottom: 12px;
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding-bottom: 8px;
     }
 
     .mobile-chat-actions {
@@ -2205,17 +2364,36 @@ style.textContent = `
       padding-top: 2px;
     }
 
+    .mobile-chat-actions .mobile-sidebar-button {
+      display: none;
+    }
+
+    .mobile-bridge-indicator {
+      order: 1;
+    }
+
+    .mobile-chat-actions .context-orb {
+      order: 2;
+    }
+
     .mobile-sidebar-button {
       display: grid;
       width: 36px;
       height: 36px;
       padding: 0;
       place-items: center;
-      color: #374151;
-      font-size: 20px;
+      color: transparent;
+      font-size: 0;
       background: #ffffff;
       border: 1px solid #d1d5db;
       border-radius: 6px;
+    }
+
+    .mobile-sidebar-button::after {
+      color: #374151;
+      font-size: 20px;
+      line-height: 1;
+      content: '\\2261';
     }
 
     .mobile-bridge-indicator {
@@ -2239,9 +2417,13 @@ style.textContent = `
       }
 
       .mobile-sidebar-button {
-        color: #e5e7eb;
+        color: transparent;
         background: #273449;
         border-color: #475569;
+      }
+
+      .mobile-sidebar-button::after {
+        color: #e5e7eb;
       }
     }
 
@@ -2256,9 +2438,8 @@ style.textContent = `
     }
 
     .composer {
-      gap: 10px;
-      margin: 8px 0 max(8px, env(safe-area-inset-bottom));
-      padding: 8px;
+      margin: 4px 0 max(4px, env(safe-area-inset-bottom));
+      padding: 6px;
       background: #ffffff;
       border: 1px solid #dbe1ea;
       border-radius: 22px;
