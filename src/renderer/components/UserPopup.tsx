@@ -46,9 +46,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
   }
 
-  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write
-  // (and prunes any superseded file); the Preference auto-syncs back to
-  // `useAvatar`, so these flows don't write the value themselves.
+  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write;
+  // the Preference auto-syncs back to `useAvatar`, so these flows don't write the
+  // value themselves. A superseded file_entry is left for the orphan sweep, not
+  // pruned here.
   const handleEmojiClick = async (emoji: string) => {
     try {
       await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
@@ -78,8 +79,9 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     }
     try {
       // Normalize to a 128² WebP in the renderer, then send the small payload; the
-      // handler creates the file_entry, points the avatar slot's file_ref at it, and
-      // writes the Preference. A processing failure throws a localized retry message.
+      // handler creates the file_entry and stores a `file:<id>` ref in the Preference
+      // (the avatar has no file_ref table). A processing failure throws a localized
+      // retry message.
       const data = await prepareEntityImageBytes(file)
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)

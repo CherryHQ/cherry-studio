@@ -17,6 +17,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * For an uploaded image the `file_entry` is created first (a bad upload leaves
  * the old avatar intact) and `permanentDelete`-compensated if the preference
  * write fails, so a failed set never leaks an orphan file.
+ *
+ * The create→bind→compensate is orchestrated inline here (not via `entityLogo`
+ * like provider / mini-app logos) on purpose: the avatar's owner is a single
+ * Preference, not a DataApi row + `file_ref` slot, so there is no shared bind
+ * shape to factor out — it just composes the `withCreatedImageEntry` primitive.
  */
 export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
   'profile.set_avatar': async (input) => {
