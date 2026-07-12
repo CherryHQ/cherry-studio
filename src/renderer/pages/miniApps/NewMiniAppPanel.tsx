@@ -11,8 +11,7 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import LogoAvatar from '@renderer/components/icons/LogoAvatar'
-import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { toast } from '@renderer/services/toast'
 import { compressImage, convertToBase64 } from '@renderer/utils/image'
@@ -163,7 +162,6 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   const hasUploadedLogo = logo.startsWith('data:')
   const logoValue = logo.trim() || 'application'
-  const previewLogo = getMiniAppsLogo(logoValue) ?? logoValue
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -182,7 +180,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                 className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label={t('settings.miniApps.custom.logo_upload_label')}>
-                <LogoAvatar logo={previewLogo} size={64} />
+                <MiniAppLogoAvatar logo={logoValue} size={64} />
               </button>
               <div className="flex flex-wrap gap-2">
                 <Button

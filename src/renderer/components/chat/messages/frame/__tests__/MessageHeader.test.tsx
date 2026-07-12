@@ -39,7 +39,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/utils/model', () => ({
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({

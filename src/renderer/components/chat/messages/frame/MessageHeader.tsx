@@ -1,7 +1,8 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import { getMessageSnapshotAuthor } from '@shared/data/types/message'
 import dayjs from 'dayjs'
@@ -51,7 +52,7 @@ const MessageHeader: FC<Props> = memo(
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
-    const ModelIcon = useMemo(() => getModelLogo(displayModel), [displayModel])
+    const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
     const authorSnapshot = getMessageSnapshotAuthor(message.messageSnapshot)
