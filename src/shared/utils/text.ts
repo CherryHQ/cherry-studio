@@ -4,11 +4,10 @@
  * characters (emoji, extended CJK) whole instead of emitting a lone surrogate,
  * which chat APIs reject or render as a replacement character.
  *
- * Use this when the length budget is a hard limit measured in UTF-16 code units
- * (e.g. a platform message cap or a stored-field byte budget): it clamps an
- * arbitrary boundary in place without shifting the budget to code points. For a
- * one-shot display truncation where the cap is soft, a code-point view such as
- * `[...text].slice(0, max).join('')` reads cleaner and is just as correct.
+ * Use this when a caller must keep an existing UTF-16 code-unit boundary: it
+ * adjusts that boundary in place without shifting the budget to code points.
+ * For a one-shot display truncation where the cap is soft, a code-point view
+ * such as `[...text].slice(0, max).join('')` reads cleaner and is just as correct.
  */
 export function clampSurrogateBoundary(text: string, index: number): number {
   if (index <= 0 || index >= text.length) return index
