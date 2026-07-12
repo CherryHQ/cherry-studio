@@ -313,8 +313,18 @@ export const createWebUiApiRouter = ({
       const encodedSessionId = contextUsageMatch[1]
       if (!encodedSessionId) return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
       const sessionId = decodeURIComponent(encodedSessionId)
-      // WebUI远程扩展，仅Win11启用，最小侵入
-      const usage = application.get('CacheService').getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+      const cacheService = application.get('CacheService')
+      let usage = cacheService.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+
+      if (!usage) {
+        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
+        for (let attempt = 0; attempt < 8 && !usage; attempt += 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 50))
+          usage = cacheService.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+        }
+      }
+
       return { status: 200, body: { usage } }
     }
 
