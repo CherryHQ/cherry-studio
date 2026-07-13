@@ -328,6 +328,15 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
+    it('does not probe the gateway during shutdown when it is already stopped', async () => {
+      const stopGatewaySpy = vi.spyOn(service, 'stopGateway')
+
+      await (service as any).onStop()
+
+      expect(stopGatewaySpy).not.toHaveBeenCalled()
+      expect(checkHealthSpy).not.toHaveBeenCalled()
+    })
+
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // gateway stopped
