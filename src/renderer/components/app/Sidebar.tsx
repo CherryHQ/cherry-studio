@@ -182,9 +182,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (activeTab?.url === path) return
 
       const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon: app.logo })
+        openTab(path, { forceNew: true, title, icon })
         return
       }
 
@@ -192,7 +194,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon: app.logo,
+          icon,
           metadata: clearTabInstanceMetadata(activeTab.metadata)
         })
         return
@@ -201,7 +203,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       openTab(path, {
         forceNew: true,
         title,
-        icon: app.logo
+        icon
       })
     },
     [activeTab, openableMiniAppById, openTab, t, updateTab]

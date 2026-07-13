@@ -1,9 +1,14 @@
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import type * as ImageUtils from '@renderer/utils/image'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  ipcRequest: vi.fn(async () => undefined)
+}))
 
 type PopoverContextValue = {
   open: boolean
@@ -90,7 +95,16 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       ) : null
     },
-    PopoverTrigger: ({ children }: { children: ReactNode; asChild?: boolean }) => children,
+    PopoverTrigger: ({ children }: { children: ReactNode; asChild?: boolean }) => {
+      const context = React.use(PopoverContext)
+      // The real trigger opens the popover on click; wire that here so tests can
+      // reach the file-upload / emoji controls inside PopoverContent.
+      return (
+        <div data-testid="popover-trigger" onClick={() => context.onOpenChange?.(true)}>
+          {children}
+        </div>
+      )
+    },
     RowFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="row-flex" {...props}>
         {children}
@@ -102,20 +116,18 @@ vi.mock('@cherrystudio/ui', () => {
 // This suite renders the real popup through the store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
-vi.mock('@renderer/services/ImageStorage', () => ({
-  default: {
-    get: vi.fn(),
-    remove: vi.fn(),
-    set: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  fileToAvatarDataUrl: vi.fn(async () => 'data:image/png;base64,avatar')
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
+}))
+
+// Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
+vi.mock('@renderer/utils/image', async (importOriginal) => ({
+  ...(await importOriginal<typeof ImageUtils>()),
+  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
 vi.mock('react-i18next', () => ({
@@ -145,7 +157,7 @@ function showUserPopup() {
 describe('UserPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
   })
 
   afterEach(() => {
@@ -163,12 +175,55 @@ describe('UserPopup', () => {
 
   it('renders image avatars with object-cover cropping', async () => {
     const avatar = 'file:///tmp/wide-avatar.png'
-    MockUseCacheUtils.setCacheValue('app.user.avatar', avatar)
+    MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', avatar)
 
     showUserPopup()
 
     const image = await screen.findByTestId('avatar-image')
     expect(image).toHaveClass('object-cover')
     expect(image).toHaveAttribute('src', avatar)
+  })
+
+  it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
+    showUserPopup()
+
+    // Open the avatar popover to reveal the upload control + hidden file input.
+    const trigger = await screen.findByTestId('popover-trigger')
+    fireEvent.click(trigger)
+
+    // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
+    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+    })
+    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', {
+        kind: 'image',
+        data: expect.any(Uint8Array)
+      })
+    })
+  })
+
+  it('rejects an oversize avatar at pick time without calling profile.set_avatar', async () => {
+    showUserPopup()
+
+    const trigger = await screen.findByTestId('popover-trigger')
+    fireEvent.click(trigger)
+
+    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+    })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
+    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
+        'profile.set_avatar',
+        expect.objectContaining({ kind: 'image' })
+      )
+    })
   })
 })

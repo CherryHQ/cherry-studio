@@ -15,11 +15,19 @@ const windowManager = {
   isFullScreen: vi.fn(() => false),
   getInitData: vi.fn(() => ({ path: '/settings/provider' }))
 }
+const mainWindowService = {
+  setMainWindowMinimumSize: vi.fn(),
+  resetMainWindowMinimumSize: vi.fn(),
+  reloadMainWindow: vi.fn()
+}
+const subWindowService = { setAlwaysOnTop: vi.fn(() => true) }
 
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
+    if (name === 'MainWindowService') return mainWindowService
+    if (name === 'SubWindowService') return subWindowService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -71,5 +79,20 @@ describe('windowHandlers', () => {
     expect(await windowHandlers['window.get_init_data'](undefined, ctx(null))).toBeNull()
     expect(windowManager.isMaximized).not.toHaveBeenCalled()
     expect(windowManager.getInitData).not.toHaveBeenCalled()
+  })
+
+  it('set_always_on_top delegates to SubWindowService with the caller id and pin state', async () => {
+    subWindowService.setAlwaysOnTop.mockReturnValue(true)
+    expect(await windowHandlers['window.sub.set_always_on_top'](true, ctx('sub1'))).toBe(true)
+    expect(subWindowService.setAlwaysOnTop).toHaveBeenCalledWith('sub1', true)
+  })
+
+  it('window.main.* routes delegate to MainWindowService (directed at the main window)', async () => {
+    await windowHandlers['window.main.set_minimum_size']({ width: 800, height: 600 }, ctx('w1'))
+    await windowHandlers['window.main.reset_minimum_size'](undefined, ctx('w1'))
+    await windowHandlers['window.main.reload'](undefined, ctx('w1'))
+    expect(mainWindowService.setMainWindowMinimumSize).toHaveBeenCalledWith(800, 600)
+    expect(mainWindowService.resetMainWindowMinimumSize).toHaveBeenCalledOnce()
+    expect(mainWindowService.reloadMainWindow).toHaveBeenCalledOnce()
   })
 })

@@ -10,6 +10,7 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
@@ -18,20 +19,28 @@ import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
-import { IpcChannel } from '@shared/IpcChannel'
 import { defaultLanguage } from '@shared/utils/languages'
 import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChatWindow from '../chat/ChatWindow'
-import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+
+// Lazy boundaries (S6b): the chat/translate branches carry the heavy message
+// rendering chain (ChatMarkdown, CodeMirror, katex, mermaid). The default
+// 'home' route never renders them, so they stay out of the first paint and
+// only load when a feature is actually invoked.
+const ChatWindow = React.lazy(() => import('../chat/ChatWindow'))
+const TranslateWindow = React.lazy(() => import('../translate/TranslateWindow'))
+
+// Size-stable fallback: the shell (input bar / footer) renders synchronously
+// around it, so the brief local-chunk load must not collapse the layout.
+const LazyBranchFallback = () => <div className="flex-1" />
 
 const logger = loggerService.withContext('HomeWindow')
 
@@ -87,7 +96,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // defer IPC by at least one render, opening a race where blur fires with
   // the main flag still stale.
   const setIsPinned = useCallback((next: boolean) => {
-    void window.api.quickAssistant.setPin(next)
+    void ipcApi.request('quick_assistant.set_pin', { isPinned: next })
     setIsPinnedState(next)
   }, [])
 
@@ -297,19 +306,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     focusInput()
   }, [readClipboard, focusInput])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.QuickAssistant_Shown, onWindowShow)
-
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.QuickAssistant_Shown)
-    }
-  }, [onWindowShow])
+  useIpcOn('quick_assistant.shown', onWindowShow)
 
   useEffect(() => {
     void readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.quickAssistant.hide(), [])
+  const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
@@ -466,13 +469,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
-          <ChatWindow
-            route={route}
-            assistant={currentAssistant ?? null}
-            isOutputted={isOutputted}
-            messages={messageItems}
-            partsByMessageId={partsByMessageId}
-          />
+          <Suspense fallback={<LazyBranchFallback />}>
+            <ChatWindow
+              route={route}
+              assistant={currentAssistant ?? null}
+              isOutputted={isOutputted}
+              messages={messageItems}
+              partsByMessageId={partsByMessageId}
+            />
+          </Suspense>
           {flowError && (
             <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
               {flowError}
@@ -487,7 +492,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'translate':
       return (
         <div className={containerClassName(draggable)} style={{ backgroundColor }}>
-          <TranslateWindow text={referenceText} />
+          <Suspense fallback={<LazyBranchFallback />}>
+            <TranslateWindow text={referenceText} />
+          </Suspense>
           <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} />
         </div>

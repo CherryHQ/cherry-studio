@@ -5,8 +5,10 @@ import {
   chatMessageFileRefSchema,
   chatMessageSourceType,
   FileRefSchema,
+  miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
+  providerLogoRef,
   tempSessionFileRefSchema,
   tempSessionSourceType
 } from '../file'
@@ -19,7 +21,12 @@ const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting'])
+    // Defensive: this assertion locks the currently-registered set. Adding a
+    // new variant must also extend the discriminated union and back it with an
+    // FK-constrained association table — see ref/index.ts.
+    // The user avatar deliberately has no variant: it is persisted only in the
+    // `app.user.avatar` preference (no ref table).
+    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting', 'provider_logo', 'mini_app_logo'])
   })
 })
 
@@ -94,6 +101,37 @@ describe('paintingFileRefSchema', () => {
   })
 })
 
+describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
+  it('accepts a well-formed roleless logo ref (free-string sourceId)', () => {
+    for (const ref of [providerLogoRef, miniAppLogoRef]) {
+      const parsed = ref.schema.parse({
+        id: REF_ID,
+        fileEntryId: ENTRY_ID,
+        sourceType: ref.sourceType,
+        sourceId: 'preset-or-uuid-id',
+        createdAt: TS,
+        updatedAt: TS
+      })
+      expect(parsed.sourceType).toBe(ref.sourceType)
+      // Roleless: the variant has no `role` field (constant, unread downstream).
+      expect('role' in parsed).toBe(false)
+    }
+  })
+
+  it('drops a stray role rather than carrying it (the slot has no role field)', () => {
+    const parsed = providerLogoRef.schema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: providerLogoRef.sourceType,
+      sourceId: 'p1',
+      role: 'logo',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect('role' in parsed).toBe(false)
+  })
+})
+
 describe('FileRefSchema discriminated union', () => {
   it('dispatches to the temp_session variant', () => {
     const parsed = FileRefSchema.parse({
@@ -119,7 +157,8 @@ describe('FileRefSchema discriminated union', () => {
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('chat_message')
-    expect(parsed.role).toBe('attachment')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'chat_message') expect(parsed.role).toBe('attachment')
   })
 
   it('dispatches to the painting variant', () => {
