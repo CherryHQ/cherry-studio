@@ -22,14 +22,28 @@ import { deepFreeze } from '@main/data/db/backup/freeze'
 export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   domain: 'MINIAPPS',
   schema: {
-    tables: [table('mini_app')],
-    references: [],
-    primaryKeys: [mirrorPk('mini_app')],
+    tables: [table('mini_app'), table('mini_app_logo_file_ref')],
+    references: [
+      // mini_app_logo_file_ref.sourceId → mini_app.appId: same-domain owning (cascade).
+      // The logo ref follows its mini_app on clone/prune (single-file ref).
+      { table: table('mini_app_logo_file_ref'), column: column('sourceId'), referencedDomain: 'MINIAPPS', kind: 'owning' },
+      // mini_app_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain junction.
+      { table: table('mini_app_logo_file_ref'), column: column('fileEntryId'), referencedDomain: 'FILE_STORAGE', kind: 'junction' }
+    ],
+    primaryKeys: [mirrorPk('mini_app'), mirrorPk('mini_app_logo_file_ref')],
     aggregates: [
       {
         root: table('mini_app'),
         identityKey: columns(['appId']),
-        members: [],
+        members: [
+          {
+            table: table('mini_app_logo_file_ref'),
+            viaColumn: column('sourceId'),
+            // sourceId → mini_app (root) — direct member, parent is the root.
+            parent: table('mini_app'),
+            cascade: 'include'
+          }
+        ],
         renamable: false
       }
     ],

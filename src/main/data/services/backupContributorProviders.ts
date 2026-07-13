@@ -35,18 +35,33 @@ import { deepFreeze } from '@main/data/db/backup/freeze'
 export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   domain: 'PROVIDERS',
   schema: {
-    tables: [table('user_provider'), table('user_model')],
+    tables: [table('user_provider'), table('user_model'), table('provider_logo_file_ref')],
     references: [
       // user_model.providerId → user_provider.providerId: same-domain owning
       // (cascade). Drives aggregate membership (#14/#15) and is #25-required.
-      { table: table('user_model'), column: column('providerId'), referencedDomain: 'PROVIDERS', kind: 'owning' }
+      { table: table('user_model'), column: column('providerId'), referencedDomain: 'PROVIDERS', kind: 'owning' },
+      // provider_logo_file_ref.sourceId → user_provider.providerId: same-domain owning
+      // (cascade). The logo ref follows its provider on clone/prune (single-file ref).
+      { table: table('provider_logo_file_ref'), column: column('sourceId'), referencedDomain: 'PROVIDERS', kind: 'owning' },
+      // provider_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain
+      // junction (cascade-prune with FILE_STORAGE, mirrors chat_message_file_ref).
+      { table: table('provider_logo_file_ref'), column: column('fileEntryId'), referencedDomain: 'FILE_STORAGE', kind: 'junction' }
     ],
-    primaryKeys: [mirrorPk('user_provider'), mirrorPk('user_model')],
+    primaryKeys: [mirrorPk('user_provider'), mirrorPk('user_model'), mirrorPk('provider_logo_file_ref')],
     aggregates: [
       {
         root: table('user_provider'),
         identityKey: columns(['providerId']),
-        members: [{ table: table('user_model'), viaColumn: column('providerId'), cascade: 'include' }],
+        members: [
+          { table: table('user_model'), viaColumn: column('providerId'), cascade: 'include' },
+          {
+            table: table('provider_logo_file_ref'),
+            viaColumn: column('sourceId'),
+            // sourceId → user_provider (root) — direct member, parent is the root.
+            parent: table('user_provider'),
+            cascade: 'include'
+          }
+        ],
         renamable: false
       }
     ],
