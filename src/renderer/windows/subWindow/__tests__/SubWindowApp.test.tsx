@@ -6,7 +6,6 @@ import SubWindowApp from '../SubWindowApp'
 // Cut the heavy shell import graph (SubWindowAppShell → TabRouter → routeTree.gen);
 // the wiring under test is the boundary around the providers.
 vi.mock('../SubWindowAppShell', () => ({ SubWindowAppShell: () => null }))
-vi.mock('@renderer/hooks/useAppInit', () => ({ useAppInit: () => {} }))
 
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
