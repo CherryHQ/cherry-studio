@@ -26,7 +26,7 @@ type CachedEgressRegion = {
  * proxy — so the cache is keyed on ProxyService's applied-config key and
  * invalidates the moment the app's proxy changes, with a TTL backstop for
  * egress changes the app cannot observe. Single-flight dedups concurrent
- * detections, including those arriving via the App_GetIpCountry IPC.
+ * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
   private inflight: Promise<string> | null = null

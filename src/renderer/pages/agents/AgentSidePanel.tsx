@@ -11,6 +11,7 @@ import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
+  historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -28,6 +29,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({
   activeSessionId,
+  historyRecordsActive,
   agentSessionsSource,
   onActiveAgentDeleted,
   onAddAgent,
@@ -51,6 +53,7 @@ const AgentSidePanel = ({
         <Sessions
           agentSessionsSource={agentSessionsSource}
           activeSessionId={activeSessionId}
+          historyRecordsActive={historyRecordsActive}
           setActiveSessionId={setActiveSessionId}
           onActiveAgentDeleted={onActiveAgentDeleted}
           onAddAgent={onAddAgent}

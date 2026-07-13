@@ -1,8 +1,24 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import * as cmThemes from '@uiw/codemirror-themes-all'
 import { action } from 'storybook/actions'
 
-import { CodeEditor, getCmThemeByName, getCmThemeNames } from '../../../src/components'
-import type { LanguageConfig } from '../../../src/components/composites/code-editor/types'
+import { CodeEditor } from '../../../src/components'
+import type { CodeMirrorTheme, LanguageConfig } from '../../../src/components/composites/code-editor/types'
+
+// The app-facing getCmThemeNames/getCmThemeByName are async (themes-all loads on
+// demand); stories need sync values for argTypes, so resolve from a static import.
+const cmThemeNames = ['auto', 'light', 'dark']
+  .concat(Object.keys(cmThemes))
+  .filter((item) => typeof (cmThemes as Record<string, unknown>)[item] !== 'function')
+  .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
+
+const resolveCmTheme = (name: string): CodeMirrorTheme => {
+  if (name === 'light' || name === 'dark' || name === 'none') {
+    return name
+  }
+  const candidate = (cmThemes as Record<string, unknown>)[name]
+  return cmThemeNames.includes(name) && candidate ? (candidate as CodeMirrorTheme) : 'light'
+}
 
 // 示例语言配置 - 为 Storybook 提供更丰富的语言支持演示
 const exampleLanguageConfig: LanguageConfig = {
@@ -62,7 +78,7 @@ const meta: Meta<typeof CodeEditor> = {
     },
     theme: {
       control: 'select',
-      options: getCmThemeNames()
+      options: cmThemeNames
     },
     fontSize: { control: { type: 'range', min: 12, max: 22, step: 1 } },
     editable: { control: 'boolean' },
@@ -100,7 +116,7 @@ export const Default: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={getCmThemeByName((args as any).theme || 'light')}
+        theme={resolveCmTheme((args as any).theme || 'light')}
         fontSize={args.fontSize as number}
         editable={args.editable as boolean}
         readOnly={args.readOnly as boolean}
@@ -130,7 +146,7 @@ export const JSONLint: Story = {
       <CodeEditor
         value={args.value}
         language="json"
-        theme={getCmThemeByName((args as any).theme || 'light')}
+        theme={resolveCmTheme((args as any).theme || 'light')}
         options={{ lint: true }}
         wrapped
         onChange={action('change')}
@@ -154,7 +170,7 @@ export const SaveShortcut: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={getCmThemeByName((args as any).theme || 'light')}
+        theme={resolveCmTheme((args as any).theme || 'light')}
         options={{ keymap: true }}
         onSave={action('save')}
         onChange={action('change')}
@@ -185,7 +201,7 @@ console.log(fibonacci(10));`,
         value={args.value}
         language={args.language}
         // 注意：这里没有传入 languageConfig，使用默认配置
-        theme={getCmThemeByName((args as any).theme || 'light')}
+        theme={resolveCmTheme((args as any).theme || 'light')}
         onChange={action('change')}
         wrapped
       />

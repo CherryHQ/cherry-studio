@@ -1,6 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { toast } from '@renderer/services/toast'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'

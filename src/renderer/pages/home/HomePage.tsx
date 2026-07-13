@@ -19,11 +19,8 @@ import {
   type GlobalSearchTopicSelectionPayload,
   isGlobalSearchSelectionForTab
 } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
-import {
-  ConversationResourceView,
-  type ConversationResourceViewDefinition,
-  useConversationResourceView
-} from '@renderer/components/resourceCatalog/conversation'
+import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
+import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -32,6 +29,10 @@ import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
+  type ConversationCenterResourceDefinition,
+  useConversationCenterSurface
+} from '@renderer/hooks/useConversationCenterSurface'
+import {
   mapApiTopicToRendererTopic,
   useActiveTopic,
   useLatestTopic,
@@ -39,10 +40,12 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -56,7 +59,6 @@ import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
 import {
   AssistantConversationPickerDialog,
@@ -65,7 +67,6 @@ import {
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
-import { getTopicAssistantDisplayGroupId } from './Tabs/components/topicsHelpers'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
 
@@ -153,7 +154,6 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
-  const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
@@ -265,7 +265,7 @@ const HomePage: FC = () => {
     return 'empty'
   }, [visibleTopic?.id])
   const resourceViewDefinitions = useMemo<
-    readonly ConversationResourceViewDefinition<AssistantConversationResourceKind>[]
+    readonly ConversationCenterResourceDefinition<AssistantConversationResourceKind>[]
   >(
     () => [
       {
@@ -278,12 +278,14 @@ const HomePage: FC = () => {
     [t]
   )
   const {
-    activeKind: activeResourceViewKind,
-    close: closeResourceView,
-    menuItems: resourceMenuItems
-  } = useConversationResourceView<AssistantConversationResourceKind>({
+    activeResourceKind,
+    closeSurface,
+    historyActive: historyRecordsActive,
+    resourceMenuItems,
+    toggleHistory: toggleHistoryRecords
+  } = useConversationCenterSurface<AssistantConversationResourceKind>({
     conversationKey: resourceConversationKey,
-    definitions: resourceViewDefinitions,
+    resourceDefinitions: resourceViewDefinitions,
     disabled: isMessageOnlyView || isWindowFrame
   })
 
@@ -418,11 +420,11 @@ const HomePage: FC = () => {
 
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
-      closeResourceView()
+      closeSurface()
       setActiveTopic(topic)
       return true
     },
-    [closeResourceView, setActiveTopic]
+    [closeSurface, setActiveTopic]
   )
 
   const resolveAssistantIdForSelection = useCallback(
@@ -645,16 +647,16 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
 
     return () => {
-      void window.api.window.resetMinimumSize()
+      void ipcApi.request('window.main.reset_minimum_size')
     }
   }, [])
 
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
-      closeResourceView()
+      closeSurface()
       if (!setActiveTopicAndCloseResourceView(topic)) return
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
@@ -666,14 +668,14 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [closeResourceView, setActiveTopicAndCloseResourceView, setResourceListOpen]
+    [closeSurface, setActiveTopicAndCloseResourceView, setResourceListOpen]
   )
   const closeHistoryRecords = useCallback(() => {
-    setHistoryRecordsOpen(false)
-  }, [])
+    closeSurface()
+  }, [closeSurface])
   const openHistoryRecords = useCallback(() => {
-    setHistoryRecordsOpen(true)
-  }, [])
+    toggleHistoryRecords()
+  }, [toggleHistoryRecords])
   const handleHistoryRecordsTopicSelect = useCallback(
     (topic: Topic | null) => {
       closeHistoryRecords()
@@ -716,12 +718,12 @@ const HomePage: FC = () => {
   }, [])
   const resourceCenter = useMemo(
     () =>
-      activeResourceViewKind
+      activeResourceKind
         ? {
             className: 'relative',
             content: (
               <ConversationResourceView
-                kind={activeResourceViewKind}
+                kind={activeResourceKind}
                 onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
                 toolbarLeading={
                   !isMessageOnlyView && !isWindowFrame ? (
@@ -737,7 +739,7 @@ const HomePage: FC = () => {
           }
         : null,
     [
-      activeResourceViewKind,
+      activeResourceKind,
       effectiveShowSidebar,
       handleOpenAssistantChatFromLibrary,
       isMessageOnlyView,
@@ -745,6 +747,29 @@ const HomePage: FC = () => {
       toggleResourceListOpen
     ]
   )
+  const historyRecordsCenter = historyRecordsActive
+    ? {
+        className: 'relative',
+        content: (
+          <HistoryRecordsView
+            mode="assistant"
+            open={historyRecordsActive && !isMessageOnlyView && !isWindowFrame}
+            activeRecordId={activeTopicId}
+            onClose={closeHistoryRecords}
+            onRecordSelect={handleHistoryRecordsTopicSelect}
+            toolbarLeading={
+              !isMessageOnlyView && !isWindowFrame ? (
+                <ConversationSidebarToggleButton
+                  sidebarOpen={effectiveShowSidebar}
+                  onSidebarToggle={toggleResourceListOpen}
+                  tooltipPlacement="bottom"
+                />
+              ) : undefined
+            }
+          />
+        )
+      }
+    : null
   const setTopicListPosition = useCallback(
     async (position: ChatPanePosition) => {
       await setTopicDisplayMode('assistant')
@@ -800,10 +825,14 @@ const HomePage: FC = () => {
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
         }}
+        historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={openHistoryRecords}
         onSelectTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
-        onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
+        onSelectedAssistantClick={() => {
+          closeSurface()
+          setTopicPaneOpen(!topicPaneOpen)
+        }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
         resourceMenuItems={resourceMenuItems}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
@@ -819,6 +848,7 @@ const HomePage: FC = () => {
         setActiveTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
         onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+        historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={openHistoryRecords}
         revealRequest={topicRevealRequest}
         resourceMenuItems={resourceMenuItems}
@@ -858,15 +888,6 @@ const HomePage: FC = () => {
       {content}
     </TopicRightPane>
   )
-  const historyRecordsOverlay = (
-    <HistoryRecordsPage
-      mode="assistant"
-      open={historyRecordsOpen && !isMessageOnlyView && !isWindowFrame}
-      activeRecordId={activeTopicId}
-      onClose={closeHistoryRecords}
-      onRecordSelect={handleHistoryRecordsTopicSelect}
-    />
-  )
   const assistantPickerDialog = isClassicTopicLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
@@ -877,13 +898,15 @@ const HomePage: FC = () => {
     />
   ) : null
 
-  if (resourceCenter) {
+  const centerSurface = historyRecordsCenter ?? resourceCenter
+
+  if (centerSurface) {
     return (
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <ConversationPageShell
             id="chat"
-            center={resourceCenter}
+            center={centerSurface}
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
@@ -892,7 +915,6 @@ const HomePage: FC = () => {
           />
         </ContentContainer>
         {assistantPickerDialog}
-        {historyRecordsOverlay}
       </Container>
     )
   }
@@ -915,7 +937,6 @@ const HomePage: FC = () => {
           />
         </ContentContainer>
         {assistantPickerDialog}
-        {historyRecordsOverlay}
       </Container>
     )
   }
@@ -941,7 +962,6 @@ const HomePage: FC = () => {
         />
       </ContentContainer>
       {assistantPickerDialog}
-      {historyRecordsOverlay}
     </Container>
   )
 }

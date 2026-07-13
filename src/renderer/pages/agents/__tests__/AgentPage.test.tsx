@@ -104,6 +104,9 @@ const activeSessionMocks = vi.hoisted(() => ({
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
 
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcOn: vi.fn() }))
+
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     delete: agentPageMocks.dataApiDelete,
@@ -499,6 +502,7 @@ vi.mock('../components/AgentChatNavbar', () => ({
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
+    historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
     onOpenHistoryRecords,
@@ -514,6 +518,7 @@ vi.mock('../AgentSidePanel', () => ({
     return (
       <div
         data-active-session-id={activeSessionId ?? ''}
+        data-history-active={String(Boolean(historyRecordsActive))}
         data-reveal-request={JSON.stringify(revealRequest ?? null)}
         data-testid="agent-side-panel">
         <button
@@ -574,24 +579,34 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
+    historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
     onActiveAgentDeleted,
+    onOpenHistoryRecords,
     onSelectedAgentClick
   }: {
     activeAgentId?: string | null
+    historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAgentClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     agentPageMocks.agentResourceListSessionsSource = agentSessionsSource
 
     return (
-      <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
+      <div
+        data-active-agent-id={activeAgentId ?? ''}
+        data-history-active={String(Boolean(historyRecordsActive))}
+        data-testid="agent-resource-list">
         <button type="button" onClick={() => void onAddAgent?.()}>
           Open agent picker
+        </button>
+        <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
+          Open history records
         </button>
         <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
           Delete active agent
@@ -642,12 +657,14 @@ vi.mock('../components/Sessions', () => ({
   }
 }))
 
-vi.mock('../../history/HistoryRecordsPage', () => ({
+vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
     open ? (
-      <button type="button" onClick={() => onRecordSelect?.(null)}>
-        Clear history session
-      </button>
+      <div data-testid="history-records-view">
+        <button type="button" onClick={() => onRecordSelect?.(null)}>
+          Clear history session
+        </button>
+      </div>
     ) : null
 }))
 
@@ -703,15 +720,7 @@ describe('AgentPage', () => {
     activeSessionMocks.isLoading = false
     activeSessionMocks.sessionSource = 'none'
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        window: {
-          resetMinimumSize: vi.fn().mockResolvedValue(undefined),
-          setMinimumSize: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
+    ipcMocks.request.mockClear()
   })
 
   it('renders the agent resource list in the left pane', () => {
@@ -794,6 +803,24 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
+  it('closes classic-layout history records when the active agent is clicked', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'false')
+  })
+
   it('renders the modern session sidebar when session display mode is time', () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
@@ -860,6 +887,40 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('renders history records outside AgentChat runtime and toggles them from the sidebar', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'true')
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('replaces the history center surface when opening agent management', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 
@@ -2067,7 +2128,10 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => {
-      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
     })
   })
 

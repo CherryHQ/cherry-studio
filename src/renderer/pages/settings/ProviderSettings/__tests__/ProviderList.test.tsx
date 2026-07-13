@@ -130,6 +130,9 @@ const { confirmActionShow } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
+
 describe('ProviderList', () => {
   const providers = [
     {
@@ -199,10 +202,9 @@ describe('ProviderList', () => {
       configurable: true,
       value: vi.fn()
     })
-    ;(window as any).api = {
-      ...(window as any).api,
-      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
-    }
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
+    )
   })
 
   it('filters providers by search text and forwards selection', () => {
