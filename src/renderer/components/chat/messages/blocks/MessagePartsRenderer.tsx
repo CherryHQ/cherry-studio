@@ -866,12 +866,6 @@ function buildLiveProcessSummary(entries: readonly PartEntry[], messageId: strin
   }
 }
 
-function isApprovalGatedToolPart(part: CherryMessagePart): boolean {
-  if (!isToolUIPart(part)) return false
-  const toolPart = part as { approval?: { id?: string }; state?: string }
-  return !!toolPart.approval?.id || toolPart.state === 'approval-requested' || toolPart.state === 'approval-responded'
-}
-
 function arePartEntriesEqual(previous: readonly PartEntry[], next: readonly PartEntry[]): boolean {
   return (
     previous.length === next.length &&
@@ -1022,19 +1016,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   renderOptions: RenderGroupedEntryOptions
 }) {
   const [expandedRunKey, setExpandedRunKey] = React.useState<number | null>(null)
-  const approvalToolCallIdsRef = React.useRef(new Set<string>())
-  if (isActive) {
-    for (const entry of entries) {
-      if (isApprovalGatedToolPart(entry.part) && isToolUIPart(entry.part)) {
-        approvalToolCallIdsRef.current.add(entry.part.toolCallId)
-      }
-    }
-  }
 
   const projectedLiveItems = useMemo(
     () =>
       isActive
-        ? projectLiveMessageParts(entries, approvalToolCallIdsRef.current).filter(
+        ? projectLiveMessageParts(entries).filter(
             (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
           )
         : [],

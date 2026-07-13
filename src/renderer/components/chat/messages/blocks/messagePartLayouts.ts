@@ -123,14 +123,13 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
 }
 
-function isFoldableToolPart(part: CherryMessagePart, standaloneToolCallIds?: ReadonlySet<string>): boolean {
+function isFoldableToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  if (standaloneToolCallIds?.has(part.toolCallId)) return false
   return !isAskUserQuestionToolName(getPartToolName(part))
 }
 
-function isVisibleProcessPart(part: CherryMessagePart, standaloneToolCallIds?: ReadonlySet<string>): boolean {
-  return isVisibleReasoningPart(part) || isFoldableToolPart(part, standaloneToolCallIds)
+function isVisibleProcessPart(part: CherryMessagePart): boolean {
+  return isVisibleReasoningPart(part) || isFoldableToolPart(part)
 }
 
 /**
@@ -141,17 +140,14 @@ function isVisibleProcessPart(part: CherryMessagePart, standaloneToolCallIds?: R
  * content through the last reasoning/tool part belongs to one process item.
  * Only the trailing content remains outside as the current result candidate.
  */
-export function projectLiveMessageParts(
-  entries: readonly PartEntry[],
-  standaloneToolCallIds?: ReadonlySet<string>
-): LiveMessagePartLayoutItem[] {
+export function projectLiveMessageParts(entries: readonly PartEntry[]): LiveMessagePartLayoutItem[] {
   const items: LiveMessagePartLayoutItem[] = []
   let regionEntries: PartEntry[] = []
 
   const flushRegion = () => {
     let lastProcessPosition = -1
     for (let position = regionEntries.length - 1; position >= 0; position--) {
-      if (isVisibleProcessPart(regionEntries[position].part, standaloneToolCallIds)) {
+      if (isVisibleProcessPart(regionEntries[position].part)) {
         lastProcessPosition = position
         break
       }
@@ -177,17 +173,7 @@ export function projectLiveMessageParts(
     if (isHiddenPart(entry.part)) continue
     if (isProcessFillerText(entries, position, true)) continue
 
-    if (
-      isToolUIPart(entry.part) &&
-      standaloneToolCallIds?.has(entry.part.toolCallId) &&
-      isFoldableToolPart(entry.part)
-    ) {
-      flushRegion()
-      items.push({ kind: 'process', key: entry.index, entries: [entry] })
-      continue
-    }
-
-    if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part, standaloneToolCallIds)) {
+    if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part)) {
       flushRegion()
       items.push({ kind: 'part', key: entry.index, entry })
       continue

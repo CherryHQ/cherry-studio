@@ -56,7 +56,7 @@ describe('projectLiveMessageParts', () => {
     ])
   })
 
-  it('keeps approval-backed AskUserQuestion direct even if its id is tracked as a disclosure boundary', () => {
+  it('keeps approval-backed AskUserQuestion direct', () => {
     const layout = projectLiveMessageParts(
       entries([
         {
@@ -65,28 +65,46 @@ describe('projectLiveMessageParts', () => {
           toolName: 'AskUserQuestion',
           state: 'approval-requested'
         }
-      ]),
-      new Set(['ask'])
+      ])
     )
 
     expect(layout.map((item) => [item.kind, item.key])).toEqual([['part', 0]])
   })
 
-  it('keeps approval-gated tools as stable standalone boundaries after their state advances', () => {
-    const layout = projectLiveMessageParts(
+  it('keeps approval-gated tools in one stable process as their state advances', () => {
+    const requestedLayout = projectLiveMessageParts(
       entries([
+        { type: 'reasoning', text: 'Preparing changes', state: 'done' },
         { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
-        { type: 'dynamic-tool', toolCallId: 'approved', toolName: 'Write', state: 'input-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'approved',
+          toolName: 'Write',
+          state: 'approval-requested',
+          approval: { id: 'approval-1' }
+        },
         { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'input-available' }
-      ]),
-      new Set(['approved'])
+      ])
+    )
+    const respondedLayout = projectLiveMessageParts(
+      entries([
+        { type: 'reasoning', text: 'Preparing changes', state: 'done' },
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'approved',
+          toolName: 'Write',
+          state: 'approval-responded',
+          approval: { id: 'approval-1', approved: true }
+        },
+        { type: 'dynamic-tool', toolCallId: 'edit', toolName: 'Edit', state: 'input-available' }
+      ])
     )
 
-    expect(layout.map((item) => [item.kind, item.key])).toEqual([
-      ['process', 0],
-      ['process', 1],
-      ['process', 2]
-    ])
+    expect(requestedLayout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+    expect(requestedLayout[0].kind === 'process' ? indexes(requestedLayout[0].entries) : []).toEqual([0, 1, 2, 3])
+    expect(respondedLayout.map((item) => [item.kind, item.key])).toEqual([['process', 0]])
+    expect(respondedLayout[0].kind === 'process' ? indexes(respondedLayout[0].entries) : []).toEqual([0, 1, 2, 3])
   })
 
   it('does not create visible runs from hidden markers or empty settled reasoning', () => {

@@ -828,7 +828,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Thinking...')
     })
 
-    it('folds intermediate text while keeping interactive and side-channel tools as hard boundaries', () => {
+    it('folds approval-gated tools while keeping interactive and side-channel tools as hard boundaries', () => {
       activateTurn()
       renderParts(
         [
@@ -855,7 +855,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       const runs = document.querySelectorAll<HTMLElement>('[data-live-process-run]')
-      expect(runs).toHaveLength(5)
+      expect(runs).toHaveLength(3)
       fireEvent.click(within(runs[0]).getByRole('button'))
       expect(screen.getByText('status text').closest('[data-live-process-run]')).toBe(runs[0])
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
@@ -911,12 +911,12 @@ describe('MessagePartsRenderer', () => {
         msg({ status: 'success' })
       )
 
-      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(2)
+      expect(document.querySelectorAll('[data-live-process-run]')).toHaveLength(1)
       expect(
         Array.from(document.querySelectorAll('[data-live-process-run]')).map((run) =>
           run.getAttribute('data-run-phase')
         )
-      ).toEqual(['sealed', 'sealed'])
+      ).toEqual(['sealed'])
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     })
