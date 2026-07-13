@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "目前模型不支援可調整的推理"
       },
+      "toolbar": {
+        "customize": "自訂工具列"
+      },
       "tools": {
         "collapse": "折疊",
         "collapse_in": "加入折疊",

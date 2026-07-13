@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Το τρέχον μοντέλο δεν υποστηρίζει ρυθμιζόμενη λογική"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Σύμπτυξη",
         "collapse_in": "Εισαγωγή σε σύμπτυξη",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Προσθήκη βάσης γνώσεων",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Σύνδεσε μία ή περισσότερες βάσεις γνώσης· σχετικά αποσπάσματα θα ανακτώνται κατά τη διάρκεια της συνομιλίας",
         "doc_count": "{{count}} έγγραφα",
         "empty_desc": "Μόλις συνδεθεί, ο βοηθός μπορεί να απαντά βάσει του περιεχομένου του εγγράφου",
@@ -3280,6 +3284,7 @@
         "title": "Γνωσιακές βάσεις"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Νέο Κείμενο Προτροπής",
         "dblclick_hint": "Κάντε διπλό κλικ στην προεπισκόπηση για να επιστρέψετε στην επεξεργασία",
         "desc": "Το prompt του συστήματος αποστέλλεται ως το αρχικό πλαίσιο του βοηθού",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Καρφίτσωσε αυτό το μοντέλο",
       "unpin": "Ξεκαρφίτσωμα μοντέλου"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
           "label": "Προσθήκη όλων των μοντέλων"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
         "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
         "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Τα πεδία πιστοποίησης μπορούν να συμπληρωθούν μετά τη δημιουργία",
         "menu_label": "Προσθήκη στιγμιότυπου"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Υποστηριζόμενος από πράκτορα",
         "all": "Όλοι οι Πάροχοι",

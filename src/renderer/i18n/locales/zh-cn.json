@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "当前模型不支持调整推理强度"
       },
+      "toolbar": {
+        "customize": "自定义工具栏"
+      },
       "tools": {
         "collapse": "折叠",
         "collapse_in": "加入折叠",

@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "折りたたむ",
         "collapse_in": "折りたたむ",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "ナレッジベースを追加",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
         "doc_count": "{{count}} 件のドキュメント",
         "empty_desc": "リンクが完了すると、アシスタントはドキュメントの内容に基づいて回答できます",
@@ -3280,6 +3284,7 @@
         "title": "ナレッジベース"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "新しいプロンプト",
         "dblclick_hint": "プレビューをダブルクリックすると編集に戻ります",
         "desc": "システムプロンプトはアシスタントの最初の文脈として送信されます",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "すべてのモデルを追加"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "グループ全体を追加",
         "clean_stale_models": "無効なモデルをクリーンアップ",
         "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "認証フィールドは作成後に入力できます",
         "menu_label": "インスタンスを追加"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",

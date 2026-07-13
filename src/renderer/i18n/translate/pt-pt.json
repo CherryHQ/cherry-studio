@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Recolher",
         "collapse_in": "Incluir no recolhimento",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Adicionar base de conhecimento",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Vincule uma ou mais bases de conhecimento; trechos relevantes serão recuperados durante o chat",
         "doc_count": "{{count}} documentos",
         "empty_desc": "Uma vez vinculado, o assistente pode responder com base no conteúdo do documento",
@@ -3280,6 +3284,7 @@
         "title": "Bases de conhecimento"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Novo Prompt",
         "dblclick_hint": "Duplo clique na pré-visualização para voltar ao modo de edição",
         "desc": "O prompt do sistema é enviado como o contexto inicial do assistente",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Fixar este modelo",
       "unpin": "Desafixar modelo"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
           "label": "Adicionar todos os modelos"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Adicionar todo o grupo",
         "clean_stale_models": "Limpar modelos obsoletos",
         "clean_stale_success": "{{count}} modelo(s) obsoleto(s) limpo(s)",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Os campos de autenticação podem ser preenchidos após a criação",
         "menu_label": "Adicionar instância"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Suportado por Agente",
         "all": "Todos os Provedores",

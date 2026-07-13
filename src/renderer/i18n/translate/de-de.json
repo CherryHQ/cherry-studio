@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Falten",
         "collapse_in": "Zum Falten hinzufügen",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Wissensbasis hinzufügen",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Verknüpfen Sie eine oder mehrere Wissensdatenbanken; relevante Auszüge werden während des Chats abgerufen",
         "doc_count": "{{count}} Dokumente",
         "empty_desc": "Sobald verknüpft, kann der Assistent auf Basis des Dokumenteninhalts antworten",
@@ -3280,6 +3284,7 @@
         "title": "Wissensdatenbanken"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Neue Aufforderung",
         "dblclick_hint": "Doppelklicken Sie auf die Vorschau, um zum Bearbeiten zurückzukehren",
         "desc": "Die Systemaufforderung wird als eröffnender Kontext des Assistenten gesendet.",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Dieses Modell anheften",
       "unpin": "Modell lösen"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Alle Modelle zur Liste hinzufügen?",
           "label": "Alle Modelle hinzufügen"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Gesamte Gruppe hinzufügen",
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Authentifizierungsfelder können nach der Erstellung ausgefüllt werden",
         "menu_label": "Instanz hinzufügen"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",

@@ -14,7 +14,6 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -47,7 +46,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, Globe, Lightbulb } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -81,7 +80,9 @@ import {
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
@@ -307,79 +308,6 @@ const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
 }
 
-const ChatComposerPersistentToolShortcuts = ({
-  inputAdapter,
-  reasoningLabel,
-  reasoningLauncher,
-  unifiedPanelControl,
-  webSearchLabel,
-  webSearchLauncher,
-  onWebSearchLauncherClick
-}: {
-  inputAdapter?: ComposerInputAdapter
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  unifiedPanelControl?: ComposerUnifiedPanelControl
-  webSearchLabel: string
-  webSearchLauncher?: ComposerToolLauncher
-  onWebSearchLauncherClick: (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => void
-}) => {
-  const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
-  const webSearchDisabled = !webSearchLauncher || webSearchLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
-  const webSearchTooltip =
-    webSearchDisabled && webSearchLauncher?.disabledReason ? webSearchLauncher.disabledReason : webSearchLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
-  const webSearchIcon = webSearchLauncher?.icon ?? <Globe size={18} aria-hidden />
-
-  return (
-    <>
-      <Tooltip content={reasoningTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent'
-          )}
-          aria-label={reasoningLabel}
-          aria-haspopup="menu"
-          disabled={reasoningDisabled}
-          data-active={reasoningLauncher?.active || undefined}
-          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-          {reasoningIcon}
-        </Button>
-      </Tooltip>
-      <Tooltip content={webSearchTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            webSearchLauncher?.active && 'bg-accent'
-          )}
-          aria-label={webSearchLabel}
-          aria-pressed={Boolean(webSearchLauncher?.active)}
-          disabled={webSearchDisabled}
-          data-active={webSearchLauncher?.active || undefined}
-          onClick={() => {
-            if (webSearchLauncher) {
-              onWebSearchLauncherClick(webSearchLauncher, inputAdapter)
-            }
-          }}>
-          {webSearchIcon}
-        </Button>
-      </Tooltip>
-    </>
-  )
-}
-
 const ChatComposerContextControlsWithAutoFocus = ({
   inputAdapter,
   ...props
@@ -572,6 +500,13 @@ const ChatComposerInner = ({
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Assistant grouping uses the classic two-pane conversation layout.
@@ -836,6 +771,8 @@ const ChatComposerInner = ({
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
 
+  const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
@@ -1085,23 +1022,6 @@ const ChatComposerInner = ({
     ]
   )
 
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
-
-  const webSearchLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'web-search')
-  }, [getLaunchers, toolLaunchersVersion])
-
-  const handleWebSearchShortcutClick = useCallback(
-    (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => {
-      dispatchLauncher(launcher, { source: 'popover', inputAdapter })
-    },
-    [dispatchLauncher]
-  )
-
   const renderPersistentToolShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1110,17 +1030,16 @@ const ChatComposerInner = ({
       inputAdapter?: ComposerInputAdapter
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
-      <ChatComposerPersistentToolShortcuts
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
         unifiedPanelControl={unifiedPanelControl}
-        webSearchLabel={t('chat.input.web_search.label')}
-        webSearchLauncher={webSearchLauncher}
-        onWebSearchLauncherClick={handleWebSearchShortcutClick}
       />
     ),
-    [handleWebSearchShortcutClick, reasoningLauncher, t, webSearchLauncher]
+    [customizeToolbarOpen, pinnedToolIds, setCustomizeToolbarOpen, setPinnedToolIds]
   )
 
   if (isMultiSelectMode) return null
@@ -1255,6 +1174,7 @@ const ChatComposerInner = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         rootPanelLeadingItems={rootPanelLeadingItems}
+        rootPanelAdditionalItems={rootPanelCustomizeItems}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         sendAccessory={sendAccessory}
         {...controlSlots}

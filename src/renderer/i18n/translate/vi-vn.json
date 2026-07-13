@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Thu gọn",
         "collapse_in": "Thu gọn",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Thêm cơ sở kiến thức",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Liên kết một hoặc nhiều cơ sở kiến thức; các đoạn trích liên quan sẽ được truy xuất trong quá trình trò chuyện",
         "doc_count": "{{count}} tài liệu",
         "empty_desc": "Sau khi được liên kết, trợ lý có thể trả lời dựa trên nội dung tài liệu",
@@ -3280,6 +3284,7 @@
         "title": "Cơ sở kiến thức"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Lời Nhắc Mới",
         "dblclick_hint": "Nhấp đúp vào bản xem trước để quay lại chế độ chỉnh sửa",
         "desc": "Lời nhắc hệ thống được gửi như bối cảnh mở đầu của trợ lý",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Ghim mô hình này",
       "unpin": "Gỡ ghim mô hình"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm tất cả mô hình"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Thêm toàn bộ nhóm",
         "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
         "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Các trường xác thực có thể được điền sau khi tạo",
         "menu_label": "Thêm phiên bản"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp",

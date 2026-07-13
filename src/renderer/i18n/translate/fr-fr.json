@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Ajouter une base de connaissances",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Liez une ou plusieurs bases de connaissances ; des extraits pertinents seront récupérés pendant la conversation",
         "doc_count": "{{count}} docs",
         "empty_desc": "Une fois lié, l'assistant peut répondre en se basant sur le contenu du document",
@@ -3280,6 +3284,7 @@
         "title": "Bases de connaissances"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Nouvelle invite",
         "dblclick_hint": "Double-cliquez sur l'aperçu pour revenir à l'édition",
         "desc": "Le prompt système est envoyé comme contexte d'ouverture de l'assistant",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Épingler ce modèle",
       "unpin": "Détacher le modèle"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
           "label": "Ajouter tous les modèles"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Ajouter tout le groupe",
         "clean_stale_models": "Nettoyer les modèles obsolètes",
         "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Les champs d'authentification peuvent être remplis après la création",
         "menu_label": "Ajouter une instance"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",

@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Current model does not support adjustable reasoning"
       },
+      "toolbar": {
+        "customize": "Customize toolbar"
+      },
       "tools": {
         "collapse": "Collapse",
         "collapse_in": "Collapse",

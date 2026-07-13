@@ -14,7 +14,6 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -54,7 +53,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -93,7 +92,9 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
@@ -655,60 +656,6 @@ const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter)
   window.requestAnimationFrame(() => inputAdapter?.focus())
 }
 
-const AgentComposerQuickPanelShortcuts = ({
-  reasoningLabel,
-  reasoningLauncher,
-  skillLabel,
-  unifiedPanelControl
-}: {
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  skillLabel: string
-  unifiedPanelControl?: AgentComposerUnifiedPanelControl
-}) => {
-  const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
-
-  return (
-    <>
-      <Tooltip content={reasoningTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent'
-          )}
-          aria-label={reasoningLabel}
-          aria-haspopup="menu"
-          disabled={reasoningDisabled}
-          data-active={reasoningLauncher?.active || undefined}
-          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-          {reasoningIcon}
-        </Button>
-      </Tooltip>
-      <Tooltip content={skillLabel} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
-          aria-label={skillLabel}
-          aria-haspopup="menu"
-          disabled={panelDisabled}
-          onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
-          <Zap size={18} aria-hidden />
-        </Button>
-      </Tooltip>
-    </>
-  )
-}
-
 const AgentComposerContextControlsWithAutoFocus = ({
   inputAdapter,
   ...props
@@ -827,6 +774,13 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const shouldShowWorkspaceSelector = Boolean(showWorkspaceSelector && sessionDisplayMode !== 'workdir')
   const { t } = useTranslation()
@@ -941,13 +895,15 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  const rootPanelSkillItems = useMemo(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
+  const rootPanelTrailingItems = useMemo(
+    () => [
+      ...createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, t]
+      customizePanelItem
+    ],
+    [availableSkills, customizePanelItem, insertSkillToken, t]
   )
 
   const handleRootPanelOpen = useCallback(() => {
@@ -955,11 +911,6 @@ const AgentComposerInner = ({
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
   }, [refreshAvailableSkills])
-
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
 
   useComposerQuoteInsertion(actionsRef)
 
@@ -1220,16 +1171,37 @@ const AgentComposerInner = ({
     </Tooltip>
   ) : undefined
 
+  const skillsCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+    const skillLabel = t('plugins.skills')
+    return [
+      {
+        id: 'skills',
+        label: skillLabel,
+        icon: <Zap size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: skillLabel })
+      }
+    ]
+  }, [t])
+
   const renderQuickPanelShortcuts = useCallback(
-    ({ unifiedPanelControl }: { unifiedPanelControl?: AgentComposerUnifiedPanelControl }) => (
-      <AgentComposerQuickPanelShortcuts
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
-        skillLabel={t('plugins.skills')}
+    ({
+      inputAdapter,
+      unifiedPanelControl
+    }: {
+      inputAdapter?: AgentComposerInputAdapter
+      unifiedPanelControl?: AgentComposerUnifiedPanelControl
+    }) => (
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        customTools={skillsCustomTools}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
+        inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
-    [reasoningLauncher, t]
+    [customizeToolbarOpen, pinnedToolIds, setCustomizeToolbarOpen, setPinnedToolIds, skillsCustomTools]
   )
 
   const controlSlots = renderControls({
@@ -1316,7 +1288,7 @@ const AgentComposerInner = ({
         suggestionSources={[]}
         resourceProvider={resourceProvider}
         rootPanelLeadingItems={rootPanelNewSessionItems}
-        rootPanelAdditionalItems={rootPanelSkillItems}
+        rootPanelAdditionalItems={rootPanelTrailingItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         sendAccessory={sendAccessory}

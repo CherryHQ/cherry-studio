@@ -1460,6 +1460,9 @@
         },
         "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar"
+      },
       "tools": {
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
@@ -3267,6 +3270,7 @@
       },
       "knowledge": {
         "add": "Adaugă bază de cunoștințe",
+        "create_first": "[to be translated]:Open Knowledge to create one",
         "desc": "Conectează una sau mai multe baze de cunoștințe; fragmentele relevante vor fi recuperate în timpul conversației",
         "doc_count": "{{count}} documente",
         "empty_desc": "Odată conectat, asistentul poate răspunde pe baza conținutului documentului",
@@ -3280,6 +3284,7 @@
         "title": "Baze de cunoștințe"
       },
       "prompt": {
+        "copy_variable": "[to be translated]:Copy {{variable}}",
         "create_title": "Prompt Nou",
         "dblclick_hint": "Faceți dublu clic pe previzualizare pentru a reveni la editare",
         "desc": "Promptul sistemului este trimis ca context de deschidere al asistentului",
@@ -4036,6 +4041,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "[to be translated]:Configure custom models",
       "pin": "Fixează acest model",
       "unpin": "Dezactivează modelul"
     },
@@ -6799,6 +6805,7 @@
           "confirm": "Ești sigur că vrei să adaugi toate modelele la listă?",
           "label": "Adaugă toate modelele"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Adaugă întregul grup",
         "clean_stale_models": "Curăță modelele expirate",
         "clean_stale_success": "Au fost curățate {{count}} modele expirate",
@@ -7210,6 +7217,7 @@
         "fill_after_create": "Câmpurile de autentificare pot fi completate după creare",
         "menu_label": "Adaugă instanță"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Asistat de agent",
         "all": "Toți furnizorii",
