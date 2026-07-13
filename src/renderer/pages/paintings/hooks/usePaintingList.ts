@@ -1,101 +1,100 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useCallback, useRef } from 'react'
+import { uuid } from '@renderer/utils/uuid'
+import { useCallback } from 'react'
 
+import type { CanvasPoint } from '../components/canvas/CanvasToolbar'
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
-import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
-import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
-import type { ModelOption } from '../model/types/paintingModel'
 
 const logger = loggerService.withContext('paintings/usePaintingList')
 
 interface UsePaintingListInput {
-  painting: PaintingData
-  setCurrentPainting: (painting: PaintingData) => void
-  currentProviderId: string
-  modelOptions: ModelOption[]
-  historyItems: PaintingData[]
   cancelGeneration: (paintingId: string) => void
 }
 
 /**
- * Owns the painting list-item write-side lifecycle: add / remove.
- *
- * - `add()` seeds a fresh in-memory draft on the current provider. It is NOT
- *   persisted — like the page's mount-time draft, it only reaches DataApi when
- *   the user generates (`usePaintingGeneration` creates the row for an unsaved
- *   draft). This keeps blank paintings from piling up in the strip on every click.
- * - `remove(painting)` cancels any in-flight generation, deletes attached files,
- *   removes the DB record, and (if the deleted item is the current one) selects
- *   the next available painting or falls back to a fresh draft via `add()`.
- *
- * Selection (`setCurrentPainting`) is a trivial setter passthrough and is wired
- * directly at the call site instead of being re-exposed here.
+ * Card lifecycle on the canvas: create empty boards / imported assets, delete,
+ * and persist board placement / size. Generated cards come from the generation
+ * pipeline (not here); the composer draft is a separate, never-persisted
+ * concern. Selecting a card is page-level (`selectedId`); a draft only hits the
+ * DB on generate.
  */
-export function usePaintingList({
-  painting,
-  setCurrentPainting,
-  currentProviderId,
-  modelOptions,
-  historyItems,
-  cancelGeneration
-}: UsePaintingListInput) {
-  const { updatePainting, deletePainting, refresh } = usePaintings()
-  const modelOptionsRef = useRef<ModelOption[]>([])
-  const historyItemsRef = useRef<PaintingData[]>([])
-  const paintingRef = useRef(painting)
-  modelOptionsRef.current = modelOptions
-  historyItemsRef.current = historyItems
-  paintingRef.current = painting
+export function usePaintingList({ cancelGeneration }: UsePaintingListInput) {
+  const { createPainting, updatePainting, deletePainting, refresh } = usePaintings()
 
-  const saveCurrent = useCallback(async () => {
-    const current = paintingRef.current
-    if (!current.persistedAt) {
-      return true
-    }
-
-    try {
-      await updatePainting(current.id, paintingDataToUpdateDto(current))
-      return true
-    } catch (error) {
-      presentPaintingGenerateError(error)
-      return false
-    }
-  }, [updatePainting])
-
-  const select = useCallback(
-    async (target: PaintingData) => {
-      const current = paintingRef.current
-      if (target.id === current.id) return
-      if (!(await saveCurrent())) return
-      setCurrentPainting(target)
+  // An empty board: no output, no status (= empty board, not a failed run). The
+  // page points the composer's draft at it so the next generation fills it.
+  const createBoard = useCallback(
+    async (providerId: string, position: CanvasPoint): Promise<string | undefined> => {
+      const id = uuid()
+      try {
+        await createPainting({
+          id,
+          providerId,
+          prompt: '',
+          files: { output: [], input: [] },
+          canvasX: position.x,
+          canvasY: position.y
+        })
+      } catch (error) {
+        logger.error('Failed to create blank board', error as Error)
+        presentPaintingGenerateError(error)
+        return undefined
+      }
+      await refresh()
+      return id
     },
-    [saveCurrent, setCurrentPainting]
+    [createPainting, refresh]
   )
 
-  const add = useCallback(() => {
-    setCurrentPainting(createDefaultPainting(currentProviderId))
-  }, [currentProviderId, setCurrentPainting])
-
-  const selectNextAfterDelete = useCallback(
-    async (deletedId: string) => {
-      const currentItems = historyItemsRef.current
-      const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
-      const nextPainting =
-        deletedIndex >= 0
-          ? (currentItems[deletedIndex + 1] ?? currentItems[deletedIndex - 1])
-          : currentItems.find((item) => item.id !== deletedId)
-
-      await refresh()
-
-      if (nextPainting) {
-        setCurrentPainting(nextPainting)
-        return
+  // An imported image as a source card: it carries the file as output + a
+  // `succeeded` status so it renders like any other image and feeds lineage.
+  const createAsset = useCallback(
+    async (providerId: string, fileId: string, position: CanvasPoint): Promise<string | undefined> => {
+      const id = uuid()
+      try {
+        await createPainting({
+          id,
+          providerId,
+          prompt: '',
+          files: { output: [fileId], input: [] },
+          status: 'succeeded',
+          canvasX: position.x,
+          canvasY: position.y
+        })
+      } catch (error) {
+        logger.error('Failed to create asset card', error as Error)
+        presentPaintingGenerateError(error)
+        return undefined
       }
-      add()
+      await refresh()
+      return id
     },
-    [add, refresh, setCurrentPainting]
+    [createPainting, refresh]
+  )
+
+  const move = useCallback(
+    async (id: string, x: number, y: number) => {
+      try {
+        await updatePainting(id, { canvasX: x, canvasY: y })
+      } catch (error) {
+        // A failed position write is non-fatal — the node holds this session, not across reload.
+        logger.error('Failed to persist painting position', error as Error)
+      }
+    },
+    [updatePainting]
+  )
+
+  const resize = useCallback(
+    async (id: string, width: number) => {
+      try {
+        await updatePainting(id, { canvasW: width })
+      } catch (error) {
+        logger.error('Failed to persist painting size', error as Error)
+      }
+    },
+    [updatePainting]
   )
 
   const remove = useCallback(
@@ -104,21 +103,27 @@ export function usePaintingList({
       try {
         await deletePainting(target.id)
       } catch (error) {
-        // A rejected DELETE (SQLITE_BUSY / FK / IPC) must surface like the
-        // sibling write paths — otherwise the row silently reappears on the
-        // next refresh with no toast or log.
         logger.error('Failed to delete painting', error as Error)
         presentPaintingGenerateError(error)
         return
       }
-      if (target.id === painting.id) {
-        await selectNextAfterDelete(target.id)
-      } else {
-        await refresh()
-      }
+      await refresh()
     },
-    [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
+    [cancelGeneration, deletePainting, refresh]
   )
 
-  return { add, remove, select, saveCurrent }
+  // Detach a card from its multi-image group (clears its group_id). The card
+  // keeps its position; the group's hull shrinks to the remaining members.
+  const ungroup = useCallback(
+    async (id: string) => {
+      try {
+        await updatePainting(id, { groupId: null })
+      } catch (error) {
+        logger.error('Failed to ungroup painting', error as Error)
+      }
+    },
+    [updatePainting]
+  )
+
+  return { remove, move, resize, createBoard, createAsset, ungroup }
 }

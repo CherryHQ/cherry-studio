@@ -7,49 +7,48 @@ import type { BaseConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
-import type { PaintingData } from '../model/types/paintingData'
+import type { ComposerDraft } from '../model/composerDraft'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
-function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
-  return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
+function resolveItemOptions(item: BaseConfigItem, params: Record<string, unknown>) {
+  return typeof item.options === 'function' ? item.options(item, params) : (item.options ?? [])
 }
 
-function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, unknown>) {
-  if (item.condition && !item.condition(painting)) {
+function shouldRenderConfigItem(item: BaseConfigItem, params: Record<string, unknown>) {
+  if (item.condition && !item.condition(params)) {
     return false
   }
-  if (item.type === 'sizeChips' && resolveItemOptions(item, painting).length === 0) {
+  if (item.type === 'sizeChips' && resolveItemOptions(item, params).length === 0) {
     return false
   }
   return true
 }
 
 export interface PaintingSettingsProps {
-  painting: PaintingData
-  onConfigChange: (updates: Partial<PaintingData>) => void
+  draft: ComposerDraft
+  onConfigChange: (updates: Partial<ComposerDraft>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
 
-const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
+const PaintingSettings: FC<PaintingSettingsProps> = ({ draft, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
-  // The form's reads/writes target `painting.params` — the canonical-name bag
-  // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
-  // request time. Top-level PaintingData fields are not visible to the wire.
-  const paintingParams = painting.params ?? {}
-  const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+  // The form's reads/writes target `draft.params` — the canonical-name bag that
+  // `canonicalGenerate` partitions into AI SDK args vs provider bag at request time.
+  const params = draft.params
+  const registrySupport = useImageGenerationSupport(draft.providerId, draft.model)
   const configItems = useMemo(
     () =>
       imageGenerationToFields(registrySupport, {
-        mode: tabToImageGenerationMode(painting.mode)
+        mode: tabToImageGenerationMode(draft.mode)
       }),
-    [registrySupport, painting.mode]
+    [registrySupport, draft.mode]
   )
 
   return (
     <>
       {configItems
-        .filter((item) => shouldRenderConfigItem(item, paintingParams))
+        .filter((item) => shouldRenderConfigItem(item, params))
         .map((item) => (
           <div key={item.key ?? `${item.type}-${item.title ?? ''}`}>
             {item.title && (
@@ -61,10 +60,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             )}
             <PaintingFieldRenderer
               item={item}
-              painting={paintingParams}
-              onChange={(updates) =>
-                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
-              }
+              painting={params}
+              onChange={(updates) => onConfigChange({ params: { ...params, ...updates } })}
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>

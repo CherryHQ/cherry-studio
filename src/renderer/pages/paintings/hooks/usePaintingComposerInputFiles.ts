@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
 
 interface Params {
-  paintingId: string
+  sessionId: string
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
@@ -38,14 +38,14 @@ const withDot = (ext: string | null | undefined): string => {
  *   after the seed has run, so the pre-seed empty list never wipes a painting
  *   that has input files.
  */
-export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
+export function usePaintingComposerInputFiles({ sessionId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
   // composer chip, but must survive the writeback so a transient read error never
   // rewrites the persisted painting (see WRITEBACK).
   const unseededEntriesRef = useRef<FileEntry[]>([])
-  const seededPaintingIdRef = useRef<string | null>(null)
+  const seededSessionIdRef = useRef<string | null>(null)
   const seedCompleteRef = useRef(false)
   const writebackEpochRef = useRef(0)
   const onInputFilesChangeRef = useRef(onInputFilesChange)
@@ -55,8 +55,8 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
 
   // SEED — once per painting.
   useEffect(() => {
-    if (seededPaintingIdRef.current === paintingId) return
-    seededPaintingIdRef.current = paintingId
+    if (seededSessionIdRef.current === sessionId) return
+    seededSessionIdRef.current = sessionId
     seedCompleteRef.current = false
     unseededEntriesRef.current = []
 
@@ -102,11 +102,11 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     return () => {
       cancelled = true
     }
-  }, [paintingId, setFiles])
+  }, [sessionId, setFiles])
 
   // WRITEBACK — on attachment change, after the seed has run.
   useEffect(() => {
-    if (seededPaintingIdRef.current !== paintingId || !seedCompleteRef.current) return
+    if (seededSessionIdRef.current !== sessionId || !seedCompleteRef.current) return
     const epoch = ++writebackEpochRef.current
     let cancelled = false
 
@@ -157,5 +157,5 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     return () => {
       cancelled = true
     }
-  }, [files, paintingId])
+  }, [files, sessionId])
 }

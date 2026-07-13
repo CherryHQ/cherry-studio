@@ -4498,6 +4498,27 @@
         "image": "Select Image"
       }
     },
+    "canvas": {
+      "back_to_content": "Back to content",
+      "menu": {
+        "copy_prompt": "Copy prompt",
+        "download": "Download image",
+        "prompt_copied": "Prompt copied"
+      },
+      "minimap": "Minimap",
+      "op": {
+        "add_to_chat": "Add to chat",
+        "edit": "Edit",
+        "regenerate": "Regenerate"
+      },
+      "retry": "Retry",
+      "tool": {
+        "add_board": "Add board",
+        "pan": "Pan",
+        "select": "Select",
+        "upload": "Upload image"
+      }
+    },
     "custom_size": "Custom Size",
     "dashscope": {
       "bottom_scale": "Expand Bottom",
@@ -4573,6 +4594,9 @@
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
+    "list": {
+      "load_more": "Load more"
+    },
     "magic_prompt_option": "Magic Prompt",
     "mode": {
       "edit": "Edit",
@@ -4692,6 +4716,10 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "view": {
+      "canvas": "Canvas",
+      "list": "List"
     },
     "watermark": "Add Watermark",
     "zhipu": {

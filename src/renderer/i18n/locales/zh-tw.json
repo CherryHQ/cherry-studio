@@ -4498,6 +4498,27 @@
         "image": "選擇繪圖"
       }
     },
+    "canvas": {
+      "back_to_content": "[to be translated]:Back to content",
+      "menu": {
+        "copy_prompt": "複製提示詞",
+        "download": "下載圖片",
+        "prompt_copied": "提示詞已複製"
+      },
+      "minimap": "[to be translated]:Minimap",
+      "op": {
+        "add_to_chat": "新增到聊天",
+        "edit": "編輯",
+        "regenerate": "重新生成"
+      },
+      "retry": "[to be translated]:Retry",
+      "tool": {
+        "add_board": "新增畫板",
+        "pan": "抓手",
+        "select": "選擇",
+        "upload": "上傳素材"
+      }
+    },
     "custom_size": "自訂尺寸",
     "dashscope": {
       "bottom_scale": "向下擴展",
@@ -4573,6 +4594,9 @@
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
+    "list": {
+      "load_more": "載入更多"
+    },
     "magic_prompt_option": "提示詞增強",
     "mode": {
       "edit": "編輯",
@@ -4692,6 +4716,10 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
+    },
+    "view": {
+      "canvas": "畫布",
+      "list": "列表"
     },
     "watermark": "添加浮水印",
     "zhipu": {

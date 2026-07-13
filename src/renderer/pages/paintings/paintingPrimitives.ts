@@ -1,7 +1,6 @@
 export const paintingClasses = {
   page: 'flex h-full flex-1 flex-col',
   content: 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
-  tabsWrap: 'shrink-0 flex justify-center px-6 pt-3 pb-2',
   tabsList: 'rounded-full border border-border-muted bg-neutral-100 p-1 shadow-sm backdrop-blur-sm dark:bg-muted/40',
   tabsTrigger:
     'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm dark:data-[state=active]:bg-background',
@@ -13,9 +12,9 @@ export const paintingClasses = {
   /** Pins the prompt visually to the bottom of the middle column. */
   promptDock: 'shrink-0 bg-background px-2 pt-2 pb-2',
   historyStrip:
-    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-l bg-background px-2 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:
-    'sticky top-0 z-10 mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-dashed border-border-muted bg-background text-muted-foreground hover:bg-secondary-hover hover:text-foreground',
+    'sticky top-0 z-10 mb-1 flex h-9 w-11 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground hover:bg-secondary-hover hover:text-foreground',
   historyItem:
     'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[12px] bg-secondary p-0 leading-none transition hover:bg-secondary-hover',
   historyItemActive: 'bg-background',
@@ -25,9 +24,9 @@ export const paintingClasses = {
   promptModeTabsTrigger:
     'h-7 rounded-full px-2.5 text-xs text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
   promptWrap: 'shrink-0 px-2 pb-4 pt-2',
-  toolbarWrap: 'absolute top-1/2 left-4 z-20 -translate-y-1/2',
+  toolbarWrap: 'absolute top-4 left-4 z-20',
   toolbarRail:
-    'flex flex-col items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
-  toolbarButton: 'rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground',
+    'flex items-center gap-0.5 rounded-[10px] border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
+  toolbarButton: 'rounded-md text-muted-foreground hover:bg-muted/55 hover:text-foreground',
   toolbarButtonActive: 'bg-muted text-foreground'
 } as const

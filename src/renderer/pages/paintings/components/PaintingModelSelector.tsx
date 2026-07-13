@@ -5,59 +5,55 @@ import { getProviderDisplayName, ModelSelector } from '@renderer/components/Mode
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { first } from 'es-toolkit/compat'
+import { isGenerateImageModel } from '@shared/utils/model'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PaintingData } from '../model/types/paintingData'
-import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
+import type { ComposerDraft } from '../model/composerDraft'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 interface PaintingModelSelectorProps {
   className?: string
-  painting: PaintingData
+  draft: ComposerDraft
   onSelect: (selection: { providerId: string; modelId: string }) => void
   /** Drop the "Model" section title — used by the composer's bottom toolbar. */
   hideTitle?: boolean
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect, hideTitle }) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, draft, onSelect, hideTitle }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
   const { providers } = useProviders({ enabled: true })
 
   const selectedModelId = useMemo(
-    () =>
-      painting.providerId && painting.model ? createUniqueModelId(painting.providerId, painting.model) : undefined,
-    [painting.providerId, painting.model]
+    () => (draft.providerId && draft.model ? createUniqueModelId(draft.providerId, draft.model) : undefined),
+    [draft.providerId, draft.model]
   )
 
   const selectedModel = useMemo(
     () =>
-      painting.model
-        ? models.find((model) => model.providerId === painting.providerId && model.apiModelId === painting.model)
+      draft.model
+        ? models.find((model) => model.providerId === draft.providerId && model.apiModelId === draft.model)
         : undefined,
-    [models, painting.providerId, painting.model]
+    [models, draft.providerId, draft.model]
   )
 
   const selectedProvider = useMemo(
-    () => (painting.providerId ? providers.find((provider) => provider.id === painting.providerId) : undefined),
-    [providers, painting.providerId]
+    () => (draft.providerId ? providers.find((provider) => provider.id === draft.providerId) : undefined),
+    [providers, draft.providerId]
   )
 
-  const selectedName = selectedModel?.name ?? painting.model
+  const selectedName = selectedModel?.name ?? draft.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
   const selectedIconRef = useMemo(() => {
-    if (!painting.providerId) return undefined
-    const identifier = selectedModel?.apiModelId ?? painting.model
+    if (!draft.providerId) return undefined
+    const identifier = selectedModel?.apiModelId ?? draft.model
     if (!identifier) return undefined
-    return (
-      resolveIconRef(identifier, painting.providerId) ?? resolveIconRef(selectedModel?.name ?? '', painting.providerId)
-    )
-  }, [painting.providerId, painting.model, selectedModel])
+    return resolveIconRef(identifier, draft.providerId) ?? resolveIconRef(selectedModel?.name ?? '', draft.providerId)
+  }, [draft.providerId, draft.model, selectedModel])
   const selectedIcon = useIcon(selectedIconRef)
 
   return (
@@ -78,11 +74,11 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
           onSelect({ providerId, modelId })
         }}
-        filter={supportsImageGenerationEndpoint}
+        filter={isGenerateImageModel}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
-        prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}
+        prioritizedProviderIds={draft.providerId ? [draft.providerId] : undefined}
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
@@ -98,7 +94,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                   <selectedIcon.Avatar size={18} className="shrink-0" />
                 ) : (
                   <Avatar className="size-[18px] shrink-0 items-center justify-center rounded-lg">
-                    <AvatarFallback className="rounded-lg text-[10px]">{first(selectedName) || 'M'}</AvatarFallback>
+                    <AvatarFallback className="rounded-lg text-[10px]">{selectedName?.[0] || 'M'}</AvatarFallback>
                   </Avatar>
                 )
               ) : null}

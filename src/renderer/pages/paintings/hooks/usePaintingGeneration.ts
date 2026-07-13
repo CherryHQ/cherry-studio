@@ -1,12 +1,16 @@
 import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
-import type { PaintingMode } from '@shared/data/types/painting'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useState } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
-import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
-import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
+import type { ComposerDraft } from '../model/composerDraft'
+import {
+  draftToCreateDto,
+  draftToInflightCard,
+  draftToOutputCreateDto,
+  draftToUpdateDto
+} from '../model/mappers/draftToDto'
 import {
   abortPaintingGeneration,
   clearPaintingAbortController,
@@ -17,132 +21,120 @@ import type { PaintingData } from '../model/types/paintingData'
 import { type PaintingGenerationState, paintingGenerationStateToCache } from '../model/utils/paintingGenerationParams'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
-function hasOutput(painting: PaintingData) {
-  return (painting.files?.length ?? 0) > 0
-}
-
 interface UsePaintingGenerationInput {
-  painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  draft: ComposerDraft
 }
 
-export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintingGenerationInput) {
+/** Requested image count from the draft params (`numImages`), clamped to 1..16. */
+function requestedImageCount(params: Record<string, unknown> | undefined): number {
+  const raw = Number(params?.numImages)
+  if (!Number.isFinite(raw) || raw < 1) return 1
+  return Math.min(Math.floor(raw), 16)
+}
+
+/**
+ * Runs a generation from the composer's `draft` and produces painting cards —
+ * the draft itself is never a record. Nothing is persisted until the run reaches
+ * a terminal outcome (so an interrupted run leaves no ghost). While it runs,
+ * `inflightCards` exposes N transient `PaintingData` placeholders (status
+ * `generating`, sharing a `groupId` when N>1) so the canvas shows N spinner
+ * nodes inside a hull immediately. On success they become N real records sharing
+ * the same ids + groupId (no flicker); `draft.targetCardId` makes the first card
+ * a retry-in-place of an existing record instead of a fresh create.
+ */
+export function usePaintingGeneration({ draft }: UsePaintingGenerationInput) {
   const { createPainting, updatePainting, refresh } = usePaintings()
-  const currentProviderId = painting.providerId
-  const { provider } = usePaintingProviderRuntime(currentProviderId)
-  const visibleIdRef = useRef(painting.id)
-
-  useEffect(() => {
-    visibleIdRef.current = painting.id
-  }, [painting.id])
-
-  // No unmount-abort: the page-level cache mirror in
-  // `painting.generation.${id}` lets a navigated-away generation finish,
-  // and the spinner rehydrates when the user returns. Explicit cancel still
-  // flows through `cancelGeneration → abortPaintingGeneration`.
-
-  const isGenerating = useCallback((p: Pick<PaintingData, 'generationStatus'>) => {
-    return p.generationStatus === 'running'
-  }, [])
-
-  const applyIfVisible = useCallback(
-    (next: PaintingData) => {
-      if (visibleIdRef.current === next.id) {
-        onPaintingChange(next)
-      }
-    },
-    [onPaintingChange]
-  )
+  const { provider } = usePaintingProviderRuntime(draft.providerId)
+  const [inflightCards, setInflightCards] = useState<PaintingData[]>([])
 
   const generate = useCallback(async () => {
-    // The in-memory draft is the source of truth for this whole flow.
-    // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
-    // they're not consulted again to rebuild the live painting. That keeps
-    // form-only fields — `mode`, `params`, `inputFiles` — intact end to end
-    // without re-stitching them after each persist call.
-    const shouldCreate = hasOutput(painting) || !painting.persistedAt
-    const targetPainting: PaintingData = shouldCreate
-      ? { ...painting, id: uuid(), files: hasOutput(painting) ? [] : painting.files }
-      : { ...painting }
+    const requested = requestedImageCount(draft.params)
+    const targetCardId = draft.targetCardId
+    const primaryId = targetCardId ?? uuid()
+    // Pre-allocate ids + a group tag so the placeholders and the final records
+    // share identity (the spinner node becomes the image node in place).
+    const groupId = requested > 1 ? uuid() : undefined
+    const ids = [primaryId, ...Array.from({ length: requested - 1 }, () => uuid())]
+    const inputIds = draft.inputFiles.map((entry) => entry.id)
+    setInflightCards(ids.map((id) => ({ ...draftToInflightCard(draft, id), groupId: groupId ?? null })))
 
-    try {
-      const persisted = shouldCreate
-        ? await createPainting(
-            paintingDataToCreateDto(targetPainting as PaintingData & { providerId: string; mode: PaintingMode })
-          )
-        : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
-      targetPainting.persistedAt = persisted.createdAt
-    } catch (error) {
-      presentPaintingGenerateError(error)
-      return
-    }
-
-    const generationState: PaintingGenerationState = {
+    const cacheKey = `painting.generation.${primaryId}` as const
+    const controller = new AbortController()
+    const runningState: PaintingGenerationState = {
       generationStatus: 'running',
       generationTaskId: null,
       generationError: null,
       generationProgress: 0
     }
-    const controller = new AbortController()
-    const cacheKey = `painting.generation.${targetPainting.id}` as const
-
-    // Generation state (running/failed/canceled, taskId, progress) is the
-    // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
-    // The cache mirror outlives this component's unmount, so navigating away
-    // and back rehydrates the running spinner.
-    const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
-      Object.assign(generationState, updates, { generationStatus: 'running' as const })
-      cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
-      applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
-    }
-
-    visibleIdRef.current = targetPainting.id
-    onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
-    registerPaintingAbortController(targetPainting.id, controller)
-    pushGenerationState(generationState)
+    // Cache mirror keyed by the primary id — lets a navigated-away generation
+    // finish and the spinner rehydrate when the user returns.
+    cacheService.set(cacheKey, paintingGenerationStateToCache(runningState))
+    registerPaintingAbortController(primaryId, controller)
 
     try {
       const generatedFiles = await paintingGenerate({
-        painting: targetPainting,
+        painting: draftToInflightCard(draft, primaryId),
         provider,
         tab: 'default',
         abortController: controller
       })
-      await updatePainting(targetPainting.id, {
-        files: {
-          output: generatedFiles.map((file) => file.id),
-          input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
+      // Each generated image becomes its own painting record. They share a
+      // `groupId` only when more than one came back. Reuse the pre-allocated ids
+      // (so placeholder → record is in place); the first card retries in place
+      // when the draft targets an existing record.
+      const realGroupId = generatedFiles.length > 1 ? (groupId ?? uuid()) : undefined
+      for (let index = 0; index < generatedFiles.length; index++) {
+        const fileId = generatedFiles[index].id
+        if (index === 0 && targetCardId) {
+          await updatePainting(targetCardId, {
+            ...draftToUpdateDto(draft),
+            files: { output: [fileId], input: inputIds },
+            status: 'succeeded',
+            groupId: realGroupId
+          })
+        } else {
+          const id = index < ids.length ? ids[index] : uuid()
+          await createPainting(draftToOutputCreateDto(draft, id, fileId, realGroupId))
         }
-      })
+      }
       cacheService.set(cacheKey, null)
-      // Merge the freshly-generated output into the in-memory draft; do not
-      // re-read from the DB record (which would drop params / mode again).
-      applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
-      await refresh()
     } catch (error) {
       const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
-      const failedState: PaintingGenerationState = {
-        ...generationState,
-        generationStatus: isCanceled ? 'canceled' : 'failed',
-        generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
+      const status = isCanceled ? 'canceled' : 'failed'
+      cacheService.set(
+        cacheKey,
+        paintingGenerationStateToCache({
+          ...runningState,
+          generationStatus: status,
+          generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
+        })
+      )
+      // Persist a single terminal record so a reloaded run reads as failed/canceled
+      // (offers retry) instead of vanishing. Best-effort.
+      if (targetCardId) {
+        await updatePainting(targetCardId, { status }).catch(() => {})
+      } else {
+        await createPainting({ ...draftToCreateDto(draft, primaryId), status }).catch(() => {})
       }
-      cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-      applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
       if (!isCanceled) {
         presentPaintingGenerateError(error)
       }
     } finally {
-      clearPaintingAbortController(targetPainting.id, controller)
+      clearPaintingAbortController(primaryId, controller)
+      // Refresh first so the real records are in `items` before the placeholders
+      // are dropped — the cards keep their identity + cluster slots (no flicker /
+      // overlap). Clear even if the refetch rejects.
+      try {
+        await refresh()
+      } finally {
+        setInflightCards([])
+      }
     }
-  }, [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting])
+  }, [createPainting, draft, provider, refresh, updatePainting])
 
   const cancel = useCallback((paintingId: string) => {
     abortPaintingGeneration(paintingId)
   }, [])
 
-  return {
-    generate,
-    cancel,
-    generating: isGenerating(painting)
-  }
+  return { generate, cancel, inflightCards }
 }

@@ -47,7 +47,18 @@ const EMPTY_FILES: PaintingFiles = { output: [], input: [] }
  * `files` is intentionally NOT in this map: file membership is owned by
  * `painting_file_ref`, not the painting row. The update path handles it separately.
  */
-export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
+export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
+  'providerId',
+  'modelId',
+  'prompt',
+  'mode',
+  'params',
+  'canvasX',
+  'canvasY',
+  'canvasW',
+  'status',
+  'groupId'
+]
 
 function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
   return {
@@ -56,6 +67,13 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
     modelId: row.modelId,
     prompt: row.prompt,
     files,
+    mode: row.mode,
+    params: row.params,
+    canvasX: row.canvasX,
+    canvasY: row.canvasY,
+    canvasW: row.canvasW,
+    status: row.status,
+    groupId: row.groupId,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -169,7 +187,14 @@ class PaintingService {
               id: dto.id,
               providerId: dto.providerId,
               modelId: normalizeModelId(dto.providerId, dto.modelId),
-              prompt: dto.prompt
+              prompt: dto.prompt,
+              mode: dto.mode ?? null,
+              params: dto.params ?? null,
+              canvasX: dto.canvasX ?? null,
+              canvasY: dto.canvasY ?? null,
+              canvasW: dto.canvasW ?? null,
+              status: dto.status ?? null,
+              groupId: dto.groupId ?? null
             },
             {
               pkColumn: paintingTable.id,

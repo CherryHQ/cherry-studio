@@ -4498,6 +4498,27 @@
         "image": "选择图片"
       }
     },
+    "canvas": {
+      "back_to_content": "回到画布",
+      "menu": {
+        "copy_prompt": "复制提示词",
+        "download": "下载图片",
+        "prompt_copied": "提示词已复制"
+      },
+      "minimap": "缩略图",
+      "op": {
+        "add_to_chat": "添加到聊天",
+        "edit": "编辑",
+        "regenerate": "重新生成"
+      },
+      "retry": "重试",
+      "tool": {
+        "add_board": "添加画板",
+        "pan": "抓手",
+        "select": "选择",
+        "upload": "上传素材"
+      }
+    },
     "custom_size": "自定义尺寸",
     "dashscope": {
       "bottom_scale": "向下扩展",
@@ -4573,6 +4594,9 @@
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
+    "list": {
+      "load_more": "加载更多"
+    },
     "magic_prompt_option": "提示词增强",
     "mode": {
       "edit": "编辑",
@@ -4692,6 +4716,10 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
+    },
+    "view": {
+      "canvas": "画布",
+      "list": "列表"
     },
     "watermark": "添加水印",
     "zhipu": {
