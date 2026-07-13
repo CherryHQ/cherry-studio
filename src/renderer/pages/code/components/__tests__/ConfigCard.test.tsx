@@ -1,4 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,6 +29,7 @@ const provider = {
 } as Provider
 
 function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
+  const onMoveToTop = vi.fn()
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
   const isCurrent = options.isCurrent ?? false
@@ -38,6 +40,7 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
       providerName="Anthropic"
       modelName={modelName}
       isCurrent={isCurrent}
+      onMoveToTop={onMoveToTop}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
     />
@@ -48,6 +51,8 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
     enableButton,
     cardShell: enableButton.closest('.rounded-xl') as HTMLElement,
     configureButton: screen.getByRole('button', { name: 'code.configure' }),
+    moveToTopButton: screen.getByRole('button', { name: 'code.move_provider_to_top' }),
+    onMoveToTop,
     onConfigure,
     onToggleCurrent
   }
@@ -88,6 +93,21 @@ describe('ProviderCard', () => {
     fireEvent.click(configureButton)
 
     expect(onConfigure).toHaveBeenCalledWith(provider)
+    expect(onToggleCurrent).not.toHaveBeenCalled()
+  })
+
+  it('moves the provider to the top from the icon button before Configure', () => {
+    const { moveToTopButton, configureButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
+
+    expect(moveToTopButton.querySelector('.lucide-arrow-up-to-line')).toBeInTheDocument()
+    expect(moveToTopButton).toHaveClass('border-border/50')
+    expect(configureButton).toHaveClass('border-border/50')
+    expect(moveToTopButton.compareDocumentPosition(configureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(moveToTopButton)
+
+    expect(onMoveToTop).toHaveBeenCalledWith(provider)
+    expect(onConfigure).not.toHaveBeenCalled()
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 
@@ -181,5 +201,46 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).toHaveBeenCalledTimes(2)
     expect(onToggleCurrent).toHaveBeenNthCalledWith(1, provider)
     expect(onToggleCurrent).toHaveBeenNthCalledWith(2, provider)
+  })
+})
+
+describe('ProviderCard — unified gateway', () => {
+  const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' } as Provider
+
+  function renderGateway(description?: string) {
+    return render(
+      <ProviderCard
+        provider={gatewayProvider}
+        providerName="统一网关"
+        description={description}
+        isCurrent={false}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+      />
+    )
+  }
+
+  it('marks the gateway with the broadcast-tower glyph instead of a provider logo avatar', () => {
+    const { container } = renderGateway()
+
+    // GatewayIcon renders the Font Awesome broadcast-tower (viewBox 640), not a brand-logo avatar.
+    expect(container.querySelector('svg[viewBox="0 0 640 640"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-icon-anthropic')).not.toBeInTheDocument()
+  })
+
+  it('renders the promo description below the provider name', () => {
+    renderGateway('一个网关，连通所有模型')
+
+    const name = screen.getByText('统一网关')
+    const description = screen.getByText('一个网关，连通所有模型')
+
+    expect(description).toBeInTheDocument()
+    expect(name.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('omits the description row when no description is supplied', () => {
+    renderGateway(undefined)
+
+    expect(screen.queryByText('一个网关，连通所有模型')).not.toBeInTheDocument()
   })
 })

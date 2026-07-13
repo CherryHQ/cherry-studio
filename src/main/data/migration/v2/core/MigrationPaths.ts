@@ -342,12 +342,17 @@ export function selectLegacyUserData(input: {
  * `resolveUserDataLocation()` resolves it directly on the next launch (no
  * legacy-config fallback, no re-prompt). Shared by the redirect path and the
  * gate's "continue on the default directory" recovery choice.
+ *
+ * Persists **strictly** (`persist()` THROWS on write failure) rather than
+ * best-effort: the next launch depends on this write, so a silent failure would
+ * relaunch into the OLD directory and loop (or make migrated data appear lost).
+ * Callers in `runV2MigrationGate()` route the throw to a fatal error dialog.
  */
 export function pinUserDataPath(userData: string): void {
   const exe = getNormalizedExecutablePath()
   const current = bootConfigService.get('app.user_data_path') ?? {}
   bootConfigService.set('app.user_data_path', { ...current, [exe]: userData })
-  bootConfigService.flush()
+  bootConfigService.persist()
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────

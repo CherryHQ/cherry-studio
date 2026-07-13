@@ -429,6 +429,109 @@ describe('ComposerToken', () => {
     expect(imagePreview.parentElement).toHaveClass('inline-flex', 'max-h-64', 'max-w-80', 'overflow-hidden', 'bg-muted')
   })
 
+  it('renders input raster images as chips with a thumbnail in the icon slot', () => {
+    const onRemove = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        imageIconPreview
+        selected
+        onRemove={onRemove}
+        removeLabel="删除"
+        token={{
+          id: 'file:image-icon-preview',
+          kind: 'file',
+          label: 'avatar-preview.png',
+          payload: createFileMetadata({
+            id: 'image-icon-preview-file',
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
+            path: '/tmp/avatar-preview.png',
+            ext: '.png',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    const token = getRenderedFileToken(container)
+    expect(token).toHaveClass('h-6', 'align-baseline', 'border-primary', 'ring-1', 'ring-ring')
+    expect(token).toHaveTextContent('avatar-preview.png')
+
+    const iconSlot = token.querySelector('[data-file-token-icon="image"]')
+    expect(iconSlot).toHaveClass('size-4.5', 'overflow-hidden', 'rounded-[5px]')
+    const thumbnail = iconSlot?.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement
+    expect(thumbnail).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
+    expect(thumbnail).toHaveAttribute('alt', '')
+    expect(thumbnail).toHaveAttribute('aria-hidden', 'true')
+    expect(thumbnail).toHaveAttribute('draggable', 'false')
+    expect(thumbnail).toHaveClass('block', 'size-4.5!', 'shrink-0', 'object-cover')
+
+    const removeButton = screen.getByRole('button', { name: '删除' })
+    expect(removeButton).toHaveClass(
+      'size-full',
+      'rounded-[5px]',
+      'opacity-0',
+      'group-hover/composer-token:pointer-events-auto',
+      'group-hover/composer-token:opacity-100'
+    )
+    expect(removeButton.querySelector('svg')).toHaveClass('size-3')
+
+    openFileTokenPopover(container)
+    expect(screen.getByAltText('avatar-preview.png')).toHaveClass('max-h-64', 'max-w-80', 'object-contain')
+
+    fireEvent.click(removeButton)
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the default image icon for SVG input files', () => {
+    const { container } = render(
+      <FileComposerToken
+        imageIconPreview
+        token={{
+          id: 'file:svg-icon',
+          kind: 'file',
+          label: 'icon.svg',
+          payload: createFileMetadata({
+            name: 'icon.svg',
+            origin_name: 'icon.svg',
+            path: '/tmp/icon.svg',
+            ext: '.svg',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    expect(getRenderedFileToken(container)).toHaveTextContent('icon.svg')
+    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
+    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+  })
+
+  it('falls back to the default image icon when the icon thumbnail fails to load', () => {
+    const { container } = render(
+      <FileComposerToken
+        imageIconPreview
+        token={{
+          id: 'file:image-icon-preview',
+          kind: 'file',
+          label: 'avatar-preview.png',
+          payload: createFileMetadata({
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
+            path: '/tmp/avatar-preview.png',
+            ext: '.png',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
+    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
+    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+    expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
+  })
+
   it('renders pdf file tokens with pdf variant metadata', () => {
     const { container } = render(
       <ComposerToken

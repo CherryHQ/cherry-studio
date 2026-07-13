@@ -89,6 +89,7 @@ import type {
 } from './types'
 import {
   asRecord,
+  cliProviderKeyName,
   dropFeatureGoalsIfEmpty,
   dropSecurityAuthSelectedTypeIfEmpty,
   findCherryProviderKey,
@@ -96,7 +97,6 @@ import {
   normalizeUrl,
   numberValue,
   omitKeysByPrefix,
-  sanitizeProviderName,
   stringValue
 } from './values'
 
@@ -287,7 +287,7 @@ const codexAdapter: CliConfigAdapter = {
     }
     const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files)
     const auth = await readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files)
-    const providerName = sanitizeProviderName(provider.name, provider.id)
+    const providerName = cliProviderKeyName(provider)
     return [
       await makeDraftFile(
         'codex-config',
@@ -384,7 +384,7 @@ const openCodeAdapter: CliConfigAdapter = {
     }),
   sanitize: sanitizeOpenCodeConfigBlob,
   async buildDraft(args, context) {
-    const { provider, apiKey, model, modelRecord, configBlob } = context
+    const { provider, apiKey, model, modelLabel, modelRecord, configBlob } = context
     const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
     // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
     // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
@@ -401,7 +401,7 @@ const openCodeAdapter: CliConfigAdapter = {
             existing,
             provider,
             npmInfo,
-            { apiKey, baseUrl, model },
+            { apiKey, baseUrl, model, modelLabel },
             {
               reasoning: env.OPENCODE_REASONING === 'true',
               supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
@@ -425,6 +425,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const provider = asRecord(providers[providerKey])
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
     const env = asRecord(configBlob.env)
+    const model = requireDraftValue(connection.model, 'OpenCode model')
     const nextConfig = buildOpenCodeConfig(
       existing,
       { id: providerName, name: providerName },
@@ -432,7 +433,10 @@ const openCodeAdapter: CliConfigAdapter = {
       {
         apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
         baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),
-        model: requireDraftValue(connection.model, 'OpenCode model')
+        model,
+        // A config-only edit has no model record to re-derive the display name from; keep
+        // the one already written for this model key.
+        modelLabel: stringValue(asRecord(asRecord(provider.models)[model]).name)
       },
       {
         reasoning: env.OPENCODE_REASONING === 'true',
@@ -449,6 +453,12 @@ const openCodeAdapter: CliConfigAdapter = {
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+    // Only drop the top-level model when it points at a cherry-* provider (about to be
+    // removed below — keeping it would leave a dangling reference); a user's own value
+    // referencing their own provider stays.
+    if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
+      delete next.model
+    }
     if (next.provider && typeof next.provider === 'object') {
       next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
     }
@@ -460,8 +470,9 @@ const openCodeAdapter: CliConfigAdapter = {
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const models = asRecord(provider.models)
-    const modelEntry = Object.entries(models)[0]
-    const model = stringValue(asRecord(modelEntry?.[1]).name) ?? modelEntry?.[0]
+    // The models map KEY is the addressing id (what gateway matching compares against);
+    // `name` is only the display label and may differ from it.
+    const model = Object.keys(models)[0]
     return {
       baseUrl: stringValue(asRecord(provider.options).baseURL),
       apiKey: stringValue(asRecord(provider.options).apiKey),
@@ -653,7 +664,7 @@ const kimiAdapter: CliConfigAdapter = {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const baseUrl = resolveOpenAIBaseUrl(provider)
     const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow, args.files)
-    const providerName = sanitizeProviderName(provider.name, provider.id)
+    const providerName = cliProviderKeyName(provider)
     return [
       await makeDraftFile(
         'kimi-config',

@@ -360,6 +360,54 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
+  it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const historyMessage = {
+      id: 'assistant-history',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'history' }],
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'success' }
+    } as CherryUIMessage
+    const activeMessage = {
+      id: 'assistant-active',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'a' }],
+      metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'pending' }
+    } as CherryUIMessage
+    let value: MessageListProviderValue | undefined
+
+    const Probe = ({ messages }: { messages: CherryUIMessage[] }) => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []])),
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    const view = render(<Probe messages={[historyMessage, activeMessage]} />)
+    const firstHistoryItem = value?.state.messages[0]
+    const firstActiveItem = value?.state.messages[1]
+    const nextActiveMessage = {
+      ...activeMessage,
+      parts: [{ type: 'text', text: 'ab' }]
+    } as CherryUIMessage
+
+    view.rerender(<Probe messages={[historyMessage, nextActiveMessage]} />)
+
+    expect(value?.state.messages[0]).toBe(firstHistoryItem)
+    expect(value?.state.messages[1]).not.toBe(firstActiveItem)
+  })
+
   it('does not expose selected delete action without delete capability', () => {
     const topic = {
       id: 'agent-session-topic',
