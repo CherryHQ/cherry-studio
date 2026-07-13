@@ -193,7 +193,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'searchableText', dbName: 'searchableText', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'status', dbName: 'status', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'messageSnapshot', dbName: 'messageSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'modelSnapshot', dbName: 'modelSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'stats', dbName: 'stats', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     {
       name: 'runtimeResumeToken',
@@ -405,7 +405,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'status', dbName: 'status', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'siblingsGroupId', dbName: 'siblingsGroupId', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'messageSnapshot', dbName: 'messageSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'modelSnapshot', dbName: 'modelSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'stats', dbName: 'stats', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'ftsRowid', dbName: 'ftsRowid', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -872,12 +872,14 @@ export const DB_JSON_COLUMNS = {
   mcp_server: ['args', 'env', 'headers', 'tags', 'configSample', 'disabledTools', 'disabledAutoApproveTools'],
   message: ['data', 'modelSnapshot', 'stats'],
   mini_app: ['supportedRegions', 'configuration'],
+  mini_app_logo_file_ref: [],
   note: [],
   painting: [],
   painting_file_ref: [],
   pin: [],
   preference: ['value'],
   prompt: [],
+  provider_logo_file_ref: [],
   tag: [],
   topic: [],
   translate_history: [],
@@ -905,5 +907,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-14T04:05:55.263Z'
+  generatedAt: '2026-07-13T06:08:09.783Z'
 } as const
