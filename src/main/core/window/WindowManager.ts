@@ -1570,8 +1570,8 @@ export class WindowManager extends BaseService {
     //   treat FullscreenChanged as the source of truth (the green button defaults
     //   to native fullscreen, which fires reliably).
     // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
-    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
-    //   semantics is OS-level native fullscreen only.
+    //   intentionally NOT bridged here: the renderer's fullscreen handling
+    //   (useWindowRuntime) is OS-level native fullscreen only.
     window.on('maximize', () => {
       application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
     })
