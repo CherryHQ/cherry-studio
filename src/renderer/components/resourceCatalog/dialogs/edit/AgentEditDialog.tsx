@@ -242,21 +242,29 @@ function AgentEditDialogContent({
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
-      { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      {
-        id: 'tools',
-        label: t('library.config.dialogs.edit.tools_tab'),
-        children: [
-          { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
-          ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
-          ...(caps.skills
-            ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
-            : [])
-        ]
-      },
-      { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
+      ...(caps.prompt ? [{ id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') }] : []),
+      ...(caps.builtinTools().length || caps.mcp || caps.skills
+        ? [
+            {
+              id: 'tools',
+              label: t('library.config.dialogs.edit.tools_tab'),
+              children: [
+                ...(caps.builtinTools().length
+                  ? [{ id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') }]
+                  : []),
+                ...(caps.mcp
+                  ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }]
+                  : []),
+                ...(caps.skills
+                  ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
+                  : [])
+              ]
+            }
+          ]
+        : []),
+      ...(caps.prompt ? [{ id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }] : [])
     ],
-    [caps.mcp, caps.skills, t]
+    [caps, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -339,9 +347,11 @@ function AgentEditDialogContent({
           setEmojiPickerOpen={setEmojiPickerOpen}
         />
       </TabsContent>
-      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-        <AgentPromptField form={form} portalContainer={dialogContentElement} />
-      </TabsContent>
+      {caps.prompt ? (
+        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+          <AgentPromptField form={form} portalContainer={dialogContentElement} />
+        </TabsContent>
+      ) : null}
       {isToolTab(activeTab) ? (
         <TabsContent value={activeTab} forceMount className="m-0">
           <AgentToolsFields
@@ -355,9 +365,11 @@ function AgentEditDialogContent({
           />
         </TabsContent>
       ) : null}
-      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-        <AgentAdvancedFields form={form} />
-      </TabsContent>
+      {caps.prompt ? (
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AgentAdvancedFields form={form} />
+        </TabsContent>
+      ) : null}
     </EditDialogShell>
   )
 }
@@ -404,56 +416,60 @@ function AgentBasicFields({
           required
         />
       </div>
-      <div className={caps.modelTiers ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-3'}>
-        <CompactModelField
-          form={form}
-          name="modelId"
-          label={t('library.config.agent.field.model.label')}
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-        />
-        {caps.modelTiers && (
+      {caps.requiresModel ? (
+        <div className={caps.modelTiers ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-3'}>
           <CompactModelField
             form={form}
-            name="planModelId"
-            label={t('library.config.agent.field.plan_model.label')}
-            allowClear
+            name="modelId"
+            label={t('library.config.agent.field.model.label')}
             filter={modelFilter}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
-            onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+            onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
           />
-        )}
-        {caps.modelTiers && (
-          <CompactModelField
-            form={form}
-            name="smallModelId"
-            label={t('library.config.agent.field.small_model.label')}
-            allowClear
-            filter={modelFilter}
-            portalContainer={portalContainer}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-          />
-        )}
-      </div>
+          {caps.modelTiers && (
+            <CompactModelField
+              form={form}
+              name="planModelId"
+              label={t('library.config.agent.field.plan_model.label')}
+              allowClear
+              filter={modelFilter}
+              portalContainer={portalContainer}
+              modelLabels={modelLabels}
+              setModelLabels={setModelLabels}
+              onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+            />
+          )}
+          {caps.modelTiers && (
+            <CompactModelField
+              form={form}
+              name="smallModelId"
+              label={t('library.config.agent.field.small_model.label')}
+              allowClear
+              filter={modelFilter}
+              portalContainer={portalContainer}
+              modelLabels={modelLabels}
+              setModelLabels={setModelLabels}
+              onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+            />
+          )}
+        </div>
+      ) : null}
       <TextInputField
         form={form}
         name="description"
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <PermissionModeField
-        form={form}
-        modes={caps.permissionModes}
-        portalContainer={portalContainer}
-        patchAgentForm={patchAgentForm}
-      />
+      {caps.permissions ? (
+        <PermissionModeField
+          form={form}
+          modes={caps.permissionModes}
+          portalContainer={portalContainer}
+          patchAgentForm={patchAgentForm}
+        />
+      ) : null}
       {caps.heartbeat && (
         <HeartbeatSettingsField
           form={form}

@@ -25,4 +25,4 @@ export type { InstalledSkill } from '../api/schemas/skills'
 // Adding a third runtime? Add one AGENT_RUNTIME_CAPABILITIES entry in
 // @shared/ai/agentRuntimeCapabilities (compile-enforced) plus the runtime driver package.
 // Full checklist: docs/references/ai/adding-a-runtime.md
-export type AgentType = 'claude-code' | 'pi'
+export type AgentType = 'claude-code' | 'pi' | 'stella'

@@ -162,6 +162,12 @@ These are the choices nothing enforces:
   pin that directory forever. Validate the handle before using it to locate a
   session file.
 
+## Stella remote-runtime POC boundary
+
+`stella` is the reference implementation for a remote-authoritative runtime: a Cherry agent row is only a remote agent id plus a non-authoritative display projection, so `model` is null and Cherry never sends provider credentials, workspace paths, prompts, tool policy, or permissions. Its single global endpoint/PAT connection is main-process state encrypted with Electron `safeStorage`; it is intentionally not Preference or DataApi data. Until `AiStreamManager` accepts a runtime identity separate from its model-shaped dispatch slot, model-free agent sessions use a local `agent-runtime::<agentId>` execution key; concrete drivers and remote ids never enter that host workaround or persisted model data.
+
+The POC supports text-only message POSTs and UI-message-stream v1 SSE. Its resume token is the Stella session id. It has no replay, retry, attachment, steering, local-tool, policy, or context-usage contract. Redirects are manual so the Bearer PAT cannot cross origins. Upgrade to connection-id keyed secure records before adding multiple accounts.
+
 ## Verification
 
 - `pnpm test` — includes the registry-pairing and descriptor-invariant tests.

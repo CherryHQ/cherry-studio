@@ -3133,13 +3133,21 @@
             "label": "Runtime",
             "option": {
               "claude_code": "Claude Code",
-              "pi": "pi"
+              "pi": "pi",
+              "stella": "Stella"
             },
-            "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available."
+            "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available.",
+            "stella_hint": "Stella owns this agent's model, prompt, tools, workspace, memory, and permissions."
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",
             "label": "Small model"
+          },
+          "stella": {
+            "connect": "Connect and list agents",
+            "endpoint": "Stella endpoint",
+            "pat": "Personal access token",
+            "remote_agent": "Remote agent"
           }
         },
         "model_config": "Model configuration",

@@ -129,6 +129,8 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserData, 'agents', 'pi'), // Cherry-owned pi coding-agent home; exported as PI_CODING_AGENT_DIR
     'feature.agents.pi.sessions': path.join(appUserData, 'agents', 'pi', 'sessions'), // <root>/sessions; matches pi's getSessionsDir() default
+    // One global Stella connection in the POC; add a connection-id directory when multi-account support is required.
+    'feature.agents.stella.connection_file': path.join(appUserData, 'agents', 'stella-connection.json'),
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 

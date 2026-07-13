@@ -114,6 +114,8 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   createAgent(req: CreateAgentDto): AgentEntity {
+    assertAgentModelRequirement(req)
+    assertStellaReferenceRequirement(req)
     const id = uuidv4()
     const mcps = req.mcps ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -332,6 +334,9 @@ export class AgentService {
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
     const existing = this.getAgent(id)
     if (!existing) return null
+    const nextAgent = { ...existing, ...updates }
+    assertAgentModelRequirement(nextAgent)
+    assertStellaReferenceRequirement(nextAgent)
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
@@ -527,6 +532,24 @@ export class AgentService {
     tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId)).run()
 
     return affectedIds
+  }
+}
+
+function assertAgentModelRequirement(agent: Pick<AgentEntity, 'type' | 'model' | 'planModel' | 'smallModel'>): void {
+  if (agent.type === 'stella') {
+    if (agent.model || agent.planModel || agent.smallModel) {
+      throw DataApiErrorFactory.invalidOperation('save agent', 'Stella agent references cannot contain local models')
+    }
+    return
+  }
+  if (!agent.model) {
+    throw DataApiErrorFactory.invalidOperation('save agent', 'A local model is required for this runtime')
+  }
+}
+
+function assertStellaReferenceRequirement(agent: Pick<AgentEntity, 'type' | 'configuration'>): void {
+  if (agent.type === 'stella' && !agent.configuration?.stella_remote_agent_id) {
+    throw DataApiErrorFactory.invalidOperation('save agent', 'A Stella remote agent is required')
   }
 }
 

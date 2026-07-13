@@ -46,6 +46,9 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     description: '',
     agentType: 'claude-code',
     modelId: null,
+    stellaEndpoint: '',
+    stellaPat: '',
+    stellaRemoteAgentId: '',
     prompt: '',
     knowledgeBaseIds: [],
     skillIds: []
@@ -89,10 +92,15 @@ function WizardFooter({
   onCreate: () => void
 }) {
   const { t } = useTranslation()
-  const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
+  const [name, modelId, agentType, stellaRemoteAgentId] = useWatch({
+    control: form.control,
+    name: ['name', 'modelId', 'agentType', 'stellaRemoteAgentId']
+  })
   const submitting = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
-  const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
+  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+  const basicValid =
+    (name?.trim().length ?? 0) > 0 && (caps.requiresModel ? Boolean(modelId) : Boolean(stellaRemoteAgentId))
   const canProceed = stepIndex !== 0 || basicValid
 
   return (
@@ -159,8 +167,11 @@ export function ResourceCreateWizard({
     if (kind === 'assistant') {
       return [basic, persona, { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }]
     }
-    if (!AGENT_RUNTIME_CAPABILITIES[agentType].skills) return [basic, persona]
-    return [basic, persona, { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }]
+    const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+    const agentSteps = caps.prompt ? [basic, persona] : [basic]
+    return caps.skills
+      ? [...agentSteps, { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }]
+      : agentSteps
   }, [agentType, kind, t])
 
   useEffect(() => {
@@ -178,15 +189,18 @@ export function ResourceCreateWizard({
 
   const goNext = () => {
     if (stepIndex === 0) {
-      const { name, modelId } = form.getValues()
-      if (!(name.trim().length > 0 && modelId)) return
+      const { name, modelId, agentType, stellaRemoteAgentId } = form.getValues()
+      const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+      if (!(name.trim().length > 0 && (caps.requiresModel ? modelId : stellaRemoteAgentId))) return
     }
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
   const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
 
   const handleCreate = form.handleSubmit(async (values) => {
-    if (!values.modelId) return
+    const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+    if (caps.requiresModel && !values.modelId) return
+    if (caps.remoteAgentSelection && !values.stellaRemoteAgentId) return
     form.clearErrors('root')
     try {
       await onSubmit({
@@ -194,6 +208,7 @@ export function ResourceCreateWizard({
         name: values.name.trim(),
         agentType: values.agentType,
         modelId: values.modelId,
+        ...(caps.remoteAgentSelection ? { stellaRemoteAgentId: values.stellaRemoteAgentId } : {}),
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,

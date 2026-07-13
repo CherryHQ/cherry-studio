@@ -8,6 +8,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { getAgentRuntimeExecutionId, requiresLocalModel } from '@main/ai/runtime/agentRuntimeIdentity'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -60,17 +61,23 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const agentId = session.agentId
     const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
-    if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
-
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
       throw new Error(`Unsupported agent runtime type: ${agent.type}`)
     }
+    if (requiresLocalModel(agent.type) && !agent.model) {
+      throw new Error(`Agent ${agent.id} has no model configured`)
+    }
     await driver.validateSession(session)
 
-    const uniqueModelId = agent.model
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    const executionId = getAgentRuntimeExecutionId(agent)
+    if (!executionId) throw new Error(`Agent ${agent.id} has no executable runtime identity`)
+    const modelSnapshot = agent.model
+      ? (() => {
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
+          return { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        })()
+      : undefined
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -136,13 +143,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
         attributes: {
           'cs.topic_id': req.topicId,
           'cs.trigger': req.trigger,
-          'cs.model_id': uniqueModelId,
+          'cs.model_id': executionId,
           'cs.role': 'assistant',
           'cs.agent_id': agentId,
           'cs.session_id': sessionId
         }
       },
-      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId },
+      { topicId: req.topicId, modelName: agent.model ? parseUniqueModelId(agent.model).modelId : agent.name },
       traceId
     )
 
@@ -161,8 +168,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: uniqueModelId,
-          modelSnapshot
+          modelId: agent.model ?? undefined,
+          ...(modelSnapshot ? { modelSnapshot } : {})
         }
       ]
     })
@@ -171,7 +178,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {
-      modelId: uniqueModelId,
+      modelId: executionId,
       topicId: req.topicId,
       operation: 'invoke_agent',
       messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
@@ -183,7 +190,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       topicId: req.topicId,
       agentId,
       agentType: agent.type,
-      modelId: uniqueModelId,
+      modelId: executionId,
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
@@ -194,12 +201,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       topicId: req.topicId,
       models: [
         {
-          modelId: uniqueModelId,
+          modelId: executionId,
           request: {
             chatId: req.topicId,
             trigger: 'submit-message',
             assistantId: agentId,
-            uniqueModelId,
+            uniqueModelId: executionId,
             messages: [
               { id: userMessageId, role: 'user', parts: userMessageParts },
               { id: assistantMessageId, role: 'assistant', parts: [] }

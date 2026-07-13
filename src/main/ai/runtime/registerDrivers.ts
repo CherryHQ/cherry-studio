@@ -1,6 +1,7 @@
 import { ClaudeCodeRuntimeDriver } from './claudeCode'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
+import { StellaRuntimeDriver } from './stella/StellaRuntimeDriver'
 
 /**
  * Register every built-in AI runtime driver into the shared registry.
@@ -15,4 +16,5 @@ import { runtimeDriverRegistry } from './registry'
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new ClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
+  runtimeDriverRegistry.register(new StellaRuntimeDriver())
 }

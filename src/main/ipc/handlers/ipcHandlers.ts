@@ -26,6 +26,7 @@ import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
 import { selectionHandlers } from './selection'
 import { skillHandlers } from './skill'
+import { stellaHandlers } from './stella'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
@@ -68,6 +69,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...quickAssistantHandlers,
   ...selectionHandlers,
   ...skillHandlers,
+  ...stellaHandlers,
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,

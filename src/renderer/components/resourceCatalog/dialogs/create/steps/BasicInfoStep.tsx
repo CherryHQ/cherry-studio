@@ -1,10 +1,12 @@
 import {
+  Button,
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -18,6 +20,7 @@ import {
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { ipcApi } from '@renderer/ipc'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -63,9 +66,8 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
 
   const handleRuntimeChange = (next: AgentType) => {
     form.setValue('agentType', next, { shouldDirty: true })
-    // A model compatible with one runtime may be unsupported by another, so
-    // clear the current pick to force a re-select against the new filter.
     form.setValue('modelId', null, { shouldDirty: true })
+    form.setValue('stellaRemoteAgentId', '', { shouldDirty: true })
     setModelLabels(EMPTY_MODEL_LABELS)
   }
 
@@ -96,16 +98,116 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
           </FormItem>
         )}
       />
-      <CompactModelField
-        form={form}
-        name="modelId"
-        label={t('common.model')}
-        filter={runtimeFilter}
-        portalContainer={portalContainer}
-        modelLabels={modelLabels}
-        setModelLabels={setModelLabels}
-      />
+      {caps.remoteAgentSelection ? (
+        <StellaConnectionFields form={form} portalContainer={portalContainer} />
+      ) : (
+        <CompactModelField
+          form={form}
+          name="modelId"
+          label={t('common.model')}
+          filter={runtimeFilter}
+          portalContainer={portalContainer}
+          modelLabels={modelLabels}
+          setModelLabels={setModelLabels}
+        />
+      )}
     </>
+  )
+}
+
+function StellaConnectionFields({ form, portalContainer }: Omit<ModelFieldProps, 'modelLabels' | 'setModelLabels'>) {
+  const { t } = useTranslation()
+  const [agents, setAgents] = useState<Array<{ id: string; name: string; description?: string; avatar?: string }>>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const configureAndList = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { stellaEndpoint, stellaPat } = form.getValues()
+      await ipcApi.request('stella.configure_connection', { endpoint: stellaEndpoint, pat: stellaPat })
+      const remoteAgents = await ipcApi.request('stella.list_agents')
+      setAgents(remoteAgents)
+      form.setValue('stellaPat', '')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('library.config.dialogs.create.submit_failed'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectRemoteAgent = (id: string) => {
+    const remote = agents.find((agent) => agent.id === id)
+    if (!remote) return
+    form.setValue('stellaRemoteAgentId', remote.id, { shouldDirty: true })
+    form.setValue('name', remote.name, { shouldDirty: true })
+    form.setValue('description', remote.description ?? '', { shouldDirty: true })
+    if (remote.avatar) form.setValue('avatar', remote.avatar, { shouldDirty: true })
+  }
+
+  return (
+    <div className="grid gap-3 rounded-md border border-border-muted p-3">
+      <FormField
+        control={form.control}
+        name="stellaEndpoint"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('library.config.agent.field.stella.endpoint')}</FormLabel>
+            <FormControl>
+              <Input {...field} placeholder="https://stella.example" />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="stellaPat"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('library.config.agent.field.stella.pat')}</FormLabel>
+            <FormControl>
+              <Input {...field} type="password" autoComplete="off" />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+      <Button type="button" variant="outline" loading={loading} onClick={() => void configureAndList()}>
+        {t('library.config.agent.field.stella.connect')}
+      </Button>
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+      {agents.length > 0 ? (
+        <FormField
+          control={form.control}
+          name="stellaRemoteAgentId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('library.config.agent.field.stella.remote_agent')}</FormLabel>
+              <Select
+                value={field.value}
+                onValueChange={(id) => {
+                  field.onChange(id)
+                  selectRemoteAgent(id)
+                }}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent portalContainer={portalContainer}>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : null}
+    </div>
   )
 }
 

@@ -46,6 +46,7 @@ import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFilePart
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -634,6 +635,7 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   model?: Model
   modelProviderName?: string
   selectModelLabel: string
+  showModelControl: boolean
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
@@ -745,7 +747,7 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
                 agentTriggerMode={props.agentTriggerMode ?? 'edit'}
                 inputAdapter={inputAdapter}
               />
-              <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+              {props.showModelControl ? <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} /> : null}
               {props.renderWorkspaceControl?.({ side, iconOnly })}
             </>
           )}
@@ -782,7 +784,7 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
               iconOnly={iconOnly}
               inputAdapter={inputAdapter}
             />
-            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+            {props.showModelControl ? <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} /> : null}
             {props.renderWorkspaceControl?.({ side, iconOnly })}
           </>
         )}
@@ -832,6 +834,8 @@ const AgentComposerInner = ({
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
+  const runtimeCapabilities = agentBase ? AGENT_RUNTIME_CAPABILITIES[agentBase.type] : undefined
+  const requiresModel = runtimeCapabilities?.requiresModel ?? true
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
@@ -1127,7 +1131,7 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
-      if (!model) {
+      if (requiresModel && !model) {
         toast.error(t('code.model_required'))
         return
       }
@@ -1174,6 +1178,7 @@ const AgentComposerInner = ({
       files,
       isStreaming,
       model,
+      requiresModel,
       sendDisabled,
       sendQueuedPayload,
       setFiles,
@@ -1241,11 +1246,12 @@ const AgentComposerInner = ({
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
     showAgentTrigger: !isClassicSessionLayout,
-    canChangeModel,
+    showModelControl: requiresModel,
+    canChangeModel: canChangeModel && requiresModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
     leadingControl: newSessionControl,
-    renderQuickPanelShortcuts,
+    renderQuickPanelShortcuts: requiresModel ? renderQuickPanelShortcuts : undefined,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
   })
@@ -1386,6 +1392,7 @@ const MissingAgentHomeComposerInner = ({
     shouldAutoSelectCreatedAgent: true,
     showAgentTrigger: !isClassicSessionLayout,
     agentTriggerMode: 'selector',
+    showModelControl: true,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined,
