@@ -20,7 +20,11 @@ preference. The layout is derived from the resource-list display mode.
 
 ## State
 
-- Display mode and topic/session position are stored as Preference data.
+- Display mode, topic/session position, and topic/session item sort are stored as
+  Preference data.
+- `topic.sort_type` defaults to `createdAt` and
+  `agent.session.sort_type` defaults to `orderKey`. Changing display mode does
+  not change either sort preference.
 - `topic.tab.show` controls whether the left resource list is expanded.
 - Classic-layout right-pane state is persisted independently per surface via
   `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:
@@ -61,9 +65,9 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
   rail's re-entry behavior.
 - The right panel shares the existing RightPanel chrome with branch, trace,
   files, status, and flow panels.
-- Right-panel topic/session lists use the same stable creation-time order as the
-  left time view. Older rows load as the list is scrolled; there is no date
-  grouping or collapse state.
+- Right-panel topic/session lists use the corresponding selected topic/session
+  sort. Older rows load as the list is scrolled; there is no date grouping or
+  collapse state.
 
 ## Composer Entity Controls
 
@@ -87,21 +91,29 @@ Classic-layout agent chats keep the workspace control visible in the composer.
 
 ## Data Flow
 
-Topic and session list endpoints expose cursor-paginated flat sort profiles and
+Topic and session list endpoints expose cursor-paginated sort profiles and
 record filters.
 
-- Time views request separate pinned and unpinned streams, both ordered by
-  `createdAt DESC, id ASC`; pin state selects the top band but does not define
-  an independent order.
-- Reaching the end of a time view requests the next cursor page; creation time
-  is immutable, so loaded page boundaries remain stable while a conversation or
-  task is updated.
+- The list options menu separates display mode from item sorting. Topics and
+  sessions can use `updatedAt DESC, id ASC`, `createdAt DESC, id ASC`, or
+  `orderKey ASC, id ASC`.
+- Time views request separate pinned and unpinned streams with the selected
+  sort. Pin state selects the top band but does not define an independent order.
 - Assistant, agent, and work-directory modes keep independent per-group cursor
-  windows ordered by their persisted `orderKey`.
+  windows with the same selected topic/session sort. The assistant, agent, or
+  workspace group rank is applied before sorting items within each group, so
+  changing item sort never changes the outer entity order.
+- Changing sort changes the grouped query key, clears the existing cursor
+  windows, and starts each group again from its first page.
+- Topic/session item drag is enabled only for `orderKey`; timestamp sorts are
+  read-only. Assistant, agent, and workspace group drag remains independent and
+  available where the display mode already supports it.
 - Right panels apply the current assistant/agent scope on the server instead of
   loading a global list and filtering it in the renderer.
 - Create/delete/rename/clear/move reset the affected cursor windows inside the
   current Renderer after the local mutation succeeds.
+- History records keep their own updated-time order and do not read these list
+  sort preferences.
 
 ## Key Files
 

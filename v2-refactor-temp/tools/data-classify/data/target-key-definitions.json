@@ -159,6 +159,13 @@
       "description": "Topic sidebar display grouping mode"
     },
     {
+      "targetKey": "topic.sort_type",
+      "type": "PreferenceTypes.TopicSessionSortBy",
+      "defaultValue": "createdAt",
+      "status": "classified",
+      "description": "Topic sidebar item sort profile (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "agent.icon_type",
       "type": "PreferenceTypes.AssistantIconType",
       "defaultValue": "emoji",
@@ -171,6 +178,13 @@
       "defaultValue": "agent",
       "status": "classified",
       "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.sort_type",
+      "type": "PreferenceTypes.TopicSessionSortBy",
+      "defaultValue": "orderKey",
+      "status": "classified",
+      "description": "Agent session sidebar item sort profile (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.session.position",

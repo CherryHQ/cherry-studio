@@ -48,6 +48,66 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
   MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuCheckboxItem: ({
+    children,
+    checked,
+    onCheckedChange,
+    ...props
+  }: {
+    children?: ReactNode
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+    role?: string
+  }) => (
+    <button
+      type="button"
+      aria-checked={checked}
+      role={props.role ?? 'menuitemcheckbox'}
+      onClick={() => onCheckedChange?.(!checked)}>
+      {checked && <span className="lucide-check" />}
+      {children}
+    </button>
+  ),
+  DropdownMenuItem: ({
+    children,
+    disabled,
+    onSelect
+  }: {
+    children?: ReactNode
+    disabled?: boolean
+    onSelect?: (event: unknown) => void
+  }) => (
+    <button type="button" disabled={disabled} onClick={(event) => onSelect?.(event)}>
+      {children}
+    </button>
+  ),
+  DropdownMenuRadioGroup: ({
+    children,
+    onValueChange
+  }: {
+    children?: ReactNode
+    onValueChange?: (value: string) => void
+  }) => (
+    <div
+      onClick={(event) => {
+        const value = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-value]')?.dataset.value
+        if (value) onValueChange?.(value)
+      }}>
+      {children}
+    </div>
+  ),
+  DropdownMenuRadioItem: ({ children, value }: { children?: ReactNode; value: string }) => (
+    <button type="button" data-value={value}>
+      {children}
+    </button>
+  ),
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
   Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -74,7 +134,15 @@ vi.mock('@data/hooks/usePreference', () => ({
     }
 
     const defaultValue =
-      key === 'topic.tab.display_mode' ? 'assistant' : key === 'agent.session.display_mode' ? 'agent' : undefined
+      key === 'topic.tab.display_mode'
+        ? 'assistant'
+        : key === 'topic.sort_type'
+          ? 'createdAt'
+          : key === 'agent.session.display_mode'
+            ? 'agent'
+            : key === 'agent.session.sort_type'
+              ? 'orderKey'
+              : undefined
 
     return [
       preferenceMocks.values.get(key) ?? defaultValue,
@@ -604,6 +672,18 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
+  it('persists topic sorting from the classic assistant rail menu', async () => {
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.sort.updated_at' }))
+
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'updatedAt')
+    })
+  })
+
   it('keeps classic assistant rail history in the shared display menu', () => {
     const onOpenHistoryRecords = vi.fn()
 
@@ -734,6 +814,24 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+    })
+  })
+
+  it('persists session sorting from the classic agent rail menu', async () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.sort.created_at' }))
+
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'createdAt')
     })
   })
 

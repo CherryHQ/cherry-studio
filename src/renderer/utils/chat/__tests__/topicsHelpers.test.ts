@@ -207,7 +207,7 @@ describe('Topics helpers', () => {
       createTopic({ id: 'pinned-new', pinned: true, createdAt: localIso(2026, 5, 20) })
     ]
 
-    expect(sortTopicsForDisplayGroups(topics, { mode: 'time' }).map((topic) => topic.id)).toEqual([
+    expect(sortTopicsForDisplayGroups(topics, { mode: 'time', sortBy: 'createdAt' }).map((topic) => topic.id)).toEqual([
       'pinned-old',
       'pinned-new',
       'created-new',
@@ -260,7 +260,8 @@ describe('Topics helpers', () => {
           ['assistant-a', 0],
           ['assistant-b', 1]
         ]),
-        mode: 'assistant'
+        mode: 'assistant',
+        sortBy: 'orderKey'
       }).map((topic) => topic.id)
     ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
   })
@@ -275,8 +276,29 @@ describe('Topics helpers', () => {
     expect(
       sortTopicsForDisplayGroups(topics, {
         assistantRankById: new Map([['assistant-a', 0]]),
-        mode: 'assistant'
+        mode: 'assistant',
+        sortBy: 'orderKey'
       }).map((topic) => topic.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
+
+  it('uses the selected timestamp within each assistant without changing assistant rank', () => {
+    const topics = [
+      createTopic({ id: 'assistant-b-new', assistantId: 'assistant-b', updatedAt: localIso(2026, 5, 20) }),
+      createTopic({ id: 'assistant-a-old', assistantId: 'assistant-a', updatedAt: localIso(2026, 5, 1) }),
+      createTopic({ id: 'assistant-b-old', assistantId: 'assistant-b', updatedAt: localIso(2026, 5, 2) }),
+      createTopic({ id: 'assistant-a-new', assistantId: 'assistant-a', updatedAt: localIso(2026, 5, 21) })
+    ]
+
+    expect(
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById: new Map([
+          ['assistant-a', 0],
+          ['assistant-b', 1]
+        ]),
+        mode: 'assistant',
+        sortBy: 'updatedAt'
+      }).map((topic) => topic.id)
+    ).toEqual(['assistant-a-new', 'assistant-a-old', 'assistant-b-new', 'assistant-b-old'])
   })
 })

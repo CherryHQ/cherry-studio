@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Агент",
-        "time": "Время",
+        "time": "Задача",
         "title": "Режим отображения",
         "workdir": "Рабочий каталог"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "Ассистент",
         "tag": "Тег",
-        "time": "Время",
+        "time": "Диалог",
         "title": "Режим отображения"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
+    "list_options": "[to be translated]:List options",
     "loading": "Загрузка...",
     "maximize": "Максимизировать",
     "minimize": "Минимизировать",
@@ -2264,11 +2265,15 @@
     "sessions": "Сессии",
     "settings": "Настройки",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Сортировать по пиньинь (А-Я)",
         "desc": "Сортировать по пиньинь (Я-А)",
         "label": "Сортировать по пиньинь"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "остановить",
     "subscribe": "Подписаться",

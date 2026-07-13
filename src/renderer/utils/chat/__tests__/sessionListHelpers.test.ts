@@ -315,6 +315,7 @@ describe('SessionList helpers', () => {
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
+        sortBy: 'orderKey',
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, workspaces)
       }).map((session) => session.id)
     ).toEqual(['session-b', 'session-a'])
@@ -356,6 +357,7 @@ describe('SessionList helpers', () => {
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
+        sortBy: 'orderKey',
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, workspaces)
       }).map((session) => session.id)
     ).toEqual(['known', 'unknown'])
@@ -391,20 +393,23 @@ describe('SessionList helpers', () => {
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
-        mode: 'time'
+        mode: 'time',
+        sortBy: 'createdAt'
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
         agentRankById: new Map([['agent-1', 0]]),
-        mode: 'agent'
+        mode: 'agent',
+        sortBy: 'orderKey'
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
+        sortBy: 'orderKey',
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
@@ -439,13 +444,15 @@ describe('SessionList helpers', () => {
           ['agent-a', 0],
           ['agent-b', 1]
         ]),
-        mode: 'agent'
+        mode: 'agent',
+        sortBy: 'orderKey'
       }).map((session) => session.id)
     ).toEqual(['system', 'project-a', 'project-b'])
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
+        sortBy: 'orderKey',
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [
           makeWorkspace('/Users/jd/project-a'),
           makeWorkspace('/Users/jd/project-b')
@@ -464,8 +471,29 @@ describe('SessionList helpers', () => {
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
+        sortBy: 'orderKey',
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
+
+  it('uses the selected timestamp within each agent without changing agent rank', () => {
+    const sessions = [
+      createSession({ id: 'agent-b-new', agentId: 'agent-b', updatedAt: localIso(2026, 5, 20) }),
+      createSession({ id: 'agent-a-old', agentId: 'agent-a', updatedAt: localIso(2026, 5, 1) }),
+      createSession({ id: 'agent-b-old', agentId: 'agent-b', updatedAt: localIso(2026, 5, 2) }),
+      createSession({ id: 'agent-a-new', agentId: 'agent-a', updatedAt: localIso(2026, 5, 21) })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([
+          ['agent-a', 0],
+          ['agent-b', 1]
+        ]),
+        mode: 'agent',
+        sortBy: 'updatedAt'
+      }).map((session) => session.id)
+    ).toEqual(['agent-a-new', 'agent-a-old', 'agent-b-new', 'agent-b-old'])
   })
 })

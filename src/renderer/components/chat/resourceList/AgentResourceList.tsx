@@ -79,6 +79,7 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     stats: sessionStats,
@@ -317,6 +318,8 @@ export function AgentResourceList({
             onManageAgents={manageAgentsMenuItem?.onSelect}
             onManageSkills={manageSkillsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
+            sortBy={sessionSortBy}
           />
         }
         onSelect={handleSelect}

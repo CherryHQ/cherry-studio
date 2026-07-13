@@ -349,6 +349,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -396,7 +397,6 @@ const Sessions = ({
   const defaultGroupVisibleCount =
     displayMode === 'time' ? Number.POSITIVE_INFINITY : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
   const isDraggableMode = displayMode !== 'time'
-  const sessionSortBy = displayMode === 'time' ? 'createdAt' : 'orderKey'
   const sessionExpansion =
     displayMode === 'agent' ? sessionExpansionAgent : displayMode === 'workdir' ? sessionExpansionWorkdir : undefined
 
@@ -433,7 +433,7 @@ const Sessions = ({
     pinned: false,
     q: debouncedRemoteQuery,
     searchScope: 'name',
-    sortBy: 'createdAt'
+    sortBy: sessionSortBy
   })
   const {
     hasMore: hasMoreCreatedSessions,
@@ -512,7 +512,7 @@ const Sessions = ({
   const workdirDragReady =
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
-  const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
+  const itemDragReady = sessionSortBy === 'orderKey' && (displayMode === 'workdir' ? workdirDragReady : agentDragReady)
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -634,7 +634,7 @@ const Sessions = ({
         limit: SESSION_PAGE_SIZE,
         pinned: false,
         ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery, searchScope: 'name' as const } : {}),
-        sortBy: 'orderKey' as const
+        sortBy: sessionSortBy
       }
 
       if (displayMode === 'agent') {
@@ -655,7 +655,7 @@ const Sessions = ({
 
       return { items: [] }
     },
-    [debouncedRemoteQuery, displayMode, workdirDisplay.workspaceIdByGroupId]
+    [debouncedRemoteQuery, displayMode, sessionSortBy, workdirDisplay.workspaceIdByGroupId]
   )
   const getRemoteSessionId = useCallback((session: AgentSessionListItem) => session.id, [])
   const {
@@ -677,7 +677,8 @@ const Sessions = ({
             ? orderedWorkdirSessionGroupIds
             : [],
       mode: displayMode,
-      q: debouncedRemoteQuery
+      q: debouncedRemoteQuery,
+      sortBy: sessionSortBy
     }),
     resourcePath: '/agent-sessions'
   })
@@ -748,9 +749,10 @@ const Sessions = ({
       sortSessionsForDisplayGroups(sessionItems, {
         agentRankById,
         mode: displayMode,
+        sortBy: sessionSortBy,
         workdirDisplay
       }),
-    [agentRankById, displayMode, sessionItems, workdirDisplay]
+    [agentRankById, displayMode, sessionItems, sessionSortBy, workdirDisplay]
   )
 
   const groupedSessions = useMemo(
@@ -2220,6 +2222,7 @@ const Sessions = ({
                   onManageAgents={manageAgentsMenuItem?.onSelect}
                   onManageSkills={manageSkillsMenuItem?.onSelect}
                   onOpenHistoryRecords={onOpenHistoryRecords}
+                  onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
                   sectionId={
                     displayMode === 'agent'
                       ? SESSION_AGENT_SECTION_ID
@@ -2227,6 +2230,7 @@ const Sessions = ({
                         ? SESSION_WORKDIR_SECTION_ID
                         : undefined
                   }
+                  sortBy={sessionSortBy}
                 />
               }
             />

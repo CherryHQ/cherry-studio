@@ -3,7 +3,9 @@ import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceCreationOrder,
+  compareResourceIds,
   compareResourceOrderKey,
+  compareResourceUpdatedOrder,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   moveResourceListStringGroupAfterDrop,
@@ -14,7 +16,10 @@ import {
   sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'
+import type {
+  TopicDisplayMode as PreferenceTopicDisplayMode,
+  TopicSessionSortBy
+} from '@shared/data/preference/preferenceTypes'
 
 export type TopicDisplayMode = PreferenceTopicDisplayMode
 
@@ -42,6 +47,7 @@ export type TopicDisplayGroupOptions = {
 export type TopicDisplaySortOptions = {
   assistantRankById?: ReadonlyMap<string, number>
   mode: TopicDisplayMode
+  sortBy: TopicSessionSortBy
 }
 
 export type TopicListItem = Topic & {
@@ -220,27 +226,28 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
-function readOptionalOrderKey<T extends object>(item: T): string | undefined {
-  return 'orderKey' in item && typeof item.orderKey === 'string' ? item.orderKey : undefined
-}
-
-export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'pinned'>>(
-  topics: readonly T[],
-  options: TopicDisplaySortOptions
-): T[] {
+export function sortTopicsForDisplayGroups<
+  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'orderKey' | 'pinned' | 'updatedAt'>
+>(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
   const isPinned = (topic: T) => topic.pinned === true
+  const compareWithinGroup =
+    options.sortBy === 'createdAt'
+      ? compareResourceCreationOrder
+      : options.sortBy === 'updatedAt'
+        ? compareResourceUpdatedOrder
+        : (a: T, b: T) => compareResourceOrderKey(a.orderKey, b.orderKey) || compareResourceIds(a.id, b.id)
 
   if (options.mode === 'assistant') {
     return sortRankedResourceItems(topics, {
       getRank: (topic) => getAssistantGroupRank(topic, options.assistantRankById),
       isPinned,
-      compareWithinGroup: (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
+      compareWithinGroup
     })
   }
 
   return sortRankedResourceItems(topics, {
     getRank: (topic) => (topic.pinned === true ? 0 : 1),
     isPinned,
-    compareWithinGroup: compareResourceCreationOrder
+    compareWithinGroup
   })
 }

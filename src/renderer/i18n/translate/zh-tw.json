@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "代理人",
-        "time": "時間",
+        "time": "任務",
         "title": "顯示模式",
         "workdir": "工作目錄"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "助理",
         "tag": "標籤",
-        "time": "時間",
+        "time": "對話",
         "title": "顯示模式"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
+    "list_options": "[to be translated]:List options",
     "loading": "載入中...",
     "maximize": "最大化",
     "minimize": "最小化",
@@ -2264,11 +2265,15 @@
     "sessions": "會話",
     "settings": "設定",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "依拼音遞增",
         "desc": "依拼音遞減",
         "label": "依拼音排序"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "停止",
     "subscribe": "訂閱",

@@ -2,7 +2,9 @@ import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceCreationOrder,
+  compareResourceIds,
   compareResourceOrderKey,
+  compareResourceUpdatedOrder,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
   moveResourceListStringGroupAfterDrop,
@@ -15,7 +17,10 @@ import {
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import type { AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
+import type {
+  AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode,
+  TopicSessionSortBy
+} from '@shared/data/preference/preferenceTypes'
 
 export type AgentSessionDisplayMode = PreferenceAgentSessionDisplayMode
 
@@ -45,6 +50,7 @@ export type SessionDisplayGroupOptions = {
 export type SessionDisplaySortOptions = {
   agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
+  sortBy: TopicSessionSortBy
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
 }
 
@@ -350,12 +356,18 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   options: SessionDisplaySortOptions
 ): T[] {
   const isPinned = (session: T) => session.pinned === true
+  const compareWithinGroup =
+    options.sortBy === 'createdAt'
+      ? compareResourceCreationOrder
+      : options.sortBy === 'updatedAt'
+        ? compareResourceUpdatedOrder
+        : (a: T, b: T) => compareResourceOrderKey(a.orderKey, b.orderKey) || compareResourceIds(a.id, b.id)
 
   if (options.mode === 'time') {
     return sortRankedResourceItems(sessions, {
       getRank: (session) => (session.pinned === true ? 0 : 1),
       isPinned,
-      compareWithinGroup: compareResourceCreationOrder
+      compareWithinGroup
     })
   }
 
@@ -375,7 +387,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
       return displayRank >= UNKNOWN_GROUP_RANK ? displayRank : displayRank + 1
     },
     isPinned,
-    compareWithinGroup: (a, b) => compareResourceOrderKey(a.orderKey, b.orderKey)
+    compareWithinGroup
   })
 }
 

@@ -1,4 +1,12 @@
-import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenuItem,
+  EmptyState as UiEmptyState,
+  Input,
+  MenuItem,
+  Skeleton,
+  Tooltip
+} from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
@@ -233,6 +241,26 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   sectionId: string
 }
 
+function useSectionToggle(sectionId: string) {
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
+  const groupIds = section?.groups.map((group) => group.group.id) ?? []
+  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
+  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const hasExpandedGroup = expandedGroupIds.length > 0
+
+  const toggle = () => {
+    if (hasExpandedGroup) {
+      actions.collapseGroups(expandedGroupIds)
+    } else {
+      actions.expandGroups(expandGroupIds)
+    }
+  }
+
+  return { groupIds, hasExpandedGroup, toggle }
+}
+
 function SectionToggleMenuItem({
   collapseIcon,
   collapseLabel,
@@ -243,13 +271,7 @@ function SectionToggleMenuItem({
   sectionId,
   ...props
 }: SectionToggleMenuItemProps) {
-  const actions = useResourceListActions()
-  const view = useResourceListView()
-  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
-  const groupIds = section?.groups.map((group) => group.group.id) ?? []
-  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
-  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
-  const hasExpandedGroup = expandedGroupIds.length > 0
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionId)
   const isDisabled = disabled || groupIds.length === 0
 
   return (
@@ -260,15 +282,47 @@ function SectionToggleMenuItem({
       onClick={(event) => {
         onClick?.(event)
         if (event.defaultPrevented || isDisabled) return
-
-        if (hasExpandedGroup) {
-          actions.collapseGroups(expandedGroupIds)
-        } else {
-          actions.expandGroups(expandGroupIds)
-        }
+        toggle()
       }}
       {...props}
     />
+  )
+}
+
+type SectionToggleDropdownMenuItemProps = Omit<ComponentProps<typeof DropdownMenuItem>, 'children'> & {
+  collapseIcon?: ReactNode
+  collapseLabel: string
+  expandIcon?: ReactNode
+  expandLabel: string
+  sectionId: string
+}
+
+function SectionToggleDropdownMenuItem({
+  collapseIcon,
+  collapseLabel,
+  disabled,
+  expandIcon,
+  expandLabel,
+  onSelect,
+  sectionId,
+  ...props
+}: SectionToggleDropdownMenuItemProps) {
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionId)
+  const isDisabled = disabled || groupIds.length === 0
+  const icon = hasExpandedGroup ? collapseIcon : expandIcon
+
+  return (
+    <DropdownMenuItem
+      disabled={isDisabled}
+      onSelect={(event) => {
+        onSelect?.(event)
+        if (event.defaultPrevented || isDisabled) return
+        toggle()
+      }}
+      {...props}>
+      {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
+      <span>{hasExpandedGroup ? collapseLabel : expandLabel}</span>
+    </DropdownMenuItem>
   )
 }
 
@@ -706,6 +760,7 @@ const ResourceList = {
   HeaderActionButton,
   GroupHeaderActionButton,
   SectionCollapseActionButton,
+  SectionToggleDropdownMenuItem,
   SectionToggleMenuItem,
   HeaderItem,
   Search,

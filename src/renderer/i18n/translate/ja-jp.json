@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "エージェント",
-        "time": "時間",
+        "time": "タスク",
         "title": "表示モード",
         "workdir": "作業ディレクトリ"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "アシスタント",
         "tag": "タグ",
-        "time": "時間",
+        "time": "会話",
         "title": "表示モード"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
+    "list_options": "[to be translated]:List options",
     "loading": "読み込み中...",
     "maximize": "最大化",
     "minimize": "最小化",
@@ -2264,11 +2265,15 @@
     "sessions": "セッション",
     "settings": "設定",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "ピンインで昇順ソート",
         "desc": "ピンインで降順ソート",
         "label": "ピンインでソート"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "停止",
     "subscribe": "購読",

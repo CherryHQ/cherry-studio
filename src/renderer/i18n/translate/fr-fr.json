@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Temps",
+        "time": "Tâche",
         "title": "Mode d'affichage",
         "workdir": "Répertoire de travail"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "Assistant",
         "tag": "Étiquette",
-        "time": "Temps",
+        "time": "Conversation",
         "title": "Mode d'affichage"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
+    "list_options": "[to be translated]:List options",
     "loading": "Chargement...",
     "maximize": "Maximiser",
     "minimize": "Minimiser",
@@ -2264,11 +2265,15 @@
     "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Сортировать по пиньинь в порядке возрастания",
         "desc": "Сортировать по пиньинь в порядке убывания",
         "label": "Сортировать по пиньинь"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Arrêter",
     "subscribe": "S'abonner",

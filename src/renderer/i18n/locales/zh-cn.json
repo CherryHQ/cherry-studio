@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "智能体",
-        "time": "时间",
+        "time": "任务",
         "title": "展示方式",
         "workdir": "工作目录"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "助手",
         "tag": "标签",
-        "time": "时间",
+        "time": "对话",
         "title": "展示方式"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
     "language": "语言",
+    "list_options": "列表选项",
     "loading": "加载中...",
     "maximize": "最大化",
     "minimize": "最小化",
@@ -2264,11 +2265,15 @@
     "sessions": "会话",
     "settings": "设置",
     "sort": {
+      "created_at": "创建时间",
+      "manual_order": "手动排序",
       "pinyin": {
         "asc": "按拼音升序",
         "desc": "按拼音降序",
         "label": "按拼音排序"
-      }
+      },
+      "title": "排序方式",
+      "updated_at": "更新时间"
     },
     "stop": "停止",
     "subscribe": "订阅",

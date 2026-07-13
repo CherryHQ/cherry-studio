@@ -28,12 +28,16 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
   })
 
-  it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
+  it('uses the default grouping and sort profiles for conversations and agent sessions', () => {
     const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
     const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
+    const topicSortDefault: PreferenceSchemas['default']['topic.sort_type'] = 'createdAt'
+    const agentSessionSortDefault: PreferenceSchemas['default']['agent.session.sort_type'] = 'orderKey'
 
     expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+    expect(DefaultPreferences.default['topic.sort_type']).toBe(topicSortDefault)
+    expect(DefaultPreferences.default['agent.session.sort_type']).toBe(agentSessionSortDefault)
   })
 
   it('defaults sidebar favorites to the canonical five app tabs for new users', () => {

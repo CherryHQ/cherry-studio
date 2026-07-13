@@ -80,6 +80,7 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   const isTagGrouping = assistantSortType === 'tags'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
@@ -484,6 +485,8 @@ export function AssistantResourceList({
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
             onManageAssistants={manageAssistantsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
+            sortBy={topicSortBy}
           />
         }
         onSelect={handleSelect}

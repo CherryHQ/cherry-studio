@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Đặc vụ",
-        "time": "Thời gian",
+        "time": "Nhiệm vụ",
         "title": "Chế độ hiển thị",
         "workdir": "Thư mục làm việc"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "Trợ lý",
         "tag": "Nhãn",
-        "time": "Thời gian",
+        "time": "Cuộc trò chuyện",
         "title": "Chế độ hiển thị"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "Giá trị không hợp lệ",
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
+    "list_options": "[to be translated]:List options",
     "loading": "Đang tải...",
     "maximize": "Tối đa hóa",
     "minimize": "Giảm thiểu",
@@ -2264,11 +2265,15 @@
     "sessions": "Phiên",
     "settings": "Cài đặt",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Sắp xếp theo phiên âm (A-Z)",
         "desc": "Sắp xếp theo phiên âm (Z-A)",
         "label": "Sắp xếp theo bính âm"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Dừng lại",
     "subscribe": "Đăng ký",

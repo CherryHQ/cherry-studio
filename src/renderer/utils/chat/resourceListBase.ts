@@ -113,12 +113,24 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
-export function compareResourceCreationOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
-  const aMs = Date.parse(a.createdAt)
-  const bMs = Date.parse(b.createdAt)
+function compareResourceTimestampOrder(aValue: string, bValue: string, aId: string, bId: string): number {
+  const aMs = Date.parse(aValue)
+  const bMs = Date.parse(bValue)
   if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) return bMs - aMs
   if (Number.isFinite(aMs) !== Number.isFinite(bMs)) return Number.isFinite(aMs) ? -1 : 1
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  return compareResourceIds(aId, bId)
+}
+
+export function compareResourceIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+export function compareResourceCreationOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.createdAt, b.createdAt, a.id, b.id)
+}
+
+export function compareResourceUpdatedOrder<T extends { updatedAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.updatedAt, b.updatedAt, a.id, b.id)
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }

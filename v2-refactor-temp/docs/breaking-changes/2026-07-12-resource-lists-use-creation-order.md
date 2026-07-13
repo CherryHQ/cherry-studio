@@ -12,7 +12,7 @@ The Time views for conversations and agent tasks now keep the pinned section fol
 
 ## Why this matters to the user
 
-Opening or updating an existing conversation or task no longer moves it between date sections. Users can scan one predictable newest-created-first list and scroll to reach older items.
+The default conversation list no longer moves an existing conversation between date sections when it is updated. Users can scan one predictable newest-created-first list and scroll to reach older items; the separate sorting control can opt into latest-update order.
 
 ## What the user should do
 

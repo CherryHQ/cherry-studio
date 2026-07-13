@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Timp",
+        "time": "Sarcină",
         "title": "Mod de afișare",
         "workdir": "Director de lucru"
       },
@@ -1767,7 +1767,7 @@
       "display": {
         "assistant": "Asistent",
         "tag": "Etichetă",
-        "time": "Timp",
+        "time": "Conversație",
         "title": "Mod afișare"
       },
       "edit": {
@@ -2215,6 +2215,7 @@
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
+    "list_options": "[to be translated]:List options",
     "loading": "Se încarcă...",
     "maximize": "Maximizează",
     "minimize": "Minimize",
@@ -2264,11 +2265,15 @@
     "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Sortează după Pinyin (A-Z)",
         "desc": "Sortează după Pinyin (Z-A)",
         "label": "Sortează după Pinyin"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Oprește",
     "subscribe": "Abonează-te",

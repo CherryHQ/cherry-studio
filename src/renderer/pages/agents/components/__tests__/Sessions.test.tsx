@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { dataApiService } from '@renderer/data/DataApiService'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -12,6 +13,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = await importOriginal<typeof CherryStudioUi>()
   const ContextMenuContext = React.createContext<{ onOpenChange?: (open: boolean) => void }>({})
+  const DropdownMenuRadioContext = React.createContext<{
+    onValueChange?: (value: string) => void
+    value?: string
+  }>({})
   const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
     ...props,
     disabled: props.disabled as boolean | undefined,
@@ -86,6 +91,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </div>
     ),
+    DropdownMenuCheckboxItem: ({ children, checked, onCheckedChange, role, ...props }: any) => (
+      <button
+        {...props}
+        aria-checked={checked}
+        data-slot="dropdown-menu-checkbox-item"
+        role={role ?? 'menuitemcheckbox'}
+        type="button"
+        onClick={() => onCheckedChange?.(!checked)}>
+        {checked && <span className="lucide-check" />}
+        {children}
+      </button>
+    ),
     DropdownMenuItem: ({ children, disabled, onSelect, variant, ...props }: any) => (
       <button
         data-disabled={disabled ? '' : undefined}
@@ -101,6 +118,29 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
+    DropdownMenuRadioGroup: ({
+      children,
+      onValueChange,
+      value
+    }: {
+      children?: ReactNode
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => <DropdownMenuRadioContext value={{ onValueChange, value }}>{children}</DropdownMenuRadioContext>,
+    DropdownMenuRadioItem: ({ children, value, ...props }: { children?: ReactNode; value: string }) => {
+      const context = React.use(DropdownMenuRadioContext)
+      return (
+        <button
+          {...props}
+          aria-checked={context.value === value}
+          data-slot="dropdown-menu-radio-item"
+          role="menuitemradio"
+          type="button"
+          onClick={() => context.onValueChange?.(value)}>
+          {children}
+        </button>
+      )
+    },
     DropdownMenuSeparator: (props: any) => <hr data-testid="dropdown-menu-separator" {...props} />,
     DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropdownMenuSubContent: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
@@ -337,14 +377,26 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
+const cursorGroupWindowMocks = vi.hoisted(() => ({
+  options: undefined as
+    | undefined
+    | {
+        fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
+        queryKey: string
+      }
+}))
+
 vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
-  useCursorGroupWindows: () => ({
-    items: (sessionDataMocks.source as { sessions?: AgentSessionEntity[] } | null)?.sessions ?? [],
-    loadGroup: vi.fn().mockResolvedValue(null),
-    loadMoreGroup: vi.fn().mockResolvedValue(undefined),
-    reset: vi.fn(),
-    windows: {}
-  })
+  useCursorGroupWindows: (options: NonNullable<typeof cursorGroupWindowMocks.options>) => {
+    cursorGroupWindowMocks.options = options
+    return {
+      items: (sessionDataMocks.source as { sessions?: AgentSessionEntity[] } | null)?.sessions ?? [],
+      loadGroup: vi.fn().mockResolvedValue(null),
+      loadMoreGroup: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      windows: {}
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -516,6 +568,11 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Work directory',
+        'common.list_options': 'List options',
+        'common.sort.created_at': 'Creation time',
+        'common.sort.manual_order': 'Manual order',
+        'common.sort.title': 'Sort order',
+        'common.sort.updated_at': 'Updated time',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks',
         'agent.manage.title': 'Manage Agents',
@@ -737,9 +794,8 @@ function expectGroupBlocked(name: string) {
 }
 
 function openSessionListOptions() {
-  fireEvent.click(screen.getByLabelText('Display mode'))
-  const title = screen.getByText('Display mode')
-  return title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement
+  fireEvent.click(screen.getByLabelText('List options'))
+  return screen.getByText('Display mode').closest<HTMLElement>('[data-slot="dropdown-menu-content"]')
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
@@ -794,10 +850,12 @@ describe('Sessions', () => {
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.sort_type', 'orderKey')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
+    cursorGroupWindowMocks.options = undefined
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'b' })
@@ -930,7 +988,7 @@ describe('Sessions', () => {
     render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
 
     expect(screen.queryByText('New task')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('List options')).not.toBeInTheDocument()
 
     // Behavior: the right panel exposes the search control and drops the sidebar's new/display-mode
     // affordances. (Styling specifics intentionally not pinned here.)
@@ -973,6 +1031,7 @@ describe('Sessions', () => {
 
   it('requests separate pin-order and immutable creation-order streams in time mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
 
     render(<SessionsForTest />)
 
@@ -984,6 +1043,65 @@ describe('Sessions', () => {
       undefined,
       expect.objectContaining({ pinned: false, sortBy: 'createdAt', pageSize: 50, enabled: true })
     )
+  })
+
+  it('passes the selected timestamp sort to both session streams', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.sort_type', 'updatedAt')
+
+    render(<SessionsForTest />)
+
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pinned: true, sortBy: 'updatedAt', pageSize: 50, enabled: true })
+    )
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pinned: false, sortBy: 'updatedAt', pageSize: 50, enabled: true })
+    )
+  })
+
+  it('passes session sorting to agent-group requests and cursor cache identity', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.sort_type', 'updatedAt')
+    const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
+
+    try {
+      render(<SessionsForTest />)
+
+      expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
+        expect.objectContaining({ mode: 'agent', sortBy: 'updatedAt' })
+      )
+      await cursorGroupWindowMocks.options?.fetchPage('session:agent:agent-a')
+      expect(getSpy).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({
+          query: expect.objectContaining({ agentId: 'agent-a', pinned: false, sortBy: 'updatedAt' })
+        })
+      )
+    } finally {
+      getSpy.mockRestore()
+    }
+  })
+
+  it('passes session sorting to work-directory group requests', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
+    const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
+
+    try {
+      render(<SessionsForTest />)
+
+      await cursorGroupWindowMocks.options?.fetchPage('session:workspace:ws-a')
+      expect(getSpy).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({
+          query: expect.objectContaining({ workspaceId: 'ws-a', pinned: false, sortBy: 'createdAt' })
+        })
+      )
+    } finally {
+      getSpy.mockRestore()
+    }
   })
 
   it('keeps a creation-stream retry available before any rows have loaded', async () => {
@@ -2327,19 +2445,56 @@ describe('Sessions', () => {
     expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
   })
 
-  it('persists display mode selection from the header menu', async () => {
+  it('renders display and sort submenus before the existing session list actions', async () => {
     render(<SessionsForTest />)
 
-    const displayModeContent = openSessionListOptions()
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    const optionsMenu = openSessionListOptions()
+    expect(optionsMenu).not.toBeNull()
+    const submenuTriggers = optionsMenu?.querySelectorAll('[data-slot="dropdown-menu-sub-trigger"]') ?? []
+    expect(submenuTriggers[0]).toHaveTextContent('Display mode')
+    expect(submenuTriggers[1]).toHaveTextContent('Sort order')
+    expect(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Task' })).toBeInTheDocument()
+    const selectedDisplayMode = within(optionsMenu as HTMLElement).getByRole('menuitemradio', {
+      name: 'Work directory'
+    })
+    expect(selectedDisplayMode).toHaveAttribute('aria-checked', 'true')
+    expect(selectedDisplayMode.querySelector('.lucide-check')).toBeInTheDocument()
     expect(
-      within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' })
-    ).toBeInTheDocument()
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Agent' }))
+      within(optionsMenu as HTMLElement)
+        .getByRole('menuitemradio', { name: 'Task' })
+        .querySelector('.lucide-check')
+    ).not.toBeInTheDocument()
+    fireEvent.click(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Agent' }))
 
     await vi.waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
     })
+  })
+
+  it('persists the selected session sort independently from display mode', async () => {
+    render(<SessionsForTest />)
+
+    const optionsMenu = openSessionListOptions()
+    expect(optionsMenu).not.toBeNull()
+    const selectedSort = within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Manual order' })
+    expect(selectedSort).toHaveAttribute('aria-checked', 'true')
+    expect(selectedSort.querySelector('.lucide-check')).toBeInTheDocument()
+    fireEvent.click(within(optionsMenu as HTMLElement).getByRole('menuitemradio', { name: 'Updated time' }))
+
+    await vi.waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'updatedAt')
+      expect(preferenceMocks.values.get('agent.session.display_mode')).toBe('workdir')
+    })
+  })
+
+  it('keeps workspace group drag but disables session item drag for timestamp sorting', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.sort_type', 'updatedAt')
+
+    render(<SessionsForTest />)
+
+    expect(dndMocks.sortableData.has('group:session:workspace:ws-a')).toBe(true)
+    expect(dndMocks.sortableData.has('item:session-a')).toBe(false)
   })
 
   it('blocks cross-workspace groups from drag start while preserving same-workspace reorder', async () => {
