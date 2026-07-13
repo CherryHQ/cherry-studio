@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildQwenConfig } from '../builders'
+import { buildOpenCodeConfig, buildQwenConfig } from '../builders'
+
+describe('buildOpenCodeConfig', () => {
+  it('adds string provider headers', () => {
+    const result = buildOpenCodeConfig(
+      {},
+      { id: 'deepseek', name: 'DeepSeek' },
+      {
+        npm: '@ai-sdk/openai-compatible',
+        providerType: 'openai-compatible',
+        endpointType: 'openai-chat-completions'
+      },
+      { apiKey: 'sk-test', baseUrl: 'https://api.example.com/v1', model: 'deepseek-chat' },
+      {
+        providerHeaders: { 'X-Title': 'Cherry Studio', invalid: 42 }
+      }
+    )
+
+    expect(result.provider['cherry-DeepSeek'].options).toEqual({
+      apiKey: 'sk-test',
+      baseURL: 'https://api.example.com/v1',
+      headers: { 'X-Title': 'Cherry Studio' }
+    })
+  })
+})
 
 describe('buildQwenConfig', () => {
   const resolved = { apiKey: 'sk-test', baseUrl: 'https://example.com', model: 'qwen-max', modelLabel: 'Qwen Max' }

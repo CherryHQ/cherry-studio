@@ -406,7 +406,8 @@ const openCodeAdapter: CliConfigAdapter = {
               reasoning: env.OPENCODE_REASONING === 'true',
               supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
               autoCompact: configBlob.autoCompact === true,
-              permissionMode: configBlob.permissionMode
+              permissionMode: configBlob.permissionMode,
+              providerHeaders: provider.settings?.extraHeaders
             }
           )
         )
@@ -423,6 +424,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const providers = asRecord(existing.provider)
     const providerKey = cherryProviderKeyFrom(providers)
     const provider = asRecord(providers[providerKey])
+    const providerOptions = asRecord(provider.options)
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
     const env = asRecord(configBlob.env)
     const model = requireDraftValue(connection.model, 'OpenCode model')
@@ -442,7 +444,8 @@ const openCodeAdapter: CliConfigAdapter = {
         reasoning: env.OPENCODE_REASONING === 'true',
         supportsReasoningEffort: true,
         autoCompact: configBlob.autoCompact === true,
-        permissionMode: configBlob.permissionMode
+        permissionMode: configBlob.permissionMode,
+        providerHeaders: providerOptions.headers
       }
     )
     return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))

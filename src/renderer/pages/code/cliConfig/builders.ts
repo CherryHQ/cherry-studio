@@ -35,6 +35,13 @@ interface OpenCodeProviderIdentity {
   name: string
 }
 
+function openCodeProviderRequestOptions(options: Record<string, any>): Record<string, any> {
+  const headers = Object.fromEntries(
+    Object.entries(asRecord(options.providerHeaders)).filter(([, value]) => typeof value === 'string')
+  )
+  return Object.keys(headers).length > 0 ? { headers } : {}
+}
+
 export function buildClaudeConfig(
   existing: Record<string, any>,
   userBlob: Record<string, any>,
@@ -189,7 +196,11 @@ export function buildOpenCodeConfig(
       [providerKey]: {
         npm: npmInfo.npm,
         name: providerKey,
-        options: { apiKey: resolved.apiKey, baseURL: resolved.baseUrl },
+        options: {
+          apiKey: resolved.apiKey,
+          baseURL: resolved.baseUrl,
+          ...openCodeProviderRequestOptions(options)
+        },
         models: { [resolved.model]: modelConfig }
       }
     }

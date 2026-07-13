@@ -624,6 +624,31 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
     })
 
+    it('forwards provider headers to OpenCode options', async () => {
+      const providerWithRequestOptions = {
+        ...openaiCompatProvider,
+        settings: {
+          extraHeaders: { 'HTTP-Referer': 'https://cherry-ai.com', 'X-Title': 'Cherry Studio' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/deepseek': () => providerWithRequestOptions,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const options = JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].options
+      expect(options.headers).toEqual({
+        'HTTP-Referer': 'https://cherry-ai.com',
+        'X-Title': 'Cherry Studio'
+      })
+    })
+
     it('enables anthropic thinking when reasoning is on', async () => {
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
