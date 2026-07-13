@@ -26,7 +26,7 @@ import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/servi
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { type FilePath, FilePathSchema } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')
@@ -79,7 +79,7 @@ export async function prepareBase64ImageFileEntry<R extends EntityImageDescripto
   }
 
   const id = uuidv7()
-  const physicalPath = path.join(filesDataDir, `${id}.webp`) as FilePath
+  const physicalPath = FilePathSchema.parse(path.join(filesDataDir, `${id}.webp`))
   try {
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, webp)
