@@ -1040,15 +1040,15 @@ const App = defineComponent({
 
     const submitMessage = async () => {
       const conversationId = selectedConversationId.value
-      const text = composerText.value.trim()
-      if (!conversationId || (!text && attachments.value.length === 0) || activeRunConversationId.value) return
+      const messageText = composerText.value.trim()
+      if (!conversationId || (!messageText && attachments.value.length === 0) || activeRunConversationId.value) return
 
       submitError.value = ''
       activeRunConversationId.value = conversationId
       try {
         const sendAttachments = await buildSendAttachments()
         await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/messages`, {
-          text,
+          text: messageText,
           attachments: sendAttachments,
           reasoningEffort: reasoningEffort.value
         })
@@ -1161,11 +1161,12 @@ const App = defineComponent({
       if (data && typeof data === 'object') queueStreamChunk(data)
     })
     const unsubscribeDone = sseClient.subscribe<{ conversationId?: string }>('done', ({ data }) => {
-      if (data?.conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
-      if (data?.conversationId === selectedConversationId.value) {
-        void loadConversationMessages(data.conversationId, 'refresh')
-        refreshComposerInfo(data.conversationId)
-        refreshSlashCommands(data.conversationId)
+      const conversationId = data?.conversationId
+      if (conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
+      if (conversationId && conversationId === selectedConversationId.value) {
+        void loadConversationMessages(conversationId, 'refresh')
+        refreshComposerInfo(conversationId)
+        refreshSlashCommands(conversationId)
       }
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
