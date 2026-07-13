@@ -745,12 +745,18 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     expect(overlay).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).toHaveClass('h-9', 'px-3')
+    expect(overlay.firstElementChild).not.toHaveClass('h-10')
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Overlay'))
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
 
     const openButton = within(overlay).getByRole('button', { name: 'Open in Finder' })
-    expect(within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
-    expect(within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })).toBeInTheDocument()
+    const refreshButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })
+    const closeButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })
+    expect(refreshButton).toBeInTheDocument()
+    expect(closeButton).toBeInTheDocument()
+    expect(openButton.compareDocumentPosition(refreshButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(refreshButton.compareDocumentPosition(closeButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(openButton)
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/README.md'))

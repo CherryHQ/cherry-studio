@@ -671,8 +671,8 @@ export function ArtifactPaneView({
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {refreshButton}
             <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            {refreshButton}
             <Tooltip content={t('agent.preview_pane.close')} delay={800}>
               <Button
                 type="button"

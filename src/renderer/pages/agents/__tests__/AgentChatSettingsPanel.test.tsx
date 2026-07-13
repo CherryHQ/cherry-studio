@@ -25,6 +25,9 @@ const agentRightPanePropsMock = vi.hoisted(() => ({
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
+const conversationShellPropsMock = vi.hoisted(() => ({
+  last: undefined as any
+}))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 
@@ -42,30 +45,27 @@ vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
-  default: ({
-    topBar,
-    topRightTool,
-    sidePanel,
-    center,
-    rightPane,
-    overlay
-  }: {
+  default: (props: {
     topBar?: ReactNode
     topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
     rightPane?: ReactNode
     overlay?: ReactNode
-  }) => (
-    <div>
-      <div data-testid="agent-top-bar">{topBar}</div>
-      <div data-testid="agent-top-right-tool">{topRightTool}</div>
-      <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{center}</div>
-      <div>{overlay}</div>
-      {rightPane}
-    </div>
-  )
+    showTopRightToolWhenPaneOpen?: boolean
+  }) => {
+    conversationShellPropsMock.last = props
+    return (
+      <div>
+        <div data-testid="agent-top-bar">{props.topBar}</div>
+        <div data-testid="agent-top-right-tool">{props.topRightTool}</div>
+        <div data-testid="agent-side-panel">{props.sidePanel}</div>
+        <div>{props.center}</div>
+        <div>{props.overlay}</div>
+        {props.rightPane}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
@@ -228,11 +228,6 @@ vi.mock('../components/AgentRightPane', () => {
       Host: () => <div data-testid="agent-right-pane-host" />,
       MaximizedOverlay: () => <div data-testid="agent-right-pane-overlay" />,
       WorkspaceOpener: () => <button type="button">Open external</button>,
-      FilesToggle: ({ disabled }: { disabled?: boolean }) => (
-        <button type="button" disabled={disabled}>
-          Files
-        </button>
-      ),
       Shortcuts: ({ disabled }: { disabled?: boolean }) => (
         <button type="button" disabled={disabled}>
           Shortcuts
@@ -308,6 +303,7 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
     agentRightPanePropsMock.last = undefined
     agentComposerPropsMock.last = undefined
+    conversationShellPropsMock.last = undefined
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     agentRightPanePropsMock.openTrace.mockReset()
@@ -333,16 +329,16 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps the workspace opener before the resource count and expand button', () => {
+  it('keeps the workspace opener before the resource count and shortcuts visible without the expand button', () => {
     renderAgentChat({ resourcePaneCount: { label: 'Tasks', count: 52 } })
 
     const opener = screen.getByRole('button', { name: 'Open external' })
     const shortcuts = screen.getByRole('button', { name: 'Shortcuts' })
     const resourceCount = screen.getByRole('button', { name: 'Tasks 52' })
-    const files = screen.getByRole('button', { name: 'Files' })
     expect(opener.compareDocumentPosition(resourceCount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(resourceCount.compareDocumentPosition(shortcuts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(shortcuts.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+    expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {
