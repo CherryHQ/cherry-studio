@@ -1473,13 +1473,17 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
   )
 }
 
+// Composer state (draft snapshot, skill tokens, tool-runtime files) is agent-scoped:
+// key by agent id so an in-place agent switch (empty-session selector) remounts the
+// whole tree instead of leaking the previous agent's state into the next one.
 const AgentComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} renderControls={renderAgentToolbarControls} />
+  return <AgentComposerRoot key={props.agentId} {...props} renderControls={renderAgentToolbarControls} />
 }
 
 export const AgentHomeComposer = (props: Props) => {
   return (
     <AgentComposerRoot
+      key={props.agentId}
       {...props}
       showWorkspaceSelector={props.showWorkspaceSelector ?? true}
       forceNarrowLayout

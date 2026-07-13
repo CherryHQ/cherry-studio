@@ -1975,6 +1975,53 @@ describe('AgentComposer', () => {
     }
   )
 
+  it('resets agent-scoped draft state when the session switches to another agent', async () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1'
+        ? { text: 'draft for agent one', tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }] }
+        : ''
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        agentTriggerMode="selector"
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('draft for agent one')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+
+    fireEvent.click(screen.getByText('select agent 2'))
+    await waitFor(() => {
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    })
+
+    // The session refresh delivers the new agent id: the composer must remount with
+    // agent-2's (empty) draft instead of leaking agent-1's text and skill tokens.
+    rerender(
+      <AgentComposer
+        agentId="agent-2"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        agentTriggerMode="selector"
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+  })
+
   it('restores composer focus after closing the active session agent edit dialog', async () => {
     render(
       <AgentComposer
