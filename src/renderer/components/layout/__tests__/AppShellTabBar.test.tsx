@@ -10,6 +10,7 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
+  platformState: { isMac: false },
   showSearchPopup: vi.fn()
 }))
 
@@ -32,7 +33,9 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
-  isMac: false,
+  get isMac() {
+    return mocks.platformState.isMac
+  },
   isLinux: false,
   isWin: false,
   platform: 'linux'
@@ -107,6 +110,7 @@ import { AppShellTabBar, getTabCapabilities } from '../AppShellTabBar'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.platformState.isMac = false
 })
 
 describe('AppShellTabBar', () => {
@@ -250,6 +254,65 @@ describe('AppShellTabBar', () => {
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')
+  })
+
+  it('removes the left inset on Windows and Linux without caller configuration', () => {
+    const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="home"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+        openTab={vi.fn()}
+      />
+    )
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+
+    expect(header).toHaveClass('pl-0')
+    expect(header).not.toHaveClass('pl-3')
+    expect(tabStrip).toHaveClass('pr-1')
+    expect(tabStrip).not.toHaveClass('px-1')
+    expect(tabStrip).not.toHaveClass('pl-1')
+  })
+
+  it('keeps the macOS tab bar flush while tab buttons avoid traffic lights when the sidebar narrows', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar()
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+
+    expect(header).toHaveClass('pl-0')
+    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(screen.queryByTestId('macos-tab-strip-traffic-light-spacer')).toBeNull()
+    expect(tabStrip).toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+    expect(tabStrip).toHaveClass('pr-1')
+    expect(tabStrip).not.toHaveClass('pl-1')
+  })
+
+  it('removes the macOS traffic light reserve while fullscreen', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar({ isFullscreen: true })
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+
+    expect(header).toHaveClass('pl-0')
+    expect(tabStrip).not.toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+    expect(tabStrip).toHaveClass('pr-1')
   })
 
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
