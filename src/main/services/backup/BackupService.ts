@@ -59,6 +59,7 @@ import {
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
+import { MergeEngine } from './merge'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -110,6 +111,8 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /** Frozen 14-domain registry — finalized in onInit (DEV gate; undefined in packaged builds). */
+  private registry?: ReturnType<typeof contributorManager.getRegistry>
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -145,6 +148,7 @@ export class BackupService extends BaseService {
     // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
     // (the startup-validation contract; see ContributorManager docstring).
     const registry = contributorManager.getRegistry()
+    this.registry = registry
 
     // Read the schema-version fingerprint once (migration journal's last `when`).
     this.schemaMigrationId = this.readSchemaMigrationId()
@@ -276,16 +280,23 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Archive admission is wired (admitArchive.ts — architecture §9 step 0). quiesce /
-        // merge / file-resource staging stay fail-closed stubs — restore is still unavailable
-        // until each lands. Every stub throws independently so no journal is written without
-        // the full track (not just incidentally fail-closed via merge).
+        // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
+        // junction + FTS) are wired. quiesce + file-resource staging stay fail-closed stubs —
+        // restore is still unavailable until they land. quiesce throws before merge runs, so
+        // no product archive reaches the engine; staging returns [] (nothing to promote).
         admitArchive,
         quiesceWriters: async () => {
           throw new RestoreQuiesceNotImplementedError()
         },
-        mergeBackupIntoWork: async () => {
-          throw new RestoreMergeNotImplementedError()
+        mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
+          // Defensive belt: onInit skips contributor finalize in packaged builds, so
+          // this.registry is undefined there. Unreachable in normal flow (quiesce above throws
+          // first), but constructing a half-initialized engine would silently merge with an
+          // empty registry.
+          if (!this.registry) {
+            throw new RestoreMergeNotImplementedError('contributor registry not finalized (packaged build)')
+          }
+          return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
         stageFileResources: async () => {
           throw new RestoreStagingNotImplementedError()

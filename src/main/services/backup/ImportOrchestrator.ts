@@ -34,6 +34,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
+import { type MergeContext, type MergeResult } from './merge'
 
 const logger = loggerService.withContext('ImportOrchestrator')
 
@@ -92,7 +93,11 @@ export interface ImportOrchestratorDeps {
   /** Quiesce all main-side writers + renderer mutation admission. Throws until #16849/#16850 land. */
   readonly quiesceWriters: (signal?: AbortSignal) => Promise<void>
   /** Merge backup rows into the detached work.sqlite. Throws until the merge engine lands. */
-  readonly mergeBackupIntoWork: (workSqlite: Database.Database, workDb: DbType) => Promise<void>
+  readonly mergeBackupIntoWork: (
+    workSqlite: Database.Database,
+    workDb: DbType,
+    ctx: MergeContext
+  ) => Promise<MergeResult>
   /** Stage file resources; return journal entries. Return [] until staging lands (safe — nothing to promote). */
   readonly stageFileResources: () => Promise<RestoreJournal['fileResources']>
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
@@ -132,10 +137,9 @@ export class ImportOrchestrator {
       this.emit(options, 'admission', 0, 1, 'archive admission + staging prep')
       // (横切) Archive admission — validate + safely unpack the .cbu into the staging subtree
       // BEFORE quiesce (backup-architecture §9 step 0): format gate + schema comparison +
-      // migrate-forward + integrity_check (admitArchive.ts). Return is NOT bound here — the
-      // merge/stage consumers that read ArchiveContext land in spine-wiring (no consumer yet
-      // → binding now would be an unused local). BackupService wires the real impl.
-      await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
+      // migrate-forward + integrity_check (admitArchive.ts). ArchiveContext bound here feeds
+      // the merge ctx (backupDbPath + domains) at step (b) below.
+      const archiveContext = await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
       this.assertNotCancelled(options)
       // Prepare the staging subtree: work.sqlite must NOT exist (snapshotTo asserts this).
       fs.mkdirSync(workDir, { recursive: true })
@@ -178,9 +182,20 @@ export class ImportOrchestrator {
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
       // (b) Merge backup rows into work. remote-fills-local-empty + additive; skippedFileIds
-      // would prune file_entry rows whose blobs were not staged. UNIMPLEMENTED — throws.
+      // would prune file_entry rows whose blobs were not staged. ctx carries the post-migrate
+      // backupDbPath + topo-sorted domains; userStrategy omitted → per-aggregate conflictDefault
+      // (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证); skippedFileEntryIds empty until
+      // file-resource staging lands (plan (e)).
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
-      await this.deps.mergeBackupIntoWork(workSqlite, workDb)
+      const ctx: MergeContext = {
+        backupDbPath: archiveContext.backupDbPath,
+        domains: archiveContext.domains,
+        skippedFileEntryIds: new Set<string>()
+      }
+      const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
+      if (result.degradedToSkips.length > 0) {
+        logger.info('merge degraded to SKIP', { count: result.degradedToSkips.length })
+      }
       this.assertNotCancelled(options)
 
       // (d) Migrate work forward to the bundled latest, then read its COMPLETE applied chain.

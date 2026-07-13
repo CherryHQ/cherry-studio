@@ -111,13 +111,14 @@ const seedAgentChannelTask = (db: Database.Database, channelId: string, taskId: 
 }
 
 const runMerge = (ctx: MergeContext): Promise<unknown> =>
-  new MergeEngine(registry, { backupDbPath: backupPath }).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
+  new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
 // SKILLS (agent_global_skill) and AGENTS (agent_workspace) hold natural-key aggregates → the
 // SKIP override is mandatory (FIELD_MERGE is unimplemented). Under SKIP: uuid roots the work
 // already lacks are still INSERTed (sourceMap populated); natural-key roots are force-skipped
 // (targetMap = local canonical when work has the row, absent otherwise).
 const agentsSkillsCtx = (): MergeContext => ({
+  backupDbPath: backupPath,
   domains: ['AGENTS', 'SKILLS'],
   userStrategy: 'SKIP',
   skippedFileEntryIds: new Set<string>()
@@ -201,6 +202,7 @@ describe('importAllJunctionRows (global junction phase)', () => {
     })
 
     const result = await runMerge({
+      backupDbPath: backupPath,
       domains: ['AGENTS', 'MCP_SERVERS'],
       userStrategy: 'SKIP',
       skippedFileEntryIds: new Set<string>()
@@ -227,6 +229,7 @@ describe('importAllJunctionRows (global junction phase)', () => {
     })
 
     const result = await runMerge({
+      backupDbPath: backupPath,
       domains: ['AGENTS'],
       userStrategy: 'SKIP',
       skippedFileEntryIds: new Set<string>()

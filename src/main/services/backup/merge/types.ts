@@ -106,6 +106,12 @@ export interface MergeResult {
  * ArchiveContext that does cross the spine boundary).
  */
 export interface MergeContext {
+  /**
+   * Absolute path to the migrated backup.sqlite (admission unpacked + migrate-forwarded it);
+   * the engine opens it read-only. Cross-spine ArchiveContext field — set by importBackup
+   * from ArchiveContext.backupDbPath, NOT engine-internal.
+   */
+  readonly backupDbPath: string
   /** Selected domains for this restore (drives topo sort + which aggregates are scanned). */
   readonly domains: readonly BackupDomain[]
   /**

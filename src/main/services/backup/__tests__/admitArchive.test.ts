@@ -5,7 +5,7 @@
 // (equal / strict-prefix→migrate-forward / fork→reject) + empty→corrupt, post-migrate
 // exact-equality re-read, integrity_check, and failure cleanup (rm -rf workDir).
 //
-// Fixture strategy: a real file-backed DB (setupTestDatabase, all 20 migrations) backs
+// Fixture strategy: a real file-backed DB (setupTestDatabase, all production migrations) backs
 // the equal-chain case; older-prefix uses a REAL prefix-migrations folder (only the first
 // N .sql + a truncated _journal) applied to an independent DB — NOT a delete-last-row hack,
 // so the prefix fixture's schema genuinely matches its chain (codex R1 P2-3).
@@ -153,8 +153,11 @@ describe('admitArchive', () => {
   })
 
   it('older prefix chain → migrate-forward succeeds + post-migrate re-read equals bundled', async () => {
+    // bundledTip is read live from the test DB (which runs every production migration), so the
+    // test stays correct as main adds migrations — no hardcoded count to drift.
+    const bundledTip = (dbh.sqlite.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').get() as { n: number }).n
     const dbCopy = join(tmpDir, 'backup.sqlite')
-    buildPrefixBackupDb(19, dbCopy) // 19/20 → strict prefix → migrate-forward runs
+    buildPrefixBackupDb(bundledTip - 1, dbCopy) // strict prefix (tip−1) → migrate-forward runs
     const archivePath = join(tmpDir, 'older.cbu')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
@@ -166,7 +169,7 @@ describe('admitArchive', () => {
     const verify = new Database(ctx.backupDbPath, { readonly: true })
     try {
       const rows = verify.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').all() as Array<{ n: number }>
-      expect(rows[0].n).toBe(20) // migrated to the bundled tip
+      expect(rows[0].n).toBe(bundledTip) // migrated to the bundled tip
     } finally {
       verify.close()
     }

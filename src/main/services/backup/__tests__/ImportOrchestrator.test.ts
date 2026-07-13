@@ -95,7 +95,7 @@ describe('ImportOrchestrator spine', () => {
       resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
     }),
     quiesceWriters: async () => {},
-    mergeBackupIntoWork: async () => {},
+    mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
     stageFileResources: async () => [],
     ...overrides
   })
@@ -140,6 +140,7 @@ describe('ImportOrchestrator spine', () => {
           // Simulate a foreign writer touching the live DB mid-staging (after snapshot,
           // before the 2nd fingerprint). user_version lives in the DB header → flips the hash.
           dbh.sqlite.pragma('user_version = 12345')
+          return { degradedToSkips: [] }
         }
       })
     )

@@ -87,10 +87,7 @@ export class MergeConsistencyCheckError extends Error {
  * inside a synchronous deferred-FK transaction on work.sqlite.
  */
 export class MergeEngine {
-  constructor(
-    private readonly registry: ReadonlyBackupRegistry,
-    private readonly deps: { readonly backupDbPath: string }
-  ) {}
+  constructor(private readonly registry: ReadonlyBackupRegistry) {}
 
   /**
    * Merge backup rows into work.sqlite. The transaction fn is synchronous
@@ -98,7 +95,7 @@ export class MergeEngine {
    * consumed via sync iterators inside the tx.
    */
   async mergeBackupIntoWork(workSqlite: Database.Database, _workDb: DbType, ctx: MergeContext): Promise<MergeResult> {
-    const backupDb = new Database(this.deps.backupDbPath, { readonly: true })
+    const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
       const ordered = this.registry.topoSort(ctx.domains)
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
