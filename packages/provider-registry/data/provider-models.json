@@ -1311,7 +1311,9 @@
                 "type": "text"
               },
               "sequentialImageGeneration": {
-                "type": "switch"
+                "default": "disabled",
+                "options": ["auto", "disabled"],
+                "type": "enum"
               },
               "size": {
                 "default": "2K",
@@ -1342,7 +1344,9 @@
                 "type": "text"
               },
               "sequentialImageGeneration": {
-                "type": "switch"
+                "default": "disabled",
+                "options": ["auto", "disabled"],
+                "type": "enum"
               },
               "size": {
                 "default": "2K",

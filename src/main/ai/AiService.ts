@@ -4,14 +4,14 @@ import {
   generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
-import type { PersonGeneration } from '@google/genai'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
-import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
@@ -19,6 +19,7 @@ import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
@@ -36,6 +37,8 @@ import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
+import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
@@ -50,7 +53,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
-import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
+import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -118,21 +121,16 @@ export interface AiImageRequest extends AiBaseRequest {
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
-  n?: number
-  size?: string
-  negativePrompt?: string
-  seed?: number
-  quality?: string
-  numInferenceSteps?: number
-  guidanceScale?: number
-  promptEnhancement?: boolean
-  personGeneration?: PersonGeneration
-  aspectRatio?: string
-  background?: string
-  moderation?: string
-  style?: string
-  /** Vendor-specific image params keyed by provider id; mapped to AI SDK provider options in main. */
-  providerOptions?: Record<string, Record<string, unknown>>
+  /** Image-generation mode (which tab). main derives per-model transport routing
+   *  (`vendorTransport` → descriptor) from the registry using this. */
+  mode?: ImageGenerationMode
+  /**
+   * Canonical param bag — already a strict, coerced `ParamValues` (the
+   * `ai.generate_image` IPC validated it via the catalog `imageParamsSchema`).
+   * main derives the structured request fields + the vendor bag from it via
+   * `splitParamValues`.
+   */
+  paramValues: ParamValues
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -156,13 +154,14 @@ export function imageInputEntryParams(
 
 /**
  * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
- * server pick the size" — like `compact()` drops it from `providerOptions`, it
- * must never reach the request body as a literal, so it's omitted. An absent
- * size keeps the legacy client-side `1024x1024` default.
+ * server pick the size", so it's omitted. An absent size is also omitted — the
+ * provider/server applies its own default. (A blanket client-forced
+ * `1024x1024` was wrong for vendors like Doubao that only accept `1K`/`2K`/`4K`
+ * and reject a pixel size; models that want a concrete default declare it on
+ * their registry `size` param instead.)
  */
 function resolveImageRequestSize(size: string | undefined): string | undefined {
-  if (size === 'auto') return undefined
-  return size ?? '1024x1024'
+  return size === 'auto' ? undefined : size
 }
 
 /** Embedding request. */
@@ -491,52 +490,50 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Map the canonical painting params onto each vendor's real image-API field
-    // names (negative_prompt / seed / imageConfig / …). AI SDK image models
-    // spread `providerOptions[<providerId>]` into the request body, so this is
-    // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
-    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
-      negativePrompt: request.negativePrompt,
-      seed: request.seed !== undefined ? String(request.seed) : undefined,
-      numInferenceSteps: request.numInferenceSteps,
-      guidanceScale: request.guidanceScale,
-      promptEnhancement: request.promptEnhancement,
-      personGeneration: request.personGeneration,
-      quality: request.quality,
-      aspectRatio: request.aspectRatio,
-      imageSize: request.size,
-      providerOptions: request.providerOptions,
-      background: request.background,
-      moderation: request.moderation,
-      style: request.style
-    })
+    // `request.paramValues` is already a strict, coerced `ParamValues` — the
+    // `ai.generate_image` IPC validated it via the catalog `imageParamsSchema` at
+    // the boundary (no main-side re-parse / cast). Split it into the structured
+    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
+    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
+    // WireProfile engine forwards.
+    const params = request.paramValues
+    const { structured, vendorBag } = splitParamValues(params)
+
+    // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
+    // canonical bag to each provider's wire — a registered profile for the
+    // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
+    // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
+    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart (resumes the same remote task instead of re-submitting). Other
-    // providers/models keep the in-SDK path below. The vendor params bag handed
-    // to the transport is identical to what the SDK path forwards.
+    // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire
+    // body), a transport builds its own request envelope per model, so it receives
+    // the canonical camelCase `vendorBag` directly (native n/size/seed travel via
+    // the job payload → `input.*`). No wire-naming, no casing probes.
     if (
       request.uniqueModelId &&
       resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     ) {
-      return await this.generateImageViaJob(request, imageProviderOptions[sdkConfig.providerId] ?? {}, signal)
+      return await this.generateImageViaJob(request, structured, vendorBag, signal)
     }
 
-    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
-    const requestSize = resolveImageRequestSize(request.size)
+    // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
+    // native binding's `map` (in `splitParamValues`).
+    const requestSize = resolveImageRequestSize(structured.size)
 
+    // Only the genuine AI SDK `ImageModelV3CallOptions` image params (n/size/seed/
+    // aspectRatio). The vendor knobs (negativePrompt/quality/numInferenceSteps/…)
+    // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
+    // (the WireProfile engine), which the image models read; passing them here is
+    // dropped by `generateImage`, so they're omitted.
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
-      n: request.n ?? 1,
+      n: structured.n ?? 1,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
-      ...(request.seed !== undefined ? { seed: request.seed } : {}),
-      ...(request.quality ? { quality: request.quality } : {}),
-      ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
-      ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
-      ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
-      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
+      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
@@ -595,6 +592,7 @@ export class AiService extends BaseService {
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
+    structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
     signal: AbortSignal | undefined
   ): Promise<AiImageResult> {
@@ -623,16 +621,28 @@ export class AiService extends BaseService {
       if (rejected) throw rejected.reason
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
-      const requestSize = resolveImageRequestSize(request.size)
+      const requestSize = resolveImageRequestSize(structured.size)
+
+      // Per-model transport routing, derived from the registry (main hosts it) —
+      // NOT laundered through paramValues. Persisted in the payload so a restart-
+      // resume reaches the right endpoint / response family.
+      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      const mode = request.mode ?? 'generate'
+      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
+      const vendorTransport = support?.modes?.[mode]?.vendorTransport
+      const modelDescriptor = vendorTransport?.endpoint
+        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
+        : undefined
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
         prompt: request.prompt,
-        n: request.n ?? 1,
+        n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
-        seed: request.seed,
+        seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
+        ...(modelDescriptor && { modelDescriptor }),
         providerParams
       }
       handle = jobManager.enqueue('image-generation.generate', payload)
@@ -665,7 +675,10 @@ export class AiService extends BaseService {
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
-    throw new Error(snapshot.error?.message ?? 'Image generation failed')
+    // `||` not `??`: a job can fail with an empty-string error message (a vendor that
+    // returns a non-OK response with no body), which would otherwise surface as a
+    // message-less `Error` the renderer can't show.
+    throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
   // ── Embedding ──
