@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
+  replaceDraft: vi.fn(),
   toggleExpanded: vi.fn(),
   getDraft: vi.fn(),
   reconcileTokens: vi.fn(),
@@ -126,6 +127,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
+        replaceDraft: mocks.replaceDraft,
         getDraft: mocks.getDraft
       })
     }, [props])
@@ -597,6 +599,7 @@ describe('ChatComposer', () => {
     mocks.updateAssistant.mockReset()
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
+    mocks.replaceDraft.mockReset()
     mocks.toggleExpanded.mockReset()
     mocks.getDraft.mockReset()
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
@@ -1500,6 +1503,35 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(mocks.surfaceProps?.text).toBe('previous chat prompt')
     })
+  })
+
+  it('replaces the full composer draft when recalling history with the same text', async () => {
+    seedInputHistory(['same prompt'])
+    mocks.getDraft.mockReturnValue({
+      text: 'same prompt',
+      tokens: [
+        {
+          id: 'quote-1',
+          kind: 'quote',
+          label: 'Quote',
+          promptText: 'same prompt',
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    act(() => {
+      mocks.surfaceProps?.onTextChange('same prompt')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('same prompt'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'same prompt', tokens: [] })
   })
 
   it('does not overwrite the cached draft while previewing input history', async () => {

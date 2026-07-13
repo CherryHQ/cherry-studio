@@ -103,6 +103,7 @@ interface ComposerClipboardCopyView {
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
+  replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken) => void
@@ -766,16 +767,39 @@ export default function ComposerSurface({
     return serializeComposerDocument(editor)
   }, [])
 
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
+      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+    },
+    [managedTokenKindSet]
+  )
+
   useEffect(() => {
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
+      replaceDraft,
       toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
       getDraft
     })
-  }, [focusEditor, getDraft, handleTextChangeFromTool, insertToken, onActionsChange, removeToken, toggleEditorExpanded])
+  }, [
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)

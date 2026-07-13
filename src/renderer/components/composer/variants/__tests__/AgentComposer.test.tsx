@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   toolLaunchersVersion: 0,
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
+  replaceDraft: vi.fn(),
   toggleExpanded: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
@@ -157,6 +158,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         toggleExpanded: mocks.toggleExpanded,
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
+        replaceDraft: mocks.replaceDraft,
         getDraft: () => {
           // Default: mirror the live composer state. Individual tests override via
           // mocks.getDraft.mockImplementation to inject specific tokens.
@@ -552,6 +554,7 @@ describe('AgentComposer', () => {
       mocks.files = typeof value === 'function' ? value(mocks.files) : value
     })
     mocks.insertToken.mockReset()
+    mocks.replaceDraft.mockReset()
     mocks.toggleExpanded.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
@@ -909,6 +912,39 @@ describe('AgentComposer', () => {
     await waitFor(() => {
       expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
     })
+  })
+
+  it('replaces the full composer draft when recalling history with the same text', () => {
+    seedInputHistory(['hello'])
+    mocks.getDraft.mockReturnValue({
+      text: 'hello',
+      tokens: [
+        {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'pdf',
+          promptText: 'hello',
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'hello', tokens: [] })
   })
 
   it('saves input history after a successful agent send', async () => {

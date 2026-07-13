@@ -887,6 +887,52 @@ describe('ComposerSurface', () => {
     expect(onTextChange).not.toHaveBeenCalled()
   })
 
+  it('replaces same-text token content when an external draft replacement is requested', async () => {
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'quote-1', kind: 'quote', label: 'Quote', promptText: 'quoted text' }
+            },
+            { type: 'text', text: ' follow up' }
+          ]
+        }
+      ]
+    })
+    const onTextChange = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="quoted text follow up"
+        onTextChange={onTextChange}
+        onActionsChange={(actions) => {
+          mocks.actions = actions
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    mocks.setContent.mockClear()
+
+    act(() => {
+      mocks.actions?.replaceDraft({ text: 'quoted text follow up', tokens: [] })
+    })
+
+    expect(mocks.setContent).toHaveBeenCalledWith(
+      {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'quoted text follow up' }] }]
+      },
+      { emitUpdate: false }
+    )
+    expect(onTextChange).not.toHaveBeenCalled()
+  })
+
   it('truncates external text updates at the maximum text length', async () => {
     const onTextChange = vi.fn()
 

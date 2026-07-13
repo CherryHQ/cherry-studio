@@ -604,6 +604,7 @@ const ChatComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
+      actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
 
@@ -626,7 +627,15 @@ const ChatComposerInner = ({
       setMentionedModels(savedTools.mentionedModels)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
     },
-    [filesRef, mentionedModelsRef, selectedKnowledgeBasesRef, setFiles, setMentionedModels, setSelectedKnowledgeBases]
+    [
+      actionsRef,
+      filesRef,
+      mentionedModelsRef,
+      selectedKnowledgeBasesRef,
+      setFiles,
+      setMentionedModels,
+      setSelectedKnowledgeBases
+    ]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft

@@ -904,6 +904,7 @@ const AgentComposerInner = ({
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
+      actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text, { persist: false })
       setDraftTokens(nextSkillTokens)
       draftTokensRef.current = nextSkillTokens
@@ -923,7 +924,7 @@ const AgentComposerInner = ({
       if (!savedFiles) return
       setFiles(savedFiles)
     },
-    [draftCacheKey, filesRef, setFiles, setText]
+    [actionsRef, draftCacheKey, filesRef, setFiles, setText]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
