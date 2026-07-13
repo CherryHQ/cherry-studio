@@ -70,6 +70,6 @@ describe('MessageGenerateImageToolTitle', () => {
 
   it('renders a spinner while the tool is still running', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ status: 'pending', response: undefined })} />)
-    expect(screen.getByTestId('spinner')).toHaveTextContent('chat.tools.generate_image.generating')
+    expect(screen.getByTestId('spinner')).toHaveTextContent('chat.input.tools.generate_image.generating')
   })
 })

@@ -47,7 +47,7 @@ export const MessageGenerateImageToolTitle = ({ toolResponse }: { toolResponse: 
 
   // Still running (pending / streaming / invoking).
   if (toolResponse.status !== 'done' && toolResponse.status !== 'error') {
-    return <Spinner text={<NoteText>{t('chat.tools.generate_image.generating')}</NoteText>} />
+    return <Spinner text={<NoteText>{t('chat.input.tools.generate_image.generating')}</NoteText>} />
   }
 
   // Failure: a returned `{ error }` note, or a thrown error (generic fallback).
@@ -56,7 +56,7 @@ export const MessageGenerateImageToolTitle = ({ toolResponse }: { toolResponse: 
     const errorText =
       response && typeof response === 'object' && typeof (response as { error?: unknown }).error === 'string'
         ? (response as { error: string }).error
-        : t('chat.tools.generate_image.failed')
+        : t('chat.input.tools.generate_image.failed')
     return <NoteText>{errorText}</NoteText>
   }
 
@@ -69,7 +69,7 @@ export const MessageGenerateImageToolTitle = ({ toolResponse }: { toolResponse: 
         items={[
           {
             key: toolResponse.id,
-            label: <NoteText>{t('chat.tools.generate_image.title')}</NoteText>,
+            label: <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>,
             children: <ImageBlock images={urls} isPending={urls.length === 0} isSingle={items.length === 1} />
           }
         ]}
