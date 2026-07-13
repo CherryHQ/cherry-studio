@@ -85,10 +85,7 @@ function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
     return 'left'
   }
 
-  return getAvailableSpaceForSide(triggerRect, 'bottom', viewport) >=
-    getAvailableSpaceForSide(triggerRect, 'top', viewport)
-    ? 'bottom'
-    : 'top'
+  return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
 function getDetailCardAlign(side: HoverCardSide): HoverCardAlign {
