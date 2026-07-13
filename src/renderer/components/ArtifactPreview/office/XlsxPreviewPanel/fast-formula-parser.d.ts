@@ -46,8 +46,8 @@ declare module 'fast-formula-parser' {
 
   /**
    * Single argument shape received by custom functions, wrapped internally by the library.
-   * Consume it through FormulaHelpers instead of reading `.value` directly. `omitted` marks omitted args like
-   * `SUM(1,,3)`.
+   * Prefer consuming it through FormulaHelpers. The streaming aggregate adapter reads `.value` directly to avoid the
+   * library's quadratic `flattenDeep`; `omitted` marks omitted args like `SUM(1,,3)`.
    */
   export interface FunctionArg {
     value: unknown

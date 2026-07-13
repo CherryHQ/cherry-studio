@@ -6,7 +6,7 @@
  * preview. This fills those functions through the FormulaParser constructor's `functions` option. The merge order is
  * after built-ins, so these implementations override the library's same-name stubs; see grammar/hooks.js.
  *
- * Only numeric aggregates that can be implemented correctly with `flattenParams` are patched here:
+ * Only numeric aggregates that can be implemented correctly with the parser's flattening semantics are patched here:
  * MAX MIN MEDIAN COUNTA LARGE SMALL MODE.SNGL STDEV.S STDEV.P VAR.S VAR.P.
  * More complex functions that depend on range lookup or condition parsing, such as SUMIFS/COUNTIFS/MATCH/SUBTOTAL,
  * are out of scope for this change.
@@ -29,6 +29,48 @@ const EXCEL_ERROR_CODES: ReadonlySet<string> = new Set([
   '#VALUE!'
 ])
 
+interface FormulaCollection {
+  readonly data: unknown[]
+  readonly refs: unknown[]
+}
+
+function isFormulaCollection(value: unknown): value is FormulaCollection {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<FormulaCollection>
+  return Array.isArray(candidate.data) && Array.isArray(candidate.refs)
+}
+
+function forEachScalar(value: unknown, visit: (item: unknown) => void): void {
+  if (!Array.isArray(value)) {
+    visit(value)
+    return
+  }
+  for (let index = 0; index < value.length; index++) {
+    if (index in value) forEachScalar(value[index], visit)
+  }
+}
+
+/** Mirrors flattenParams without its quadratic flattenDeep allocation for range, array, and union arguments. */
+function forEachFlattenedParam(params: FunctionArg[], valueType: number | null, visit: (item: unknown) => void): void {
+  if (params.length === 0) {
+    H.flattenParams(params, valueType, true, visit)
+    return
+  }
+
+  const defaultValue = valueType === NUMBER ? 0 : null
+  for (const param of params) {
+    if (isFormulaCollection(param.value)) {
+      forEachScalar(param.value.data, visit)
+    } else if (param.isRangeRef || param.isArray) {
+      forEachScalar(param.value, visit)
+    } else if (param.isCellRef) {
+      visit(param.value)
+    } else {
+      visit(param.omitted ? defaultValue : H.accept(param, valueType, defaultValue))
+    }
+  }
+}
+
 function throwIfErrorValue(value: unknown): void {
   if (typeof value === 'string' && EXCEL_ERROR_CODES.has(value)) {
     throw new FormulaError(value)
@@ -38,7 +80,7 @@ function throwIfErrorValue(value: unknown): void {
 /** Flatten all arguments and collect numeric scalars only. Text, empty cells, and booleans follow Excel aggregate semantics. */
 function collectNumbers(params: FunctionArg[]): number[] {
   const nums: number[] = []
-  H.flattenParams(params, NUMBER, true, (item) => {
+  forEachFlattenedParam(params, NUMBER, (item) => {
     throwIfErrorValue(item)
     if (typeof item === 'number' && !Number.isNaN(item)) nums.push(item)
   })
@@ -49,7 +91,7 @@ function collectNumbers(params: FunctionArg[]): number[] {
 function findExtremum(params: FunctionArg[], isBetter: (value: number, current: number) => boolean): number {
   let found = false
   let result = 0
-  H.flattenParams(params, NUMBER, true, (item) => {
+  forEachFlattenedParam(params, NUMBER, (item) => {
     throwIfErrorValue(item)
     if (typeof item !== 'number' || Number.isNaN(item)) return
     if (!found || isBetter(item, result)) {
@@ -85,7 +127,7 @@ export const CUSTOM_FORMULA_FUNCTIONS: Record<string, ParserFunction> = {
   },
   COUNTA: (...params) => {
     let count = 0
-    H.flattenParams(params, null, true, (item) => {
+    forEachFlattenedParam(params, null, (item) => {
       if (item !== null && item !== undefined) count++
     })
     return count
