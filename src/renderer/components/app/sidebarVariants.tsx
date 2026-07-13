@@ -52,7 +52,7 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
     return {
       key: getSidebarFavoriteKey(item),
       label: ctx.t(getSidebarIconLabelKey(id)),
-      renderIcon: (size) => <Icon size={size} strokeWidth={1.6} />,
+      renderIcon: (size) => <Icon size={size} />,
       isActive: (active) => active.activeItem === id,
       onOpen: () => ctx.openApp(id),
       contextMenuItems: [

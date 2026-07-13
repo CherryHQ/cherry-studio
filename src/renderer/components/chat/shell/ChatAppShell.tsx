@@ -5,12 +5,15 @@ import {
 } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { useOptionalShellState } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
@@ -105,6 +108,14 @@ export function ChatAppShell({
   // self-measurement (the center's own width) + a `narrow` boolean the list reports up — no probe,
   // no occupant scraping. When floating, a CSS clamp keeps the navbar's clusters inside the gutters.
   const isWindow = useWindowFrame().mode === 'window'
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
+  // Window mode: while the side pane is docked open it takes over the card's right
+  // half (see ShellHost), so the conversation card yields its right edge to fuse
+  // with it into a single frame.
+  const shellState = useOptionalShellState()
+  const paneDocked = Boolean(shellState?.open && !shellState.maximized)
   const [centerWidth, setCenterWidth] = useState(0)
   const [narrow, setNarrow] = useState(false)
   const reportNarrow = useCallback((next: boolean) => {
@@ -206,6 +217,23 @@ export function ChatAppShell({
     return () => observer.disconnect()
   }, [updatePaneAutoCollapse])
 
+  const conversationBody = (
+    <ImmersiveNarrowReportProvider value={reportNarrow}>
+      <ImmersiveNavbarStateProvider value={immersive}>
+        {hasCenterContent ? (
+          <ErrorBoundary>{centerContent}</ErrorBoundary>
+        ) : (
+          <>
+            <ErrorBoundary>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+            </ErrorBoundary>
+            {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+          </>
+        )}
+      </ImmersiveNavbarStateProvider>
+    </ImmersiveNarrowReportProvider>
+  )
+
   return (
     <div
       ref={rootRef}
@@ -240,20 +268,21 @@ export function ChatAppShell({
                 <ErrorBoundary>{topBar}</ErrorBoundary>
               </div>
             )}
-            <ImmersiveNarrowReportProvider value={reportNarrow}>
-              <ImmersiveNavbarStateProvider value={immersive}>
-                {hasCenterContent ? (
-                  <ErrorBoundary>{centerContent}</ErrorBoundary>
-                ) : (
-                  <>
-                    <ErrorBoundary>
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                    </ErrorBoundary>
-                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                  </>
-                )}
-              </ImmersiveNavbarStateProvider>
-            </ImmersiveNarrowReportProvider>
+            {/* Window mode: frame the conversation body as the floating bordered card of the
+                global detached-window chrome — the navbar above stays on the glass shell. */}
+            {isWindow ? (
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col overflow-hidden',
+                  'mx-1.5 mb-1.5 rounded-[16px] border-[0.5px] bg-background',
+                  isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border',
+                  paneDocked && 'mr-0 rounded-r-none border-r-0'
+                )}>
+                {conversationBody}
+              </div>
+            ) : (
+              conversationBody
+            )}
             {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
           </motion.div>
           {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}

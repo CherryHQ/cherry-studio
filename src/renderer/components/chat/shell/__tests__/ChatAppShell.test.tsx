@@ -35,6 +35,10 @@ const persistCacheMock = vi.hoisted(() => {
   }
 })
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))

@@ -64,8 +64,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       minHeight: MIN_WINDOW_HEIGHT,
       autoHideMenuBar: true,
       transparent: false,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      // 'menu' is the brightest, most color-transmissive blur material; the
+      // 'sidebar' material desaturates the backdrop and reads muddy gray
+      // under any tint.
+      vibrancy: 'menu',
+      // followWindow: glass only while the window is key; inactive windows
+      // flatten to the system's opaque material (native sidebar behavior).
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
@@ -176,8 +181,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // is never silently flipped to false (which would re-introduce the empty-shell first-paint
       // flash on reuse and the never-fires ready-to-show stuck-hidden failure mode).
       paintWhenInitiallyHidden: true,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      // 'menu' is the brightest, most color-transmissive blur material; the
+      // 'sidebar' material desaturates the backdrop and reads muddy gray
+      // under any tint.
+      vibrancy: 'menu',
+      // followWindow: glass only while the window is key; inactive windows
+      // flatten to the system's opaque material (native sidebar behavior).
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',

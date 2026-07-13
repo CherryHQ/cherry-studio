@@ -14,10 +14,6 @@ interface UseModelListKeyboardNavOptions<TItem extends KeyboardNavigableItem> {
   pageSize?: number
 }
 
-function isButtonEventTarget(target: EventTarget | null) {
-  return target instanceof HTMLElement && Boolean(target.closest('button'))
-}
-
 export function useModelListKeyboardNav<TItem extends KeyboardNavigableItem>({
   open,
   focusedItemKey,
@@ -38,10 +34,6 @@ export function useModelListKeyboardNav<TItem extends KeyboardNavigableItem>({
       }
 
       if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(event.key)) {
-        return
-      }
-
-      if (event.key === 'Enter' && isButtonEventTarget(event.target)) {
         return
       }
 

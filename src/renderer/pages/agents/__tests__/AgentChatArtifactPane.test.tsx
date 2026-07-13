@@ -8,6 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,

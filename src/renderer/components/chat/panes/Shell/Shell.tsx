@@ -1,8 +1,11 @@
 import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { CommandTooltip } from '@renderer/components/command'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -192,6 +195,14 @@ function ShellProvider({
 // back in a single reflow rather than animating width frame by frame.
 function ShellHost({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
+  // Window mode: the docked pane fuses with the conversation card into one floating
+  // frame — it takes the card's right half (right corners + outer border) while its
+  // hairline left border becomes the internal divider. ChatAppShell drops the card's
+  // right edge in the same state so the two halves read as a single card.
+  const isWindow = useWindowFrame().mode === 'window'
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
   if (state.maximized) return null
 
   return (
@@ -199,6 +210,16 @@ function ShellHost({ children }: { children: ReactNode }) {
       open={state.open}
       width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       resizable
+      className={
+        isWindow
+          ? cn(
+              'mr-1.5 mb-1.5 h-auto rounded-r-[16px] border-y-[0.5px] border-r-[0.5px]',
+              isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border',
+              '[border-left:0.5px_solid_var(--color-border)]'
+            )
+          : undefined
+      }
+      style={isWindow ? { marginTop: TITLE_BAR_HEIGHT_PX } : undefined}
       minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
       defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
@@ -225,6 +246,12 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   const reduceMotion = useReducedMotion()
   const bottomInset = useChatMaximizedOverlayBottomInset()
+  // Window mode: the maximized pane expands within the detached-window card frame
+  // (below the title bar, glass gutters intact) instead of flooding past the chrome.
+  const isWindow = useWindowFrame().mode === 'window'
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
 
   return (
     <AnimatePresence onExitComplete={actions.finishClose}>
@@ -236,7 +263,16 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
           animate={{ clipPath: CLIP_REVEALED }}
           exit={{ clipPath: CLIP_COLLAPSED, transition: reduceMotion ? { duration: 0 } : MAXIMIZE_EXIT }}
           transition={reduceMotion ? { duration: 0 } : MAXIMIZE_ENTER}
-          className="absolute inset-0 z-40 overflow-hidden bg-background">
+          style={isWindow ? { top: TITLE_BAR_HEIGHT_PX } : undefined}
+          className={cn(
+            'absolute z-40 overflow-hidden bg-background',
+            isWindow
+              ? cn(
+                  'inset-x-1.5 bottom-1.5 rounded-[16px] border-[0.5px]',
+                  isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border'
+                )
+              : 'inset-0'
+          )}>
           <div
             data-shell-maximized-overlay-content=""
             className="h-full min-h-0 overflow-hidden"

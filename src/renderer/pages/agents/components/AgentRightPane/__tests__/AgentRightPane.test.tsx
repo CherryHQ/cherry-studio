@@ -13,6 +13,10 @@ const { fileTreeModelState, resetLazyChildrenMock, useArtifactFileTreeModelMock 
   useArtifactFileTreeModelMock: vi.fn()
 }))
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (

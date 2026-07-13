@@ -9,6 +9,10 @@ const rightPaneHostMock = vi.hoisted(() => ({
   notifyReservedSpaceUnavailableOnOpen: false
 }))
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
     <button type="button" {...props}>
