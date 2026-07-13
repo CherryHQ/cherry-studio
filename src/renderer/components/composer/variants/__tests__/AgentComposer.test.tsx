@@ -1143,7 +1143,8 @@ describe('AgentComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    // The successful send is now the newest history entry, so ArrowUp recalls it first.
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent says hi'))
 
     expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
