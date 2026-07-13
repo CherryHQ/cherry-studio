@@ -10,8 +10,8 @@ type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.
 /**
  * Single entry point for a composer variant's pinned toolbar tools preference:
  * the ordered launcher/custom-tool ids rendered as persistent shortcut buttons.
- * Also owns the customize-popover open state so both entry points (toolbar
- * context menu and the "+" panel's trailing item) share it.
+ * Also owns the customize-popover open state, opened via the "+" panel's
+ * trailing item.
  */
 export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedToolsKey) {
   const { t } = useTranslation()

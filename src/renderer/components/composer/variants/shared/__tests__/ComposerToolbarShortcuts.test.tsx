@@ -29,16 +29,6 @@ vi.mock('@cherrystudio/ui', () => {
   return {
     Button: ({ children, ...props }: any) => React.createElement('button', props, children),
     Tooltip: ({ children }: { children: ReactNode }) => children,
-    ContextMenu: ({ children }: { children: ReactNode }) => React.createElement('div', null, children),
-    ContextMenuTrigger: ({ children }: { children: ReactNode }) => children,
-    ContextMenuContent: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'context-menu-content' }, children),
-    ContextMenuItem: ({ children, onSelect }: any) =>
-      React.createElement(
-        'button',
-        { type: 'button', 'data-testid': 'context-menu-item', onClick: onSelect },
-        children
-      ),
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
@@ -191,12 +181,5 @@ describe('ComposerToolbarShortcuts', () => {
 
     mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['web-search', 'ghost', 'thinking'])
-  })
-
-  it('opens the customize popover from the context menu item', () => {
-    const { props } = renderShortcuts()
-
-    fireEvent.click(screen.getByTestId('context-menu-item'))
-    expect(props.onCustomizeOpenChange).toHaveBeenCalledWith(true)
   })
 })

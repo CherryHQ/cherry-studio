@@ -1,16 +1,4 @@
-import {
-  Button,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  ReorderableList,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Popover, PopoverAnchor, PopoverContent, ReorderableList, Switch, Tooltip } from '@cherrystudio/ui'
 import {
   useComposerToolLauncherController,
   useComposerToolLauncherVersion
@@ -68,9 +56,9 @@ const CUSTOMIZE_ROW_ICON_CLASS =
  * User-customizable persistent tool shortcut bar shared by the composer variants.
  * Renders the pinned tool ids that resolve to a live candidate (launcher registered
  * for the current scope/model, or a variant-provided custom tool); stale ids stay in
- * the preference untouched. The customize popover (opened from the bar's context
- * menu or the "+" panel's trailing item) lists pinned rows (drag to reorder) and the
- * remaining candidates, with a switch toggling membership.
+ * the preference untouched. The customize popover (opened from the "+" panel's
+ * trailing item) lists pinned rows (drag to reorder) and the remaining candidates,
+ * with a switch toggling membership.
  */
 export const ComposerToolbarShortcuts = ({
   pinnedIds,
@@ -147,95 +135,88 @@ export const ComposerToolbarShortcuts = ({
   const customizeLabel = t('chat.input.toolbar.customize')
 
   return (
-    <ContextMenu>
-      <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
-        <ContextMenuTrigger asChild>
-          <PopoverAnchor asChild>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {visiblePinnedRows.map(({ candidate }) => {
-                const shortcut = candidate!
-                const tooltip = shortcut.disabled && shortcut.disabledReason ? shortcut.disabledReason : shortcut.label
-                return (
-                  <Tooltip key={shortcut.id} content={tooltip} placement="top">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className={cn(
-                        COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-                        'disabled:pointer-events-none disabled:opacity-40',
-                        shortcut.active && 'bg-accent'
-                      )}
-                      aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                      aria-haspopup={shortcut.opensPanel ? 'menu' : undefined}
-                      aria-pressed={shortcut.opensPanel ? undefined : shortcut.active}
-                      disabled={shortcut.disabled}
-                      data-active={shortcut.active || undefined}
-                      onClick={shortcut.select}>
-                      {shortcut.icon}
-                    </Button>
-                  </Tooltip>
-                )
-              })}
-            </div>
-          </PopoverAnchor>
-        </ContextMenuTrigger>
-        {/* Both entry points (context menu, "+" panel item) restore focus elsewhere right
-            after opening; ignore focus-outside so that restore doesn't instantly dismiss.
-            Pointer-down outside still closes the popover. */}
-        <PopoverContent align="start" className="w-72 p-2" onFocusOutside={(event) => event.preventDefault()}>
-          <div className="px-2 pb-1.5 text-muted-foreground text-xs">{customizeLabel}</div>
-          <ReorderableList
-            items={pinnedRows}
-            visibleItems={visiblePinnedRows}
-            getId={(row) => row.id}
-            onReorder={(nextRows) => onPinnedIdsChange(nextRows.map((row) => row.id))}
-            direction="vertical"
-            gap={2}
-            renderItem={(row, _index, { dragging }) => {
-              const candidate = row.candidate
-              if (!candidate) return null
-              return (
-                <div className={CUSTOMIZE_ROW_CLASS}>
-                  <span
-                    aria-hidden
-                    data-dragging={dragging ? 'true' : 'false'}
-                    className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
-                    <GripVertical className="size-4" />
-                  </span>
-                  <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{candidate.label}</span>
-                  <Switch
-                    size="xs"
-                    checked
-                    aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
-                    onCheckedChange={() => onPinnedIdsChange(pinnedIds.filter((id) => id !== row.id))}
-                  />
-                </div>
-              )
-            }}
-          />
-          {visiblePinnedRows.length > 0 && unpinnedCandidates.length > 0 ? (
-            <div className="mx-2 my-1.5 border-border border-t" />
-          ) : null}
-          {unpinnedCandidates.map((candidate) => (
-            <div key={candidate.id} className={CUSTOMIZE_ROW_CLASS}>
-              <span className="size-4 shrink-0" aria-hidden />
-              <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
-              <span className="min-w-0 flex-1 truncate text-sm">{candidate.label}</span>
-              <Switch
-                size="xs"
-                checked={false}
-                aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
-                onCheckedChange={() => onPinnedIdsChange([...pinnedIds, candidate.id])}
-              />
-            </div>
-          ))}
-        </PopoverContent>
-      </Popover>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onCustomizeOpenChange(true)}>{customizeLabel}</ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
+      <PopoverAnchor asChild>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {visiblePinnedRows.map(({ candidate }) => {
+            const shortcut = candidate!
+            const tooltip = shortcut.disabled && shortcut.disabledReason ? shortcut.disabledReason : shortcut.label
+            return (
+              <Tooltip key={shortcut.id} content={tooltip} placement="top">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn(
+                    COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+                    'disabled:pointer-events-none disabled:opacity-40',
+                    shortcut.active && 'bg-accent'
+                  )}
+                  aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
+                  aria-haspopup={shortcut.opensPanel ? 'menu' : undefined}
+                  aria-pressed={shortcut.opensPanel ? undefined : shortcut.active}
+                  disabled={shortcut.disabled}
+                  data-active={shortcut.active || undefined}
+                  onClick={shortcut.select}>
+                  {shortcut.icon}
+                </Button>
+              </Tooltip>
+            )
+          })}
+        </div>
+      </PopoverAnchor>
+      {/* The "+" panel entry restores focus to the editor right after opening; ignore
+          focus-outside so that restore doesn't instantly dismiss. Pointer-down outside
+          still closes the popover. */}
+      <PopoverContent align="start" className="w-72 p-2" onFocusOutside={(event) => event.preventDefault()}>
+        <div className="px-2 pb-1.5 text-muted-foreground text-xs">{customizeLabel}</div>
+        <ReorderableList
+          items={pinnedRows}
+          visibleItems={visiblePinnedRows}
+          getId={(row) => row.id}
+          onReorder={(nextRows) => onPinnedIdsChange(nextRows.map((row) => row.id))}
+          direction="vertical"
+          gap={2}
+          renderItem={(row, _index, { dragging }) => {
+            const candidate = row.candidate
+            if (!candidate) return null
+            return (
+              <div className={CUSTOMIZE_ROW_CLASS}>
+                <span
+                  aria-hidden
+                  data-dragging={dragging ? 'true' : 'false'}
+                  className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+                  <GripVertical className="size-4" />
+                </span>
+                <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">{candidate.label}</span>
+                <Switch
+                  size="xs"
+                  checked
+                  aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
+                  onCheckedChange={() => onPinnedIdsChange(pinnedIds.filter((id) => id !== row.id))}
+                />
+              </div>
+            )
+          }}
+        />
+        {visiblePinnedRows.length > 0 && unpinnedCandidates.length > 0 ? (
+          <div className="mx-2 my-1.5 border-border border-t" />
+        ) : null}
+        {unpinnedCandidates.map((candidate) => (
+          <div key={candidate.id} className={CUSTOMIZE_ROW_CLASS}>
+            <span className="size-4 shrink-0" aria-hidden />
+            <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
+            <span className="min-w-0 flex-1 truncate text-sm">{candidate.label}</span>
+            <Switch
+              size="xs"
+              checked={false}
+              aria-label={typeof candidate.label === 'string' ? candidate.label : undefined}
+              onCheckedChange={() => onPinnedIdsChange([...pinnedIds, candidate.id])}
+            />
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }
