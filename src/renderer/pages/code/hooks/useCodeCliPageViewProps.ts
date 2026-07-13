@@ -57,6 +57,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     providerConfigs,
     directory,
     upsertProviderConfig,
+    deleteProviderConfig,
     setCurrentProvider,
     reorderProviders,
     selectTool,
@@ -68,8 +69,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers } = useProviders()
   const apiGatewayBundle = useApiGatewayProvider()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
-    useConfigMetadata(selectedCliTool)
+  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
+    useConfigMetadata(selectedCliTool, providers)
 
   // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
   // provider display name when no model applies (own login, Claude detailed models).
@@ -155,6 +156,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
+    deleteProviderConfig,
     setCurrentProvider,
     setCurrentCliConfigConnection,
     makeModelFilter,
@@ -169,6 +171,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     currentProviderConfig,
     selectedTerminal,
     apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,

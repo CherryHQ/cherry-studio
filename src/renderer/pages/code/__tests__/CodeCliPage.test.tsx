@@ -16,6 +16,7 @@ const {
   writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
   upsertProviderConfigMock,
+  deleteProviderConfigMock,
   setCurrentProviderMock,
   reorderProvidersMock,
   selectToolMock,
@@ -37,6 +38,7 @@ const {
   writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
   upsertProviderConfigMock: vi.fn(),
+  deleteProviderConfigMock: vi.fn(),
   setCurrentProviderMock: vi.fn(),
   reorderProvidersMock: vi.fn(),
   selectToolMock: vi.fn(),
@@ -385,7 +387,8 @@ vi.mock('../hooks/useConfigMetadata', () => ({
     resolveProviderMetaForTool: (_toolId: CodeCli, item: Provider, config?: CliProviderConfig) => ({
       providerName: item.name,
       modelName: config?.modelId
-    })
+    }),
+    gatewayModelsById: new Map()
   })
 }))
 
@@ -416,6 +419,7 @@ function mockCodeCliState({
     directory: '/tmp/project',
     selectedTerminal: undefined,
     upsertProviderConfig: upsertProviderConfigMock,
+    deleteProviderConfig: deleteProviderConfigMock,
     setCurrentProvider: setCurrentProviderMock,
     reorderProviders: reorderProvidersMock,
     selectTool: selectToolMock,
@@ -434,6 +438,7 @@ describe('CodeCliPage', () => {
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
     upsertProviderConfigMock.mockResolvedValue('anthropic')
+    deleteProviderConfigMock.mockResolvedValue(undefined)
     setCurrentProviderMock.mockResolvedValue(undefined)
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')

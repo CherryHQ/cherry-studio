@@ -1,8 +1,8 @@
-import { useModels } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
@@ -10,8 +10,11 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type CliConfigFileDraft,
+  extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   gatewayExpectedModel,
+  gatewayModelIdFromAddress,
   readCliConfigFiles,
   resolveCliConfigApplyContext,
   writeCliConfigDraft
@@ -33,6 +36,8 @@ interface UseLaunchDialogControllerOptions {
   selectedTerminal?: string
   /** Synthetic Cherry gateway bundle — used to re-verify/rebuild the gateway config before launch. */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
+  /** Models currently available through the gateway, keyed by UniqueModelId. */
+  gatewayModelsById: Map<UniqueModelId, Model>
   upsertProviderConfig: (
     providerId: string,
     partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
@@ -57,6 +62,7 @@ export function useLaunchDialogController({
   currentProviderConfig,
   selectedTerminal,
   apiGatewayProvider,
+  gatewayModelsById,
   upsertProviderConfig,
   setCurrentProvider,
   setTerminal,
@@ -64,7 +70,6 @@ export function useLaunchDialogController({
 }: UseLaunchDialogControllerOptions): LaunchDialogController {
   const { t } = useTranslation()
   const availableTerminals = useAvailableTerminals()
-  const { models } = useModels({ enabled: true })
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
 
@@ -139,33 +144,45 @@ export function useLaunchDialogController({
       // CLI never launches against a dead endpoint or a stale key.
       if (enabledProvider && isApiGatewayProviderId(enabledProvider.id) && apiGatewayProvider) {
         const apiKey = await apiGatewayProvider.ensureReady()
-        // Respect a foreign/raw config the user saved via the advanced editor: if the on-disk model
-        // no longer matches the preferred model, the config was hand-edited — launch it as-is (like
-        // real providers) instead of rebuilding from preference and clobbering it. A managed config
-        // (model still matches) is still rewritten, to refresh a stale key/port.
-        let isForeignConfig = false
+        let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
-          const files = await readCliConfigFiles(selectedCliTool)
-          const onDiskModel = extractConnectionFromCliConfigDraft(selectedCliTool, files)?.model
+          onDiskFiles = await readCliConfigFiles(selectedCliTool)
+        } catch (err) {
+          // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
+          // config from preference so launch still uses the current gateway connection.
+          logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+        }
+
+        let modelId = cliConfigContext.modelId
+        let configBlob = currentProviderConfig?.config
+        let mergeFiles: CliConfigFileDraft[] | undefined
+        if (onDiskFiles) {
+          const onDiskModel = extractConnectionFromCliConfigDraft(selectedCliTool, onDiskFiles)?.model
           const expectedModel = gatewayExpectedModel(
             cliConfigContext.modelId,
-            models.find((m) => m.id === cliConfigContext.modelId)?.apiModelId
+            gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId
           )
-          isForeignConfig = !!onDiskModel && !!expectedModel && onDiskModel !== expectedModel
-        } catch (err) {
-          // The foreign-detection read is a non-essential optimization; on failure fall back to the
-          // safe default (rewrite, matching pre-gateway behavior) rather than aborting a valid launch.
-          logger.warn('Failed to read CLI config for gateway foreign-detection; rewriting', err as Error)
+          if (onDiskModel && expectedModel && onDiskModel !== expectedModel) {
+            const onDiskModelId = gatewayModelIdFromAddress(onDiskModel, gatewayModelsById)
+            if (!onDiskModelId) {
+              throw new Error(`Cannot resolve gateway model from CLI config: ${onDiskModel}`)
+            }
+            modelId = onDiskModelId
+            configBlob = extractConfigFromCliConfigDraft(selectedCliTool, onDiskFiles) ?? configBlob
+            mergeFiles = onDiskFiles
+          }
         }
-        if (!isForeignConfig) {
-          await writeCliConfigDraft({
-            cliTool: selectedCliTool,
-            modelId: cliConfigContext.modelId,
-            configBlob: currentProviderConfig?.config,
-            writePrimaryModel: cliConfigContext.writePrimaryModel,
-            gateway: { provider: apiGatewayProvider.provider, apiKey }
-          })
+        if (!gatewayModelsById.has(modelId)) {
+          throw new Error(`Gateway model is no longer available: ${modelId}`)
         }
+        await writeCliConfigDraft({
+          cliTool: selectedCliTool,
+          modelId,
+          configBlob,
+          ...(mergeFiles ? { files: mergeFiles } : {}),
+          writePrimaryModel: cliConfigContext.writePrimaryModel,
+          gateway: { provider: apiGatewayProvider.provider, apiKey }
+        })
       }
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
@@ -195,7 +212,7 @@ export function useLaunchDialogController({
     selectedCliTool,
     effectiveTerminal,
     apiGatewayProvider,
-    models,
+    gatewayModelsById,
     setCurrentProvider,
     t
   ])

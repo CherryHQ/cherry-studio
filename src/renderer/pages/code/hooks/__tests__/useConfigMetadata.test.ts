@@ -3,13 +3,14 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConfigMetadata } from '../useConfigMetadata'
 
-// The hook only needs these for `resolveProviderMeta`; `filterProviders` is pure over the args.
+const modelRecords = vi.hoisted(() => [] as Model[])
+
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: [] })
+  useModels: () => ({ models: modelRecords })
 }))
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: (p: Provider) => p.name
@@ -42,9 +43,39 @@ const oauthProvider = {
   ...anthropicEndpoint
 } as unknown as Provider
 
+const disabledProvider = {
+  id: 'disabled',
+  name: 'Disabled',
+  isEnabled: false,
+  authMethods: ['api-key']
+} as unknown as Provider
+
+const makeModel = (providerId: string, modelId: string, capabilities: string[] = []): Model =>
+  ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
+
+beforeEach(() => {
+  modelRecords.length = 0
+})
+
+describe('useConfigMetadata.gatewayModelsById', () => {
+  it('includes only models the running gateway can resolve', () => {
+    const routableModel = makeModel('anthropic', 'claude-chat')
+    const nonChatModel = makeModel('anthropic', 'embed', [MODEL_CAPABILITY.EMBEDDING])
+    const disabledProviderModel = makeModel('disabled', 'chat')
+    const externalProviderModel = makeModel('claude-code', 'chat')
+    modelRecords.push(routableModel, nonChatModel, disabledProviderModel, externalProviderModel)
+
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider, disabledProvider, oauthProvider])
+    )
+
+    expect([...result.current.gatewayModelsById.keys()]).toEqual([routableModel.id])
+  })
+})
+
 describe('useConfigMetadata.filterProviders', () => {
   it('drops login-based (OAuth/external-cli) providers while keeping api-key providers', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
 
     const filtered = result.current.filterProviders([oauthProvider, apiKeyProvider])
 
@@ -59,7 +90,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   it('keeps a chat model of ANY enabled provider regardless of the CLI tool (cross-protocol routing)', () => {
     // Claude Code tool, but a non-Anthropic (OpenAI-style) model must still pass:
     // the gateway does dialect conversion, so the per-tool/provider scope is dropped.
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('deepseek', 'deepseek-chat'))).toBe(true)
@@ -67,7 +98,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes embedding / rerank / image-generation models (the gateway cannot chat-route them)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('openai', 'text-embedding-3', [MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
@@ -76,7 +107,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes the CherryAI managed default model (not routable through the gateway)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID))).toBe(false)
@@ -88,7 +119,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   // non-chat class is excluded — not just embedding/rerank/text-to-image (audio/video generation
   // and transcription models would reach the chat runtime and fail).
   it('excludes non-chat audio/video generation and transcription models', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('elevenlabs', 'eleven-tts', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(false)
@@ -97,7 +128,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes models of a provider id containing ":" (cannot round-trip the gateway address)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('corp:west', 'gpt-4o'))).toBe(false)
@@ -106,7 +137,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
 
 describe('useConfigMetadata.resolveProviderMeta', () => {
   it('surfaces the primary detailed Claude model as the model name', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
 
     const meta = result.current.resolveProviderMeta(apiKeyProvider, {
       modelId: null,
@@ -117,7 +148,7 @@ describe('useConfigMetadata.resolveProviderMeta', () => {
   })
 
   it('resolves the plain configured model for non-detailed configs', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
 
     const meta = result.current.resolveProviderMeta(apiKeyProvider, { modelId: 'anthropic::claude-old' })
 

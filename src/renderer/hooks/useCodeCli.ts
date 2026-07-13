@@ -79,9 +79,10 @@ export const useCodeCli = () => {
     ): Promise<string> => {
       const toolId = selectedCliTool as CodeCliId
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
+      const nextConfig = 'config' in partial ? partial.config : existing?.config
       const next: CliProviderConfig = {
         modelId: partial.modelId,
-        ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
+        ...(nextConfig !== undefined ? { config: nextConfig } : {}),
         ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
           ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
           : {})
