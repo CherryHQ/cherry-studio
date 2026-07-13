@@ -181,7 +181,8 @@ export function useConfigDraftController({
     initialModelId,
     initialConfig,
     initialClaudeModelMode,
-    initialDraftSeed
+    initialDraftSeed,
+    gateway
   })
 
   useEffect(() => {
@@ -197,7 +198,8 @@ export function useConfigDraftController({
       initialModelId,
       initialConfig,
       initialClaudeModelMode,
-      initialDraftSeed
+      initialDraftSeed,
+      gateway
     } = initialLoadContextRef.current
     const commitLoadedDraft = (nextDraft: ConfigDraft) => {
       draftRef.current = nextDraft
@@ -214,7 +216,8 @@ export function useConfigDraftController({
       initialConfig,
       initialClaudeModelMode,
       initialDraftSeed,
-      connectionMatchesProvider
+      connectionMatchesProvider,
+      gateway
     }).then((nextDraft) => {
       if (loadId !== loadIdRef.current) return
       commitLoadedDraft(nextDraft)
@@ -314,10 +317,16 @@ export function useConfigDraftController({
         commitDraft({
           ...current,
           // connection.model is parsed from a user-edited raw file; fall back to
-          // the current model when it cannot form a valid unique id.
-          modelId: connection?.model
-            ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
-            : current.modelId,
+          // the current model when it cannot form a valid unique id. In gateway
+          // mode that parsed model is a gateway address ("providerId:apiModelId"),
+          // not a model of the synthetic provider — recombining it with
+          // provider.id would corrupt the stored UniqueModelId, and a matching
+          // connection already proves it addresses the current model, so keep it.
+          modelId: gateway
+            ? current.modelId
+            : connection?.model
+              ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
+              : current.modelId,
           config: nextConfig,
           files,
           connection: null,
@@ -326,7 +335,7 @@ export function useConfigDraftController({
         })
       }
     },
-    [cliTool, connectionMatchesProvider, commitDraft, provider.id]
+    [cliTool, connectionMatchesProvider, commitDraft, provider.id, gateway]
   )
 
   const handleSubmit = useCallback(async () => {
