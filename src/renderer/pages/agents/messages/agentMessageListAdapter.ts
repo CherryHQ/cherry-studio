@@ -29,7 +29,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo } from 'react'
 
@@ -64,8 +64,6 @@ interface AgentMessageListParams {
     avatar?: string
   }
   assistantId?: string
-  /** Model shown for snapshot-less rows (export/image-capture only; the live chat path omits it). */
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -98,7 +96,6 @@ export function useAgentMessageListProviderValue({
   partsByMessageId,
   assistantProfile,
   assistantId,
-  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -127,11 +124,10 @@ export function useAgentMessageListProviderValue({
       visibleMessages.map((message) =>
         toMessageListItem(message, {
           assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id,
-          modelFallback
+          topicId: topic.id
         })
       ),
-    [assistantId, modelFallback, visibleMessages, topic.assistantId, topic.id]
+    [assistantId, visibleMessages, topic.assistantId, topic.id]
   )
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)

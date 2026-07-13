@@ -57,7 +57,6 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
 
 vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   getMessageListItemModel: vi.fn(() => undefined),
-  modelToSnapshot: vi.fn(() => undefined),
   toMessageListItem: vi.fn((message) => message)
 }))
 

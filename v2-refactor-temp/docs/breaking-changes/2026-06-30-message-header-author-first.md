@@ -34,8 +34,9 @@ v1-imported chat messages **do** get an author snapshot when the topic's assista
 and the message's model resolve during migration; only rows where that can't be
 resolved stay snapshot-less.
 
-Snapshot-less rows resolve their model in priority order — the row's own stored
-`modelId` first, then a live model only as a last resort (for chat, the current
-topic model; for agent sessions, the current agent model). Because assistant/agent
-rows always carry their own `modelId`, the live fallback is effectively only hit
-by rows that have neither snapshot nor `modelId`.
+Snapshot-less rows resolve their model from the row's own stored `modelId`. The
+message header uses no live-model fallback, so switching the default model or the
+assistant/agent never moves a past message's header. A row with neither a snapshot
+nor a `modelId` simply shows no model label. (Session export still fills such rows
+with the current agent model as a last resort, since an export is a one-shot
+snapshot rather than a live-updating header.)

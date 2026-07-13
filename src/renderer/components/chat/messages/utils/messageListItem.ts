@@ -1,7 +1,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -16,32 +16,6 @@ import type { MessageListItem } from '../types'
 export interface MessageListItemContext {
   assistantId?: string
   topicId: string
-  modelFallback?: ModelSnapshot
-}
-
-export function modelToSnapshot(model: Model | SharedModel | undefined): ModelSnapshot | undefined {
-  if (!model) return undefined
-  if ('providerId' in model) {
-    const { providerId, modelId } = isUniqueModelId(model.id)
-      ? parseUniqueModelId(model.id)
-      : { providerId: model.providerId, modelId: model.id }
-    return {
-      id: model.apiModelId ?? modelId,
-      name: model.name,
-      provider: providerId,
-      ...(model.group && { group: model.group })
-    }
-  }
-
-  const { providerId, modelId } = isUniqueModelId(model.id)
-    ? parseUniqueModelId(model.id)
-    : { providerId: model.provider, modelId: model.id }
-  return {
-    id: modelId,
-    name: model.name,
-    provider: providerId,
-    ...(model.group && { group: model.group })
-  }
 }
 
 function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats | undefined {
@@ -61,15 +35,14 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
   const metadata = message.metadata ?? {}
   const messageSnapshot = metadata.messageSnapshot
   // The snapshot IS the producing author (model nested). Model priority: the frozen author's model →
-  // the row's own frozen `modelId` → (assistant only) the live topic model. Resolving the stored id
-  // before the live fallback keeps snapshot-less rows on the model that produced them when the default changes.
+  // the row's own frozen `modelId`. Both are captured at send time, so switching the live model or
+  // assistant never moves a past message's header.
   const author = messageSnapshot
   let model = author?.model
   if (!model && metadata.modelId && isUniqueModelId(metadata.modelId)) {
     const { providerId, modelId } = parseUniqueModelId(metadata.modelId)
     model = { id: modelId, name: modelId, provider: providerId }
   }
-  if (!model && message.role === 'assistant') model = ctx.modelFallback
   const modelId =
     metadata.modelId ??
     (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)

@@ -32,11 +32,7 @@ import {
   flushPendingMessageImageActions,
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import {
-  getMessageListItemModel,
-  modelToSnapshot,
-  toMessageListItem
-} from '@renderer/components/chat/messages/utils/messageListItem'
+import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -105,7 +101,7 @@ export function useHomeMessageListProviderValue({
   const topicId = topic.id
   const assistantId = topic.assistantId
   const navigate = useNavigate()
-  const { assistant, model } = useAssistant(assistantId)
+  const { assistant } = useAssistant(assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
@@ -127,11 +123,10 @@ export function useHomeMessageListProviderValue({
       messages.map((message) =>
         toMessageListItem(message, {
           assistantId: assistant?.id ?? assistantId,
-          topicId,
-          modelFallback: modelToSnapshot(model)
+          topicId
         })
       ),
-    [assistant?.id, assistantId, messages, model, topicId]
+    [assistant?.id, assistantId, messages, topicId]
   )
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)

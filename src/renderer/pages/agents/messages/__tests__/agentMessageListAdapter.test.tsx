@@ -471,7 +471,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -484,7 +483,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         imageActionConsumer: 'capture',
         messageNavigation: 'anchor'

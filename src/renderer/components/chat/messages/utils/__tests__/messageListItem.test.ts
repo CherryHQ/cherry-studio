@@ -43,7 +43,7 @@ describe('toMessageListItem', () => {
     expect(toMessageListItem(message, { topicId: 'topic-1' }).stats?.thoughtsTokens).toBe(150)
   })
 
-  it('keeps a snapshot-less row on its own modelId instead of the live topic-model fallback', () => {
+  it('resolves a snapshot-less row from its own frozen modelId', () => {
     const message = {
       id: 'm1',
       role: 'assistant',
@@ -51,25 +51,19 @@ describe('toMessageListItem', () => {
       metadata: { status: 'success', modelId: 'openai::gpt-4o' }
     } as CherryUIMessage
 
-    // No author snapshot, but the row has its own modelId → resolve from that, not the changed default.
-    const item = toMessageListItem(message, {
-      topicId: 'topic-1',
-      modelFallback: { id: 'new-default', name: 'New Default', provider: 'anthropic' }
-    })
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
 
     expect(item.model).toEqual({ id: 'gpt-4o', name: 'gpt-4o', provider: 'openai' })
     expect(item.modelId).toBe('openai::gpt-4o')
   })
 
-  it('uses the live topic-model fallback only when the row has neither snapshot nor modelId', () => {
+  it('leaves the model undefined when the row has neither snapshot nor modelId (no live fallback)', () => {
     const message = { id: 'm2', role: 'assistant', parts: [], metadata: { status: 'success' } } as CherryUIMessage
 
-    const item = toMessageListItem(message, {
-      topicId: 'topic-1',
-      modelFallback: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
-    })
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
 
-    expect(item.model).toEqual({ id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' })
+    expect(item.model).toBeUndefined()
+    expect(item.modelId).toBeUndefined()
   })
 })
 
