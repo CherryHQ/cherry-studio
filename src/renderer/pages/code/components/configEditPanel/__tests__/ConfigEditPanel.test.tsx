@@ -3,7 +3,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +12,7 @@ import { ConfigEditPanel } from '../ConfigEditPanel'
 const {
   extractConfigFromCliConfigDraftMock,
   extractConnectionFromCliConfigDraftMock,
+  modelSettingsNavigateMock,
   openSettingsTabMock,
   readCliConfigDraftMock,
   readCliConfigFilesMock,
@@ -20,6 +21,7 @@ const {
 } = vi.hoisted(() => ({
   extractConfigFromCliConfigDraftMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
+  modelSettingsNavigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   readCliConfigDraftMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
@@ -97,10 +99,14 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveProviderIcon: (id: string) =>
-    id === 'anthropic' ? () => <span data-testid="provider-icon-anthropic" /> : undefined
-}))
+vi.mock('@cherrystudio/ui/icons', () => {
+  const AnthropicIcon = () => <span data-testid="provider-icon-anthropic" />
+  return {
+    resolveProviderIconRef: (id: string) =>
+      id === 'anthropic' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+    useIcon: (ref: unknown) => (ref ? AnthropicIcon : undefined)
+  }
+})
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
@@ -117,10 +123,21 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ onSelect, trigger }: { onSelect: (modelId: UniqueModelId) => void; trigger: ReactNode }) => (
+  ModelSelector: ({
+    onSelect,
+    onSettingsNavigate,
+    trigger
+  }: {
+    onSelect: (modelId: UniqueModelId) => void
+    onSettingsNavigate?: (navigate: () => void) => void
+    trigger: ReactNode
+  }) => (
     <div data-testid="model-selector">
       <button type="button" onClick={() => onSelect('anthropic::claude-new' as UniqueModelId)}>
         select new model
+      </button>
+      <button type="button" onClick={() => onSettingsNavigate?.(modelSettingsNavigateMock)}>
+        open model settings
       </button>
       {trigger}
     </div>
@@ -185,10 +202,12 @@ vi.mock('../tools/ClaudeConfigFields', () => ({
   ClaudeConfigFields: ({
     config,
     onChange,
+    onSettingsNavigate,
     section = 'all'
   }: {
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
+    onSettingsNavigate?: (navigate: () => void) => void
     section?: string
   }) => {
     const env = config.env as Record<string, string> | undefined
@@ -204,6 +223,9 @@ vi.mock('../tools/ClaudeConfigFields', () => ({
             <span data-testid="selected-detailed-model">{env?.ANTHROPIC_DEFAULT_FABLE_MODEL ?? ''}</span>
             <button type="button" onClick={() => onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })}>
               select detailed model
+            </button>
+            <button type="button" onClick={() => onSettingsNavigate?.(modelSettingsNavigateMock)}>
+              open detailed model settings
             </button>
           </>
         )}
@@ -325,6 +347,27 @@ describe('ConfigEditPanel', () => {
 
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
+  })
+
+  it('closes the config dialog before detailed model settings navigation', async () => {
+    let pendingNavigation: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      pendingNavigation = callback
+      return 1
+    })
+    const { onClose } = renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
+    fireEvent.click(screen.getByText('open detailed model settings'))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(modelSettingsNavigateMock).not.toHaveBeenCalled()
+
+    act(() => pendingNavigation?.(0))
+
+    expect(modelSettingsNavigateMock).toHaveBeenCalledTimes(1)
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('opens Claude providers with saved detailed models in detailed mode', async () => {

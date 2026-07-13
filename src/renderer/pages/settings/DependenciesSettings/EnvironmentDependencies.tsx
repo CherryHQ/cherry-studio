@@ -207,7 +207,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const openToolDir = (toolName: string) => {
-    void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
+    void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => ipcApi.request('system.shell.open_path', dir))
   }
 
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
@@ -437,7 +437,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={() => void window.api.openWebsite(tool.repoUrl)}>
+          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -445,7 +445,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void window.api.openWebsite(tool.homepage!)}>
+            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
             <SquareArrowOutUpRight className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
