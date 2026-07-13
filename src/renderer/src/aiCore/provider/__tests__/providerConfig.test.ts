@@ -1006,6 +1006,22 @@ describe('providerToAiSdkConfig', () => {
       expect(settings.headers!['X-Custom']).toBe('custom-value')
     })
 
+    it('keeps LongCat providerOptions namespace while using openai-compatible runtime', async () => {
+      const provider = makeProvider({
+        id: 'longcat',
+        type: 'openai',
+        apiHost: 'https://api.longcat.chat/openai'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('LongCat-2.0', provider.id)
+      )) as ProviderConfig<'openai-compatible'>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(config.providerSettings.name).toBe('longcat')
+    })
+
     it('adds X-Api-Key header for openai provider type', async () => {
       const provider = makeProvider({
         id: 'openai',

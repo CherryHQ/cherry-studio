@@ -1600,6 +1600,7 @@
     "copy_failed": "Kopieren fehlgeschlagen",
     "current": "Aktuell",
     "cut": "Ausschneiden",
+    "decline": "Ablehnen",
     "default": "Standard",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie wirklich löschen?",
@@ -1761,6 +1762,7 @@
     "detail": "Fehlerdetails",
     "details": "Details",
     "diagnosis": {
+      "abnormal_finish": "Antwort wurde abnormal beendet, bitte erneut versuchen oder Modell wechseln",
       "ai_button": "KI-Diagnose",
       "ai_done": "Diagnostiziert",
       "ai_loading": "Wird diagnostiziert",
@@ -1776,6 +1778,7 @@
       "model_conflict": "Diagnosemodell ist identisch mit dem fehlerhaften Modell",
       "network": "Verbindung zum Server nicht möglich, Netzwerk- oder Proxy-Einstellungen prüfen",
       "ocr": "OCR-Engine nicht initialisiert, OCR-Einstellungen prüfen",
+      "output_truncated": "Antwort hat die maximale Länge erreicht und wurde abgeschnitten",
       "parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
       "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
       "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
@@ -2909,6 +2912,7 @@
   },
   "onboarding": {
     "privacy": {
+      "accept_and_continue": "Akzeptieren und fortfahren",
       "notice": "Durch die Fortsetzung bestätigen Sie, dass Sie gelesen haben und zustimmen",
       "period": ".",
       "policy": "Datenschutzerklärung"
@@ -3390,6 +3394,14 @@
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
+  },
+  "privacy_policy": {
+    "title": "Datenschutzrichtlinie"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "Wir haben die Datenschutzrichtlinie aktualisiert. Bitte lesen Sie die neueste ",
+    "policy": "Datenschutzrichtlinie",
+    "title": "Datenschutzrichtlinie aktualisiert"
   },
   "prompts": {
     "explanation": "Helfen Sie mir, dieses Konzept zu erklären",

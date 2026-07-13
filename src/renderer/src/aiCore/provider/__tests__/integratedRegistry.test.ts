@@ -149,5 +149,11 @@ describe('Integrated Provider Registry', () => {
       const result = getAiSdkProviderId(grokProvider)
       expect(result).toBe('xai-responses')
     })
+
+    it('should resolve LongCat provider without falling back to warning path', () => {
+      const longcatProvider = createTestProvider('longcat', 'openai')
+      const result = getAiSdkProviderId(longcatProvider)
+      expect(result).toBe('longcat')
+    })
   })
 })

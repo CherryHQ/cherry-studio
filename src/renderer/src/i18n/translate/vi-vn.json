@@ -1600,6 +1600,7 @@
     "copy_failed": "Sao chép thất bại",
     "current": "Hiện tại",
     "cut": "Cắt",
+    "decline": "Từ chối",
     "default": "Mặc định",
     "delete": "Xóa",
     "delete_confirm": "Bạn có chắc chắn muốn xóa không?",
@@ -1761,6 +1762,7 @@
     "detail": "Chi tiết lỗi",
     "details": "Chi tiết",
     "diagnosis": {
+      "abnormal_finish": "Phản hồi đã kết thúc bất thường, vui lòng thử lại hoặc đổi mô hình",
       "ai_button": "Chẩn đoán bằng AI",
       "ai_done": "Chẩn đoán",
       "ai_loading": "Chẩn đoán",
@@ -1776,6 +1778,7 @@
       "model_conflict": "Mô hình chẩn đoán giống với mô hình đang gặp lỗi",
       "network": "Không thể kết nối đến máy chủ, hãy kiểm tra cài đặt mạng hoặc proxy",
       "ocr": "Công cụ OCR chưa được khởi tạo, hãy kiểm tra cài đặt OCR",
+      "output_truncated": "Phản hồi đã đạt độ dài tối đa và bị cắt bớt",
       "parse": "AI đã trả về phản hồi không hợp lệ, vui lòng thử lại hoặc chuyển sang mô hình khác",
       "payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
       "proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
@@ -2909,6 +2912,7 @@
   },
   "onboarding": {
     "privacy": {
+      "accept_and_continue": "Chấp nhận và tiếp tục",
       "notice": "Bằng cách tiếp tục, bạn xác nhận rằng bạn đã đọc và đồng ý với",
       "period": ".",
       "policy": "Chính sách quyền riêng tư"
@@ -3390,6 +3394,14 @@
     "source": "Ver Código Fuente",
     "zoom_in": "Phóng to",
     "zoom_out": "Zum Herauszoomen"
+  },
+  "privacy_policy": {
+    "title": "Chính sách quyền riêng tư"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "Chúng tôi đã cập nhật chính sách quyền riêng tư. Vui lòng xem lại bản mới nhất ",
+    "policy": "Chính sách quyền riêng tư",
+    "title": "Chính sách quyền riêng tư đã được cập nhật"
   },
   "prompts": {
     "explanation": "Giải thích khái niệm này cho tôi",
