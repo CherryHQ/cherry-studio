@@ -57,7 +57,7 @@
     "update:languages": "tsx scripts/update-languages.ts",
     "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "pretest": "pnpm rebuild:node",
-    "test": "vitest run --silent --reporter=dot",
+    "test": "vitest run --silent",
     "pretest:main": "pnpm rebuild:node",
     "test:main": "vitest run --project main --project main-utils",
     "test:renderer": "vitest run --project renderer --project renderer-utils --project renderer-architecture",
