@@ -20,6 +20,7 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
@@ -265,6 +266,8 @@ function AssistantEditDialogContent({
     if (!next && canPersist) void persist()
     onOpenChange(next)
   }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
   return (
     <EditDialogShell
@@ -278,40 +281,43 @@ function AssistantEditDialogContent({
       setDialogContentElement={setDialogContentElement}
       tabs={tabs}
       title={t('library.config.dialogs.edit.assistant_title')}>
-      <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-        <AssistantBasicFields
-          form={form}
-          modelFilter={modelFilter}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          allTagNames={allTagNames}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-        />
-      </TabsContent>
-      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-        <AssistantPromptField
-          form={form}
-          resource={resource}
-          modelName={modelLabels.modelId}
-          portalContainer={dialogContentElement}
-        />
-      </TabsContent>
-      {isAssistantToolTab(activeTab) ? (
-        <TabsContent value={activeTab} forceMount className="m-0">
-          {activeTab === 'tools.mcp' ? (
-            <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
-          ) : (
-            <div className="grid gap-4">
-              <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
-            </div>
-          )}
+      <>
+        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+          <AssistantBasicFields
+            form={form}
+            modelFilter={modelFilter}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            allTagNames={allTagNames}
+            emojiPickerOpen={emojiPickerOpen}
+            setEmojiPickerOpen={setEmojiPickerOpen}
+            onSettingsNavigate={closeBeforeAction}
+          />
         </TabsContent>
-      ) : null}
-      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-        <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
-      </TabsContent>
+        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+          <AssistantPromptField
+            form={form}
+            resource={resource}
+            modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        {isAssistantToolTab(activeTab) ? (
+          <TabsContent value={activeTab} forceMount className="m-0">
+            {activeTab === 'tools.mcp' ? (
+              <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
+            ) : (
+              <div className="grid gap-4">
+                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
+        </TabsContent>
+      </>
     </EditDialogShell>
   )
 }
@@ -324,7 +330,8 @@ function AssistantBasicFields({
   setModelLabels,
   allTagNames,
   emojiPickerOpen,
-  setEmojiPickerOpen
+  setEmojiPickerOpen,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -334,6 +341,7 @@ function AssistantBasicFields({
   allTagNames: string[]
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
@@ -378,6 +386,7 @@ function AssistantBasicFields({
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
             onModelChange={handleAssistantModelChange}
+            onSettingsNavigate={onSettingsNavigate}
           />
         </div>
         <FormField

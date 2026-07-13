@@ -11,10 +11,8 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
   setWebviewLoaded: vi.fn()
 }))
 
-const mockWindowApi = vi.hoisted(() => ({
-  openWebsite: vi.fn(),
-  openPath: vi.fn()
-}))
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
 // pinned miniapp route tabs that are exempt from keep-alive eviction. The test
@@ -85,16 +83,12 @@ describe('useMiniAppPopup', () => {
     mockTabs.closeTab.mockClear()
     mockTabs.openTab.mockClear()
     mockTabs.updateTab.mockClear()
-    mockWindowApi.openWebsite.mockReset()
-    mockWindowApi.openPath.mockReset()
-    mockWindowApi.openWebsite.mockResolvedValue(undefined)
-    mockWindowApi.openPath.mockResolvedValue(undefined)
+    mocks.request.mockReset()
+    mocks.request.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ...window.api,
-        openWebsite: mockWindowApi.openWebsite,
-        openPath: mockWindowApi.openPath
+        ...window.api
       }
     })
   })
@@ -481,8 +475,8 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openWebsite).toHaveBeenCalledWith('https://example.com/help')
-      expect(mockWindowApi.openPath).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://example.com/help')
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_path', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })
@@ -501,8 +495,11 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openPath).toHaveBeenCalledWith('/Applications/Cherry Studio/resources/releases.html')
-      expect(mockWindowApi.openWebsite).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith(
+        'system.shell.open_path',
+        '/Applications/Cherry Studio/resources/releases.html'
+      )
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })

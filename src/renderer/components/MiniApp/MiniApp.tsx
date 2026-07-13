@@ -58,7 +58,11 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     if (onOpen) {
       onOpen(app, displayName)
     } else {
-      openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: displayName,
+        icon: app.logoSrc ?? app.logo
+      })
     }
     onClick?.()
   }

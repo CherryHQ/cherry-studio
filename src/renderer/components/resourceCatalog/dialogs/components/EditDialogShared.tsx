@@ -597,7 +597,8 @@ export function CompactModelField({
   portalContainer,
   modelLabels,
   setModelLabels,
-  onModelChange
+  onModelChange,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<any>
   name: ModelLabelKey
@@ -609,6 +610,7 @@ export function CompactModelField({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)
@@ -643,6 +645,7 @@ export function CompactModelField({
                 value={selectorValue}
                 filter={filter}
                 portalContainer={portalContainer}
+                onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
                   const selectedModelId = getSelectedModelId(selection)
                   if (onModelChange) {

@@ -262,6 +262,19 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
+  /**
+   * Preset logo key — a `icon:<providerId>` brand-icon ref. Absent for preset
+   * providers rendered by id, and for custom providers with an uploaded logo
+   * (those carry {@link logoSrc} instead). Never a URL or data URL.
+   */
+  logo: z.string().optional(),
+  /**
+   * Ready-to-render URL for an uploaded logo, resolved main-side from the
+   * `file_entry` (`file://…`). Mutually exclusive with {@link logo}. The
+   * renderer renders it directly and never reconstructs a disk path — the file
+   * storage layout stays a main-process detail.
+   */
+  logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */
