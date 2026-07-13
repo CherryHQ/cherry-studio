@@ -919,17 +919,37 @@ describe('AiService.listModels', () => {
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
-  it('pulls the model list over the API for an api-sourced provider', async () => {
+  it('pulls the model list over the API for an api-sourced provider, returning it as-is when the registry adds nothing', async () => {
     const service = createService()
     const provider = { id: 'openai', modelListSource: 'api' }
-    const apiModels = [{ id: 'openai::gpt-4o-mini' }]
+    const apiModels = [{ id: 'openai::gpt-4o-mini', apiModelId: 'gpt-4o-mini' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([])
 
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
-    expect(mockListProviderRegistryModels).not.toHaveBeenCalled()
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+  })
+
+  it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
+    const service = createService()
+    const provider = { id: 'ppio', modelListSource: 'api' }
+    // Live /models returns the chat model with a flat id.
+    const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([
+      // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
+      { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
+      // Vendor-exclusive image model the API never lists → must be appended.
+      { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
+    ])
+
+    const result = await service.listModels({ providerId: 'ppio' })
+
+    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
   })
 })
