@@ -54,23 +54,15 @@ export {
   useResourceListView
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
-export type { ResourceListGroupResolver } from './resourceListGrouping'
-export {
-  composeResourceListGroupResolvers,
-  createPinnedFirstSorter,
-  createPinnedGroupResolver,
-  sortByResourceGroupRank,
-  sortRankedResourceItems
-} from './resourceListGrouping'
 export { RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS, RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
-export type { ResourceListOrderAnchor } from './resourceListReorder'
+export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
+export { TopicListOptionsMenu } from './TopicListOptionsMenu'
+export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
+export { useResourceListPinnedState } from './useResourceListPinnedState'
+export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListBase'
 export {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
   moveResourceListStringGroupAfterDrop
-} from './resourceListReorder'
-export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
-export { TopicListOptionsMenu } from './TopicListOptionsMenu'
-export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
-export { useResourceListPinnedState } from './useResourceListPinnedState'
+} from '@renderer/utils/chat/resourceListBase'

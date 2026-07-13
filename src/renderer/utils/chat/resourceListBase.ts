@@ -29,6 +29,28 @@ export type ResourceListGroupReorderPayload = {
 
 type GroupRankResolver<T> = (item: T) => number
 
+export async function runResourceListLoadsWithConcurrency(
+  groupIds: readonly string[],
+  concurrency: number,
+  load: (groupId: string) => Promise<unknown>
+): Promise<void> {
+  const queue = [...groupIds]
+  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), queue.length)
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (queue.length > 0) {
+        const groupId = queue.shift()
+        if (!groupId) continue
+        try {
+          await load(groupId)
+        } catch {
+          // Each group owns its error state; one failure must not stop the remaining queue.
+        }
+      }
+    })
+  )
+}
+
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
 ): ResourceListGroupResolver<T> {
@@ -62,6 +84,11 @@ export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: Gr
     .map(({ item }) => item)
 }
 
+/**
+ * Shared topic/session display precedence: group rank first, pinned rows in
+ * their incoming server order, then the caller's within-group ordering with a
+ * stable incoming-index tiebreak.
+ */
 export function sortRankedResourceItems<T>(
   items: readonly T[],
   {

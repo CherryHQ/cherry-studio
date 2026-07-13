@@ -99,26 +99,13 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     pinned: false
   })
   const {
-    sessions: runtimePinnedSessions,
-    error: runtimePinnedSessionsError,
-    isLoading: isRuntimePinnedSessionsLoading,
-    refetch: refetchRuntimePinnedSessions
+    sessions: runtimeSessions,
+    error: runtimeSessionsError,
+    isLoading: isRuntimeSessionsLoading,
+    refetch: refetchRuntimeSessions
   } = useAgentSessionsByIds(runtimeStatusIds, {
     agentId: ownerScope,
     enabled: usesRuntimeStatusIds,
-    pinned: true,
-    q: debouncedSearch,
-    searchScope: 'full'
-  })
-  const {
-    sessions: runtimeUnpinnedSessions,
-    error: runtimeUnpinnedSessionsError,
-    isLoading: isRuntimeUnpinnedSessionsLoading,
-    refetch: refetchRuntimeUnpinnedSessions
-  } = useAgentSessionsByIds(runtimeStatusIds, {
-    agentId: ownerScope,
-    enabled: usesRuntimeStatusIds,
-    pinned: false,
     q: debouncedSearch,
     searchScope: 'full'
   })
@@ -141,10 +128,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   )
   const orderedRuntimeSessions = useMemo(
     () => [
-      ...runtimePinnedSessions.filter((session) => session.pinned === true),
-      ...runtimeUnpinnedSessions.filter((session) => session.pinned !== true)
+      ...runtimeSessions.filter((session) => session.pinned === true),
+      ...runtimeSessions.filter((session) => session.pinned !== true)
     ],
-    [runtimePinnedSessions, runtimeUnpinnedSessions]
+    [runtimeSessions]
   )
   const sessions = useMemo(() => {
     const queried = usesRuntimeStatusIds ? orderedRuntimeSessions : baseSessions
@@ -152,10 +139,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     return queried.filter((session) => !activeIds.has(session.id) && !failedIds.has(session.id))
   }, [activeIds, baseSessions, failedIds, filters.selectedStatus, orderedRuntimeSessions, usesRuntimeStatusIds])
   const sessionError = usesRuntimeStatusIds
-    ? (runtimePinnedSessionsError ?? runtimeUnpinnedSessionsError)
+    ? runtimeSessionsError
     : (pinnedSessionsError ?? (isPinnedBandComplete ? unpinnedSessionsError : undefined))
   const isSessionsLoading = usesRuntimeStatusIds
-    ? isRuntimePinnedSessionsLoading || isRuntimeUnpinnedSessionsLoading
+    ? isRuntimeSessionsLoading
     : isPinnedSessionsLoading || (isPinnedBandComplete && isUnpinnedSessionsLoading)
   const isSessionsLoadingMore =
     !usesRuntimeStatusIds && (isPinnedSessionsLoadingMore || (isPinnedBandComplete && isUnpinnedSessionsLoadingMore))
@@ -454,17 +441,11 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   ])
   const handleRetry = useCallback(() => {
     if (usesRuntimeStatusIds) {
-      void Promise.all([refetchRuntimePinnedSessions(), refetchRuntimeUnpinnedSessions()])
+      void refetchRuntimeSessions()
       return
     }
     void Promise.all([reloadPinnedSessions(), reloadUnpinnedSessions()])
-  }, [
-    refetchRuntimePinnedSessions,
-    refetchRuntimeUnpinnedSessions,
-    reloadPinnedSessions,
-    reloadUnpinnedSessions,
-    usesRuntimeStatusIds
-  ])
+  }, [refetchRuntimeSessions, reloadPinnedSessions, reloadUnpinnedSessions, usesRuntimeStatusIds])
 
   return (
     <HistoryRecordsContent

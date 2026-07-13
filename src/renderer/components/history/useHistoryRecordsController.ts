@@ -69,16 +69,13 @@ export function useHistoryRecordsController<T>({
   filters,
   activeRecordId
 }: UseHistoryRecordsControllerParams<T>): HistoryRecordsController<T> {
-  const { getId, isPinned, statusOf, sources, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
+  const { getId, isPinned, sources, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
   const { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus } =
     filters
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  const visibleItems = useMemo(() => {
-    if (!statusOf || selectedStatus === ALL_SOURCE_ID) return items
-    return items.filter((item) => statusOf(item) === selectedStatus)
-  }, [items, selectedStatus, statusOf])
+  const visibleItems = items
 
   // Reset the source filter when the selected source disappears (e.g. its assistant was deleted).
   useEffect(() => {

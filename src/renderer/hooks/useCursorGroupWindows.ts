@@ -1,4 +1,5 @@
 import { useDataApiCursorRevision } from '@renderer/data/hooks/useDataApiCursorRevision'
+import { runResourceListLoadsWithConcurrency } from '@renderer/utils/chat/resourceListBase'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -26,28 +27,6 @@ type UseCursorGroupWindowsOptions<T> = {
 }
 
 const INITIAL_GROUP_LOAD_CONCURRENCY = 3
-
-async function runWithConcurrency(
-  groupIds: readonly string[],
-  concurrency: number,
-  load: (groupId: string) => Promise<unknown>
-): Promise<void> {
-  const queue = [...groupIds]
-  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), queue.length)
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (queue.length > 0) {
-        const groupId = queue.shift()
-        if (!groupId) continue
-        try {
-          await load(groupId)
-        } catch {
-          // Per-group error state is retained; the remaining queue still loads.
-        }
-      }
-    })
-  )
-}
 
 export function useCursorGroupWindows<T>({
   enabled,
@@ -175,7 +154,7 @@ export function useCursorGroupWindows<T>({
 
   useEffect(() => {
     if (!enabled || state.queryKey !== queryKey || initialGroupIds.length === 0) return
-    void runWithConcurrency(initialGroupIds, INITIAL_GROUP_LOAD_CONCURRENCY, loadGroup)
+    void runResourceListLoadsWithConcurrency(initialGroupIds, INITIAL_GROUP_LOAD_CONCURRENCY, loadGroup)
   }, [enabled, initialGroupIds, initialGroupIdsKey, loadGroup, queryKey, state.queryKey, state.revision])
 
   const windows = useMemo(

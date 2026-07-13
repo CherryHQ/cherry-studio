@@ -41,11 +41,19 @@ const {
   resolveTemplate,
   buildSWRKey,
   evictInfiniteRevisionFamily,
+  expandLocalListRefreshPatterns,
   extractInfinitePath,
   findMatchingInfiniteKeys,
   invalidatePathPatterns,
   reconcileInfiniteRevisionFamilies
 } = __testing
+
+describe('expandLocalListRefreshPatterns', () => {
+  it('refreshes list stats without invalidating read-on-demand latest queries', () => {
+    expect(expandLocalListRefreshPatterns(['/topics'])).toEqual(['/topics', '/topics/stats'])
+    expect(expandLocalListRefreshPatterns(['/agent-sessions'])).toEqual(['/agent-sessions', '/agent-sessions/stats'])
+  })
+})
 
 /**
  * Build a useSWRInfinite cache key for `[path, query?, revisionToken?]`. Uses `swr/infinite`'s

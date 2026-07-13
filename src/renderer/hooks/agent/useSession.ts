@@ -36,7 +36,7 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -137,7 +137,6 @@ export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSe
 type UseAgentSessionsByIdsOptions = {
   agentId?: AgentSessionOwnerScope
   enabled?: boolean
-  pinned?: boolean
   q?: string
   searchScope?: AgentSessionSearchScope
 }
@@ -150,15 +149,7 @@ export function useAgentSessionsByIds(sessionIds: readonly string[], options: Us
   const q = options.q?.trim() || undefined
   const enabled = options.enabled !== false && normalizedIds.length > 0
   const key = enabled
-    ? [
-        '/agent-sessions',
-        'history-status-ids',
-        idsKey,
-        options.agentId ?? '',
-        options.pinned ?? '',
-        q ?? '',
-        options.searchScope ?? ''
-      ]
+    ? ['/agent-sessions', 'history-status-ids', idsKey, options.agentId ?? '', q ?? '', options.searchScope ?? '']
     : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<readonly AgentSessionListItem[]>(
@@ -172,7 +163,6 @@ export function useAgentSessionsByIds(sessionIds: readonly string[], options: Us
             agentId: options.agentId,
             ids,
             limit: AGENT_SESSION_IDS_PAGE_SIZE,
-            pinned: options.pinned,
             q,
             searchScope: q ? options.searchScope : undefined,
             sortBy: 'updatedAt'
@@ -359,13 +349,9 @@ export const useSessions = (
         return null
       }
 
-      await refresh().catch((error) => {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
-      })
-
       return result
     },
-    [agentId, createTrigger, refresh, t]
+    [agentId, createTrigger, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {

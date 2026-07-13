@@ -1,4 +1,9 @@
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
 
 import type {
@@ -51,12 +56,6 @@ export type ResourceListRemoteData = {
   revealItem?: (request: ResourceListRevealRequest) => Promise<ResourceListRemoteRevealTarget | null>
 }
 
-export type ResourceListGroup = {
-  id: string
-  label: string
-  count?: number
-}
-
 export type ResourceListSection = {
   id: string
   label: string
@@ -92,28 +91,13 @@ export type ResourceListDragCapabilities = {
   itemCrossGroup?: boolean
 }
 
-export type ResourceListItemReorderPayload = {
-  type: 'item'
-  activeId: string
-  overId: string
-  position: 'before' | 'after'
-  overType: 'group' | 'item'
-  sourceGroupId: string
-  targetGroupId: string
-  sourceIndex: number
-  targetIndex: number
-}
-
-export type ResourceListGroupReorderPayload = {
-  type: 'group'
-  activeGroupId: string
-  overGroupId: string
-  overType: 'group' | 'item'
-  sourceIndex: number
-  targetIndex: number
-}
-
 export type ResourceListReorderPayload = ResourceListItemReorderPayload | ResourceListGroupReorderPayload
+
+export type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 
 export type ResourceListVariantContext = {
   variant: 'session' | 'topic' | 'agent' | 'assistant' | 'history' | 'resource'

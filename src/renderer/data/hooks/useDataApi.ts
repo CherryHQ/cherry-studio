@@ -115,11 +115,9 @@ function expandLocalListRefreshPatterns(patterns: readonly string[]): string[] {
 
   if (normalizedPatterns.has('/topics')) {
     expanded.add('/topics/stats')
-    expanded.add('/topics/latest')
   }
   if (normalizedPatterns.has('/agent-sessions')) {
     expanded.add('/agent-sessions/stats')
-    expanded.add('/agent-sessions/latest')
   }
 
   return [...expanded]
@@ -1543,6 +1541,9 @@ export const __testing = {
   },
   get reconcileInfiniteRevisionFamilies() {
     return reconcileInfiniteRevisionFamilies
+  },
+  get expandLocalListRefreshPatterns() {
+    return expandLocalListRefreshPatterns
   },
   get invalidatePathPatterns() {
     return invalidatePathPatterns

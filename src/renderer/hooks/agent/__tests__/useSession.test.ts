@@ -356,7 +356,7 @@ describe('useSessions', () => {
     })
   })
 
-  it('creates a session through DataApi and refreshes the session list', async () => {
+  it('creates a session through DataApi without a second list refresh', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const mockSession = {
       id: 'session-1',
@@ -398,7 +398,7 @@ describe('useSessions', () => {
         workspace: { type: 'user', workspaceId: 'workspace-1' }
       }
     })
-    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(refresh).not.toHaveBeenCalled()
     expect(created).toBe(mockSession)
   })
 
@@ -425,45 +425,6 @@ describe('useSessions', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
     expect(deleted).toBe(response)
-  })
-
-  it('returns the created session when refreshing the session list fails', async () => {
-    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
-    const mockSession = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      name: 'New session',
-      description: 'Notes',
-      workspaceId: 'workspace-1',
-      workspace: {
-        id: 'workspace-1',
-        name: 'Workspace',
-        path: '/tmp/workspace',
-        type: 'user',
-        orderKey: 'a0',
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z'
-      },
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
-    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
-
-    const { result } = renderHook(() => useSessions('agent-1'))
-    const created = await act(async () =>
-      result.current.createSession({
-        name: 'New session',
-        description: 'Notes',
-        workspace: { type: 'user', workspaceId: 'workspace-1' }
-      })
-    )
-
-    expect(refresh).toHaveBeenCalledTimes(1)
-    expect(created).toBe(mockSession)
-    expect(toast.error).toHaveBeenCalled()
   })
 
   it('shows an error toast and returns null when DataApi session creation fails', async () => {
@@ -521,7 +482,7 @@ describe('useAgentSessionsByIds', () => {
     expect(result.current.sessions).toHaveLength(201)
   })
 
-  it('reapplies updatedAt order across bounded pinned-id request chunks', async () => {
+  it('reapplies updatedAt order across bounded id request chunks', async () => {
     const sessionIds = Array.from({ length: 201 }, (_, index) => `session-${String(index).padStart(3, '0')}`)
     vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
       const ids = options?.query?.ids ?? []
@@ -538,15 +499,13 @@ describe('useAgentSessionsByIds', () => {
       } as never
     })
 
-    const { result } = renderHook(() => useAgentSessionsByIds(sessionIds, { pinned: true }))
+    const { result } = renderHook(() => useAgentSessionsByIds(sessionIds))
 
     await waitFor(() => expect(result.current.isLoading).toBe(false))
 
     expect(dataApiService.get).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({
-      pinned: true,
-      sortBy: 'updatedAt'
-    })
+    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).not.toHaveProperty('pinned')
+    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({ sortBy: 'updatedAt' })
     expect(result.current.sessions[0]?.id).toBe('session-200')
   })
 })

@@ -675,15 +675,12 @@ describe('HistoryRecordsView agent mode', () => {
     expect(hookMocks.useAgentSessionsByIds).toHaveBeenCalledWith(
       ['session-beta'],
       expect.objectContaining({
-        pinned: true
+        enabled: true,
+        searchScope: 'full'
       })
     )
-    expect(hookMocks.useAgentSessionsByIds).toHaveBeenCalledWith(
-      ['session-beta'],
-      expect.objectContaining({
-        pinned: false
-      })
-    )
+    const runtimeSessionOptions = hookMocks.useAgentSessionsByIds.mock.calls.at(-1)?.[1]
+    expect(runtimeSessionOptions).not.toHaveProperty('pinned')
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })

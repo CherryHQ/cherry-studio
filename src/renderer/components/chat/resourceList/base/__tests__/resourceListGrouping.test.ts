@@ -1,14 +1,13 @@
-import { compareResourceCreationOrder } from '@renderer/utils/chat/resourceListBase'
-import { describe, expect, it } from 'vitest'
-
 import {
+  compareResourceCreationOrder,
+  compareResourceOrderKey,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
   sortByResourceGroupRank,
   sortRankedResourceItems
-} from '../resourceListGrouping'
-import { compareResourceOrderKey } from '../resourceListReorder'
+} from '@renderer/utils/chat/resourceListBase'
+import { describe, expect, it } from 'vitest'
 
 type TestItem = {
   id: string
@@ -20,7 +19,7 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-describe('resourceListGrouping', () => {
+describe('resource list grouping', () => {
   it('composes pinned and fallback resolvers with the first matching group winning', () => {
     const resolver = composeResourceListGroupResolvers<TestItem>(
       createPinnedGroupResolver({

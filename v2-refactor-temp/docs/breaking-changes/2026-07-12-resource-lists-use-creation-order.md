@@ -2,7 +2,7 @@
 title: Conversation and task lists no longer use date groups
 category: changed
 severity: notice
-introduced_in_pr: feb7ad6123
+introduced_in_pr: 523ab28297
 date: 2026-07-12
 ---
 

@@ -1,3 +1,4 @@
+import { runResourceListLoadsWithConcurrency } from '@renderer/utils/chat/resourceListBase'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 
@@ -97,28 +98,6 @@ function getResourceListGroupFromSeed(group: ResourceListGroupSeed): ResourceLis
 
 function normalizeCollapsedIds(collapsedIds: readonly string[] | unknown): readonly string[] {
   return Array.isArray(collapsedIds) ? collapsedIds : []
-}
-
-async function loadGroupsWithConcurrency(
-  groupIds: readonly string[],
-  concurrency: number,
-  loadGroup: (groupId: string) => Promise<unknown>
-): Promise<void> {
-  const queue = [...groupIds]
-  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), queue.length)
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (queue.length > 0) {
-        const groupId = queue.shift()
-        if (!groupId) continue
-        try {
-          await loadGroup(groupId)
-        } catch {
-          // The caller owns each group's error state; one failure must not stop the remaining queue.
-        }
-      }
-    })
-  )
 }
 
 function deriveResourceListItems<T extends ResourceListItemBase>({
@@ -905,7 +884,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         )
       })
       if (unloadedGroupIds.length === 0) return
-      void loadGroupsWithConcurrency(unloadedGroupIds, 3, (groupId) =>
+      void runResourceListLoadsWithConcurrency(unloadedGroupIds, 3, (groupId) =>
         runRemoteGroupLoad(groupId, () => remoteData.loadGroup?.(groupId) ?? Promise.resolve())
       ).catch(() => undefined)
     },

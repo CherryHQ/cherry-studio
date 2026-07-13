@@ -1,18 +1,15 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
+import type { HistorySourceOption, HistoryStatusOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 export const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
-
-type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
 /**
  * Map a history source-filter selection to the server-side owner scope
@@ -25,13 +22,6 @@ export function toServerOwnerScope(selectedSourceId: string): string | undefined
     return 'unlinked'
   }
   return selectedSourceId
-}
-
-export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
-  if (streamStatus?.isPending === true) return 'running'
-  if (streamStatus?.status === 'error') return 'failed'
-
-  return 'completed'
 }
 
 export function findAdjacentHistoryRecordAfterBulkDelete<T>(

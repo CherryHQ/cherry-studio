@@ -724,24 +724,13 @@ const Sessions = ({
         } else {
           await pinSession({ body: { entityId: sessionId, entityType: 'session' } })
         }
-        resetRemoteSessionWindows()
-        await Promise.all([reloadPinnedSessions(), reloadCreatedSessions(), refetchSessionStats()])
         return true
       } catch (err) {
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.pin.error.failed')))
         return false
       }
     },
-    [
-      isSessionPinMutating,
-      pinSession,
-      reloadCreatedSessions,
-      reloadPinnedSessions,
-      refetchSessionStats,
-      resetRemoteSessionWindows,
-      t,
-      unpinSession
-    ]
+    [isSessionPinMutating, pinSession, t, unpinSession]
   )
   const reloadSessionViews = useCallback(async () => {
     resetRemoteSessionWindows()
@@ -1420,9 +1409,6 @@ const Sessions = ({
           }
         }
 
-        await refetchAgents()
-        await reloadSessionViews()
-        await refetchWorkspaces()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from session group', { agentId, err })
@@ -1431,17 +1417,7 @@ const Sessions = ({
         setDeletingAgentId(null)
       }
     },
-    [
-      closeConversationTabs,
-      deleteAgent,
-      deletingAgentId,
-      onActiveAgentDeleted,
-      refetchAgents,
-      refetchWorkspaces,
-      reloadSessionViews,
-      setActiveSessionId,
-      t
-    ]
+    [closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, setActiveSessionId, t]
   )
 
   const handleDeleteWorkdirGroup = useCallback(
@@ -1483,8 +1459,6 @@ const Sessions = ({
           }
         }
 
-        await reloadSessionViews()
-        await refetchWorkspaces()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
@@ -1499,8 +1473,6 @@ const Sessions = ({
       deleteWorkspace,
       deletingWorkspaceGroupId,
       globalWorkdirSessionCountByGroupId,
-      refetchWorkspaces,
-      reloadSessionViews,
       loadLatestSession,
       sessionItems,
       setControlledActiveSessionId,
@@ -1576,13 +1548,12 @@ const Sessions = ({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
         toast.error(t('common.error'))
       }
     },
-    [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
+    [isAgentPinActionDisabled, t, toggleAgentPin]
   )
 
   const handleSelectSession = useCallback(
@@ -1736,7 +1707,6 @@ const Sessions = ({
 
           try {
             await reorderAgent({ params: { id: activeAgentId }, body: anchor })
-            await refetchAgents()
             setOptimisticAgentOrderIds(null)
           } catch (err) {
             setOptimisticAgentOrderIds(null)
