@@ -105,6 +105,9 @@ const activeSessionMocks = vi.hoisted(() => ({
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
 
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcOn: vi.fn() }))
+
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     delete: agentPageMocks.dataApiDelete,
@@ -718,15 +721,7 @@ describe('AgentPage', () => {
     activeSessionMocks.isLoading = false
     activeSessionMocks.sessionSource = 'none'
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        window: {
-          resetMinimumSize: vi.fn().mockResolvedValue(undefined),
-          setMinimumSize: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
+    ipcMocks.request.mockClear()
   })
 
   it('renders the agent resource list in the left pane', () => {
@@ -2157,7 +2152,10 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => {
-      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
     })
   })
 

@@ -7,6 +7,7 @@ import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
@@ -136,7 +137,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                         logger.error('Failed to update spell check preference', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })
-                      void window.api.setEnableSpellCheck(newValue).catch((error) => {
+                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
                         logger.error('Failed to update spell check runtime state', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })

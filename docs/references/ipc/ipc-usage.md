@@ -121,6 +121,8 @@ export type IpcEventSchemas = WindowEventSchemas & AppEventSchemas
 ```ts
 // to all windows
 application.get('IpcApiService').broadcast('window.maximized_changed', { maximized: true })
+// to all windows of one type (e.g. only the Main windows)
+application.get('IpcApiService').broadcastToType(WindowType.Main, 'window.maximized_changed', { maximized: true })
 // to one window (e.g. the caller, by its WindowId)
 application.get('IpcApiService').send(windowId, 'window.maximized_changed', { maximized: true })
 ```

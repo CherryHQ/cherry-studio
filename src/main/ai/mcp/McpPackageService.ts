@@ -1,8 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { fileStorage } from '@main/services/FileStorage'
-import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
@@ -465,58 +463,46 @@ export class McpPackageService extends BaseService {
     }
   }
 
-  protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
-  }
-
   protected async onStop(): Promise<void> {
     this.cleanup()
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-      try {
-        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'dxt')
-        const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, fileData)
-        return await this.uploadDxt(event, tempPath)
-      } catch (error) {
-        logger.error('DXT upload error:', error as Error)
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-        }
-      }
-    })
-    this.ipcHandle(IpcChannel.Mcp_UploadMcpb, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-      try {
-        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'mcpb')
-        const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, fileData)
-        return await this.uploadMcpb(event, tempPath)
-      } catch (error) {
-        logger.error('MCPB upload error:', error as Error)
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to upload MCPB file'
-        }
-      }
-    })
+  /**
+   * Stage an uploaded package buffer to a temp file and install it. The renderer sends the
+   * file as an ArrayBuffer over IpcApi; this writes it under the service temp dir and hands
+   * off to the shared extract/install path.
+   */
+  public async uploadDxt(fileBuffer: ArrayBuffer, fileName: string): Promise<McpPackageUploadResult> {
+    return this.uploadFromBuffer(fileBuffer, fileName, 'dxt')
   }
 
-  public async uploadDxt(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
-    return this.uploadPackage(event, filePath, 'dxt')
+  public async uploadMcpb(fileBuffer: ArrayBuffer, fileName: string): Promise<McpPackageUploadResult> {
+    return this.uploadFromBuffer(fileBuffer, fileName, 'mcpb')
   }
 
-  public async uploadMcpb(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
-    return this.uploadPackage(event, filePath, 'mcpb')
-  }
-
-  private async uploadPackage(
-    _: Electron.IpcMainInvokeEvent,
-    filePath: string,
+  private async uploadFromBuffer(
+    fileBuffer: ArrayBuffer,
+    fileName: string,
     packageFormat: McpPackageFormat
   ): Promise<McpPackageUploadResult> {
+    const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
+    try {
+      const fileData = validatePackageUploadPayload(fileBuffer, fileName, packageFormat)
+      await fs.promises.mkdir(this.tempDir, { recursive: true })
+      // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
+      const tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
+      await fs.promises.writeFile(tempPath, fileData)
+      return await this.uploadPackage(tempPath, packageFormat)
+    } catch (error) {
+      logger.error(`${packageLabel} upload error:`, error as Error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : `Failed to upload ${packageLabel} file`
+      }
+    }
+  }
+
+  private async uploadPackage(filePath: string, packageFormat: McpPackageFormat): Promise<McpPackageUploadResult> {
     const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
     const tempExtractDir = path.join(this.tempDir, `${packageFormat}_${uuidv4()}`)
 

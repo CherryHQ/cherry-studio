@@ -94,6 +94,9 @@ const homeMocks = vi.hoisted(() => ({
   isActiveTab: false
 }))
 
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcOn: vi.fn() }))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: vi.fn(),
   useResolvedCommand: () => ({
@@ -758,15 +761,7 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.tab.position', 'right')
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        window: {
-          resetMinimumSize: vi.fn().mockResolvedValue(undefined),
-          setMinimumSize: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
+    ipcMocks.request.mockClear()
   })
 
   it('renders the assistant resource list with the resource pane open by default', () => {
@@ -1689,7 +1684,10 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
     })
   })
 

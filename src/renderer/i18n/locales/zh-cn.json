@@ -3594,6 +3594,7 @@
     },
     "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
     "error": {
+      "avatar_image_too_large": "图片过大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
@@ -3615,6 +3616,7 @@
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
       "get_embedding_dimensions": "获取嵌入维度失败",
+      "image_process_failed": "图片处理失败，请重试",
       "invalid": {
         "api": {
           "host": "无效的 API 地址",
@@ -6798,6 +6800,7 @@
           "confirm": "确定要添加所有模型到列表吗？",
           "label": "添加全部模型"
         },
+        "add_success_enable_failed": "模型已添加，但服务商启用失败。",
         "add_whole_group": "添加整个分组",
         "clean_stale_models": "清理失效模型",
         "clean_stale_success": "已清理 {{count}} 个失效模型",
@@ -7209,6 +7212,7 @@
         "fill_after_create": "创建后请在详情页填写认证字段",
         "menu_label": "添加实例"
       },
+      "enable_failed_after_connection": "连接成功，但服务商启用失败。",
       "filter": {
         "agent": "支持 Agent",
         "all": "全部服务商",

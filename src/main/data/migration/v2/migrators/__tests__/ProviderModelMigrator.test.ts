@@ -1,6 +1,12 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
+import { existsSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -10,6 +16,10 @@ import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
+const PNG_1X1 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -45,7 +55,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 function createContext(
   db: MigrationContext['db'],
   reduxState: Record<string, unknown> = {},
-  dexieSettings: Record<string, unknown> = {}
+  dexieSettings: Record<string, unknown> = {},
+  filesDataDir = ''
 ): MigrationContext {
   return {
     sources: {
@@ -57,7 +68,8 @@ function createContext(
       }
     },
     db,
-    sharedData: new Map()
+    sharedData: new Map(),
+    paths: { filesDataDir }
   } as unknown as MigrationContext
 }
 
@@ -435,6 +447,106 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userProviderTable.providerId, 'custom-provider'))
       // No registry baseline applied — apiFeatures stays null (transformProvider default)
       expect(providerRow.apiFeatures).toBeNull()
+    })
+
+    it('promotes a v1 custom provider logo from dexie settings into a WebP file_entry', async () => {
+      const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'provider-logo-mig-'))
+      const migrationContext = createContext(
+        dbh.db,
+        { llm: { providers: [makeProvider('with-logo'), makeProvider('no-logo')] } },
+        { 'image://provider-with-logo': PNG_1X1 },
+        filesDataDir
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [withLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'with-logo'))
+      // Base64 upload becomes an on-disk WebP file_entry; logoKey stays null.
+      expect(withLogo.logoKey).toBeNull()
+
+      // The uploaded logo's file id lives ONLY in the ref row (single source of truth).
+      const refs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
+      expect(refs).toHaveLength(1)
+      const logoFileId = refs[0].fileEntryId
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+      expect(existsSync(path.join(filesDataDir, `${logoFileId}.webp`))).toBe(true)
+
+      const [withoutLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'no-logo'))
+      expect(withoutLogo.logoKey).toBeNull()
+      const noLogoRefs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'no-logo'))
+      expect(noLogoRefs).toHaveLength(0)
+    })
+
+    it('recovers a v1 built-in provider logo (non-data asset value) as an icon: ref, dropping unknowns', async () => {
+      // Released v1 stores a picked built-in logo as `PROVIDER_LOGO_MAP[id]` — a hashed
+      // build-asset URL (or the literal `'poe'`), NOT an `icon:<id>` ref. That value no
+      // longer resolves in v2. For a *custom* provider (random UUID id that doesn't
+      // resolve in the icon catalog) logoKey is the only logo it has, so the picked brand
+      // is recovered from the asset name and re-expressed as `icon:<catalogKey>`. An
+      // unrecognized value drops to null (no broken image). Never a file_entry / ref row.
+      const migrationContext = createContext(
+        dbh.db,
+        {
+          llm: {
+            providers: [
+              // Custom (UUID) providers — id won't resolve, so logoKey drives the avatar.
+              makeProvider('018f-uuid-openai'), // hashed bundled URL
+              makeProvider('018f-uuid-azure'), // asset named after a different brand (microsoft.png → azureai)
+              makeProvider('018f-uuid-poe'), // v1 literal 'poe'
+              makeProvider('018f-uuid-renamed') // unknown/renamed key → drops
+            ]
+          }
+        },
+        {
+          'image://provider-018f-uuid-openai': '/assets/openai-a1b2c3d4.png',
+          'image://provider-018f-uuid-azure': '/assets/microsoft-deadbeef.png',
+          'image://provider-018f-uuid-poe': 'poe',
+          'image://provider-018f-uuid-renamed': 'icon:aiStudio'
+        },
+        ''
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const expected: Record<string, string | null> = {
+        '018f-uuid-openai': 'icon:openai',
+        '018f-uuid-azure': 'icon:azureai',
+        '018f-uuid-poe': 'icon:poe',
+        '018f-uuid-renamed': null
+      }
+      for (const [providerId, logoKey] of Object.entries(expected)) {
+        const [provider] = await dbh.db
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+        expect(provider.logoKey).toBe(logoKey)
+
+        // A recovered icon ref lives on logoKey only — never a file_entry / ref row.
+        const refs = await dbh.db
+          .select()
+          .from(providerLogoFileRefTable)
+          .where(eq(providerLogoFileRefTable.sourceId, providerId))
+        expect(refs).toHaveLength(0)
+      }
     })
 
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
