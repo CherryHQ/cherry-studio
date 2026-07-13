@@ -1,0 +1,29 @@
+.cherry-emoji-picker-react {
+  --cherry-emoji-category-focus-size: 30px;
+}
+
+.cherry-emoji-picker-react .epr-emoji-category-label {
+  font-size: 13px;
+  line-height: 20px;
+  padding-left: calc(var(--epr-horizontal-padding) + var(--epr-emoji-padding));
+}
+
+.cherry-emoji-picker-react .epr-cat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cherry-emoji-picker-react .epr-cat-btn > svg {
+  display: block;
+}
+
+.cherry-emoji-picker-react .epr-cat-btn:focus::before {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: var(--cherry-emoji-category-focus-size);
+  height: var(--cherry-emoji-category-focus-size);
+  transform: translate(-50%, -50%);
+}
