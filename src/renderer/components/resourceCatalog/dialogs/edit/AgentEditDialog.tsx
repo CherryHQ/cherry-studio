@@ -1,10 +1,12 @@
 import {
+  Button,
   EditableNumber,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -16,6 +18,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { ImportSkillDialog, SkillMarketplaceDialog } from '@renderer/components/resourceCatalog/dialogs/import'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -32,7 +35,7 @@ import {
 } from '@shared/ai/claudecode/toolRegistry'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Sparkles, Wrench } from 'lucide-react'
+import { Download, Search, Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -212,7 +215,11 @@ function AgentEditDialogContent({
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
-  const { skills, loading: skillsLoading } = useInstalledSkills(resource.id || undefined, {
+  const {
+    skills,
+    loading: skillsLoading,
+    refresh: refreshSkills
+  } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
   const skillIdsFromQueryKey = useMemo(
@@ -340,6 +347,7 @@ function AgentEditDialogContent({
             portalContainer={dialogContentElement}
             skills={skills}
             skillsLoading={skillsLoading}
+            refreshSkills={refreshSkills}
           />
         </TabsContent>
       ) : null}
@@ -584,7 +592,8 @@ function AgentToolsFields({
   activeToolTab,
   portalContainer,
   skills,
-  skillsLoading
+  skillsLoading,
+  refreshSkills
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -592,8 +601,12 @@ function AgentToolsFields({
   portalContainer: HTMLElement | null
   skills: InstalledSkill[]
   skillsLoading: boolean
+  refreshSkills: () => unknown
 }) {
   const { t } = useTranslation()
+  const [skillQuery, setSkillQuery] = useState('')
+  const [skillMarketplaceOpen, setSkillMarketplaceOpen] = useState(false)
+  const [skillImportOpen, setSkillImportOpen] = useState(false)
   const disabledTools = form.watch('disabledTools')
   const mcps = form.watch('mcps')
   const skillIds = form.watch('skillIds')
@@ -636,23 +649,27 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
-  const skillCatalog = useMemo<CatalogItem[]>(
-    () =>
-      skills.map((skill) => ({
+  const skillCatalog = useMemo<CatalogItem[]>(() => {
+    const query = skillQuery.trim().toLowerCase()
+    return skills
+      .filter((skill) => !query || skill.name.toLowerCase().includes(query))
+      .map((skill) => ({
         id: skill.id,
         name: skill.name,
         description: skill.description,
         icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
-      })),
-    [skills]
-  )
+      }))
+  }, [skillQuery, skills])
   const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
+  const allSkillsEnabled = skills.length > 0 && skills.every((skill) => enabledSkillIds.has(skill.id))
   const setSkillEnabled = (id: string, enabled: boolean) =>
     form.setValue(
       'skillIds',
       enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
       { shouldDirty: true }
     )
+  const setAllSkillsEnabled = (enabled: boolean) =>
+    form.setValue('skillIds', enabled ? skills.map((skill) => skill.id) : [], { shouldDirty: true })
 
   return (
     <div className="grid gap-4">
@@ -682,19 +699,67 @@ function AgentToolsFields({
         />
       ) : null}
       {activeToolTab === 'tools.skills' ? (
-        <CatalogToggleGrid
-          items={skillCatalog}
-          enabledIds={enabledSkillIds}
-          loading={skillsLoading}
-          disabled={!canManageSkills}
-          onToggle={setSkillEnabled}
-          emptyLabel={
-            canManageSkills
-              ? t('library.config.agent.section.tools.no_skills_enabled')
-              : t('library.config.agent.section.tools.skills_require_save')
-          }
-          portalContainer={portalContainer}
-        />
+        <div className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-muted-foreground/70" />
+              <Input
+                value={skillQuery}
+                onChange={(event) => setSkillQuery(event.target.value)}
+                placeholder={t('library.config.dialogs.create.capability.search')}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+            <Button type="button" size="sm" className="shrink-0" onClick={() => setSkillMarketplaceOpen(true)}>
+              <Search size={13} />
+              {t('library.skill_add.online_search')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setSkillImportOpen(true)}>
+              <Download size={13} />
+              {t('library.config.dialogs.create.capability.import')}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-foreground text-sm">
+              {t('library.config.agent.section.tools.skills_enable_all')}
+            </span>
+            <Switch
+              size="sm"
+              checked={allSkillsEnabled}
+              disabled={skillsLoading || !canManageSkills || skills.length === 0}
+              onCheckedChange={setAllSkillsEnabled}
+              aria-label={t('library.config.agent.section.tools.skills_enable_all')}
+            />
+          </div>
+          <CatalogToggleGrid
+            items={skillCatalog}
+            enabledIds={enabledSkillIds}
+            loading={skillsLoading}
+            disabled={!canManageSkills}
+            onToggle={setSkillEnabled}
+            emptyLabel={
+              canManageSkills
+                ? t('library.config.agent.section.tools.no_skills_enabled')
+                : t('library.config.agent.section.tools.skills_require_save')
+            }
+            portalContainer={portalContainer}
+          />
+          <SkillMarketplaceDialog
+            open={skillMarketplaceOpen}
+            onOpenChange={setSkillMarketplaceOpen}
+            onInstalled={() => void refreshSkills()}
+          />
+          <ImportSkillDialog
+            open={skillImportOpen}
+            onOpenChange={setSkillImportOpen}
+            onInstalled={() => void refreshSkills()}
+          />
+        </div>
       ) : null}
     </div>
   )

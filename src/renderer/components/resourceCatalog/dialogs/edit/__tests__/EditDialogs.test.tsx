@@ -13,8 +13,11 @@ const {
   agentTools,
   ensureTagsMock,
   fetchGenerateMock,
+  importSkillDialogState,
+  marketplaceDialogState,
   mcpStatusState,
   openSettingsTabMock,
+  refreshSkillsMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -49,8 +52,23 @@ const {
   ],
   ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  importSkillDialogState: {
+    current: null as null | {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onInstalled?: () => void
+    }
+  },
+  marketplaceDialogState: {
+    current: null as null | {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onInstalled?: () => void
+    }
+  },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  refreshSkillsMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -131,6 +149,29 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
+  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void; onInstalled?: () => void }) => {
+    importSkillDialogState.current = props
+    return props.open ? (
+      <button type="button" onClick={() => props.onInstalled?.()}>
+        Complete skill import
+      </button>
+    ) : null
+  },
+  SkillMarketplaceDialog: (props: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onInstalled?: () => void
+  }) => {
+    marketplaceDialogState.current = props
+    return props.open ? (
+      <button type="button" onClick={() => props.onInstalled?.()}>
+        Complete marketplace install
+      </button>
+    ) : null
+  }
+}))
+
 vi.mock('@renderer/hooks/useTags', () => ({
   useEnsureTags: () => ({ ensureTags: ensureTagsMock }),
   useTagList: () => ({
@@ -178,10 +219,16 @@ vi.mock('@renderer/hooks/useSkills', () => ({
         name: 'Skill One',
         description: 'Skill description',
         isEnabled: false
+      },
+      {
+        id: 'skill-2',
+        name: 'Skill Two',
+        description: 'Another skill description',
+        isEnabled: false
       }
     ],
     loading: false,
-    refresh: vi.fn()
+    refresh: refreshSkillsMock
   })
 }))
 
@@ -254,6 +301,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.no_mcp_bound': 'No MCP servers bound',
           'library.config.agent.section.tools.no_skills_enabled': 'No skills enabled',
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
+          'library.config.agent.section.tools.skills_enable_all': 'Enable all',
           'library.config.agent.section.tools.skills_require_save': 'Save before skills',
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': 'Skills',
@@ -313,6 +361,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.vars.time': 'Time',
           'library.config.prompt.vars.username': 'Username',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.capability.import': 'Import skill',
+          'library.config.dialogs.create.capability.search': 'Search skills',
+          'library.skill_add.online_search': 'Online search',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
@@ -438,6 +489,8 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  importSkillDialogState.current = null
+  marketplaceDialogState.current = null
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
@@ -503,6 +556,7 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  refreshSkillsMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -881,6 +935,67 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('queues enabling and disabling all agent skills until the edit dialog is saved', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    const enableAllSwitch = screen.getByRole('switch', { name: 'Enable all' })
+    const skillOneSwitch = screen.getByRole('switch', { name: 'Skill One' })
+    const skillTwoSwitch = screen.getByRole('switch', { name: 'Skill Two' })
+
+    fireEvent.click(enableAllSwitch)
+    expect(skillOneSwitch).toBeChecked()
+    expect(skillTwoSwitch).toBeChecked()
+
+    fireEvent.click(enableAllSwitch)
+    expect(skillOneSwitch).not.toBeChecked()
+    expect(skillTwoSwitch).not.toBeChecked()
+
+    fireEvent.click(enableAllSwitch)
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillUpdates: [
+            { skillId: 'skill-1', isEnabled: true },
+            { skillId: 'skill-2', isEnabled: true }
+          ]
+        })
+      })
+    )
+  })
+
+  it('searches and imports skills from the agent edit dialog', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    fireEvent.change(screen.getByPlaceholderText('Search skills'), { target: { value: 'Two' } })
+    expect(screen.queryByText('Skill One')).not.toBeInTheDocument()
+    expect(screen.getByText('Skill Two')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import skill' }))
+    expect(importSkillDialogState.current?.open).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete skill import' }))
+    expect(refreshSkillsMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens online skill search and refreshes the agent skill list after installation', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Online search' }))
+    expect(marketplaceDialogState.current?.open).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete marketplace install' }))
+    expect(refreshSkillsMock).toHaveBeenCalledOnce()
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {

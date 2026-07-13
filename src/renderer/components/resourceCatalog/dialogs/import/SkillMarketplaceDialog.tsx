@@ -18,7 +18,7 @@ import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ResourceCatalogSearchInput } from './ResourceCatalogSearchInput'
+import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 
 type Props = {
   open: boolean

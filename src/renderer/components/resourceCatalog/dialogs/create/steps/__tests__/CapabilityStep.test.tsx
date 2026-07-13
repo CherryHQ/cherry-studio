@@ -1,12 +1,28 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { CapabilityStep } from '../CapabilityStep'
 
-const refreshMock = vi.hoisted(() => vi.fn())
+const { importSkillDialogState, marketplaceDialogState, refreshMock } = vi.hoisted(() => ({
+  importSkillDialogState: {
+    current: null as null | {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onInstalled?: () => void
+    }
+  },
+  marketplaceDialogState: {
+    current: null as null | {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      onInstalled?: () => void
+    }
+  },
+  refreshMock: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -24,8 +40,27 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/import/ImportSkillDialog', () => ({
-  ImportSkillDialog: () => null
+vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
+  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void; onInstalled?: () => void }) => {
+    importSkillDialogState.current = props
+    return props.open ? (
+      <button type="button" onClick={() => props.onInstalled?.()}>
+        Complete skill import
+      </button>
+    ) : null
+  },
+  SkillMarketplaceDialog: (props: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onInstalled?: () => void
+  }) => {
+    marketplaceDialogState.current = props
+    return props.open ? (
+      <button type="button" onClick={() => props.onInstalled?.()}>
+        Complete marketplace install
+      </button>
+    ) : null
+  }
 }))
 
 function CapabilityStepHarness() {
@@ -50,6 +85,12 @@ function CapabilityStepHarness() {
 }
 
 describe('CapabilityStep', () => {
+  beforeEach(() => {
+    importSkillDialogState.current = null
+    marketplaceDialogState.current = null
+    refreshMock.mockClear()
+  })
+
   it('writes selected skills through the checkbox catalog variant', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
@@ -78,5 +119,51 @@ describe('CapabilityStep', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids').textContent).toBe('skill-a')
+  })
+
+  it('selects and clears every configurable skill without adding builtin skills to skillIds', async () => {
+    const user = userEvent.setup()
+    render(<CapabilityStepHarness />)
+
+    const selectAllSwitch = screen.getByRole('switch', {
+      name: 'library.config.agent.section.tools.skills_enable_all'
+    })
+    const alphaSkill = screen.getByRole('checkbox', { name: 'Alpha Skill' })
+    const betaSkill = screen.getByRole('checkbox', { name: 'Beta Skill' })
+    const builtinSkill = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+
+    await user.click(selectAllSwitch)
+    expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
+    expect(alphaSkill).toBeChecked()
+    expect(betaSkill).toBeChecked()
+    expect(builtinSkill).toBeChecked()
+
+    await user.click(selectAllSwitch)
+    expect(screen.getByTestId('skill-ids').textContent).toBe('')
+    expect(alphaSkill).not.toBeChecked()
+    expect(betaSkill).not.toBeChecked()
+    expect(builtinSkill).toBeChecked()
+  })
+
+  it('opens the skill import dialog and refreshes the catalog after installation', async () => {
+    const user = userEvent.setup()
+    render(<CapabilityStepHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.capability.import' }))
+    expect(importSkillDialogState.current?.open).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Complete skill import' }))
+    expect(refreshMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens online skill search and refreshes the catalog after installation', async () => {
+    const user = userEvent.setup()
+    render(<CapabilityStepHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'library.skill_add.online_search' }))
+    expect(marketplaceDialogState.current?.open).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Complete marketplace install' }))
+    expect(refreshMock).toHaveBeenCalledOnce()
   })
 })

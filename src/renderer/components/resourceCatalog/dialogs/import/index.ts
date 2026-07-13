@@ -7,3 +7,4 @@ export {
   validateAssistantImportUrl
 } from './ImportAssistantDialog'
 export { ImportSkillDialog } from './ImportSkillDialog'
+export { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
