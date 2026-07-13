@@ -34,6 +34,42 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.KIMI_CODE
 ])
 
+/**
+ * Reserved virtual provider id for the code-CLI "Cherry Gateway" option. Like the
+ * own-login entry it is a page-local synthetic provider (never persisted to the
+ * providers store), but instead of running credential-less it injects the local
+ * API gateway's URL + key into the CLI config so the real provider key never
+ * lands on disk and any model is reachable through the gateway's dialect
+ * conversion. Namespaced so it never collides with a real provider id.
+ */
+export const CLI_API_GATEWAY_PROVIDER_ID = 'cherry:api-gateway'
+
+/**
+ * Fixed ASCII provider-name segment for the gateway in CLI config keys (`cherry-gateway`).
+ * The synthetic provider's card title is the localized "统一网关" (Unified Gateway), which would
+ * sanitize to an empty/garbled segment; this stable name keeps the on-disk key clean and
+ * locale-independent.
+ */
+export const CLI_API_GATEWAY_PROVIDER_NAME = 'gateway'
+
+export function isApiGatewayProviderId(id: string): boolean {
+  return id === CLI_API_GATEWAY_PROVIDER_ID
+}
+
+/**
+ * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
+ * Anthropic (`/v1/messages`) and OpenAI (`/v1/chat/completions`, `/v1/responses`)
+ * dialects only, so Gemini CLI (needs a Google endpoint) and OpenClaw (its own
+ * gateway sync path) are excluded.
+ */
+export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
+  CodeCli.CLAUDE_CODE,
+  CodeCli.OPENAI_CODEX,
+  CodeCli.OPEN_CODE,
+  CodeCli.QWEN_CODE,
+  CodeCli.KIMI_CODE
+])
+
 export enum TerminalApp {
   SYSTEM_DEFAULT = 'Terminal',
   ITERM2 = 'iTerm2',
