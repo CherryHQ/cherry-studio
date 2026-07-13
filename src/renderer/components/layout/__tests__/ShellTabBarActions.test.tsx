@@ -122,6 +122,7 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })
