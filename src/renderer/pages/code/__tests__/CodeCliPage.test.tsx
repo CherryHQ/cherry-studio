@@ -16,6 +16,7 @@ const {
   writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
   upsertProviderConfigMock,
+  deleteProviderConfigMock,
   setCurrentProviderMock,
   reorderProvidersMock,
   selectToolMock,
@@ -37,6 +38,7 @@ const {
   writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
   upsertProviderConfigMock: vi.fn(),
+  deleteProviderConfigMock: vi.fn(),
   setCurrentProviderMock: vi.fn(),
   reorderProvidersMock: vi.fn(),
   selectToolMock: vi.fn(),
@@ -148,6 +150,10 @@ vi.mock('@data/DataApiService', () => ({
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => useCodeCliMock()
+}))
+
+vi.mock('../hooks/useApiGatewayProvider', () => ({
+  useApiGatewayProvider: () => null
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
@@ -386,7 +392,8 @@ vi.mock('../hooks/useConfigMetadata', () => ({
     resolveProviderMetaForTool: (_toolId: CodeCli, item: Provider, config?: CliProviderConfig) => ({
       providerName: item.name,
       modelName: config?.modelId
-    })
+    }),
+    gatewayModelsById: new Map()
   })
 }))
 
@@ -417,6 +424,7 @@ function mockCodeCliState({
     directory: '/tmp/project',
     selectedTerminal: undefined,
     upsertProviderConfig: upsertProviderConfigMock,
+    deleteProviderConfig: deleteProviderConfigMock,
     setCurrentProvider: setCurrentProviderMock,
     reorderProviders: reorderProvidersMock,
     selectTool: selectToolMock,
@@ -435,6 +443,7 @@ describe('CodeCliPage', () => {
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
     upsertProviderConfigMock.mockResolvedValue('anthropic')
+    deleteProviderConfigMock.mockResolvedValue(undefined)
     setCurrentProviderMock.mockResolvedValue(undefined)
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')
@@ -521,7 +530,7 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('auto-sorts a provider to the first position after it is enabled', async () => {
+  it('does not reorder providers after one is enabled', async () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: {
@@ -535,9 +544,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('toggle anthropic'))
 
     await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
-    await waitFor(() => expect(reorderProvidersMock).toHaveBeenCalled())
-    const orderedIds = reorderProvidersMock.mock.calls.at(-1)?.[0]
-    expect(orderedIds?.[0]).toBe('anthropic')
+    expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
   it('shows a provider selection hint when launch needs a current provider', () => {

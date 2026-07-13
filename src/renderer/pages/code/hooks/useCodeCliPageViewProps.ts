@@ -4,7 +4,13 @@ import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
+import {
+  CLI_OWN_LOGIN_PROVIDER_ID,
+  CodeCli,
+  GATEWAY_CAPABLE_CLI_TOOLS,
+  isApiGatewayProviderId,
+  LOGIN_CAPABLE_CLI_TOOLS
+} from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,6 +19,7 @@ import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
+import { useApiGatewayProvider } from './useApiGatewayProvider'
 import { useBinaryActions } from './useBinaryActions'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
@@ -48,6 +55,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     providerConfigs,
     directory,
     upsertProviderConfig,
+    deleteProviderConfig,
     setCurrentProvider,
     reorderProviders,
     selectTool,
@@ -58,8 +66,9 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers } = useProviders()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
-    useConfigMetadata(selectedCliTool)
+  const apiGatewayBundle = useApiGatewayProvider()
+  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
+    useConfigMetadata(selectedCliTool, providers)
 
   // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
   // provider display name when no model applies (own login, Claude detailed models).
@@ -73,13 +82,17 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
         summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
         continue
       }
-      const provider = providers.find((p) => p.id === currentId)
+      // The gateway is synthetic (absent from the real provider list); resolve its summary
+      // from the bundle's provider so the sidebar still shows the selected model.
+      const provider = isApiGatewayProviderId(currentId)
+        ? apiGatewayBundle?.provider
+        : providers.find((p) => p.id === currentId)
       if (!provider) continue
       const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
       summaries[tool.value] = meta.modelName || meta.providerName
     }
     return summaries
-  }, [configs, providers, resolveProviderMetaForTool, t])
+  }, [configs, providers, apiGatewayBundle, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -89,6 +102,14 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     [t]
   )
   const showOwnLoginCard = LOGIN_CAPABLE_CLI_TOOLS.has(selectedCliTool)
+  const showGatewayCard = GATEWAY_CAPABLE_CLI_TOOLS.has(selectedCliTool) && !!apiGatewayBundle
+  const prependedProviders = useMemo(
+    () =>
+      [showGatewayCard ? apiGatewayBundle?.provider : null, showOwnLoginCard ? OWN_LOGIN_PROVIDER : null].filter(
+        (p): p is NonNullable<typeof p> => p !== null
+      ),
+    [showGatewayCard, apiGatewayBundle, showOwnLoginCard]
+  )
   const { supportedProviders, onReorder: handleReorder } = useSortedSupportedProviders({
     providers,
     currentToolState,
@@ -96,35 +117,16 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     filterProviders,
     reorderProviders,
     onReorderError: handleReorderError,
-    ownLoginProvider: showOwnLoginCard ? OWN_LOGIN_PROVIDER : null
+    prependedProviders
   })
 
   const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
-    currentProviderConfig
+    currentProviderConfig,
+    apiGatewayProvider: apiGatewayBundle
   })
-
-  // Float a provider to the top of the list (persisted via the same reorder path as drag-sort).
-  const moveProviderToFront = useCallback(
-    async (providerId: string) => {
-      const target = supportedProviders.find((p) => p.id === providerId)
-      if (!target || supportedProviders[0]?.id === providerId) return
-      await handleReorder([target, ...supportedProviders.filter((p) => p.id !== providerId)])
-    },
-    [supportedProviders, handleReorder]
-  )
-
-  // Enabling a provider auto-sorts it to the first position. Only the config-panel controller's setter
-  // is wrapped; launch dialog / OpenClaw gateway / tool removal keep the raw setCurrentProvider.
-  const setCurrentProviderForConfigPanel = useCallback(
-    async (providerId: string | null) => {
-      await setCurrentProvider(providerId)
-      if (providerId) await moveProviderToFront(providerId)
-    },
-    [setCurrentProvider, moveProviderToFront]
-  )
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
@@ -168,9 +170,11 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
-    setCurrentProvider: setCurrentProviderForConfigPanel,
+    deleteProviderConfig,
+    setCurrentProvider,
     setCurrentCliConfigConnection,
-    makeModelFilter
+    makeModelFilter,
+    apiGatewayProvider: apiGatewayBundle
   })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,
@@ -180,6 +184,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     isOwnLoginSelected,
     currentProviderConfig,
     selectedTerminal,
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,

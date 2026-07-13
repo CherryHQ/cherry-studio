@@ -5,7 +5,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
-import { providerService } from '@main/data/services/ProviderService'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
@@ -19,14 +18,13 @@ import {
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { sanitizeProviderName } from '@shared/utils/provider'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
 import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
-import { isShellSafeModelId, posixQuote } from './shellQuote'
+import { posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -459,35 +457,10 @@ export class CodeCliService extends BaseService {
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
     let baseCommand = `${needsBatchCall ? 'call ' : ''}"${executablePath}"`
 
-    // OpenCode reads its provider from the opencode.json written above; here we only select the model
-    // at launch (matching the written provider key) and disable its own auto-update.
+    // OpenCode reads its provider AND default model from the opencode.json written by the
+    // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
+    // carries no model argument; we only disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
-      if (!normal) {
-        // Unreachable in practice: opencode is neither login-capable nor
-        // providerless, so non-normal modes were rejected above. Narrows types.
-        const message = `Provider ID is required for ${cliTool}`
-        logger.error(message)
-        return { success: false, message }
-      }
-      let providerName: string
-      try {
-        const provider = providerService.getByProviderId(normal.providerId)
-        providerName = sanitizeProviderName(provider.name, provider.id)
-      } catch (error) {
-        const message = `OpenCode provider not found: ${normal.providerId}`
-        logger.error(message, error as Error)
-        return { success: false, message }
-      }
-      // `model` is the only provider-derived value concatenated bare into the launch command (every
-      // other CLI writes the model into its own config file). Reject anything outside the model-id
-      // charset rather than launch, so a model id carrying shell metacharacters can't inject into the
-      // `sh -c` / AppleScript / `.bat` command this string is assembled into.
-      if (!isShellSafeModelId(normal.model)) {
-        const message = `Unsupported model id for ${cliTool}: ${normal.model}`
-        logger.error(message)
-        return { success: false, message }
-      }
-      baseCommand = `${baseCommand} --model cherry-${providerName}/${normal.model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 

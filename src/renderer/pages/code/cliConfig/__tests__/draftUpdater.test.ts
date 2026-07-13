@@ -176,4 +176,34 @@ describe('updateCliConfigDraftConfig', () => {
       )
     }
   )
+
+  // A config-only edit rebuilds opencode.json without a model record, so the display name
+  // written for the model key (gateway mode writes a human-readable one) must be carried
+  // over from the existing draft, not degraded back to the addressing id.
+  it('opencode: keeps the model display name across a config-only update', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config' as CliConfigTarget,
+        label: '',
+        path: '',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              npm: '@ai-sdk/anthropic',
+              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
+            }
+          }
+        })
+      }
+    ]
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
+    expect(parsed.autoCompact).toBe(true)
+    expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+    expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
+  })
 })

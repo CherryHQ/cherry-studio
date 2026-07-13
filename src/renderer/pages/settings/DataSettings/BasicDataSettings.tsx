@@ -16,14 +16,13 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from 'lucide-react'
+import { FolderOpen, FolderOutput, Loader2, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
-import { LanTransferPopup } from './LanTransferPopup'
 import RestorePopup from './RestorePopup'
 
 /**
@@ -445,31 +444,6 @@ const BasicDataSettings: React.FC = () => {
           </SettingRow>
           <SettingRow>
             <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </BackupUnavailableGate>
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.data.export_to_phone.title')}</SettingTitle>
-        <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => LanTransferPopup.show()} variant="outline">
-                <Wifi size={14} />
-                {t('settings.data.export_to_phone.lan.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
-                <FolderInput size={14} />
-                {t('settings.data.export_to_phone.file.button')}
-              </Button>
-            </RowFlex>
           </SettingRow>
         </BackupUnavailableGate>
       </SettingGroup>
