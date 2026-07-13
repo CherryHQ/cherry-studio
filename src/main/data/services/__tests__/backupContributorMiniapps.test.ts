@@ -5,24 +5,35 @@ import { describe, expect, it } from 'vitest'
 import { MINIAPPS_CONTRIBUTOR } from '../backupContributorMiniapps'
 
 describe('MINIAPPS contributor', () => {
-  it('owns mini_app', () => {
-    expect(MINIAPPS_CONTRIBUTOR.schema.tables).toEqual([table('mini_app')])
+  it('owns mini_app + mini_app_logo_file_ref', () => {
+    expect(MINIAPPS_CONTRIBUTOR.schema.tables).toEqual([table('mini_app'), table('mini_app_logo_file_ref')])
   })
 
-  it('declares no references (presetMiniAppId points at a non-DB preset, not a DB row)', () => {
-    expect(MINIAPPS_CONTRIBUTOR.schema.references).toEqual([])
+  it('declares logo_file_ref owning + junction references', () => {
+    const refs = MINIAPPS_CONTRIBUTOR.schema.references
+    expect(refs).toHaveLength(2)
+    expect(refs).toContainEqual(
+      expect.objectContaining({ table: table('mini_app_logo_file_ref'), column: 'sourceId', referencedDomain: 'MINIAPPS', kind: 'owning' })
+    )
+    expect(refs).toContainEqual(
+      expect.objectContaining({ table: table('mini_app_logo_file_ref'), column: 'fileEntryId', referencedDomain: 'FILE_STORAGE', kind: 'junction' })
+    )
   })
 
-  it('mini_app aggregate is a single-table natural-key root, non-renamable', () => {
+  it('mini_app aggregate is a natural-key root with logo_file_ref member, non-renamable', () => {
     const aggregate = MINIAPPS_CONTRIBUTOR.schema.aggregates[0]
     expect(aggregate.root).toBe(table('mini_app'))
     expect(aggregate.identityKey).toEqual(['appId'])
     expect(aggregate.renamable).toBe(false)
-    expect(aggregate.members).toEqual([])
+    expect(aggregate.members).toEqual([
+      expect.objectContaining({ table: table('mini_app_logo_file_ref'), viaColumn: 'sourceId', cascade: 'include' })
+    ])
   })
 
-  it('declares no fileRefSourcePolicies', () => {
-    expect(MINIAPPS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
+  it('declares mini_app_logo fileRefSourcePolicy', () => {
+    expect(MINIAPPS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
+      expect.objectContaining({ sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' })
+    ])
   })
 
   it('declares no jsonSoftReferences', () => {

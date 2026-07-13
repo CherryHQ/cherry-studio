@@ -5,31 +5,35 @@ import { describe, expect, it } from 'vitest'
 import { PROVIDERS_CONTRIBUTOR } from '../backupContributorProviders'
 
 describe('PROVIDERS contributor', () => {
-  it('owns user_provider + user_model', () => {
-    expect(PROVIDERS_CONTRIBUTOR.schema.tables).toEqual([table('user_provider'), table('user_model')])
+  it('owns user_provider + user_model + provider_logo_file_ref', () => {
+    expect(PROVIDERS_CONTRIBUTOR.schema.tables).toEqual([table('user_provider'), table('user_model'), table('provider_logo_file_ref')])
   })
 
-  it('declares providerId owning reference (same-domain, aggregate membership)', () => {
+  it('declares owning + junction references (user_model.providerId + logo_file_ref sourceId/fileEntryId)', () => {
     const refs = PROVIDERS_CONTRIBUTOR.schema.references
-    expect(refs).toHaveLength(1)
+    expect(refs).toHaveLength(3)
     // user_model.providerId → user_provider: same-domain owning (cascade).
     expect(refs).toContainEqual(
-      expect.objectContaining({
-        table: table('user_model'),
-        column: 'providerId',
-        referencedDomain: 'PROVIDERS',
-        kind: 'owning'
-      })
+      expect.objectContaining({ table: table('user_model'), column: 'providerId', referencedDomain: 'PROVIDERS', kind: 'owning' })
+    )
+    // provider_logo_file_ref.sourceId → user_provider: same-domain owning (cascade).
+    expect(refs).toContainEqual(
+      expect.objectContaining({ table: table('provider_logo_file_ref'), column: 'sourceId', referencedDomain: 'PROVIDERS', kind: 'owning' })
+    )
+    // provider_logo_file_ref.fileEntryId → file_entry (FILE_STORAGE): cross-domain junction.
+    expect(refs).toContainEqual(
+      expect.objectContaining({ table: table('provider_logo_file_ref'), column: 'fileEntryId', referencedDomain: 'FILE_STORAGE', kind: 'junction' })
     )
   })
 
-  it('user_provider aggregate has user_model as a providerId include member, non-renamable', () => {
+  it('user_provider aggregate has user_model + logo_file_ref as include members, non-renamable', () => {
     const aggregate = PROVIDERS_CONTRIBUTOR.schema.aggregates[0]
     expect(aggregate.root).toBe(table('user_provider'))
     expect(aggregate.identityKey).toEqual(['providerId'])
     expect(aggregate.renamable).toBe(false)
     expect(aggregate.members).toEqual([
-      expect.objectContaining({ table: table('user_model'), viaColumn: 'providerId', cascade: 'include' })
+      expect.objectContaining({ table: table('user_model'), viaColumn: 'providerId', cascade: 'include' }),
+      expect.objectContaining({ table: table('provider_logo_file_ref'), viaColumn: 'sourceId', cascade: 'include' })
     ])
   })
 
@@ -38,8 +42,10 @@ describe('PROVIDERS contributor', () => {
     expect(aggregate.identityKey).toEqual(['providerId'])
   })
 
-  it('declares no fileRefSourcePolicies and no jsonSoftReferences', () => {
-    expect(PROVIDERS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
+  it('declares provider_logo fileRefSourcePolicy + no jsonSoftReferences', () => {
+    expect(PROVIDERS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
+      expect.objectContaining({ sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner' })
+    ])
     expect(PROVIDERS_CONTRIBUTOR.schema.jsonSoftReferences).toEqual([])
   })
 

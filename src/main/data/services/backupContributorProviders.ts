@@ -57,8 +57,7 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
           {
             table: table('provider_logo_file_ref'),
             viaColumn: column('sourceId'),
-            // sourceId → user_provider (root) — direct member, parent is the root.
-            parent: table('user_provider'),
+            // sourceId → user_provider (root) — direct root member, no parent (root anchor).
             cascade: 'include'
           }
         ],

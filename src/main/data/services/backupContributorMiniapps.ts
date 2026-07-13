@@ -39,8 +39,7 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
           {
             table: table('mini_app_logo_file_ref'),
             viaColumn: column('sourceId'),
-            // sourceId → mini_app (root) — direct member, parent is the root.
-            parent: table('mini_app'),
+            // sourceId → mini_app (root) — direct root member, no parent (root anchor).
             cascade: 'include'
           }
         ],
