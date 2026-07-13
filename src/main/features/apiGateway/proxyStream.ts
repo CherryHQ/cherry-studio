@@ -67,6 +67,18 @@ export interface MessageConfig {
    * below — the converters parse the full payload defensively.
    */
   params: unknown
+  /**
+   * Explicit `"providerId:modelId"` addressing. The OpenAI/Anthropic dialects
+   * carry the model in the body (`params.model`); Gemini carries it in the URL
+   * path, so its route passes it here to override the body lookup.
+   */
+  modelString?: string
+  /**
+   * Explicit streaming flag. The OpenAI/Anthropic dialects signal streaming via
+   * `params.stream`; Gemini signals it via the `:streamGenerateContent` method,
+   * so its route passes the resolved flag here.
+   */
+  streaming?: boolean
   inputFormat?: InputFormat
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
@@ -84,8 +96,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
 
-  // 1. Resolve model: the request `model` is "providerId:modelId" (split on FIRST ':').
-  const modelString = 'model' in params ? (params as { model?: string }).model : undefined
+  // 1. Resolve model: "providerId:modelId" (split on FIRST ':'). Taken from an
+  // explicit override (Gemini's URL path) or the request body `model` field.
+  const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
   if (!modelString || typeof modelString !== 'string') {
     throw new Error('Request is missing a "model" field')
   }
@@ -100,7 +113,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
   const uniqueModelId = createUniqueModelId(providerId, modelId)
 
-  const isStreaming = 'stream' in params && (params as { stream?: boolean }).stream === true
+  const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
