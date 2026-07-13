@@ -1307,6 +1307,10 @@ export default function ComposerSurface({
 
         if (
           (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey &&
           shouldHandleInputHistoryNavigation({
             ...getComposerSelectionState(view),
             isComposing: event.isComposing,

@@ -544,4 +544,34 @@ describe('useInputHistory', () => {
       expect(appliedDrafts[appliedDrafts.length - 1]).toEqual(newDraft)
     })
   })
+
+  describe('takeDraftBeforeHistory', () => {
+    it('returns the pre-history draft once and clears active navigation', () => {
+      seedHistory([sampleHistoryEntry(0)])
+      const originalDraft = draftWithText('live draft')
+
+      const { result } = renderHook(() =>
+        useInputHistory({
+          applyDraft: vi.fn()
+        })
+      )
+
+      act(() => {
+        result.current.navigateHistory('up', originalDraft)
+      })
+
+      let takenDraft: ComposerSerializedDraft | null = null
+      act(() => {
+        takenDraft = result.current.takeDraftBeforeHistory()
+      })
+      expect(takenDraft).toEqual(originalDraft)
+
+      act(() => {
+        expect(result.current.navigateHistory('down', draftWithText('history-0'))).toBe(false)
+      })
+      act(() => {
+        expect(result.current.takeDraftBeforeHistory()).toBeNull()
+      })
+    })
+  })
 })
