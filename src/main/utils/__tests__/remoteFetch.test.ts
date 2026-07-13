@@ -176,4 +176,38 @@ describe('fetchRemoteText', () => {
 
     expect(response.destroy).toHaveBeenCalledOnce()
   })
+
+  it.each([
+    ['aborted', 'Remote response aborted before completion'],
+    ['close', 'Remote response closed before completion']
+  ] as const)('rejects responses that emit %s before ending', async (eventName, expectedError) => {
+    const response = Object.assign(new EventEmitter(), {
+      statusCode: 200,
+      headers: {},
+      resume: vi.fn(),
+      destroy: vi.fn()
+    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    const request = Object.assign(new EventEmitter(), {
+      end: vi.fn(),
+      destroy: vi.fn()
+    })
+    httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
+      queueMicrotask(() => {
+        callback(response)
+        response.emit('data', Buffer.from('partial'))
+        response.emit(eventName)
+      })
+
+      return request
+    })
+
+    const result = Promise.race([
+      fetchRemoteText('https://example.com/aborted'),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('fetchRemoteText remained pending')), 20)
+      })
+    ])
+
+    await expect(result).rejects.toThrow(expectedError)
+  })
 })
