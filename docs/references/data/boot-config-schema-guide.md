@@ -101,6 +101,8 @@ const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePrefere
 const disableHardwareAcceleration = preferenceService.get('BootConfig.app.disable_hardware_acceleration')
 ```
 
+> **Internal `temp.*` keys are the exception.** Keys under the `temp.*` prefix are main-process-internal transient state and are **deliberately excluded** from the unified preference API — not in `UnifiedPreferenceType`, not reachable via `usePreference`, and rejected at the PreferenceService IPC boundary. Access them only via `bootConfigService` directly (at any phase), and use `bootConfigService.onChange()` for notification. See [Internal `temp.*` namespace](./boot-config-overview.md#internal-temp-namespace).
+
 For detailed usage of `usePreference`, see [Preference Usage Guide](./preference-usage.md).
 
 ## V1 to V2 Data Migration
@@ -184,7 +186,7 @@ The v1 `~/.cherrystudio/config/config.json` stores `appDataPath` as an array of 
 | File | Purpose |
 |------|---------|
 | `src/shared/data/bootConfig/bootConfigSchemas.ts` | Schema interface and default values |
-| `src/shared/data/bootConfig/bootConfigTypes.ts` | `BootConfigKey` type, `BootConfigPreferenceKeys` mapped type |
+| `src/shared/data/bootConfig/bootConfigTypes.ts` | `BootConfigKey`, `Public`/`InternalBootConfigKey`, `BootConfigPreferenceKeys` mapped type |
 | `src/main/data/bootConfig/BootConfigService.ts` | Service implementation |
 | `src/main/data/bootConfig/types.ts` | `BootConfigLoadError` type |
 | `v2-refactor-temp/tools/data-classify/data/classification.json` | Migration source of truth |

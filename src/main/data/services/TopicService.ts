@@ -106,6 +106,16 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   return sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
 }
 
+function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): void {
+  const [assistant] = tx
+    .select({ id: assistantTable.id })
+    .from(assistantTable)
+    .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+    .limit(1)
+    .all()
+  if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+}
+
 export class TopicService {
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
@@ -287,7 +297,12 @@ export class TopicService {
         // Keep flag-only patches for repair/migration paths that need to adjust metadata.
         updates.isNameManuallyEdited = dto.isNameManuallyEdited
       }
-      if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
+      if (dto.assistantId !== undefined) {
+        if (dto.assistantId !== null) {
+          assertActiveAssistantTx(tx, dto.assistantId)
+        }
+        updates.assistantId = dto.assistantId
+      }
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
@@ -604,13 +619,7 @@ export class TopicService {
 
   deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
     if (options.validateAssistant ?? true) {
-      const [assistant] = tx
-        .select({ id: assistantTable.id })
-        .from(assistantTable)
-        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+      assertActiveAssistantTx(tx, assistantId)
     }
 
     const rows = tx

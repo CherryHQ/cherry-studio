@@ -19,6 +19,7 @@ import { useTabDrag } from './useTabDrag'
 type AppShellTabBarProps = {
   tabs: Tab[]
   activeTabId: string
+  isFullscreen?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   addTab?: (tab: Tab) => void
@@ -96,6 +97,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
 function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
   if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
@@ -370,6 +372,7 @@ const TabRightClickMenu = ({
 export const AppShellTabBar = ({
   tabs,
   activeTabId,
+  isFullscreen = false,
   setActiveTab,
   closeTab,
   reorderTabs,
@@ -492,12 +495,13 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

@@ -120,9 +120,8 @@ const AgentChat = ({
   const { agent: activeAgent } = useAgent(visibleAgentId)
   const resourcePaneTopRightTool = resourcePane ? (
     <>
-      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
       <AgentRightPane.Shortcuts />
-      <AgentRightPane.FilesToggle />
     </>
   ) : undefined
 
@@ -161,6 +160,7 @@ const AgentChat = ({
           onPaneCollapse={onPaneCollapse}
           onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
@@ -208,6 +208,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
+          showTopRightToolWhenPaneOpen
           center={<ConversationStageCenter placement="docked" main={null} composer={composer} />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
@@ -483,11 +484,11 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} openBehavior="toggle-active" />}
             <AgentRightPane.Shortcuts />
-            <AgentRightPane.FilesToggle />
           </>
         }
+        showTopRightToolWhenPaneOpen
         center={
           <ConversationStageCenter
             placement="docked"
