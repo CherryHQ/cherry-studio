@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import {
+  buildAgentCreateBody,
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
-import { buildAgentCreateBody } from '@renderer/components/resourceCatalog/dialogs/create/agentCreateBody'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'

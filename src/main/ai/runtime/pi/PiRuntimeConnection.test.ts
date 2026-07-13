@@ -57,7 +57,7 @@ vi.mock('node:fs', async (importOriginal) => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
-vi.mock('@main/core/application', () => ({ application: { getPath: mocks.getPath } }))
+vi.mock('@application', () => ({ application: { getPath: mocks.getPath } }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: { listChannels: mocks.listChannels } }))

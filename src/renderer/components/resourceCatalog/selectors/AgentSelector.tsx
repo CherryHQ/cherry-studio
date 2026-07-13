@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { buildAgentCreateBody } from '@renderer/components/resourceCatalog/dialogs/create/agentCreateBody'
 import {
+  buildAgentCreateBody,
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'

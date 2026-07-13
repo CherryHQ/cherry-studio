@@ -45,10 +45,7 @@ export function buildAutonomyToolDefinitions(
     }
   }))
 
-  return [
-    ...autonomyTools,
-    toPiToolDefinition(memoryTool, memoryContext, mcpToolName('agent-memory', memoryTool.name))
-  ]
+  return [...autonomyTools, toPiToolDefinition(memoryTool, memoryContext, mcpToolName('agent-memory', memoryTool.name))]
 }
 
 /** Auto-approved because scheduled/headless turns have no interactive responder. */

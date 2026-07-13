@@ -59,10 +59,9 @@ describe('toPiToolDefinition', () => {
     const hard = toPiToolDefinition(fakeTool(new Error('boom')), { id: 'ctx1' })
     await expect(hard.execute('c', {}, undefined, undefined, {} as never)).rejects.toThrow('boom')
 
-    const soft = toPiToolDefinition(
-      fakeTool({ content: [{ type: 'text', text: 'reached no one' }], isError: true }),
-      { id: 'ctx1' }
-    )
+    const soft = toPiToolDefinition(fakeTool({ content: [{ type: 'text', text: 'reached no one' }], isError: true }), {
+      id: 'ctx1'
+    })
     await expect(soft.execute('c', {}, undefined, undefined, {} as never)).rejects.toThrow('reached no one')
   })
 })
@@ -93,9 +92,6 @@ describe('buildAutonomyToolDefinitions', () => {
     await defs[0].execute('c1', { action: 'list' }, undefined, undefined, {} as never)
     expect(mocks.autonomyCall).toHaveBeenCalledWith('cron', { action: 'list' })
     await defs[3].execute('c2', { action: 'search' }, undefined, undefined, {} as never)
-    expect(mocks.memoryHandler).toHaveBeenCalledWith(
-      { action: 'search' },
-      { agentId: 'a', workspacePath: '/w' }
-    )
+    expect(mocks.memoryHandler).toHaveBeenCalledWith({ action: 'search' }, { agentId: 'a', workspacePath: '/w' })
   })
 })

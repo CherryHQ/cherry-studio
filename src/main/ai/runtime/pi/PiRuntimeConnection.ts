@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -11,7 +12,6 @@ import type { MemoryToolContext } from '@main/ai/agents/tools/memoryTools'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
@@ -89,7 +89,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId

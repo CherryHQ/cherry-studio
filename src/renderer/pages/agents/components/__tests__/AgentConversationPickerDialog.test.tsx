@@ -28,6 +28,17 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  buildAgentCreateBody: (values: any) => ({
+    type: values.agentType,
+    name: values.name,
+    model: values.modelId,
+    planModel: values.modelId,
+    smallModel: values.modelId,
+    description: values.description,
+    instructions: values.prompt,
+    skillIds: values.skillIds,
+    configuration: { avatar: values.avatar, permission_mode: 'bypassPermissions' }
+  }),
   ResourceCreateWizard: (props: any) => {
     mocks.createDialogProps = props
     return (
