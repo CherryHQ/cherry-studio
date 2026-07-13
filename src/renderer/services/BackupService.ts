@@ -10,8 +10,8 @@
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import db from '@renderer/databases/db'
-import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
+// import db from '@renderer/databases/db'
+// import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -191,7 +191,8 @@ export async function reset() {
   if (!doubleConfirmed) return
 
   localStorage.clear()
-  await clearDatabase()
+  // Legacy Dexie cleanup is intentionally disabled in v2.
+  // await clearDatabase()
   await window.api.resetData()
   toast.success(i18n.t('message.reset.success'))
   setTimeout(() => window.api.application.relaunch(), 1000)
@@ -938,13 +939,16 @@ export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
     version: 5,
-    localStorage,
-    indexedDB: await backupDatabase()
+    localStorage
+    // indexedDB: await backupDatabase()
   })
 }
 
 /************************************* Backup Utils ************************************** */
 export async function handleData(data: Record<string, any>) {
+  void data
+
+  /* Legacy Dexie restore is intentionally disabled in v2. Kept for reference.
   if (data.version === 1) {
     await clearDatabase()
 
@@ -992,8 +996,12 @@ export async function handleData(data: Record<string, any>) {
   }
 
   toast.error(i18n.t('error.backup.file_format'))
+  */
+
+  toast.error(i18n.t('error.backup.file_format'))
 }
 
+/* Legacy Dexie backup helpers are intentionally disabled in v2. Kept for reference.
 async function backupDatabase() {
   const tables = db.tables
   const backup = {}
@@ -1023,6 +1031,7 @@ async function clearDatabase() {
     }
   })
 }
+*/
 
 /**
  * Backup to local directory

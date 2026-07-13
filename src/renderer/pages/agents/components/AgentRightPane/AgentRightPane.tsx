@@ -31,13 +31,14 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
   Activity,
   Bot,
@@ -99,7 +100,6 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
-  modelFallback?: ModelSnapshot
   filesEnabled?: boolean
   statusEnabled?: boolean
 }
@@ -183,7 +183,6 @@ function AgentRightPaneStateProvider({
   agentName,
   agentAvatar,
   filesEnabled = true,
-  modelFallback,
   statusEnabled = true
 }: AgentRightPaneProviderProps) {
   const shellState = useShellState()
@@ -340,7 +339,6 @@ function AgentRightPaneStateProvider({
         agentName,
         agentAvatar,
         filesEnabled,
-        modelFallback,
         statusEnabled
       }
     }),
@@ -356,7 +354,6 @@ function AgentRightPaneStateProvider({
       filesEnabled,
       flow,
       flowTabs,
-      modelFallback,
       openArtifactFile,
       openAgentToolFlow,
       previewFileSelection,
@@ -450,7 +447,6 @@ function AgentToolFlowMessageList({
         }
       : undefined,
     assistantId: meta.agentId,
-    modelFallback: meta.modelFallback,
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
@@ -579,6 +575,7 @@ function AgentRightPaneSurface() {
   const { state, actions, meta } = useAgentRightPane()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const shellState = useShellState()
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
@@ -587,19 +584,24 @@ function AgentRightPaneSurface() {
   const resourcePane = useResourcePane()
   const hasStatus = meta.statusEnabled !== false
   const hasTrace = enableDeveloperMode && !!traceTopicId
+  const activeFlowTab = state.flowTabs.find((tab) => getFlowTabValue(tab.toolCallId) === shellState.activeTab)
+  const activeTitle =
+    shellState.activeTab === RESOURCE_PANE_TAB && resourcePane
+      ? resourcePane.label
+      : shellState.activeTab === 'files'
+        ? t('agent.right_pane.tabs.files')
+        : shellState.activeTab === 'status'
+          ? t('agent.right_pane.tabs.status')
+          : shellState.activeTab === 'trace'
+            ? t('trace.label')
+            : (activeFlowTab?.title ?? t('agent.right_pane.tabs.files'))
 
-  // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
-  // (sub-window controls + pane toggle) so they don't overlap this header.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}
-    </>
-  )
+  // In sub-windows the topbar is hidden by the maximized overlay, so the header owns trailing controls then.
+  const tabListTrailing = isWindow && shellState.maximized ? chrome?.titleTrailing : null
 
   return (
     <Shell.Tabs>
-      <Shell.TabList extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
         <ResourcePaneTab />
         {hasFiles && (
           <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
@@ -660,11 +662,36 @@ function AgentRightPaneSurface() {
   )
 }
 
+function AgentRightPaneKeyboardShortcut() {
+  const { meta } = useAgentRightPane()
+  const resourcePane = useResourcePane()
+  const { open } = useShellState()
+  const actions = useShellActions()
+  const isActiveTab = useIsActiveTab()
+  const hasFiles = meta.filesEnabled !== false
+  const targetTab = resourcePane ? RESOURCE_PANE_TAB : 'files'
+  const enabled = isActiveTab && Boolean(resourcePane || hasFiles)
+  const handleToggle = useCallback(() => {
+    if (open) {
+      actions.close()
+      return
+    }
+    actions.openTab(targetTab)
+  }, [actions, open, targetTab])
+
+  useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
+
+  return null
+}
+
 function AgentRightPaneHost() {
   return (
-    <Shell.Host>
-      <AgentRightPaneSurface />
-    </Shell.Host>
+    <>
+      <AgentRightPaneKeyboardShortcut />
+      <Shell.Host>
+        <AgentRightPaneSurface />
+      </Shell.Host>
+    </>
   )
 }
 
@@ -673,18 +700,6 @@ function AgentRightPaneMaximizedOverlay() {
     <Shell.MaximizedOverlay>
       <AgentRightPaneSurface />
     </Shell.MaximizedOverlay>
-  )
-}
-
-function AgentRightPaneFilesToggle() {
-  const isActiveTab = useIsActiveTab()
-  const resourcePane = useResourcePane()
-  return (
-    <Shell.Toggle
-      tab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
-      command="topic.sidebar.toggle"
-      commandEnabled={isActiveTab}
-    />
   )
 }
 
@@ -796,7 +811,7 @@ function AgentRightPaneHighlights({
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>
@@ -834,18 +849,23 @@ function AgentRightPaneStatusPreview() {
 function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   const shellState = useShellState()
   const { t } = useTranslation()
-  if (disabled || shellState.open || shellState.maximized) return null
+  if (disabled || shellState.maximized) return null
+
+  const shortcut = (
+    <Shell.TabShortcut
+      tab="status"
+      label={t('agent.right_pane.tabs.status')}
+      icon={<Activity className="size-3.5" />}
+      tooltip={false}
+      openBehavior="toggle-active"
+    />
+  )
+
+  if (shellState.open) return shortcut
 
   return (
     <HoverCard openDelay={150} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <Shell.TabShortcut
-          tab="status"
-          label={t('agent.right_pane.tabs.status')}
-          icon={<Activity className="size-3.5" />}
-          tooltip={false}
-        />
-      </HoverCardTrigger>
+      <HoverCardTrigger asChild>{shortcut}</HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
         <AgentRightPaneStatusPreview />
       </HoverCardContent>
@@ -869,10 +889,18 @@ function AgentRightPaneShortcuts() {
           tab="files"
           label={t('agent.right_pane.tabs.files')}
           icon={<FolderOpen className="size-3.5" />}
+          openBehavior="toggle-active"
         />
       )}
       {hasStatus && <AgentRightPaneStatusShortcut />}
-      {hasTrace && <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />}
+      {hasTrace && (
+        <Shell.TabShortcut
+          tab="trace"
+          label={t('trace.label')}
+          icon={<Waypoints className="size-3.5" />}
+          openBehavior="toggle-active"
+        />
+      )}
     </>
   )
 }
@@ -882,7 +910,6 @@ function AgentRightPaneShortcuts() {
 export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
-  FilesToggle: AgentRightPaneFilesToggle,
   Shortcuts: AgentRightPaneShortcuts
 })
 

@@ -170,6 +170,11 @@ vi.mock('@cherrystudio/ui', () => {
       <span data-testid="mock-tooltip" data-content={typeof content === 'string' ? content : undefined}>
         {children}
       </span>
+    ),
+    Scrollbar: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div data-testid="mock-scrollbar" className={className}>
+        {children}
+      </div>
     )
   }
 })

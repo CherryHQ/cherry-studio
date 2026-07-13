@@ -23,7 +23,7 @@ import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { readUIMessageStream } from 'ai'
+import { isToolUIPart, readUIMessageStream } from 'ai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useTopicStreamSubscription } from './useTopicStreamSubscription'
@@ -75,6 +75,69 @@ function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): Cher
   // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
   // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
   return { ...found, parts: structuredClone(found.parts ?? []) }
+}
+
+function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePart): boolean {
+  if (previous.type !== next.type) return false
+
+  if (previous.type === 'text' && next.type === 'text') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (previous.type === 'reasoning' && next.type === 'reasoning') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (isToolUIPart(previous) && isToolUIPart(next)) {
+    const previousTool = previous as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    const nextTool = next as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    if (previousTool.toolCallId !== nextTool.toolCallId || previousTool.state !== nextTool.state) return false
+    if (previousTool.state === 'output-available') {
+      return previousTool.preliminary !== true && nextTool.preliminary !== true
+    }
+    return (
+      previousTool.state === 'output-error' ||
+      previousTool.state === 'output-denied' ||
+      previousTool.state === 'cancelled'
+    )
+  }
+
+  // These transport parts are append-only in processUIMessageStream. Data
+  // parts are deliberately excluded because an id-bearing data part can be
+  // updated in place by a later chunk.
+  return (
+    previous.type === 'file' ||
+    previous.type === 'source-url' ||
+    previous.type === 'source-document' ||
+    previous.type === 'step-start'
+  )
+}
+
+/**
+ * `readUIMessageStream` clones the complete message for every chunk. Restore
+ * references for protocol-settled parts so rendering work stays proportional
+ * to the live frontier instead of the full accumulated transcript.
+ */
+function shareSettledPartReferences(
+  previous: CherryMessagePart[] | undefined,
+  next: CherryMessagePart[]
+): CherryMessagePart[] {
+  if (!previous || previous.length === 0 || next.length === 0) return next
+
+  let reusedAny = false
+  let reusedAll = previous.length === next.length
+  const shared = next.map((part, index) => {
+    const previousPart = previous[index]
+    if (previousPart === part || (previousPart && canReuseSettledPart(previousPart, part))) {
+      reusedAny = true
+      return previousPart
+    }
+    reusedAll = false
+    return part
+  })
+
+  if (reusedAll) return previous
+  return reusedAny ? shared : next
 }
 
 export function useExecutionOverlay(
@@ -166,8 +229,13 @@ export function useExecutionOverlay(
             onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
           })) {
             if (cancelled) break
-            last = snapshot
-            setSnapshots((prev) => ({ ...prev, [executionId]: snapshot }))
+            const sharedParts = shareSettledPartReferences(
+              last?.parts as CherryMessagePart[] | undefined,
+              snapshot.parts as CherryMessagePart[]
+            )
+            const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
+            last = nextSnapshot
+            setSnapshots((prev) => ({ ...prev, [executionId]: nextSnapshot }))
           }
         } catch (err) {
           logger.warn('execution reader threw', { topicId, executionId, err })
