@@ -186,19 +186,21 @@ function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined
     return operation
   }
 
-  throwIfAborted(signal)
+  const abortSignal = signal
+
+  throwIfAborted(abortSignal)
 
   return new Promise((resolve, reject) => {
     function cleanup(): void {
-      signal.removeEventListener('abort', onAbort)
+      abortSignal.removeEventListener('abort', onAbort)
     }
 
     function onAbort(): void {
       cleanup()
-      reject(getAbortError(signal))
+      reject(getAbortError(abortSignal))
     }
 
-    signal.addEventListener('abort', onAbort, { once: true })
+    abortSignal.addEventListener('abort', onAbort, { once: true })
 
     operation.then(
       (value) => {
