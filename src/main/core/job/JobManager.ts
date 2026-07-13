@@ -168,10 +168,12 @@ export class JobManager extends BaseService {
 
   /**
    * Promise tracking the deferred startup recovery flow. Assigned in the
-   * setTimeout callback once the flow actually starts. `onStop` awaits it to
-   * join the flow before disposing of in-flight resources. `protected` (not
-   * `private`) so test fixtures can `await` it without invoking the real
-   * 60 s timer; production code MUST NOT depend on this field.
+   * setTimeout callback once the flow actually starts; `runReleaseCompensation`
+   * extends it with the replay + `finishRelease` tail on async releases.
+   * `onStop` awaits it to join the whole chain before disposing of in-flight
+   * resources. `protected` (not `private`) so test fixtures can `await` it
+   * without invoking the real 60 s timer; production code MUST NOT depend on
+   * this field.
    */
   protected _recoveryDone: Promise<void> | undefined
 
@@ -768,12 +770,14 @@ export class JobManager extends BaseService {
   /**
    * Dispatch/fire re-enablement half of the release compensation (see
    * `runReleaseCompensation` for why it may run AFTER an async recovery
-   * replay). Re-checks the gates at execution time: under shutdown or a
-   * newer pause it skips WITHOUT draining the suppressed sets, so that
-   * pause's own release inherits the debt.
+   * replay). Re-checks the gates at execution time: under shutdown, a newer
+   * pause, or a still-held release barrier (a hold released in the microtask
+   * window before `finishRelease` drops it) it skips WITHOUT draining the
+   * suppressed sets, so the barrier's own `finishRelease` (or that pause's
+   * release) inherits the debt.
    */
   private runPostReleaseKicks(): void {
-    if (this._isShuttingDown || this.isQuiesced) return
+    if (this._isShuttingDown || this.isQuiesced || this.releaseBarrierHeld) return
 
     // 1. Wake delayed/retry promotions whose once-timers fired suppressed
     //    during the window — the DB rows are the truth source. Fires that

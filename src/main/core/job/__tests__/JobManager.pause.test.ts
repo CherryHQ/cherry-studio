@@ -120,6 +120,8 @@ interface JobManagerInternals {
   queues: Map<string, { mutex: { acquire: () => Promise<() => void> } }>
   suppressedOnceScheduleIds: Set<string>
   scheduleDisposables: Map<string, unknown>
+  releaseBarrierHeld: boolean
+  finishRelease(): void
 }
 
 function internals(jm: JobManager): JobManagerInternals {
@@ -1102,6 +1104,52 @@ describe('JobManager pause / drainInFlight', () => {
       const settled = await handle.finished
       expect(settled.status).toBe('completed')
 
+      await drainTrailingDispatch(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('skips post-release kicks while the release barrier is held; finishRelease inherits the debt', async () => {
+      const counter = { count: 0 }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.barrier-window', makeCountingHandler(counter)]],
+        keepFakeTimers: true
+      })
+
+      const at = Date.now() + 200
+      const { id } = jobManager.registerJobSchedule({
+        type: 'pause.barrier-window',
+        trigger: { kind: 'once', at },
+        jobInputTemplate: { message: 'one-shot' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      } as never)
+
+      // Record debt: the once fire lands suppressed under the hold.
+      const hold = jobManager.pause('test: barrier window')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(internals(jobManager).suppressedOnceScheduleIds.has(id)).toBe(true)
+
+      vi.useRealTimers()
+      await sleep(250) // wall clock passes `at` so the re-armed timer fires immediately
+
+      // The single-microtask window of an async release: the recovery chain has
+      // settled (no replay cursor, no flow in flight) but the chained
+      // `finishRelease` has not dropped the barrier yet. A hold disposed inside
+      // that window takes the inline-kicks branch of runReleaseCompensation —
+      // the kicks must skip WITHOUT draining the debt (as under a newer pause).
+      const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
+      internals(jobManager).releaseBarrierHeld = true
+      hold.dispose()
+      expect(promoteSpy).not.toHaveBeenCalled()
+      expect(internals(jobManager).suppressedOnceScheduleIds.has(id)).toBe(true)
+
+      // The chained tail drops the barrier and settles the inherited debt.
+      internals(jobManager).finishRelease()
+      expect(promoteSpy).toHaveBeenCalledTimes(1)
+      expect(internals(jobManager).suppressedOnceScheduleIds.size).toBe(0)
+      await pollUntil(() => jobService.list({ type: 'pause.barrier-window' }).length === 1)
+      await pollUntil(() => jobService.list({ type: 'pause.barrier-window' })[0].status === 'completed')
+
+      promoteSpy.mockRestore()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
