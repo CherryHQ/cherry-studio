@@ -44,7 +44,12 @@ describe('StreamDispatchService', () => {
             status: 'pending',
             createdAt: '2026-05-23T00:00:00.001Z',
             modelId: 'openai:gpt-4o',
-            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+            messageSnapshot: {
+              id: 'a1',
+              name: 'A',
+              emoji: '',
+              model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+            }
           }
         },
         {
@@ -55,7 +60,12 @@ describe('StreamDispatchService', () => {
             status: 'pending',
             createdAt: '2026-05-23T00:00:00.002Z',
             modelId: 'anthropic:claude-3-5-sonnet',
-            modelSnapshot: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
+            messageSnapshot: {
+              id: 'a1',
+              name: 'A',
+              emoji: '',
+              model: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
+            }
           }
         }
       ]

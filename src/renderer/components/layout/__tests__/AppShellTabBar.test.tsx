@@ -253,6 +253,8 @@ describe('AppShellTabBar', () => {
   })
 
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
+    const fadeMask = 'linear-gradient(to right, black 80%, transparent 100%)'
+
     renderTabBar({
       tabs: [
         { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat title' },
@@ -269,7 +271,12 @@ describe('AppShellTabBar', () => {
     expect(title).toHaveClass('font-normal')
     expect(title).toHaveClass('text-xs')
     expect(title).toHaveClass('leading-none')
+    expect(title).toHaveClass('min-w-0', 'flex-1', 'overflow-hidden', 'whitespace-nowrap')
     expect(title).not.toHaveClass('font-medium')
+    expect(title).not.toHaveClass('truncate')
+    expect(title.getAttribute('style')).toContain(`mask-image: ${fadeMask}`)
+    expect(tabButton).toHaveClass('pl-2', 'pr-1.5')
+    expect(tabButton).not.toHaveClass('pr-1')
     expect(icon).toHaveAttribute('width', '14')
     expect(icon).toHaveAttribute('height', '14')
     expect(iconBox).toHaveClass('h-3.5', 'w-3.5')

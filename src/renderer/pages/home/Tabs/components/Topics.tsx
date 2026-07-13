@@ -1539,13 +1539,9 @@ function TopicListBody(props: TopicListBodyProps) {
       virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
-        <ResourceList.EmptyState
-          compact
-          preset="no-topic"
-          className="min-h-60 px-5 py-10"
-          title={t('chat.topics.empty.title')}
-          description={t('chat.topics.empty.description')}
-        />
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+          {t('chat.topics.empty.title')}
+        </div>
       }
       renderItem={renderItem}
     />

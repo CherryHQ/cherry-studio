@@ -1,13 +1,14 @@
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
+const mockSettingsNavigate = vi.fn()
 // embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embed_many', …) now.
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
@@ -28,18 +29,25 @@ vi.mock('../KnowledgeModelSelect', () => ({
     value,
     placeholder,
     onChange,
+    onSettingsNavigate,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
     onChange: (modelId: string | null) => void
+    onSettingsNavigate?: (navigate: () => void) => void
     'aria-label'?: string
   }) => (
-    <input
-      aria-label={ariaLabel ?? placeholder}
-      value={value ?? ''}
-      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
-    />
+    <>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+      <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
+        open model settings
+      </button>
+    </>
   )
 }))
 
@@ -403,6 +411,40 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(restoreBase).not.toHaveBeenCalled()
+  })
+
+  it('unmounts the restore dialog before navigating to model settings', () => {
+    let pendingNavigation: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      pendingNavigation = callback
+      return 1
+    })
+    const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
+
+    const Host = () => {
+      const [open, setOpen] = useState(true)
+      return open ? (
+        <RestoreKnowledgeBaseDialog
+          open
+          base={createKnowledgeBase()}
+          isRestoring={false}
+          restoreBase={restoreBase}
+          onOpenChange={setOpen}
+          onRestored={vi.fn()}
+        />
+      ) : null
+    }
+
+    render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: 'open model settings' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockSettingsNavigate).not.toHaveBeenCalled()
+
+    act(() => pendingNavigation?.(0))
+
+    expect(mockSettingsNavigate).toHaveBeenCalledTimes(1)
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('explains why the base failed so the user knows what they are rebuilding', () => {

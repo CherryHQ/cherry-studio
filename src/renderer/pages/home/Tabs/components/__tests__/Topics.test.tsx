@@ -308,7 +308,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.topic.position.right') return 'Right'
       if (key === 'chat.topics.empty.description')
         return 'Create a chat and it will stay here so you can continue with its context later.'
-      if (key === 'chat.topics.empty.title') return 'No chats yet'
+      if (key === 'chat.topics.empty.title') return 'No conversations'
       if (key === 'assistants.edit.title') return 'Edit Assistant'
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
@@ -942,10 +942,24 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    expect(screen.getByText('No chats yet')).toBeInTheDocument()
+    const emptyStateText = screen.getByText('No conversations')
+
+    expect(emptyStateText).toHaveClass(
+      'h-full',
+      'w-full',
+      'max-w-sm',
+      'px-5',
+      'py-10',
+      'text-center',
+      'text-xs',
+      'text-muted-foreground',
+      'break-words'
+    )
+    expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
+    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(
-      screen.getByText('Create a chat and it will stay here so you can continue with its context later.')
-    ).toBeInTheDocument()
+      screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
     expect(onNewTopic).not.toHaveBeenCalled()

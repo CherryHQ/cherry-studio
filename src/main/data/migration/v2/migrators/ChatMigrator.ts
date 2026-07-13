@@ -79,6 +79,7 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
+  buildAssistantSnapshot,
   buildMessageTree,
   type ChatMappingDeps,
   findActiveNodeId,
@@ -144,7 +145,7 @@ function buildVirtualRoot(id: string, topicId: string, createdAt: number): NewMe
     status: 'success',
     siblingsGroupId: 0,
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     createdAt,
     updatedAt: createdAt
@@ -918,6 +919,13 @@ export class ChatMigrator extends BaseMigrator {
     // converts falsy to NULL, so empty string here yields the desired NULL FK.
     oldTopic.assistantId = resolvedAssistantId ?? ''
 
+    // v1 couples a topic to one assistant → snapshot it onto assistant-role messages so the
+    // header shows it after deletion. Built once per topic; transformMessage gates it by role.
+    const assistantSnapshot =
+      resolvedAssistantId && this.assistantLookup.has(resolvedAssistantId)
+        ? buildAssistantSnapshot(resolvedAssistantId, this.assistantLookup.get(resolvedAssistantId)!)
+        : undefined
+
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []
 
@@ -1001,7 +1009,8 @@ export class ChatMigrator extends BaseMigrator {
           treeInfo.siblingsGroupId,
           blocks,
           oldTopic.id,
-          deps
+          deps,
+          assistantSnapshot
         )
 
         newMessages.push(newMsg)
