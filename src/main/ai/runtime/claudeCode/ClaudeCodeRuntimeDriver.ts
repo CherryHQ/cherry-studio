@@ -559,6 +559,12 @@ async function materializeUserContent(
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
   )
+  const originalFirstPartyFiles = new Map(
+    firstPartyParts
+      .filter((part): part is FileUIPart => part.type === 'file')
+      .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
+      .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
+  )
 
   let routedParts = firstPartyParts
   if (firstPartyParts.some((part) => part.type === 'file')) {
@@ -583,38 +589,44 @@ async function materializeUserContent(
     ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
     ...externalFileParts
   ]) {
-    const mediaType = part.mediaType?.toLowerCase()
-    const canBeImage =
-      !mediaType ||
-      mediaType === 'application/octet-stream' ||
-      Boolean(toClaudeImageMediaType(mediaType)) ||
-      ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(mediaType)
-    if (!canBeImage) {
-      const target = part.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(part)
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
+    if (!canBeClaudeImage(part)) {
+      const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
+      target.push(originalPart)
       continue
     }
 
-    const preparedDataUrl = parseDataUrl(part.url)
-    const materialized = preparedDataUrl?.isBase64 ? part : await materializeNativeFilePart(part)
-    const parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : materialized && parseDataUrl(materialized.url)
-    if (parsed?.isBase64) {
-      const claudeType = toClaudeImageMediaType(parsed.mediaType)
-      if (claudeType) {
-        images.push({
-          type: 'image',
-          source: { type: 'base64', media_type: claudeType, data: parsed.data }
-        })
+    const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
+    let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
+    if (!parsed) {
+      const materialized = await materializeNativeFilePart(part)
+      if (!materialized) {
+        unavailableParts.push(originalPart)
         continue
       }
+      parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
-    if (part.url?.startsWith('file://')) {
-      fallbackParts.push(part)
+    if (!parsed?.isBase64 || parsed.data.length === 0) {
+      unavailableParts.push(originalPart)
       continue
     }
 
-    unavailableParts.push(part)
+    const claudeType = toClaudeImageMediaType(parsed.mediaType)
+    if (claudeType) {
+      images.push({
+        type: 'image',
+        source: { type: 'base64', media_type: claudeType, data: parsed.data }
+      })
+      continue
+    }
+
+    if (originalPart.url?.startsWith('file://')) {
+      fallbackParts.push(originalPart)
+    } else {
+      unavailableParts.push(originalPart)
+    }
   }
 
   const paths = extractAttachmentPaths(fallbackParts)
@@ -645,6 +657,17 @@ function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): s
     paths.push(fileURLToPath(part.url))
   }
   return paths
+}
+
+function canBeClaudeImage(part: FileUIPart): boolean {
+  const mediaType = part.mediaType?.toLowerCase()
+  if (!mediaType || mediaType === 'application/octet-stream' || mediaType.startsWith('image/')) return true
+
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
+    (extension) => filename?.endsWith(extension) || url?.endsWith(extension)
+  )
 }
 
 function toClaudeImageMediaType(value: string | undefined) {

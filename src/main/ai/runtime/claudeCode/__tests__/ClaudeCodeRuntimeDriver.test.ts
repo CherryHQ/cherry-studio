@@ -336,6 +336,89 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('distinguishes unsupported images from unreadable or invalid image payloads', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: message.parts.map((part) =>
+          part.type === 'file' && part.filename === 'diagram.bmp'
+            ? { ...part, url: 'data:image/bmp;base64,Qk0=', mediaType: 'image/bmp' }
+            : part
+        )
+      }
+    ])
+    mocks.materializeNativeFilePart.mockImplementation(async (part) =>
+      part.filename === 'mislabelled.png'
+        ? { ...part, url: 'data:image/png;base64,QUJD', mediaType: 'image/png' }
+        : null
+    )
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect these images' },
+            {
+              type: 'file',
+              url: 'file:///tmp/diagram.bmp',
+              mediaType: 'image/bmp',
+              filename: 'diagram.bmp',
+              providerMetadata: { cherry: { fileEntryId: 'entry-bmp' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/missing.png',
+              mediaType: 'image/png',
+              filename: 'missing.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-missing' } }
+            },
+            { type: 'file', url: 'data:image/png;base64,', mediaType: 'image/png', filename: 'empty.png' },
+            { type: 'file', mediaType: 'image/png', filename: 'missing-url.png' },
+            {
+              type: 'file',
+              url: 'file:///tmp/mislabelled.png',
+              mediaType: 'application/x-custom-image',
+              filename: 'mislabelled.png'
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+            },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
+      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
+    void connection.close()
+  })
+
   it('routes first-party non-image attachments to extracted text before sending', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
