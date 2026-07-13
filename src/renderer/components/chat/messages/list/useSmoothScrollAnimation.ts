@@ -23,6 +23,8 @@ export interface SmoothScrollOptions {
    * Default: 1 - 2^(-10 t) — message-list's "ease-out exp" curve.
    */
   easing?: (t: number) => number
+  /** Called after the final frame lands on the live target. Not called on cancellation. */
+  onComplete?: () => void
 }
 
 export interface SmoothFollowOptions {
@@ -107,6 +109,7 @@ export function useSmoothScrollAnimation(
 
       const frames = Math.max(1, options.frames ?? DEFAULT_FRAMES)
       const easing = options.easing ?? DEFAULT_EASING
+      const onComplete = options.onComplete
       const startOffset = el.scrollTop
       let frame = 0
 
@@ -133,6 +136,7 @@ export function useSmoothScrollAnimation(
           node.scrollTop = getTargetOffset()
           animatingRef.current = false
           rafIdRef.current = null
+          onComplete?.()
           return
         }
 
