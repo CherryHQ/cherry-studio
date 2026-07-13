@@ -149,6 +149,7 @@ function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string;
       src={previewUrl}
       alt=""
       aria-hidden
+      draggable={false}
       className="block size-4.5! shrink-0 object-cover"
       data-file-token-icon-thumbnail=""
       onError={() => setFailedPreviewUrl(previewUrl)}

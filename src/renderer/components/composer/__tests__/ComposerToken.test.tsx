@@ -463,6 +463,7 @@ describe('ComposerToken', () => {
     expect(thumbnail).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
     expect(thumbnail).toHaveAttribute('alt', '')
     expect(thumbnail).toHaveAttribute('aria-hidden', 'true')
+    expect(thumbnail).toHaveAttribute('draggable', 'false')
     expect(thumbnail).toHaveClass('block', 'size-4.5!', 'shrink-0', 'object-cover')
 
     const removeButton = screen.getByRole('button', { name: '删除' })
