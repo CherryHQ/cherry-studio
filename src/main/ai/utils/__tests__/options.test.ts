@@ -185,4 +185,51 @@ describe('buildCapabilityProviderOptions', () => {
 
     expect(result.openai.reasoningSummary).toBe('detailed')
   })
+
+  it('uses native Responses reasoning options for Poe models', () => {
+    const assistant = {
+      settings: {
+        reasoning_effort: 'high'
+      }
+    } as Assistant
+    const model = {
+      id: 'poe::Claude-Sonnet-4.6',
+      providerId: 'poe',
+      apiModelId: 'Claude-Sonnet-4.6',
+      name: 'Claude Sonnet 4.6',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        supportedEfforts: ['low', 'medium', 'high']
+      }
+    } as unknown as Model
+    const provider = {
+      id: 'poe',
+      name: 'Poe',
+      apiFeatures: {
+        arrayContent: false,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false,
+        enableThinking: true
+      },
+      apiKeys: [],
+      authType: 'api-key',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://api.poe.com/v1' }
+      },
+      settings: {},
+      isEnabled: true
+    } as Provider
+
+    const result = buildCapabilityProviderOptions(assistant, model, provider, {
+      enableReasoning: true,
+      enableWebSearch: false,
+      enableGenerateImage: false
+    })
+
+    expect(result.openai).toMatchObject({ reasoningEffort: 'high', store: false })
+    expect(result.openai.extra_body).toBeUndefined()
+  })
 })

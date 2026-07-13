@@ -1,14 +1,22 @@
-import { openaiCompatible } from './types'
+import { defineProvider } from './types'
 
-export default openaiCompatible({
+export default defineProvider({
   id: 'poe',
   name: 'Poe',
-  baseUrl: 'https://api.poe.com/v1/',
-  website: {
-    apiKey: 'https://poe.com/api/keys',
-    docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
-    models: 'https://poe.com/',
-    official: 'https://poe.com/'
+  defaultChatEndpoint: 'openai-responses',
+  endpointConfigs: {
+    'openai-responses': {
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.poe.com/v1/'
+    }
+  },
+  metadata: {
+    website: {
+      apiKey: 'https://poe.com/api/keys',
+      docs: 'https://creator.poe.com/docs',
+      models: 'https://poe.com/api/models',
+      official: 'https://poe.com/'
+    }
   },
   apiFeatures: {
     arrayContent: false,
