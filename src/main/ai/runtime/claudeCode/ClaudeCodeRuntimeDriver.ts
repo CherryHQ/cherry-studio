@@ -350,8 +350,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // and denied with "Approval emitter not ready" (the approval never reached the renderer).
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
-          const undelivered = this.steerHolder?.pending.splice(0) ?? []
-          if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+          this.emitPendingSteersAsUndelivered()
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
@@ -371,6 +370,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
+      this.emitPendingSteersAsUndelivered()
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
@@ -389,6 +389,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata
     })
+  }
+
+  private emitPendingSteersAsUndelivered(): void {
+    const undelivered = this.steerHolder?.pending.splice(0) ?? []
+    if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
   }
 
   private bindApprovalEmitter(): void {

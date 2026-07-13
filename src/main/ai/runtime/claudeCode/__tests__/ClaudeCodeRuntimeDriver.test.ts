@@ -966,6 +966,61 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('emits redirected attachment steers as undelivered before tearing down after a query error', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const steerHolder = { pending: [] as any[], dispose: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const steer = {
+      message: {
+        ...userMessage(),
+        id: 'user-2',
+        data: {
+          parts: [
+            { type: 'text', text: 'look at this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      },
+      systemReminder: true
+    }
+
+    await connection.send({ message: userMessage() })
+    expect(connection.redirect?.(steer)).toBe(true)
+    queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-1', usage: {} })
+
+    const seen: any[] = []
+    for (;;) {
+      const { value, done } = await events.next()
+      if (done) break
+      seen.push(value)
+      if (value?.type === 'error') break
+    }
+
+    const undeliveredIndex = seen.findIndex((event) => event?.type === 'steer-undelivered')
+    const errorIndex = seen.findIndex((event) => event?.type === 'error')
+    expect(undeliveredIndex).toBeGreaterThanOrEqual(0)
+    expect(errorIndex).toBeGreaterThan(undeliveredIndex)
+    expect(seen[undeliveredIndex]).toEqual({ type: 'steer-undelivered', inputs: [steer] })
+    expect(steerHolder.pending).toHaveLength(0)
+    expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
+
+    void connection.close()
+  })
+
   it('emits a steer-boundary at the first top-level message_start after a steer is injected', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
