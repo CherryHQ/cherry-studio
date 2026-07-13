@@ -785,7 +785,9 @@ export class OpenClawService extends BaseService {
           }
         })
       }
-      if (providerHeaders && Object.keys(providerHeaders).length > 0) openclawProvider.headers = providerHeaders
+      if (providerHeaders && Object.keys(providerHeaders).length > 0) {
+        openclawProvider.headers = { ...providerHeaders, ...existingProvider?.headers }
+      }
 
       // Set gateway mode to local (required for gateway to start)
       config.gateway = config.gateway || {}

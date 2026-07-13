@@ -209,6 +209,24 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
     })
 
+    it('round-trips a primary model together with an independent Subagent override', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-haiku-4-5' } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5')
+      expect(parsed.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-haiku-4-5')
+    })
+
     it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         mcpServers: { fs: { command: 'npx' } },

@@ -1,7 +1,7 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
-  CLAUDE_DETAILED_MODEL_ROLES,
+  CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
   safeCreateUniqueModelId,
@@ -24,7 +24,7 @@ const MODEL_ROLE_META = {
   subagent: { labelKey: 'code.adv.claude.subagent_model', supports1M: true }
 } as const
 
-const MODEL_ROLES = CLAUDE_DETAILED_MODEL_ROLES.map((role) => ({
+const MODEL_ROLES = CLAUDE_MODEL_ROLES.map((role) => ({
   ...role,
   ...MODEL_ROLE_META[role.roleKey]
 }))
@@ -162,7 +162,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   )
 
   const updateModelRole = useCallback(
-    (role: (typeof CLAUDE_DETAILED_MODEL_ROLES)[number], modelValue: string) => {
+    (role: (typeof CLAUDE_MODEL_ROLES)[number], modelValue: string) => {
       const { model } = role
       const nextEnv = { ...env }
       if (modelValue) {

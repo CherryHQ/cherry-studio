@@ -818,6 +818,7 @@ describe('OpenClawService gateway status state machine', () => {
           models: {
             providers: {
               'cherry-openai': {
+                headers: { 'User-Agent': 'OpenClaw', 'X-Manual': 'keep' },
                 models: [{ id: 'gpt-4o', name: 'Old', contextWindow: 200000, maxTokens: 32000 }]
               }
             }
@@ -826,7 +827,7 @@ describe('OpenClawService gateway status state machine', () => {
       )
       const provider = {
         ...legacyProvider,
-        headers: { 'User-Agent': 'Cherry Studio' },
+        headers: { 'User-Agent': 'Cherry Studio', 'X-Synced': 'synced' },
         models: [
           {
             id: 'gpt-4o',
@@ -844,7 +845,7 @@ describe('OpenClawService gateway status state machine', () => {
 
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
       expect(written.models.providers['cherry-openai']).toMatchObject({
-        headers: { 'User-Agent': 'Cherry Studio' },
+        headers: { 'User-Agent': 'OpenClaw', 'X-Synced': 'synced', 'X-Manual': 'keep' },
         models: [
           {
             id: 'gpt-4o',
