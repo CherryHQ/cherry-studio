@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { WindowType } from '@main/core/window/types'
 import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
@@ -90,6 +91,11 @@ export class IpcApiService extends BaseService {
   /** Broadcast a typed event to every window. */
   broadcast<E extends IpcEventName>(event: E, payload: EventPayload<E>): void {
     application.get('WindowManager').broadcast(IpcChannel.IpcApi_Event, event, payload)
+  }
+
+  /** Broadcast a typed event only to windows of the given type (destroyed windows are skipped). */
+  broadcastToType<E extends IpcEventName>(windowType: WindowType, event: E, payload: EventPayload<E>): void {
+    application.get('WindowManager').broadcastToType(windowType, IpcChannel.IpcApi_Event, event, payload)
   }
 
   /**

@@ -1,5 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
@@ -11,10 +12,10 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   const { t } = useTranslation()
   const { error } = props
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('system.toggle_dev_tools')
   }
   const reload = async () => {
-    await window.api.reload()
+    await ipcApi.request('window.main.reload')
   }
   return (
     <div className="flex w-full items-center justify-center p-2">

@@ -35,6 +35,15 @@ export const userProviderTable = sqliteTable(
 
     name: text().notNull(),
 
+    /**
+     * Preset/bundled logo reference (`icon:<providerId>` ref), or null for
+     * preset providers that render a bundled icon by id. Holds an icon key /
+     * ref only — never a remote URL or data URL. A user-uploaded custom logo
+     * has no key here: it lives solely in the `provider_logo_file_ref` table
+     * (the single source of truth), resolved back via `getLogoFileId`.
+     */
+    logoKey: text('logo_key'),
+
     /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
     endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
 

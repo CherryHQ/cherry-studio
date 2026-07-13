@@ -258,7 +258,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const openToolDir = (binaryPath: string) => {
     const separator = Math.max(binaryPath.lastIndexOf('/'), binaryPath.lastIndexOf('\\'))
-    void window.api.openPath(separator > 0 ? binaryPath.slice(0, separator) : binaryPath)
+    void ipcApi.request('system.shell.open_path', separator > 0 ? binaryPath.slice(0, separator) : binaryPath)
   }
 
   // One unified inventory: presets first, then everything else BinaryManager
@@ -535,7 +535,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={() => void window.api.openWebsite(tool.repoUrl)}>
+          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -543,7 +543,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void window.api.openWebsite(tool.homepage!)}>
+            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
             <SquareArrowOutUpRight className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>

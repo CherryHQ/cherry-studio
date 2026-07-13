@@ -1,4 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +26,7 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
         <Button size="sm" onClick={() => reset()}>
           {t('common.retry')}
         </Button>
-        <Button size="sm" onClick={() => void window.api.reload()}>
+        <Button size="sm" onClick={() => void ipcApi.request('window.main.reload')}>
           {t('error.boundary.default.reload')}
         </Button>
       </div>

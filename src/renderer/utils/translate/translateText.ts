@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid'
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
 /**
- * Translate `text` to `targetLanguage` via main's `Ai_Translate_Open` IPC.
+ * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
  * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
  * display (see `useSmoothStream`). `signal` aborts via the `ai.stream_abort` route.
  */
@@ -100,7 +100,7 @@ export const translateText = async (
       })
     )
 
-    window.api.translate.open({ streamId, text, targetLangCode }).catch((openError: unknown) => {
+    ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
       cleanup()
       reject(openError instanceof Error ? openError : new Error(String(openError)))
     })

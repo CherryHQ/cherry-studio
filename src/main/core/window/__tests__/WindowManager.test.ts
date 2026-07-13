@@ -1433,6 +1433,12 @@ describe('WindowManager', () => {
       expect(info?.createdAt).toBeGreaterThan(0)
     })
 
+    it('getWindowType() returns the window type by id, undefined for an unknown id', () => {
+      const id = wm.open('singleton' as never)
+      expect(wm.getWindowType(id)).toBe('singleton')
+      expect(wm.getWindowType('no-such-window')).toBeUndefined()
+    })
+
     it('getWindowInfosByType() returns serializable info filtered by type', () => {
       wm.open('default' as never)
       wm.open('default' as never)

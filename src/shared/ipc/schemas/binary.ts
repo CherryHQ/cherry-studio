@@ -59,7 +59,9 @@ export const binaryRequestSchemas = {
   'binary.list_tools': defineRoute({
     input: z.void(),
     output: z.array(z.object({ name: z.string(), tool: z.string(), version: z.string() }))
-  })
+  }),
+  // Whether a CLI tool binary is resolvable (bundled or on PATH). Legacy App_IsBinaryExist.
+  'binary.is_installed': defineRoute({ input: z.string(), output: z.boolean() })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
