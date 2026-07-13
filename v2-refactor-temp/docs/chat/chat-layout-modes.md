@@ -29,8 +29,9 @@ preference. The layout is derived from the resource-list display mode.
   the page default: the pane opens when the topic/session list is positioned on
   the right in a main window. Explicit open/closed choices persist across page
   re-entry.
-- Resource-list collapsed groups are stored per display mode in renderer persist
-  cache.
+- Resource-list collapsed groups are stored only for business grouping modes
+  (`assistant`, `agent`, and `workdir`) in renderer persist cache. The flat
+  time views have no collapsible date groups.
 
 ## Left Entity Rail
 
@@ -60,8 +61,9 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
   rail's re-entry behavior.
 - The right panel shares the existing RightPanel chrome with branch, trace,
   files, status, and flow panels.
-- Right-panel topic/session lists stay time-grouped and do not write the left
-  list's display-mode collapse state.
+- Right-panel topic/session lists use the same stable creation-time order as the
+  left time view. Older rows load as the list is scrolled; there is no date
+  grouping or collapse state.
 
 ## Composer Entity Controls
 
@@ -85,13 +87,21 @@ Classic-layout agent chats keep the workspace control visible in the composer.
 
 ## Data Flow
 
-No DataApi endpoint filters topics/sessions by entity. The entity rail and right
-panel read the same full-list source and filter in the frontend.
+Topic and session list endpoints expose cursor-paginated flat sort profiles and
+record filters.
 
-- Home uses `useAssistantTopicsSource`.
-- Agent uses `useAgentSessionsSource`.
-- Create/delete/rename/clear/move use the existing mutation and invalidate flow;
-  after a mutation, both sides re-derive from the refreshed shared source.
+- Time views request separate pinned and unpinned streams, both ordered by
+  `createdAt DESC, id ASC`; pin state selects the top band but does not define
+  an independent order.
+- Reaching the end of a time view requests the next cursor page; creation time
+  is immutable, so loaded page boundaries remain stable while a conversation or
+  task is updated.
+- Assistant, agent, and work-directory modes keep independent per-group cursor
+  windows ordered by their persisted `orderKey`.
+- Right panels apply the current assistant/agent scope on the server instead of
+  loading a global list and filtering it in the renderer.
+- Create/delete/rename/clear/move reset the affected cursor windows inside the
+  current Renderer after the local mutation succeeds.
 
 ## Key Files
 
@@ -101,5 +111,9 @@ panel read the same full-list source and filter in the frontend.
 - `src/renderer/components/chat/resourceList/AgentResourceList.tsx`
 - `src/renderer/components/chat/panes/Shell/resourcePane.tsx`
 - `src/renderer/pages/home/HomePage.tsx`
+- `src/renderer/pages/home/Tabs/components/Topics.tsx`
 - `src/renderer/pages/agents/AgentPage.tsx`
 - `src/renderer/pages/agents/AgentChat.tsx`
+- `src/renderer/pages/agents/components/Sessions.tsx`
+- `src/main/data/services/TopicService.ts`
+- `src/main/data/services/AgentSessionService.ts`
