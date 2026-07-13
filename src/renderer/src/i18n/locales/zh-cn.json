@@ -1762,6 +1762,7 @@
     "detail": "错误详情",
     "details": "详细信息",
     "diagnosis": {
+      "abnormal_finish": "回复异常结束，请重试或更换模型",
       "ai_button": "AI 诊断",
       "ai_done": "已诊断",
       "ai_loading": "正在诊断",
@@ -1777,6 +1778,7 @@
       "model_conflict": "诊断模型与出错模型相同，无法进行诊断",
       "network": "无法连接到服务器，请检查网络或代理设置",
       "ocr": "OCR 识别引擎未初始化，请检查 OCR 设置",
+      "output_truncated": "回复达到最大长度后被截断",
       "parse": "AI 返回的格式异常，请重试或更换模型",
       "payload": "请求内容过大，请减少发送的文件或文本量",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",

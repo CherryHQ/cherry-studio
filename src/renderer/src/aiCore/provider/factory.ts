@@ -8,6 +8,10 @@ import { extensions } from './extensions'
 
 const logger = loggerService.withContext('ProviderFactory')
 
+function isAppProviderId(id: string): id is keyof typeof appProviderIds {
+  return id in appProviderIds
+}
+
 for (const extension of extensions) {
   if (!extensionRegistry.has(extension.config.name)) {
     extensionRegistry.register(extension)
@@ -33,11 +37,11 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     return appProviderIds['xai-responses']
   }
 
-  if (provider.id in appProviderIds) {
+  if (isAppProviderId(provider.id)) {
     return appProviderIds[provider.id]
   }
 
-  if (provider.type !== 'openai' && provider.type in appProviderIds) {
+  if (provider.type !== 'openai' && isAppProviderId(provider.type)) {
     return appProviderIds[provider.type]
   }
 

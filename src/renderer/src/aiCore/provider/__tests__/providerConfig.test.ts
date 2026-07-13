@@ -864,6 +864,39 @@ describe('providerToAiSdkConfig', () => {
       const settings = config.providerSettings as NewApiProviderSettings
       expect(settings.endpointType).toBe('openai-response')
     })
+
+    it('uses anthropicApiHost as baseURL for anthropic endpoint type', async () => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'openai',
+        apiHost: 'https://api.newapi.com/v1',
+        anthropicApiHost: 'https://api.newapi.com/anthropic'
+      })
+
+      const model = makeModel('claude-3-sonnet', provider.id, { endpoint_type: 'anthropic' })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('newapi')
+      const settings = config.providerSettings as NewApiProviderSettings
+      expect(settings.endpointType).toBe('anthropic')
+      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic')
+    })
+
+    it('falls back to apiHost when anthropicApiHost is not set for anthropic endpoint', async () => {
+      const provider = makeProvider({
+        id: 'new-api',
+        type: 'openai',
+        apiHost: 'https://api.newapi.com/v1'
+      })
+
+      const model = makeModel('claude-3-sonnet', provider.id, { endpoint_type: 'anthropic' })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      const settings = config.providerSettings as NewApiProviderSettings
+      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+    })
   })
 
   describe('AiHubMix builder', () => {
@@ -971,6 +1004,22 @@ describe('providerToAiSdkConfig', () => {
       const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
       expect(settings.headers!['X-Custom']).toBe('custom-value')
+    })
+
+    it('keeps LongCat providerOptions namespace while using openai-compatible runtime', async () => {
+      const provider = makeProvider({
+        id: 'longcat',
+        type: 'openai',
+        apiHost: 'https://api.longcat.chat/openai'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('LongCat-2.0', provider.id)
+      )) as ProviderConfig<'openai-compatible'>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(config.providerSettings.name).toBe('longcat')
     })
 
     it('adds X-Api-Key header for openai provider type', async () => {

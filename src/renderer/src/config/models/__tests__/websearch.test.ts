@@ -178,6 +178,20 @@ describe('websearch helpers', () => {
       expect(isWebSearchModel(model)).toBe(true)
     })
 
+    it('returns true for first-party Anthropic Fable models', () => {
+      providerMock.mockReturnValueOnce(createProvider({ id: 'anthropic' }))
+      expect(isWebSearchModel(createModel({ id: 'claude-fable-5', provider: 'anthropic' }))).toBe(true)
+
+      providerMock.mockReturnValueOnce(createProvider({ id: 'anthropic' }))
+      expect(isWebSearchModel(createModel({ id: 'claude-fable-5-20260101', provider: 'anthropic' }))).toBe(true)
+    })
+
+    it('does not enable web search for Anthropic Fable models on AWS Bedrock', () => {
+      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds['aws-bedrock'] }))
+      const model = createModel({ id: 'anthropic.claude-fable-5-v1:0' })
+      expect(isWebSearchModel(model)).toBe(false)
+    })
+
     it('detects OpenAI preview search models only when supported', () => {
       providerMocks.isOpenAIProvider.mockReturnValue(true)
       const model = createModel({ id: 'gpt-4o-search-preview' })

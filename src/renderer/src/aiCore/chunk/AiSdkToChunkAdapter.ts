@@ -8,16 +8,24 @@ import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource }
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { FinishReasonError } from '@renderer/types/finish-reason-error'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
-import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
+import { AISDKError, type FinishReason, type TextStreamPart, type ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'
 
 const logger = loggerService.withContext('AiSdkToChunkAdapter')
+
+/**
+ * Finish reasons that represent a clean completion: the model finished on its own
+ * ('stop') or stopped to call tools ('tool-calls'). Any other reason means the
+ * response was cut short and is surfaced as an error chunk. See #16072.
+ */
+const NORMAL_FINISH_REASONS = new Set<FinishReason>(['stop', 'tool-calls'])
 
 /**
  * AI SDK 到 Cherry Studio Chunk 适配器类
@@ -32,6 +40,9 @@ export class AiSdkToChunkAdapter {
   private responseStartTimestamp: number | null = null
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
+  // Guards against emitting two error chunks when an 'error'/'abort' stream part is
+  // followed by a 'finish' carrying an abnormal finishReason (e.g. finishReason: 'error').
+  private hasEmittedError = false
   private getSessionWasCleared?: () => boolean
   private providerId?: string
   private idleTimeout?: IdleTimeoutHandle
@@ -110,6 +121,7 @@ export class AiSdkToChunkAdapter {
     // Reset state at the start of stream
     this.isFirstChunk = true
     this.hasTextContent = false
+    this.hasEmittedError = false
 
     try {
       while (true) {
@@ -352,6 +364,31 @@ export class AiSdkToChunkAdapter {
       }
 
       case 'finish': {
+        const { finishReason, rawFinishReason } = chunk
+
+        // An 'error'/'abort' stream part already terminated this response; don't emit a
+        // success completion on top of it (and don't duplicate the error).
+        if (this.hasEmittedError) {
+          this.resetTimingState()
+          break
+        }
+
+        // Surface abnormal finish reasons (content moderation, provider error, max-length
+        // truncation, or other unmapped reasons) as an error chunk instead of a silent
+        // success. 'finish' is the single terminal event carrying the overall finishReason,
+        // so we decide here, and skip the normal completion below to avoid a dual
+        // "errored + completed" outcome — mirroring how the 'abort'/'error' stream parts are
+        // handled. Clean completions are 'stop' and 'tool-calls'. See #16072.
+        if (finishReason && !NORMAL_FINISH_REASONS.has(finishReason)) {
+          this.hasEmittedError = true
+          this.onChunk({
+            type: ChunkType.ERROR,
+            error: new FinishReasonError(finishReason, rawFinishReason)
+          })
+          this.resetTimingState()
+          break
+        }
+
         // Check if session was cleared (e.g., /clear command) and no text was output
         const sessionCleared = this.getSessionWasCleared?.() ?? false
         if (sessionCleared && !this.hasTextContent) {
@@ -421,12 +458,14 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'abort':
+        this.hasEmittedError = true
         this.onChunk({
           type: ChunkType.ERROR,
           error: new DOMException('Request was aborted', 'AbortError')
         })
         break
       case 'error':
+        this.hasEmittedError = true
         this.onChunk({
           type: ChunkType.ERROR,
           error: AISDKError.isInstance(chunk.error)

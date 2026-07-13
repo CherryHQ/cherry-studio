@@ -58,6 +58,11 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
+  // Derive the Gemini endpoint from the configured baseURL instead of hard-coding it:
+  // strip the trailing `/v1` (e.g. https://aihubmix.com/v1 -> https://aihubmix.com) and
+  // append Google's `/gemini/v1beta` path so a custom baseURL is respected.
+  const geminiBaseURL = `${(withoutTrailingSlash(baseURL) ?? baseURL).replace(/\/v1$/, '')}/gemini/v1beta`
+
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
     return new AnthropicMessagesLanguageModel(modelId, {
@@ -79,7 +84,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     const headers = authHeaders()
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
-      baseURL: 'https://aihubmix.com/gemini/v1beta',
+      baseURL: geminiBaseURL,
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
       fetch: customFetch,
       generateId: () => `${AIHUBMIX_PROVIDER_NAME}-${Date.now()}`,

@@ -359,6 +359,10 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 
   return {
     providerId: 'openai-compatible',
+    // @ai-sdk/openai-compatible derives its request-level providerOptions namespace
+    // from this name. LongCat therefore runs on the openai-compatible runtime while
+    // still reading providerOptions.longcat, which lets its top-level thinking field
+    // pass through to the final request body.
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
   }
@@ -397,7 +401,16 @@ function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
 }
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
-  const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, ctx.model.endpoint_type)
+  const endpointType = ctx.model.endpoint_type
+  let rawBaseURL: string
+
+  if (endpointType === 'anthropic' && ctx.actualProvider.anthropicApiHost) {
+    rawBaseURL = ctx.actualProvider.anthropicApiHost
+  } else {
+    rawBaseURL = ctx.baseConfig.baseURL
+  }
+
+  const baseURL = formatNewApiBaseURL(rawBaseURL, endpointType)
 
   return {
     providerId: 'newapi',
@@ -405,7 +418,7 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL,
-      endpointType: ctx.model.endpoint_type,
+      endpointType,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }

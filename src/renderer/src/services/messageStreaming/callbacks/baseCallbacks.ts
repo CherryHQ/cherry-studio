@@ -80,7 +80,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   }
 
   /**
-   * Mark in_progress todos as completed when stream ends,
+   * Mark all remaining non-completed todos as completed when stream ends,
    * since the model will no longer update them.
    */
   const cleanupInProgressTodos = (): string[] => {
@@ -97,10 +97,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
       const toolResponse = block.metadata.rawMcpToolResponse
       const todos = toolResponse.arguments.todos
-      if (!todos.some((todo) => todo.status === 'in_progress')) continue
+      if (!todos.some((todo) => todo.status !== 'completed')) continue
 
       const updatedTodos = todos.map((todo) =>
-        todo.status === 'in_progress' ? { ...todo, status: 'completed' as const } : todo
+        todo.status !== 'completed' ? { ...todo, status: 'completed' as const } : todo
       )
 
       dispatch(

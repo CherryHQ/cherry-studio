@@ -370,12 +370,6 @@ export interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metad
 }
 
 /**
- * Check if todos have any incomplete items
- */
-const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
-  todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-
-/**
  * Check if a block is a TodoWrite tool block
  */
 export const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
@@ -406,7 +400,7 @@ export interface ActiveTodoInfo {
 
 /**
  * Select active todo info for a topic in a single pass.
- * Returns undefined if no TodoWrite block with incomplete todos exists.
+ * Returns the latest TodoWrite block's todos, or undefined if none exist.
  *
  * Used by PinnedTodoPanel to display current task progress above the inputbar.
  */
@@ -433,10 +427,7 @@ export const selectActiveTodoInfo = createSelector(
         if (isTodoWriteBlock(block)) {
           const ids = (blockIdsByMessage[messageId] ??= [])
           ids.push(blockId)
-          const todos = block.metadata.rawMcpToolResponse?.arguments?.todos
-          if (todos && hasIncompleteTodos(todos)) {
-            latestBlock = block
-          }
+          latestBlock = block
         }
       }
     }

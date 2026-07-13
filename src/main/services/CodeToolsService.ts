@@ -48,6 +48,7 @@ class CodeToolsService {
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
   private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
   private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
+  private claudeCodeNativeBinaryPathCache?: string // Memoized resolved native binary path, re-validated on read
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -129,26 +130,94 @@ class CodeToolsService {
     }
   }
 
+  private getGlobalInstallDir(): string {
+    return path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+  }
+
+  private getGlobalAnthropicDir(): string {
+    return path.join(this.getGlobalInstallDir(), 'node_modules', '@anthropic-ai')
+  }
+
+  private getClaudeCodePackageDir(): string {
+    return path.join(this.getGlobalAnthropicDir(), 'claude-code')
+  }
+
+  private getClaudeCodeMainPackageJsonPath(): string {
+    return path.join(this.getClaudeCodePackageDir(), 'package.json')
+  }
+
+  /**
+   * Resolve the platform-specific native claude binary inside the global install.
+   *
+   * Looks up the matching optional dependency in the main package's package.json
+   * (mirrors what cli-wrapper.cjs does at runtime) and returns the full path to
+   * the native binary. Returns null when the main package isn't installed yet,
+   * the current platform isn't listed in optionalDependencies, or the binary
+   * file is missing — the last case is the broken state that issue #15347 hits
+   * when bun keeps the platform package dir but loses its native binary.
+   */
+  private getClaudeCodeNativeBinaryPath(): string | null {
+    if (this.claudeCodeNativeBinaryPathCache) {
+      // Re-validate the cached path before trusting it. This resolver exists to
+      // detect issue #15347's broken state where the platform package dir is kept
+      // but its native binary disappears; a stale positive cache must not mask a
+      // binary that vanished after it was first resolved (e.g. a later update).
+      if (fs.existsSync(this.claudeCodeNativeBinaryPathCache)) {
+        return this.claudeCodeNativeBinaryPathCache
+      }
+      this.claudeCodeNativeBinaryPathCache = undefined
+    }
+
+    const globalInstallDir = this.getGlobalInstallDir()
+    const mainPkgJsonPath = this.getClaudeCodeMainPackageJsonPath()
+
+    if (!fs.existsSync(mainPkgJsonPath)) {
+      return null
+    }
+
+    let optionalDeps: Record<string, string> = {}
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(mainPkgJsonPath, 'utf-8'))
+      optionalDeps = pkgJson.optionalDependencies || {}
+    } catch (error) {
+      logger.warn(`Failed to read claude-code package.json: ${mainPkgJsonPath}`, error as Error)
+      return null
+    }
+
+    const expectedPkgName = `@anthropic-ai/claude-code-${process.platform}-${process.arch}`
+    if (!(expectedPkgName in optionalDeps)) {
+      return null
+    }
+
+    const binName = process.platform === 'win32' ? 'claude.exe' : 'claude'
+    const binPath = path.join(globalInstallDir, 'node_modules', ...expectedPkgName.split('/'), binName)
+
+    if (!fs.existsSync(binPath)) {
+      return null
+    }
+
+    this.claudeCodeNativeBinaryPathCache = binPath
+    return binPath
+  }
+
   /**
    * Get the command to execute claude-code.
    *
-   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
-   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
-   * a JS launcher that locates and spawns the correct platform-specific binary.
-   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
+   * Prefer the platform-specific native binary directly (same pattern as opencode).
+   * cli-wrapper.cjs is kept as a fallback for environments where the platform
+   * optional dep isn't extracted but the main package's bin shim happens to work.
    */
   private async getClaudeCodeCommand(bunPath: string): Promise<string> {
-    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
-    const cliWrapperPath = path.join(
-      globalInstallDir,
-      'node_modules',
-      '@anthropic-ai',
-      'claude-code',
-      'cli-wrapper.cjs'
-    )
+    const nativeBinaryPath = this.getClaudeCodeNativeBinaryPath()
+    if (nativeBinaryPath) {
+      logger.debug(`Using native binary for claude-code: ${nativeBinaryPath}`)
+      return `"${nativeBinaryPath}"`
+    }
+
+    const cliWrapperPath = path.join(this.getClaudeCodePackageDir(), 'cli-wrapper.cjs')
 
     if (fs.existsSync(cliWrapperPath)) {
-      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
+      logger.debug(`Native binary missing, falling back to cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
       return `"${bunPath}" "${cliWrapperPath}"`
     }
 
@@ -167,7 +236,7 @@ class CodeToolsService {
    * while opencode-ai's postinstall places the real executable under the package.
    */
   private async getOpenCodeCommand(): Promise<string> {
-    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const globalInstallDir = this.getGlobalInstallDir()
     const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
 
     if (fs.existsSync(openCodeExecutablePath)) {
@@ -692,6 +761,10 @@ class CodeToolsService {
       fs.mkdirSync(binDir, { recursive: true })
     }
 
+    if (cliTool === codeTools.claudeCode) {
+      return this.getClaudeCodeNativeBinaryPath() !== null
+    }
+
     return fs.existsSync(executablePath)
   }
 
@@ -1100,6 +1173,30 @@ class CodeToolsService {
       }
     } else {
       // If not installed, install first then run
+
+      // claude-code: bun may keep a stale @anthropic-ai/claude-code-* dir after a
+      // partial extract and then skip reinstalling the platform optional dep on a
+      // subsequent install -g, leaving the native binary missing (issue #15347).
+      // Wipe claude-code* dirs so bun must redo optional resolution + postinstall.
+      if (cliTool === codeTools.claudeCode) {
+        this.claudeCodeNativeBinaryPathCache = undefined
+        const anthropicScopeDir = this.getGlobalAnthropicDir()
+        if (fs.existsSync(anthropicScopeDir)) {
+          for (const entry of fs.readdirSync(anthropicScopeDir)) {
+            if (entry !== 'claude-code' && !entry.startsWith('claude-code-')) {
+              continue
+            }
+            const entryPath = path.join(anthropicScopeDir, entry)
+            try {
+              fs.rmSync(entryPath, { recursive: true, force: true })
+              logger.info(`Cleaned stale claude-code state before install: ${entryPath}`)
+            } catch (error) {
+              logger.warn(`Failed to clean ${entryPath} before install`, error as Error)
+            }
+          }
+        }
+      }
+
       const registryUrl = await this.getNpmRegistryUrl()
       const installEnvPrefix =
         platform === 'win32'

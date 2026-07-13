@@ -60,9 +60,24 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const errorBag = error as Record<string, unknown>
+  const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
+
+  // Structured finish metadata is more reliable than status-code and message heuristics.
+  switch (finishReason) {
+    case 'content-filter':
+    case 'content_filter':
+    case 'safety':
+    case 'recitation':
+      return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
+    case 'length':
+      return { category: 'context_length', i18nKey: 'error.diagnosis.output_truncated', navTarget: null }
+    case 'error':
+    case 'other':
+      return { category: 'server', i18nKey: 'error.diagnosis.abnormal_finish', navTarget: null }
+  }
+
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   // SDK wrapper messages often hide the real error code; merge in responseBody and data
@@ -80,11 +95,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     }
   }
   const msg = [messageText, responseBodyText, dataText].filter(Boolean).join('\n')
-
-  // Structured safety signal — finishReason from NoObjectGeneratedError is the most reliable indicator
-  if (finishReason === 'safety' || finishReason === 'recitation' || finishReason === 'content_filter') {
-    return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
-  }
 
   // Geo / region block — must run BEFORE auth, since OpenAI returns 403 with
   // "unsupported_country_region_territory" and Anthropic blocks regions with 403.

@@ -164,6 +164,10 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'qwen3.5-397b-a17b', provider: 'dashscope' }))).toBe(true)
   })
 
+  it('supports LongCat-2.0 tool calling declared by LongCat model details', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'LongCat-2.0', provider: 'longcat' }))).toBe(true)
+  })
+
   describe('MiniMax M2.x Models', () => {
     it('supports minimax-m2 base model', () => {
       expect(isFunctionCallingModel(createModel({ id: 'minimax-m2', provider: 'minimax' }))).toBe(true)

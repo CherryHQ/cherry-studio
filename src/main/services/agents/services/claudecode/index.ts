@@ -42,7 +42,7 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
-import { withoutTrailingApiVersion } from '@shared/utils'
+import { defaultAppHeaders, withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -61,7 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
-import { with1mContextSuffix } from './utils'
+import { getFirstConfiguredApiKey, with1mContextSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -72,9 +72,14 @@ const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
-  const lines = Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`)
-  return lines.length > 0 ? lines.join('\n') : undefined
+const getAnthropicCustomHeaders = (headers?: Record<string, string>): string => {
+  const merged = {
+    ...defaultAppHeaders(),
+    ...headers
+  }
+  return Object.entries(merged)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n')
 }
 
 const getLanguageInstruction = () => {
@@ -177,9 +182,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Providers like Ollama and LM Studio don't require real API keys,
     // but the Claude Agent SDK needs a non-empty placeholder value
-    if (!provider.apiKey) {
-      provider.apiKey = provider.id
-    }
+    const apiKey = getFirstConfiguredApiKey(provider.apiKey) || provider.id
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
@@ -212,8 +215,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       // ANTHROPIC_API_KEY: apiConfig.apiKey,
       // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
       // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
-      ANTHROPIC_API_KEY: provider.apiKey,
-      ANTHROPIC_AUTH_TOKEN: provider.apiKey,
+      ANTHROPIC_API_KEY: apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_CUSTOM_HEADERS: customHeaders,
       ANTHROPIC_MODEL: sdkModelId,
