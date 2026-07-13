@@ -19,7 +19,6 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
-import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
@@ -40,7 +39,12 @@ import {
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
 import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
-import type { BinaryResolutions, BinaryToolInventoryEntry } from '@shared/types/binary'
+import type {
+  BinaryAvailability,
+  BinaryOperation,
+  BinaryToolInventoryEntry,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -59,7 +63,7 @@ import {
   TriangleAlert
 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
@@ -99,7 +103,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
-type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
+type ToolSource = BinaryAvailability['source']
 
 // Code CLIs are installed through BinaryManager too, but have their own
 // management surface (the Code CLI page) — keep them out of this inventory.
@@ -116,13 +120,10 @@ interface EnvironmentDependenciesProps {
 }
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
-  const [resolutions, setResolutions] = useState<BinaryResolutions>({})
+  const [snapshots, setSnapshots] = useState<Record<string, BinaryToolSnapshot>>({})
   const [resolutionsReady, setResolutionsReady] = useState(false)
-  // BinaryManager owns the manifest; this page renders its temporary inventory adapter.
-  const [inventoryTools, setInventoryTools] = useState<BinaryToolInventoryEntry[]>([])
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
-  const [installStates] = useSharedCache('feature.binary.install_states', {})
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean } | null>(null)
@@ -146,14 +147,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const refreshState = useCallback(async () => {
     const requestId = ++resolutionRequestIdRef.current
     try {
-      const inventory = (await ipcApi.request('binary.list_tools')).filter((tool) => !CODE_CLI_BINARIES.has(tool.name))
-      const names = [
-        ...new Set([...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...inventory.map((tool) => tool.name)])
-      ]
-      const resolved = await ipcApi.request('binary.resolve_tools', names)
+      const nextSnapshots = await ipcApi.request(
+        'binary.get_tool_snapshots',
+        PRESETS_BINARY_TOOLS.map((tool) => tool.name)
+      )
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
-      setInventoryTools(inventory)
-      setResolutions(resolved)
+      setSnapshots(nextSnapshots)
       setResolutionsReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
@@ -200,11 +199,38 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
-  // Installing/failed indication comes from the main-owned shared-cache map
-  // ('feature.binary.install_states') — shared with the Code CLI page and
-  // alive across navigation. Failed cards open the detail dialog on demand;
-  // only the add-tool flow surfaces it immediately (the tool is not persisted
-  // on failure, so there is no card to carry the error).
+  const inventoryTools = useMemo<BinaryToolInventoryEntry[]>(
+    () =>
+      Object.values(snapshots)
+        .filter(
+          (snapshot) =>
+            !CODE_CLI_BINARIES.has(snapshot.name) &&
+            (snapshot.intent ||
+              (snapshot.availability.source === 'mise' && isRuntimeDependency(snapshot.availability.tool)))
+        )
+        .map((snapshot) =>
+          snapshot.intent
+            ? {
+                name: snapshot.name,
+                tool: snapshot.intent.tool,
+                version:
+                  snapshot.availability.source === 'mise' || snapshot.availability.source === 'bundled'
+                    ? (snapshot.availability.version ?? '')
+                    : '',
+                ...(snapshot.intent.requestedVersion ? { requestedVersion: snapshot.intent.requestedVersion } : {}),
+                managed: true as const
+              }
+            : {
+                name: snapshot.name,
+                tool: snapshot.availability.source === 'mise' ? snapshot.availability.tool : snapshot.name,
+                version: snapshot.availability.source === 'mise' ? (snapshot.availability.version ?? '') : '',
+                managed: false as const
+              }
+        ),
+    [snapshots]
+  )
+  // Operation status is part of each snapshot, so a window mounted mid-mutation
+  // renders the same state as the window that initiated it.
   const installTool = async (
     intent: BinaryManifestEntry,
     { surfaceErrorDialog = false, targetVersion }: { surfaceErrorDialog?: boolean; targetVersion?: string } = {}
@@ -276,8 +302,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       return null
     }
 
-    const uvAvailable = !!resolutions.uv && resolutions.uv.source !== 'none'
-    const bunAvailable = !!resolutions.bun && resolutions.bun.source !== 'none'
+    const uvAvailable = !!snapshots.uv && snapshots.uv.availability.source !== 'none'
+    const bunAvailable = !!snapshots.bun && snapshots.bun.availability.source !== 'none'
     if (uvAvailable && bunAvailable) {
       return null
     }
@@ -331,29 +357,27 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
-          const resolution = resolutions[tool.name] ?? { source: 'none' as const }
-          const source: ToolSource = resolution.source
-          const systemPath = resolution.source === 'system' ? resolution.path : undefined
-          const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
+          const snapshot = snapshots[tool.name]
+          const availability = snapshot?.availability ?? { source: 'none' as const }
+          const source: ToolSource = availability.source
+          const owned = !!snapshot?.intent
+          const managedIntent = snapshot?.intent
+          const systemPath = availability.source === 'system' ? availability.path : undefined
+          const resolvedPath = availability.source === 'none' ? undefined : availability.path
           const installedVersion =
-            resolution.source === 'managed' || resolution.source === 'bundled' ? resolution.version : undefined
-          const inventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
-          const managed = inventoryEntry?.managed === true
-          const managedIntent = inventoryEntry?.managed ? toManifestIntent(inventoryEntry) : undefined
+            availability.source === 'mise' || availability.source === 'bundled' ? availability.version : undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
-          const installState = installStates[tool.name]
+          const hasUpdate = owned && isNewerVersion(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
-              managed={managed}
+              owned={owned}
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
-              installing={installState?.status === 'installing'}
-              installError={installState?.status === 'failed' ? installState.error : undefined}
+              operation={snapshot?.operation}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
               onInstall={() =>
                 installTool(
@@ -367,38 +391,34 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           )
         })}
         {extraTools.map((tool) => {
-          const resolution = resolutions[tool.name] ?? { source: 'none' as const }
+          const snapshot = snapshots[tool.name]
+          const availability = snapshot?.availability ?? { source: 'none' as const }
           const runtime = isRuntimeDependency(tool.tool)
-          // Ownership comes only from BinaryManager inventory. A custom
-          // preference or live mise resolution alone must not make a tool manageable.
-          const inventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
-          const readOnly = inventoryEntry?.managed === false
-          const managed = inventoryEntry?.managed === true
-          const available = resolution.source !== 'none'
-          const systemPath = !readOnly && resolution.source === 'system' ? resolution.path : undefined
-          const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
+          const readOnly = !snapshot?.intent
+          const owned = !!snapshot?.intent
+          const available = availability.source !== 'none'
+          const systemPath = !readOnly && availability.source === 'system' ? availability.path : undefined
+          const resolvedPath = availability.source === 'none' ? undefined : availability.path
           const installedVersion =
-            resolution.source === 'managed'
-              ? resolution.version || tool.version
+            availability.source === 'mise' || availability.source === 'bundled'
+              ? availability.version || tool.version
               : readOnly
                 ? tool.version || undefined
                 : undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
-          const installState = installStates[tool.name]
+          const hasUpdate = owned && isNewerVersion(latestVersion, installedVersion)
           return (
             <CustomToolCard
               key={tool.name}
               tool={tool}
               runtime={runtime}
-              managed={managed}
+              owned={owned}
               available={available}
               readOnly={readOnly}
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
-              installing={installState?.status === 'installing'}
-              installError={installState?.status === 'failed' ? installState.error : undefined}
+              operation={snapshot?.operation}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
               onInstall={() => installTool(toManifestIntent(tool))}
               onUpdate={() => installTool(toManifestIntent(tool), { targetVersion: latestVersion ?? 'latest' })}
@@ -438,12 +458,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
-  managed: boolean
+  owned: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
-  installing: boolean
-  installError?: string
+  operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
   onUpdate: () => void
@@ -452,12 +471,11 @@ const BinaryToolPresetCard: FC<{
 }> = ({
   tool,
   source,
-  managed,
+  owned,
   systemPath,
   installedVersion,
   latestVersion,
-  installing,
-  installError,
+  operation,
   onShowError,
   onInstall,
   onUpdate,
@@ -469,6 +487,11 @@ const BinaryToolPresetCard: FC<{
   const present = source !== 'none'
   const isBundled = source === 'bundled'
   const isSystem = source === 'system'
+  const installing = operation?.status === 'installing'
+  const removing = operation?.status === 'removing'
+  const failedInstall = operation?.status === 'failed' && operation.action === 'install'
+  const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
+  const busy = installing || removing
 
   return (
     <div
@@ -519,7 +542,7 @@ const BinaryToolPresetCard: FC<{
           </div>
         </div>
 
-        {managed && (
+        {owned && (
           <div className="flex shrink-0 items-center gap-1">
             {present && (
               <Button
@@ -527,13 +550,9 @@ const BinaryToolPresetCard: FC<{
                 size="icon-sm"
                 className="text-foreground/40 hover:text-foreground"
                 onClick={onUpdate}
-                disabled={installing}
+                disabled={busy}
                 title={t('settings.dependencies.update')}>
-                {installing ? (
-                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
-                ) : (
-                  <RefreshCw className="size-3.5" />
-                )}
+                <RefreshCw className="size-3.5" />
               </Button>
             )}
             <Button
@@ -541,10 +560,10 @@ const BinaryToolPresetCard: FC<{
               size="icon-sm"
               className="text-foreground/40 hover:text-destructive"
               onClick={onRemove}
-              disabled={installing}
+              disabled={busy}
               aria-label={t('settings.dependencies.remove')}
               title={t('settings.dependencies.remove')}>
-              <Trash2 className="size-3.5" />
+              {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
             </Button>
           </div>
         )}
@@ -583,23 +602,23 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {installError && !installing && (
-        <BinaryInstallFailureRow error={installError} onShowError={() => onShowError(installError)} />
+      {(failedInstall || failedRemove) && !busy && (
+        <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {source === 'none' && (
+      {(source === 'none' || (failedInstall && !owned)) && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
             size="sm"
             className="h-7 w-full gap-1 font-medium text-xs"
             onClick={onInstall}
-            disabled={installing}
+            disabled={busy}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : installError
+              : failedInstall
                 ? t('common.retry')
                 : isBundled
                   ? t('settings.dependencies.install')
@@ -614,15 +633,14 @@ const BinaryToolPresetCard: FC<{
 
 const CustomToolCard: FC<{
   tool: BinaryToolInventoryEntry
-  managed: boolean
+  owned: boolean
   available: boolean
   runtime?: boolean
   readOnly: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
-  installing: boolean
-  installError?: string
+  operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
   onUpdate: () => void
@@ -630,15 +648,14 @@ const CustomToolCard: FC<{
   onRemove: () => void
 }> = ({
   tool,
-  managed,
+  owned,
   available,
   runtime = false,
   readOnly,
   systemPath,
   installedVersion,
   latestVersion,
-  installing,
-  installError,
+  operation,
   onShowError,
   onInstall,
   onUpdate,
@@ -647,6 +664,11 @@ const CustomToolCard: FC<{
 }) => {
   const { t } = useTranslation()
   const installed = available
+  const installing = operation?.status === 'installing'
+  const removing = operation?.status === 'removing'
+  const failedInstall = operation?.status === 'failed' && operation.action === 'install'
+  const failedRemove = operation?.status === 'failed' && operation.action === 'remove'
+  const busy = installing || removing
 
   return (
     <div
@@ -697,19 +719,15 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {managed && installed && !readOnly && (
+          {owned && installed && !readOnly && (
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-foreground/40 hover:text-foreground"
               onClick={onUpdate}
-              disabled={installing}
+              disabled={busy}
               title={t('settings.dependencies.update')}>
-              {installing ? (
-                <Loader2 className="size-3.5 motion-safe:animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
+              <RefreshCw className="size-3.5" />
             </Button>
           )}
           {installed && (
@@ -723,37 +741,38 @@ const CustomToolCard: FC<{
               <FolderOpen className="size-3.5" />
             </Button>
           )}
-          {!readOnly && (
+          {owned && (
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-foreground/40 hover:text-destructive"
               aria-label={t('settings.dependencies.remove')}
               title={t('settings.dependencies.remove')}
-              onClick={onRemove}>
-              <Trash2 className="size-3.5" />
+              onClick={onRemove}
+              disabled={busy}>
+              {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
             </Button>
           )}
         </div>
       </div>
 
-      {installError && !installing && (
-        <BinaryInstallFailureRow error={installError} onShowError={() => onShowError(installError)} />
+      {(failedInstall || failedRemove) && !busy && (
+        <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {!installed && !readOnly && (
+      {(!installed || (failedInstall && !owned)) && !readOnly && !failedRemove && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
             size="sm"
             className="h-7 w-full gap-1 font-medium text-xs"
             onClick={onInstall}
-            disabled={installing}
+            disabled={busy}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
             {installing
               ? t('settings.dependencies.installing')
-              : installError
+              : failedInstall
                 ? t('common.retry')
                 : t('settings.mcp.install')}
           </Button>

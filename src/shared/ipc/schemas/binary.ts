@@ -85,7 +85,6 @@ export const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminated
   })
 ])
 
-/** Future snapshot route output; intentionally standalone until the route is added. */
 export const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
   name: z.string(),
   intent: binaryManifestEntrySchema.optional(),
@@ -100,6 +99,10 @@ export const binaryRequestSchemas = {
   'binary.resolve_tools': defineRoute({
     input: z.array(toolNameSchema),
     output: z.record(z.string(), binaryResolutionSchema)
+  }),
+  'binary.get_tool_snapshots': defineRoute({
+    input: z.array(toolNameSchema),
+    output: z.record(z.string(), binaryToolSnapshotSchema)
   }),
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.

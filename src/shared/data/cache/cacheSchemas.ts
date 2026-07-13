@@ -1,6 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
-import type { BinaryInstallStates } from '@shared/types/binary'
+import type { BinaryOperations } from '@shared/types/binary'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -264,9 +264,8 @@ export type SharedCacheSchema = {
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
   'feature.binary.latest_versions': Record<string, string>
-  // Live install activity (tool name → installing/failed), owned by BinaryManager
-  // in main. Session-only; "installed" derives from binary.resolve_tools.
-  'feature.binary.install_states': BinaryInstallStates
+  // Live BinaryManager operations, main-owned and session-only.
+  'feature.binary.install_states': BinaryOperations
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string

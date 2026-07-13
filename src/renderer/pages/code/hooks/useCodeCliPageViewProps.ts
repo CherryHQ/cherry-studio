@@ -1,11 +1,9 @@
-import { useSharedCache } from '@data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -61,17 +59,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
-  const [installStates] = useSharedCache('feature.binary.install_states', {})
-  // Local busy Sets give instant feedback for installs started in this window;
-  // the main-owned shared-cache map covers installs started elsewhere (other
-  // window, a page mounted mid-install). Merge them, keyed back to CLI tool ids.
-  const mergedInstallingTools = useMemo(() => {
-    const merged = new Set<string>(installingTools)
-    for (const tool of CLI_TOOLS) {
-      if (installStates[CLI_BINARY_NAMES[tool.value]]?.status === 'installing') merged.add(tool.value)
-    }
-    return merged
-  }, [installingTools, installStates])
   const { providers } = useProviders()
   const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
     useConfigMetadata(selectedCliTool)
@@ -152,14 +139,24 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
+  // Local busy Sets give instant feedback; snapshot operations cover mutations
+  // initiated in another window or before this page mounted.
+  const mergedInstallingTools = useMemo(() => {
+    const merged = new Set<string>(installingTools)
+    for (const tool of CLI_TOOLS) {
+      const status = statuses[tool.value]
+      if (status?.operation?.status === 'installing') merged.add(tool.value)
+    }
+    return merged
+  }, [installingTools, statuses])
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
     installed: false,
     source: 'none',
+    owned: false,
     canUpgrade: false
   }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
-  const selectedInstallState = installStates[CLI_BINARY_NAMES[selectedCliTool]]
-  const installError = selectedInstallState?.status === 'failed' ? selectedInstallState.error : undefined
+  const installError = versionStatus.operation?.status === 'failed' ? versionStatus.operation.error : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
@@ -252,7 +249,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           resolveProviderMeta,
           onInstall: () => void install(selectedCliTool),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          onRemove: versionStatus.source === 'managed' ? () => removeDialog.requestRemove(selectedCliTool) : undefined,
+          onRemove: versionStatus.owned ? () => removeDialog.requestRemove(selectedCliTool) : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

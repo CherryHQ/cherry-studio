@@ -50,7 +50,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const { t } = useTranslation()
   const isInstalled = status.installed
   const canUpgrade = isInstalled && status.canUpgrade
-  const busy = isInstalling || isUpgrading
+  const removing = status.operation?.status === 'removing'
+  const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
+  const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
+  const retryUnownedInstall = failedInstall && !status.owned
+  const installing = isInstalling || isUpgrading
+  const busy = installing || removing
 
   return (
     <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
@@ -101,7 +106,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={onUpgrade}
-              disabled={isUpgrading}
+              disabled={busy}
               className="shrink-0 gap-1 text-warning hover:bg-warning/10 hover:text-warning">
               {isUpgrading ? (
                 <>
@@ -117,16 +122,33 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {isInstalled && status.source === 'managed' && onRemove && (
+          {status.owned && onRemove && (
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground/30 hover:text-destructive"
               onClick={onRemove}
-              disabled={isInstalling || isUpgrading}
+              disabled={busy}
               aria-label={t('settings.dependencies.remove')}
               title={t('settings.dependencies.remove')}>
-              <Trash2 className="size-3.5" />
+              {removing ? (
+                <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+            </Button>
+          )}
+
+          {retryUnownedInstall && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onInstall}
+              disabled={busy}
+              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
+              <Download size={12} />
+              {t('common.retry')}
             </Button>
           )}
 
@@ -136,7 +158,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="outline"
               size="sm"
               onClick={running ? onStop : onLaunch}
-              disabled={running ? stopping : !canLaunch || launching}
+              disabled={busy || (running ? stopping : !canLaunch || launching)}
               className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
               {running && stopping ? (
                 <>
@@ -161,25 +183,28 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               )}
             </Button>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onInstall}
-              disabled={isInstalling}
-              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
-              {isInstalling ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('code.installing')}
-                </>
-              ) : (
-                <>
-                  <Download size={12} />
-                  {installError ? t('common.retry') : t('code.install')}
-                </>
-              )}
-            </Button>
+            !failedRemoval &&
+            !retryUnownedInstall && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onInstall}
+                disabled={busy}
+                className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
+                {installing ? (
+                  <>
+                    <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                    {t('code.installing')}
+                  </>
+                ) : (
+                  <>
+                    <Download size={12} />
+                    {installError ? t('common.retry') : t('code.install')}
+                  </>
+                )}
+              </Button>
+            )
           )}
 
           {isInstalled && running && onOpenDashboard && (
@@ -196,7 +221,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         </div>
       </div>
 
-      {busy && <BinaryInstallingHint />}
+      {installing && <BinaryInstallingHint />}
       {installError && !busy && onShowError && (
         <BinaryInstallFailureRow error={installError} onShowError={onShowError} />
       )}

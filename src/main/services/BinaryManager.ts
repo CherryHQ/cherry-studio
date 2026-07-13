@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv } from '@main/utils/shellEnv'
@@ -24,11 +24,13 @@ import {
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type {
+  BinaryAvailability,
   BinaryInstallRequest,
-  BinaryInstallState,
+  BinaryOperation,
   BinaryResolution,
   BinaryResolutions,
-  BinaryToolInventoryEntry
+  BinaryToolInventoryEntry,
+  BinaryToolSnapshot
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
@@ -146,9 +148,16 @@ export class BinaryManager extends BaseService {
   // Serializes manifest read-modify-write with filesystem mutations so concurrent
   // requests cannot lose ownership entries or interleave mise global changes.
   private readonly mutationMutex = new Mutex()
-  private readonly inFlightInstalls = new Map<
+  // A global mutex serializes mise and manifest changes. This separate guard
+  // prevents a same-tool request queued behind it from replacing the operation
+  // state that belongs to the request already running or waiting.
+  private readonly activeMutations = new Map<
     string,
-    { request: BinaryInstallRequest; promise: Promise<{ version: string }> }
+    | { action: 'install'; request: BinaryInstallRequest; promise: Promise<{ version: string }> }
+    | {
+        action: 'remove'
+        promise: Promise<void>
+      }
   >()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
@@ -231,6 +240,113 @@ export class BinaryManager extends BaseService {
       })
     )
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
+  }
+
+  /**
+   * Return one weakly-consistent, main-computed view of management intent, live
+   * availability, and session operations. This deliberately does not take the
+   * mutation mutex: a slow install must not hide its already-published operation.
+   */
+  public async getToolSnapshots(requestedNames: string[]): Promise<Record<string, BinaryToolSnapshot>> {
+    const manifest = this.getManifest()
+    const operations = application.get('CacheService').getShared('feature.binary.install_states') ?? {}
+    const intentsByName = new Map(manifest.map((intent) => [intent.name, intent]))
+    const candidates = new Map<string, string>()
+    const addCandidate = (name: string, tool: string) => {
+      if (!candidates.has(name)) candidates.set(name, tool)
+    }
+
+    for (const intent of manifest) addCandidate(intent.name, intent.tool)
+    for (const preset of PRESETS_BINARY_TOOLS) addCandidate(preset.name, preset.tool)
+    for (const preset of CODE_CLI_TOOL_PRESETS) addCandidate(preset.executable, preset.miseTool)
+    for (const [name, operation] of Object.entries(operations)) {
+      if (operation.status === 'failed' && operation.action === 'install' && operation.intent) {
+        addCandidate(name, operation.intent.tool)
+      }
+    }
+    for (const name of requestedNames) addCandidate(name, name)
+
+    const installed: Record<string, Array<{ version?: string; active?: boolean }>> = {}
+    if (this.miseBin) {
+      try {
+        const { stdout } = await this.runMise(['ls', '--json'])
+        Object.assign(installed, JSON.parse(stdout) as typeof installed)
+      } catch (err) {
+        logger.warn('Failed to query installed versions via mise ls', {
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+
+    const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
+    for (const [spec] of Object.entries(installed)) {
+      const name = normalize(spec).split('@')[0]
+      if (isRuntimeDependency(spec)) addCandidate(name, spec)
+    }
+
+    const installedFor = (tool: string) => {
+      const normalized = normalize(tool)
+      const runtimeName = isRuntimeDependency(tool) ? normalized.split('@')[0] : undefined
+      return (
+        installed[normalized] ??
+        (runtimeName
+          ? Object.entries(installed).find(([spec]) => normalize(spec).split('@')[0] === runtimeName)?.[1]
+          : undefined)
+      )
+    }
+    const names = new Set([...requestedNames, ...intentsByName.keys(), ...Object.keys(operations)])
+    for (const [spec] of Object.entries(installed)) {
+      const name = normalize(spec).split('@')[0]
+      if (isRuntimeDependency(spec)) names.add(name)
+    }
+    const bundled = this.probeBundled()
+    const shimsDir = getBinarySearchDirs()[0]
+    const miseEntries = await Promise.all(
+      [...names].map(async (name): Promise<[string, { path: string; version?: string }] | null> => {
+        const tool = candidates.get(name)
+        const entries = tool ? installedFor(tool) : undefined
+        if (!entries?.length) return null
+        const shimPath = path.join(shimsDir, getBinaryName(name))
+        try {
+          await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+        } catch {
+          return null
+        }
+        const version = entries.find((entry) => entry.active)?.version ?? entries.at(-1)?.version
+        return [name, { path: shimPath, ...(version ? { version } : {}) }]
+      })
+    )
+    const misePaths = new Map(
+      miseEntries.filter((entry): entry is [string, { path: string; version?: string }] => !!entry)
+    )
+    const system = await this.probeSystem([...names].filter((name) => !misePaths.has(name) && !(name in bundled)))
+    const snapshots: Record<string, BinaryToolSnapshot> = {}
+    for (const name of names) {
+      const mise = misePaths.get(name)
+      const availability: BinaryAvailability = mise
+        ? {
+            source: 'mise',
+            tool: candidates.get(name) ?? name,
+            path: mise.path,
+            ...(mise.version ? { version: mise.version } : {})
+          }
+        : name in bundled
+          ? {
+              source: 'bundled',
+              path: path.join(application.getPath('cherry.bin'), getBinaryName(name)),
+              ...(bundled[name] ? { version: bundled[name] } : {})
+            }
+          : system[name]
+            ? { source: 'system', path: system[name] }
+            : { source: 'none' }
+      snapshots[name] = {
+        name,
+        ...(intentsByName.has(name) ? { intent: intentsByName.get(name)! } : {}),
+        availability,
+        ...(operations[name] ? { operation: operations[name] } : {})
+      }
+    }
+    return snapshots
   }
 
   /** Resolve each binary once using managed → bundled → system precedence. */
@@ -718,20 +834,17 @@ export class BinaryManager extends BaseService {
     return tools
   }
 
-  /**
-   * Session-only install activity (see BinaryInstallState), kept in the shared
-   * cache so every window observes it. Deliberately not persisted: a stale
-   * "installing" after a crash would be a lie.
-   */
-  private setInstallState(name: string, state: BinaryInstallState | null) {
+  /** Session-only operation state; every transition triggers a renderer refresh. */
+  private setOperation(name: string, operation: BinaryOperation | null) {
     const cacheService = application.get('CacheService')
-    const states = { ...cacheService.getShared('feature.binary.install_states') }
-    if (state) {
-      states[name] = state
+    const operations = { ...cacheService.getShared('feature.binary.install_states') }
+    if (operation) {
+      operations[name] = operation
     } else {
-      delete states[name]
+      delete operations[name]
     }
-    cacheService.setShared('feature.binary.install_states', states)
+    cacheService.setShared('feature.binary.install_states', operations)
+    application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
   }
 
   installTool(request: BinaryInstallRequest): Promise<{ version: string }> {
@@ -741,40 +854,45 @@ export class BinaryManager extends BaseService {
       return Promise.reject(err)
     }
     const { intent } = request
+    const active = this.activeMutations.get(intent.name)
+    if (active) {
+      if (
+        active.action === 'install' &&
+        active.request.intent.tool === intent.tool &&
+        active.request.intent.requestedVersion === intent.requestedVersion &&
+        active.request.targetVersion === request.targetVersion
+      ) {
+        return active.promise
+      }
+      return Promise.reject(
+        new Error(
+          active.action === 'remove'
+            ? `Tool ${intent.name} is already removing`
+            : `Tool ${intent.name} is already installing with a different specification`
+        )
+      )
+    }
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.setInstallState(intent.name, { status: 'failed', error: error.message })
+      this.setOperation(intent.name, { status: 'failed', action: 'install', error: error.message, intent })
       return Promise.reject(error)
     }
 
-    const inFlight = this.inFlightInstalls.get(intent.name)
-    if (inFlight) {
-      if (
-        inFlight.request.intent.tool === intent.tool &&
-        inFlight.request.intent.requestedVersion === intent.requestedVersion &&
-        inFlight.request.targetVersion === request.targetVersion
-      ) {
-        return inFlight.promise
-      }
-      return Promise.reject(new Error(`Tool ${intent.name} is already installing with a different specification`))
-    }
-
+    // Publish before queuing on the global mutex so every renderer can render
+    // the operation while another tool holds mise's process-wide lock.
+    this.setOperation(intent.name, { status: 'installing' })
     const promise = this.installToolImpl(request)
-    this.inFlightInstalls.set(intent.name, { request, promise })
-    void promise.then(
-      () => {
-        if (this.inFlightInstalls.get(intent.name)?.promise === promise) this.inFlightInstalls.delete(intent.name)
-      },
-      () => {
-        if (this.inFlightInstalls.get(intent.name)?.promise === promise) this.inFlightInstalls.delete(intent.name)
-      }
-    )
+    this.activeMutations.set(intent.name, { action: 'install', request, promise })
+    void promise
+      .finally(() => {
+        if (this.activeMutations.get(intent.name)?.promise === promise) this.activeMutations.delete(intent.name)
+      })
+      .catch(() => undefined)
     return promise
   }
 
   private async installToolImpl(request: BinaryInstallRequest): Promise<{ version: string }> {
     const { intent, targetVersion } = request
-    this.setInstallState(intent.name, { status: 'installing' })
     try {
       const result = await this.mutationMutex.runExclusive(async () => {
         const manifest = this.getManifest()
@@ -813,12 +931,14 @@ export class BinaryManager extends BaseService {
         await this.upsertManifest(persistedIntent)
         return { version }
       })
-      this.setInstallState(intent.name, null)
+      this.setOperation(intent.name, null)
       return result
     } catch (err) {
-      this.setInstallState(intent.name, {
+      this.setOperation(intent.name, {
         status: 'failed',
-        error: err instanceof Error ? err.message : String(err)
+        action: 'install',
+        error: err instanceof Error ? err.message : String(err),
+        intent
       })
       throw err
     }
@@ -920,10 +1040,33 @@ export class BinaryManager extends BaseService {
     })
   }
 
-  async removeTool(toolName: string): Promise<void> {
+  removeTool(toolName: string): Promise<void> {
+    const active = this.activeMutations.get(toolName)
+    if (active) {
+      if (active.action === 'remove') return active.promise
+      return Promise.reject(new Error(`Tool ${toolName} is already installing`))
+    }
+
+    // As with installs, expose removal before waiting for a mutation of another
+    // tool. The active-mutation guard makes this state exclusively ours.
+    this.setOperation(toolName, { status: 'removing' })
+    const promise = this.removeToolImpl(toolName)
+    this.activeMutations.set(toolName, { action: 'remove', promise })
+    void promise
+      .finally(() => {
+        if (this.activeMutations.get(toolName)?.promise === promise) this.activeMutations.delete(toolName)
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  private async removeToolImpl(toolName: string): Promise<void> {
     return this.mutationMutex.runExclusive(async () => {
       const intent = this.getManifest().find((entry) => entry.name === toolName)
-      if (!intent) return
+      if (!intent) {
+        this.setOperation(toolName, null)
+        return
+      }
       try {
         if (!this.miseBin) throw new Error('Binary backend not available')
 
@@ -939,11 +1082,11 @@ export class BinaryManager extends BaseService {
           throw new Error(`Tool is still installed after removal: ${toolName}`)
         }
         await this.removeManifest(toolName)
-        this.setInstallState(toolName, null)
+        this.setOperation(toolName, null)
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
         logger.warn('Failed to remove mise tool', { name: toolName, error: error.message })
-        this.setInstallState(toolName, { status: 'failed', error: error.message })
+        this.setOperation(toolName, { status: 'failed', action: 'remove', error: error.message })
         throw error
       }
     })

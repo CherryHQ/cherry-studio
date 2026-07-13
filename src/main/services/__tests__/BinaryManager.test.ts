@@ -3,7 +3,7 @@ import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { manifestRef, mockExecFileAsync, mockFs, mockPreferenceService, platformMock } = vi.hoisted(() => ({
+const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false },
   mockExecFileAsync: vi.fn(),
@@ -19,6 +19,14 @@ const { manifestRef, mockExecFileAsync, mockFs, mockPreferenceService, platformM
     rmSync: vi.fn(),
     renameSync: vi.fn(),
     constants: { F_OK: 0, X_OK: 1 }
+  },
+  mockFsp: {
+    mkdir: vi.fn(async () => {}),
+    copyFile: vi.fn(async () => {}),
+    chmod: vi.fn(async () => {}),
+    writeFile: vi.fn(async () => {}),
+    rename: vi.fn(async () => {}),
+    access: vi.fn(async () => {})
   },
   mockPreferenceService: {
     get: vi.fn(),
@@ -57,16 +65,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('node:fs', () => ({ default: mockFs }))
 
-vi.mock('node:fs/promises', () => ({
-  default: {
-    mkdir: vi.fn(async () => {}),
-    copyFile: vi.fn(async () => {}),
-    chmod: vi.fn(async () => {}),
-    writeFile: vi.fn(async () => {}),
-    rename: vi.fn(async () => {}),
-    access: vi.fn(async () => {})
-  }
-}))
+vi.mock('node:fs/promises', () => ({ default: mockFsp }))
 
 vi.mock('node:os', () => ({
   default: { tmpdir: () => '/tmp' }
@@ -159,6 +158,7 @@ describe('BinaryManager', () => {
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    mockFsp.access.mockReset().mockResolvedValue(undefined)
     manifestRef.value = []
     mockInstallPreferences()
     mockPreferenceService.set.mockImplementation(async (key: string, value: typeof manifestRef.value) => {
@@ -263,6 +263,163 @@ describe('BinaryManager', () => {
       await expect(service.listTools()).resolves.toEqual([
         { name: 'fd', tool: 'fd', version: '', requestedVersion: '10.0.0', managed: true }
       ])
+    })
+  })
+
+  describe('getToolSnapshots', () => {
+    it('returns the requested, owned, auto-runtime, and operation names from one manifest and mise refresh', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'fd', tool: 'fd', requestedVersion: '10.0.0' }]
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+        later: {
+          status: 'failed',
+          action: 'install',
+          error: 'offline',
+          intent: { name: 'later', tool: 'npm:later' }
+        }
+      })
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
+        ['/mock/feature.binary.data/shims/fd', '/mock/feature.binary.data/shims/node', '/mock/cherry.bin/bun'].includes(
+          candidate
+        )
+      )
+      mockFs.readFileSync.mockImplementation((candidate: string) =>
+        candidate === '/mock/cherry.bin/.bun-version'
+          ? '1.2.3'
+          : (() => {
+              throw new Error('ENOENT')
+            })()
+      )
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'missing' ? '/usr/local/bin/missing' : null
+      )
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          fd: [{ version: '10.0.0', active: true }],
+          node: [{ version: '22.0.0', active: true }]
+        }),
+        stderr: ''
+      })
+
+      await expect(service.getToolSnapshots(['bun', 'missing'])).resolves.toEqual({
+        bun: { name: 'bun', availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' } },
+        missing: { name: 'missing', availability: { source: 'system', path: '/usr/local/bin/missing' } },
+        fd: {
+          name: 'fd',
+          intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' },
+          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' }
+        },
+        node: {
+          name: 'node',
+          availability: {
+            source: 'mise',
+            tool: 'node',
+            path: '/mock/feature.binary.data/shims/node',
+            version: '22.0.0'
+          }
+        },
+        later: {
+          name: 'later',
+          availability: { source: 'none' },
+          operation: {
+            status: 'failed',
+            action: 'install',
+            error: 'offline',
+            intent: { name: 'later', tool: 'npm:later' }
+          }
+        }
+      })
+      expect(mockPreferenceService.get).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['ls', '--json'], expect.any(Object))
+    })
+
+    it('reports a requested unowned preset when batched mise ls and its shim agree', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
+        stderr: ''
+      })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd).toEqual({
+        name: 'fd',
+        availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' }
+      })
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd', mockFs.constants.X_OK)
+    })
+
+    it('falls back when a matching mise shim is not executable', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
+        stderr: ''
+      })
+      mockFsp.access.mockRejectedValue(new Error('EACCES'))
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+      await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
+        fd: { availability: { source: 'system', path: '/usr/local/bin/fd' } }
+      })
+    })
+
+    it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [
+        { name: 'bun', tool: 'bun' },
+        { name: 'fd', tool: 'fd' },
+        { name: 'gone', tool: 'gone' }
+      ]
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+      mockFs.readFileSync.mockImplementation((candidate: string) =>
+        candidate === '/mock/cherry.bin/.bun-version'
+          ? '1.2.3'
+          : (() => {
+              throw new Error('ENOENT')
+            })()
+      )
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'fd' ? '/usr/local/bin/fd' : null
+      )
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          bun: [{ version: '2.0.0' }],
+          fd: [{ version: '10.0.0' }],
+          gone: [{ version: '1.0.0' }]
+        }),
+        stderr: ''
+      })
+      mockFsp.access.mockRejectedValue(new Error('ENOENT'))
+
+      const snapshots = await service.getToolSnapshots([])
+      expect(snapshots.bun?.availability).toEqual({ source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' })
+      expect(snapshots.fd?.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+      expect(snapshots.gone?.availability).toEqual({ source: 'none' })
+    })
+
+    it('publishes installing before a blocked mutation and lets snapshots read it without waiting', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      const release = await (service as any).mutationMutex.acquire()
+
+      const pending = service.installTool({ intent: { name: 'fd', tool: 'fd' } })
+      await expect(service.getToolSnapshots([])).resolves.toMatchObject({
+        fd: { operation: { status: 'installing' } }
+      })
+      release()
+      await expect(pending).rejects.toThrow('mise did not report an installed version')
     })
   })
 
@@ -531,7 +688,7 @@ describe('BinaryManager', () => {
       await expect(service.removeTool('fd')).rejects.toThrow('preference write failed')
       expect(manifestRef.value).toEqual([{ name: 'fd', tool: 'fd' }])
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
-        fd: { status: 'failed', error: 'preference write failed' }
+        fd: { status: 'failed', action: 'remove', error: 'preference write failed' }
       })
     })
   })
@@ -1214,6 +1371,40 @@ describe('BinaryManager', () => {
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
     })
 
+    it('rejects a remove while the same tool install is queued without replacing its operation', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      const release = await (service as any).mutationMutex.acquire()
+      const install = service.installTool({ intent: { name: 'fd', tool: 'fd' } })
+
+      await expect(service.removeTool('fd')).rejects.toThrow('already installing')
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'installing' }
+      })
+
+      release()
+      await expect(install).rejects.toThrow()
+    })
+
+    it('rejects an install while the same tool removal is queued without replacing its operation', async () => {
+      const service = new BinaryManager()
+      manifestRef.value = [{ name: 'fd', tool: 'fd' }]
+      const release = await (service as any).mutationMutex.acquire()
+      const removal = service.removeTool('fd')
+
+      await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow('already removing')
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'removing' }
+      })
+
+      release()
+      await expect(removal).rejects.toThrow('Binary backend not available')
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'failed', action: 'remove', error: 'Binary backend not available' }
+      })
+    })
+
     it('rejects conflicting same-name installs without changing the in-flight state', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1306,7 +1497,12 @@ describe('BinaryManager', () => {
 
       await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).rejects.toThrow('timed out')
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
-        fd: { status: 'failed', error: expect.stringContaining('timed out') }
+        fd: {
+          status: 'failed',
+          action: 'install',
+          error: expect.stringContaining('timed out'),
+          intent: { name: 'fd', tool: 'fd' }
+        }
       })
 
       // A retry replaces failed with installing before the mutex work starts.
@@ -1322,7 +1518,12 @@ describe('BinaryManager', () => {
         'Binary backend not available'
       )
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
-        fd: { status: 'failed', error: 'Binary backend not available' }
+        fd: {
+          status: 'failed',
+          action: 'install',
+          error: 'Binary backend not available',
+          intent: { name: 'fd', tool: 'fd' }
+        }
       })
     })
 

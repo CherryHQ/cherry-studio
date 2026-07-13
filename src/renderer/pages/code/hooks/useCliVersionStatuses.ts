@@ -1,7 +1,7 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
-import type { BinaryResolution } from '@shared/types/binary'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gt as semverGt, valid as semverValid } from 'semver'
@@ -21,28 +21,42 @@ const isNewerVersion = (latest?: string, installed?: string): boolean => {
   }
 }
 
-const buildStatus = (toolId: CodeCli, resolution: BinaryResolution, latest?: string): VersionStatus => {
-  if (resolution.source === 'managed') {
+const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
+  const availability = snapshot?.availability ?? { source: 'none' as const }
+  const operation = snapshot?.operation
+  const owned = !!snapshot?.intent
+  if (availability.source === 'mise') {
     return {
       installed: true,
-      source: 'managed',
-      current: resolution.version,
+      source: 'mise',
+      owned,
+      current: availability.version,
       latest,
-      canUpgrade: isNewerVersion(latest, resolution.version)
+      canUpgrade: owned && isNewerVersion(latest, availability.version),
+      ...(operation ? { operation } : {})
     }
   }
-  if (resolution.source === 'bundled') {
+  if (availability.source === 'bundled') {
     return {
       installed: true,
       source: 'bundled',
-      current: resolution.version,
-      canUpgrade: false
+      owned,
+      current: availability.version,
+      canUpgrade: false,
+      ...(operation ? { operation } : {})
     }
   }
-  if (resolution.source === 'system' && toolId !== CodeCli.OPENCLAW) {
-    return { installed: true, source: 'system', systemPath: resolution.path, canUpgrade: false }
+  if (availability.source === 'system' && toolId !== CodeCli.OPENCLAW) {
+    return {
+      installed: true,
+      source: 'system',
+      owned,
+      systemPath: availability.path,
+      canUpgrade: false,
+      ...(operation ? { operation } : {})
+    }
   }
-  return { installed: false, source: 'none', canUpgrade: false }
+  return { installed: false, source: 'none', owned, canUpgrade: false, ...(operation ? { operation } : {}) }
 }
 
 /** Availability and managed upgrade status for every CLI tool. */
@@ -58,13 +72,16 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
 
     const refresh = async () => {
       const binaryNames = tools.map((toolId) => CLI_BINARY_NAMES[toolId]).filter((name): name is string => !!name)
-      const resolutions = await ipcApi.request('binary.resolve_tools', binaryNames).catch((error) => {
-        logger.error('Failed to resolve CLI tools', error as Error)
+      const snapshots = await ipcApi.request('binary.get_tool_snapshots', binaryNames).catch((error) => {
+        logger.error('Failed to get CLI tool snapshots', error as Error)
         return null
       })
-      if (cancelled || !resolutions) return
+      if (cancelled || !snapshots) return
 
-      const hasManagedCli = tools.some((toolId) => resolutions[CLI_BINARY_NAMES[toolId]]?.source === 'managed')
+      const hasManagedCli = tools.some((toolId) => {
+        const snapshot = snapshots[CLI_BINARY_NAMES[toolId]]
+        return snapshot?.intent && snapshot.availability.source === 'mise'
+      })
       let latestVersions: Record<string, string> = {}
       if (hasManagedCli) {
         latestVersions = await ipcApi.request('binary.get_latest_versions', false).catch((error) => {
@@ -85,7 +102,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
         const binaryName = CLI_BINARY_NAMES[toolId]
         const latest = binaryName ? (latestVersions[binaryName] ?? latestRef.current[toolId]) : undefined
         latestRef.current[toolId] = latest
-        next[toolId] = buildStatus(toolId, resolutions[binaryName] ?? { source: 'none' }, latest)
+        next[toolId] = buildStatus(toolId, binaryName ? snapshots[binaryName] : undefined, latest)
       }
       setStatuses(next)
     }

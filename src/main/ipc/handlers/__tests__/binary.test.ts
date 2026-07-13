@@ -9,6 +9,7 @@ const binaryManager = {
   installTool: vi.fn(),
   removeTool: vi.fn(),
   resolveTools: vi.fn(),
+  getToolSnapshots: vi.fn(),
   searchRegistry: vi.fn(),
   getLatestVersions: vi.fn(),
   listTools: vi.fn()
@@ -43,6 +44,15 @@ describe('binaryHandlers', () => {
     const result = await binaryHandlers['binary.resolve_tools'](['fd'], ctx)
     expect(binaryManager.resolveTools).toHaveBeenCalledWith(['fd'])
     expect(result).toEqual({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
+  })
+
+  it('get_tool_snapshots forwards names and returns the manager snapshots', async () => {
+    binaryManager.getToolSnapshots.mockResolvedValue({
+      fd: { name: 'fd', availability: { source: 'none' } }
+    })
+    const result = await binaryHandlers['binary.get_tool_snapshots'](['fd'], ctx)
+    expect(binaryManager.getToolSnapshots).toHaveBeenCalledWith(['fd'])
+    expect(result).toEqual({ fd: { name: 'fd', availability: { source: 'none' } } })
   })
 
   it('search_registry forwards the query', async () => {

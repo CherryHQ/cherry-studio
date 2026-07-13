@@ -17,7 +17,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="claude-code"
         toolName="Claude Code"
-        status={{ installed: false, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: false, canUpgrade: false }}
         onInstall={vi.fn()}
       />
     )
@@ -33,6 +33,7 @@ describe('VersionStatusCard', () => {
         toolId="claude-code"
         toolName="Claude Code"
         status={{
+          owned: false,
           installed: true,
           source: 'system',
           systemPath: '/usr/local/bin/claude',
@@ -56,7 +57,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
-        status={{ installed: true, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: true, canUpgrade: false }}
         onLaunch={vi.fn()}
         canLaunch={false}
       />
@@ -70,7 +71,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
-        status={{ installed: true, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: true, canUpgrade: false }}
         onLaunch={vi.fn()}
         canLaunch
         launching
@@ -86,7 +87,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
-        status={{ installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        status={{ source: 'none', owned: false, installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
         onUpgrade={onUpgrade}
         onLaunch={vi.fn()}
         canLaunch
@@ -103,7 +104,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
-        status={{ installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        status={{ source: 'none', owned: false, installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
         onUpgrade={vi.fn()}
         isUpgrading
       />
@@ -118,7 +119,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: true, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: true, canUpgrade: false }}
         onStop={vi.fn()}
         running
         onOpenDashboard={onOpenDashboard}
@@ -135,7 +136,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: true, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: true, canUpgrade: false }}
         onLaunch={vi.fn()}
         canLaunch
         onOpenDashboard={vi.fn()}
@@ -151,7 +152,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: false, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: false, canUpgrade: false }}
         onInstall={vi.fn()}
         installError={'mise use timed out after 900s\nmise npm:openclaw   [1/3] install'}
         onShowError={onShowError}
@@ -166,12 +167,78 @@ describe('VersionStatusCard', () => {
     expect(onShowError).toHaveBeenCalledTimes(1)
   })
 
+  it('offers ownership retry when install succeeded physically but manifest persistence failed', () => {
+    const onInstall = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{
+          installed: true,
+          source: 'mise',
+          owned: false,
+          canUpgrade: false,
+          operation: { status: 'failed', action: 'install', error: 'preference write failed' }
+        }}
+        onInstall={onInstall}
+        onLaunch={vi.fn()}
+        canLaunch
+        installError="preference write failed"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(onInstall).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+  })
+
+  it('keeps removal available for an owned unavailable tool and never offers install retry after removal fails', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{
+          installed: false,
+          source: 'none',
+          owned: true,
+          canUpgrade: false,
+          operation: { status: 'failed', action: 'remove', error: 'mise uninstall failed' }
+        }}
+        onInstall={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+  })
+
+  it('disables conflicting actions and renders only a removal spinner while removing', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, source: 'mise', owned: true, canUpgrade: true, operation: { status: 'removing' } }}
+        onUpgrade={vi.fn()}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'code.upgrade' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+    expect(screen.queryByText('code.installing')).not.toBeInTheDocument()
+  })
+
   it('hides the failure row and shows the duration hint while installing', () => {
     render(
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: false, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: false, canUpgrade: false }}
         onInstall={vi.fn()}
         isInstalling
         installError="previous failure"
@@ -188,7 +255,7 @@ describe('VersionStatusCard', () => {
       <VersionStatusCard
         toolId="openclaw"
         toolName="OpenClaw"
-        status={{ installed: true, canUpgrade: false }}
+        status={{ source: 'none', owned: false, installed: true, canUpgrade: false }}
         onStop={vi.fn()}
         running
       />

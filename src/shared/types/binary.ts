@@ -1,14 +1,12 @@
 import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 
-/**
- * Live install activity for a tool, owned by the main process so every window
- * (and a window opened mid-install) renders the same installing/failed state.
- * Success clears the entry — "installed" is derived from BinaryResolution.
- * A failed entry persists until a retry starts or the tool is removed.
- */
-export type BinaryInstallState = { status: 'installing' } | { status: 'failed'; error: string }
+/** Transient main-owned operation state, shared across renderer windows. */
+export type BinaryOperation =
+  | { status: 'installing' }
+  | { status: 'removing' }
+  | { status: 'failed'; action: 'install' | 'remove'; error: string; intent?: BinaryManifestEntry }
 
-export type BinaryInstallStates = Record<string, BinaryInstallState>
+export type BinaryOperations = Record<string, BinaryOperation>
 
 /** A BinaryManager inventory entry: persisted installs are manageable; auto-discovered runtimes are display-only. */
 export type BinaryToolInventoryEntry =
@@ -35,12 +33,6 @@ export type BinaryAvailability =
   | { source: 'bundled'; path: string; version?: string }
   | { source: 'system'; path: string }
   | { source: 'none' }
-
-/** Transient operation status, held outside the durable manifest. */
-export type BinaryOperation =
-  | { status: 'installing' }
-  | { status: 'removing' }
-  | { status: 'failed'; action: 'install' | 'remove'; error: string; intent?: BinaryManifestEntry }
 
 /** Main-computed runtime facts for one binary. */
 export type BinaryToolSnapshot = {
