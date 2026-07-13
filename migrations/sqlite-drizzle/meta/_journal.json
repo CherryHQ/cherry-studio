@@ -147,6 +147,13 @@
       "when": 1783744070030,
       "tag": "0020_purple_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1783909776548,
+      "tag": "0021_noisy_blur",
+      "breakpoints": true
     }
   ],
   "version": "7"

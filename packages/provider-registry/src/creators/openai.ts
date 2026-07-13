@@ -251,6 +251,24 @@ export default defineCreator({
           }
         }
       }
+    },
+    // GPT-5 chat / reasoning SKUs. models.dev over-tags these with `image-generation`
+    // + an `image` output modality — GPT-5 emits images only via the Responses
+    // `image_generation` TOOL, never the `/images` endpoint. That stray capability floats
+    // them into the painting model picker (see paintingModelOptions.supportsImageGenerationEndpoint),
+    // where they can be selected but every generation fails. Restate them as the text-out
+    // chat models they are; drop the image-gen capability + modality.
+    {
+      id: 'gpt-5-chat',
+      name: 'GPT-5 Chat',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      outputModalities: ['text']
+    },
+    {
+      id: 'gpt-5-1',
+      name: 'GPT 5.1 Thinking',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      outputModalities: ['text']
     }
   ]
 })
