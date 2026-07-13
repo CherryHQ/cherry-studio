@@ -23,6 +23,7 @@ import type {
   WebUiCursorResponse,
   WebUiHealthResponse,
   WebUiMessageSnapshot,
+  WebUiSendAttachment,
   WebUiOffsetResponse,
   WebUiMessagePart,
   WebUiRole,
@@ -36,10 +37,19 @@ type WebuiStatus = {
   readonly value: string
 }
 
+type WebUiDraftAttachment = {
+  readonly id: string
+  readonly file: File
+}
+
 const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
 const webUiVersion = '0.1.0'
 const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
+const messagePageSize = 50
+const maxAttachmentCount = 5
+const maxAttachmentBytes = 10 * 1024 * 1024
+const maxAttachmentsBytes = 25 * 1024 * 1024
 const webUiLanguages = [
   { id: 'en-US', label: 'English' },
   { id: 'zh-CN', label: '中文' },
@@ -93,17 +103,21 @@ const textPacks = {
     invalidKey: 'Invalid access key',
     loadingConversations: 'Loading conversations',
     loadingMessages: 'Loading desktop messages',
+    loadingOlder: 'Loading earlier messages...',
+    loadOlder: 'Load earlier messages',
     model: 'Model',
     newConversation: 'New conversation',
+    conversationHistory: 'Conversation history',
     noAgents: 'No configured desktop Agents are available.',
     noContext: 'No context usage available',
     noSessions: 'No desktop sessions yet',
     reasoning: 'Reasoning',
+    processingTime: 'Processed in',
     runtime: 'Runtime',
     selectConversation: 'Select a conversation',
     selectFirst: 'Select a desktop conversation first',
     send: 'Send',
-    sendPlaceholder: 'Send a message to this desktop Agent session',
+    sendPlaceholder: 'Type a message. Ctrl+Enter to send. Type / to search skills or commands.',
     serviceStarted: 'Started',
     sessionsChanged: 'The selected desktop conversation is no longer available.',
     sseClients: 'SSE clients',
@@ -111,9 +125,23 @@ const textPacks = {
     stopped: 'Stopped',
     switchToDark: 'Switch to dark theme',
     switchToLight: 'Switch to light theme',
-    attachmentPending: 'Add file (coming soon)',
+    attachmentPending: 'Add file',
+    attachmentLimit: 'Up to 5 files, 10 MB each and 25 MB total.',
+    attachmentReadFailed: 'Unable to read the selected file.',
+    removeAttachment: 'Remove attachment',
+    backToBottom: 'Back to bottom',
+    resizeComposer: 'Resize message input',
     newConversationTool: 'New conversation',
-    thinkingPending: 'Reasoning length (coming soon)',
+    thinkingPending: 'Reasoning length',
+    thinkingUnavailable: 'The current desktop Agent runtime does not expose reasoning length control.',
+    reasoningDefault: 'Default',
+    reasoningNone: 'Off',
+    reasoningMinimal: 'Minimal',
+    reasoningLow: 'Low',
+    reasoningMedium: 'Medium',
+    reasoningHigh: 'High',
+    reasoningXhigh: 'Extra high',
+    reasoningAuto: 'Auto',
     unavailable: 'Unavailable',
     verify: 'Verify',
     webui: 'WebUI',
@@ -133,7 +161,7 @@ const textPacks = {
     connected: 'Win11 桌面桥接已连接',
     context: '上下文',
     copy: '复制',
-    create: '创建',
+    create: '新建',
     creating: '创建中...',
     desktopSession: '桌面会话',
     disconnected: '桌面桥接不可用',
@@ -143,17 +171,21 @@ const textPacks = {
     invalidKey: '访问 KEY 无效',
     loadingConversations: '正在加载会话',
     loadingMessages: '正在加载桌面消息',
+    loadingOlder: '正在加载更早消息...',
+    loadOlder: '加载更早消息',
     model: '模型',
     newConversation: '新建会话',
+    conversationHistory: '会话记录',
     noAgents: '暂无可用的桌面智能体。',
     noContext: '暂无上下文用量',
     noSessions: '暂无桌面会话',
     reasoning: '思考过程',
+    processingTime: '处理用时',
     runtime: '运行状态',
     selectConversation: '选择一个会话',
     selectFirst: '请先选择桌面会话',
     send: '发送',
-    sendPlaceholder: '向此桌面智能体会话发送消息',
+    sendPlaceholder: '输入消息，按Ctrl+Enter发送，输入/搜索技能或命令。',
     serviceStarted: '启动时间',
     sessionsChanged: '选中的桌面会话已不可用。',
     sseClients: 'SSE 客户端',
@@ -161,9 +193,23 @@ const textPacks = {
     stopped: '已停止',
     switchToDark: '切换至深色主题',
     switchToLight: '切换至浅色主题',
-    attachmentPending: '添加文件（待开发）',
+    attachmentPending: '添加文件',
+    attachmentLimit: '最多 5 个文件，单个 10 MB，总计 25 MB。',
+    attachmentReadFailed: '无法读取所选文件。',
+    removeAttachment: '移除附件',
+    backToBottom: '回到底部',
+    resizeComposer: '调整输入框高度',
     newConversationTool: '新建会话',
-    thinkingPending: '思维链长度（待开发）',
+    thinkingPending: '思维链长度',
+    thinkingUnavailable: '当前桌面 Agent 运行链路尚未开放思维链长度控制。',
+    reasoningDefault: '默认',
+    reasoningNone: '关闭',
+    reasoningMinimal: '最短',
+    reasoningLow: '低',
+    reasoningMedium: '中',
+    reasoningHigh: '高',
+    reasoningXhigh: '极高',
+    reasoningAuto: '自动',
     unavailable: '不可用',
     verify: '验证',
     webui: 'WebUI',
@@ -183,7 +229,7 @@ const textPacks = {
     connected: 'Win11 桌面橋接已連線',
     context: '上下文',
     copy: '複製',
-    create: '建立',
+    create: '新增',
     creating: '建立中...',
     desktopSession: '桌面會話',
     disconnected: '桌面橋接不可用',
@@ -193,17 +239,21 @@ const textPacks = {
     invalidKey: '存取 KEY 無效',
     loadingConversations: '正在載入會話',
     loadingMessages: '正在載入桌面訊息',
+    loadingOlder: '正在載入更早訊息...',
+    loadOlder: '載入更早訊息',
     model: '模型',
     newConversation: '新增會話',
+    conversationHistory: '會話記錄',
     noAgents: '尚無可用的桌面智慧體。',
     noContext: '暫無上下文用量',
     noSessions: '尚無桌面會話',
     reasoning: '思考過程',
+    processingTime: '處理用時',
     runtime: '執行狀態',
     selectConversation: '選擇一個會話',
     selectFirst: '請先選擇桌面會話',
     send: '傳送',
-    sendPlaceholder: '向此桌面智慧體會話傳送訊息',
+    sendPlaceholder: '輸入訊息，按Ctrl+Enter傳送，輸入/搜尋技能或命令。',
     serviceStarted: '啟動時間',
     sessionsChanged: '選取的桌面會話已不可用。',
     sseClients: 'SSE 用戶端',
@@ -211,9 +261,23 @@ const textPacks = {
     stopped: '已停止',
     switchToDark: '切換至深色主題',
     switchToLight: '切換至淺色主題',
-    attachmentPending: '加入檔案（待開發）',
+    attachmentPending: '加入檔案',
+    attachmentLimit: '最多 5 個檔案，單個 10 MB，總計 25 MB。',
+    attachmentReadFailed: '無法讀取所選檔案。',
+    removeAttachment: '移除附件',
+    backToBottom: '回到底部',
+    resizeComposer: '調整輸入框高度',
     newConversationTool: '新增會話',
-    thinkingPending: '思維鏈長度（待開發）',
+    thinkingPending: '思維鏈長度',
+    thinkingUnavailable: '目前桌面 Agent 執行鏈路尚未開放思維鏈長度控制。',
+    reasoningDefault: '預設',
+    reasoningNone: '關閉',
+    reasoningMinimal: '最短',
+    reasoningLow: '低',
+    reasoningMedium: '中',
+    reasoningHigh: '高',
+    reasoningXhigh: '極高',
+    reasoningAuto: '自動',
     unavailable: '不可用',
     verify: '驗證',
     webui: 'WebUI',
@@ -317,6 +381,28 @@ const renderGithubIcon = () =>
     })
   )
 
+type ActionIconName = 'send' | 'stop' | 'menu' | 'down' | 'resize'
+
+const renderActionIcon = (name: ActionIconName) => {
+  const props = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true'
+  }
+
+  if (name === 'send') return h('svg', props, [h('path', { d: 'm5 12 7-7 7 7' }), h('path', { d: 'M12 19V5' })])
+  if (name === 'stop') return h('svg', { ...props, fill: 'currentColor', stroke: 'none' }, h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 }))
+  if (name === 'menu') return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
+  if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
+  return h('svg', props, [h('path', { d: 'M14 4h6v6' }), h('path', { d: 'm20 4-7 7' }), h('path', { d: 'M10 20H4v-6' }), h('path', { d: 'm4 20 7-7' })])
+}
+
 const toDisplayText = (value: unknown): string | undefined => {
   if (value === undefined) return undefined
   if (typeof value === 'string') return value
@@ -382,6 +468,13 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     .map((part) => part.text as string)
     .join('')
   const toolCalls = toToolCalls(parts)
+  const attachments = parts
+    .filter((part) => part.type === 'file')
+    .map((part) => ({ name: part.filename || 'Attachment', ...(part.mediaType ? { mediaType: part.mediaType } : {}) }))
+  const processingTimeMs =
+    message.stats?.timeCompletionMs ??
+    message.stats?.timeThinkingMs ??
+    parts.find((part) => part.type === 'reasoning')?.providerMetadata?.cherry?.thinkingMs
 
   return {
     id: message.id,
@@ -390,8 +483,24 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     content: content || message.searchableText || '',
     ...(reasoning ? { reasoning } : {}),
     ...(toolCalls.length ? { toolCalls } : {}),
+    ...(attachments.length ? { attachments } : {}),
+    status: message.status,
+    ...(processingTimeMs ? { processingTimeMs } : {}),
     createdAt: message.createdAt
   }
+}
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid file data'))))
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('Unable to read file')))
+    reader.readAsDataURL(file)
+  })
+
+const formatDuration = (milliseconds: number) => {
+  const seconds = Math.max(0.1, milliseconds / 1000)
+  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`
 }
 
 const App = defineComponent({
@@ -429,13 +538,23 @@ const App = defineComponent({
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const modelPickerOpen = ref(false)
+    const reasoningPickerOpen = ref(false)
+    const reasoningEffort = ref('default')
     const modelUpdateState = ref<'idle' | 'updating' | 'error'>('idle')
     const mobileSidebarOpen = ref(false)
     const themeMode = ref<'light' | 'dark'>(
       window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     )
     const messageStack = ref<HTMLElement>()
+    const composerTextarea = ref<HTMLTextAreaElement>()
+    const attachmentInput = ref<HTMLInputElement>()
+    const attachments = ref<readonly WebUiDraftAttachment[]>([])
+    const olderMessagesCursor = ref<string>()
+    const olderMessagesLoading = ref(false)
+    const showScrollToBottom = ref(false)
+    const composerHeight = ref(92)
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
+    const pendingChunkRetries = new Map<string, number>()
     let healthTimer: number | undefined
     let syncTimer: number | undefined
     let chunkFrame: number | undefined
@@ -468,6 +587,21 @@ const App = defineComponent({
       return 'normal'
     })
     const themeToggleLabel = computed(() => (themeMode.value === 'dark' ? text('switchToLight') : text('switchToDark')))
+    const reasoningOptions = computed(() => selectedModel.value?.reasoningOptions ?? [])
+    const reasoningConfigurable = computed(() => reasoningOptions.value.length > 0)
+    const reasoningLabel = computed(() => {
+      const labels: Record<string, TextKey> = {
+        default: 'reasoningDefault',
+        none: 'reasoningNone',
+        minimal: 'reasoningMinimal',
+        low: 'reasoningLow',
+        medium: 'reasoningMedium',
+        high: 'reasoningHigh',
+        xhigh: 'reasoningXhigh',
+        auto: 'reasoningAuto'
+      }
+      return text(labels[reasoningEffort.value] ?? 'reasoningDefault')
+    })
     const slashCommandSuggestions = computed(() => {
       const input = composerText.value.trimStart()
       if (modelPickerOpen.value || !input.startsWith('/')) return []
@@ -480,6 +614,8 @@ const App = defineComponent({
       if (role === 'assistant') return selectedAgentName.value || role
       return role
     }
+    const conversationAgentName = (agentId: string | null) =>
+      agents.value.find((agent) => agent.id === agentId)?.name ?? text('agent')
 
     const text = (key: TextKey) => {
       const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
@@ -538,7 +674,7 @@ const App = defineComponent({
 
     const loadConversations = async () => {
       conversationLoadState.value = 'loading'
-      conversationLoadMessage.value = text('loadingConversations')
+      conversationLoadMessage.value = ''
 
       try {
         const sessions: WebUiAgentSessionEntity[] = []
@@ -574,37 +710,65 @@ const App = defineComponent({
       }
     }
 
-    const loadConversationMessages = async (conversationId: string) => {
+    const mergeMessages = (
+      current: readonly WebUiMessageSnapshot[],
+      incoming: readonly WebUiMessageSnapshot[]
+    ): readonly WebUiMessageSnapshot[] => {
+      const byId = new Map(current.map((message) => [message.id, message]))
+      for (const message of incoming) byId.set(message.id, message)
+      return [...byId.values()].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
+    }
+
+    const loadConversationMessages = async (conversationId: string, mode: 'replace' | 'refresh' = 'replace') => {
       const requestId = ++latestMessageRequest
-      messageLoadState.value = 'loading'
-      messageLoadMessage.value = text('loadingMessages')
+      if (mode === 'replace') {
+        messageLoadState.value = 'loading'
+        messageLoadMessage.value = ''
+      }
 
       try {
-        const sessionMessages: WebUiAgentSessionMessageEntity[] = []
-        const seenCursors = new Set<string>()
-        let cursor: string | undefined
-        do {
-          const query = new URLSearchParams({ limit: '200' })
-          if (cursor) query.set('cursor', cursor)
-          const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionMessageEntity>>(
-            `/api/data/agent-sessions/${encodeURIComponent(conversationId)}/messages?${query.toString()}`
-          )
-          sessionMessages.push(...page.items)
-          cursor = page.nextCursor
-          if (cursor && seenCursors.has(cursor)) break
-          if (cursor) seenCursors.add(cursor)
-        } while (cursor)
+        const query = new URLSearchParams({ limit: String(messagePageSize) })
+        const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionMessageEntity>>(
+          `/api/data/agent-sessions/${encodeURIComponent(conversationId)}/messages?${query.toString()}`
+        )
         if (requestId !== latestMessageRequest || selectedConversationId.value !== conversationId) return
 
-        messages.value = sessionMessages.map(toMessageSnapshot).reverse()
+        const latest = page.items.map(toMessageSnapshot).reverse()
+        messages.value = mode === 'replace' ? latest : mergeMessages(messages.value, latest)
+        if (mode === 'replace') olderMessagesCursor.value = page.nextCursor
         messageLoadState.value = 'ready'
         messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
+        if (mode === 'replace') scrollMessagesToEnd()
       } catch (error) {
         if (requestId !== latestMessageRequest || selectedConversationId.value !== conversationId) return
 
-        messages.value = []
         messageLoadState.value = 'error'
         messageLoadMessage.value = toErrorMessage(error)
+      }
+    }
+
+    const loadOlderMessages = async () => {
+      const conversationId = selectedConversationId.value
+      const cursor = olderMessagesCursor.value
+      const stack = messageStack.value
+      if (!conversationId || !cursor || olderMessagesLoading.value) return
+
+      olderMessagesLoading.value = true
+      const previousScrollHeight = stack?.scrollHeight ?? 0
+      try {
+        const query = new URLSearchParams({ limit: String(messagePageSize), cursor })
+        const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionMessageEntity>>(
+          `/api/data/agent-sessions/${encodeURIComponent(conversationId)}/messages?${query.toString()}`
+        )
+        if (selectedConversationId.value !== conversationId) return
+        messages.value = mergeMessages(page.items.map(toMessageSnapshot).reverse(), messages.value)
+        olderMessagesCursor.value = page.nextCursor
+        await nextTick()
+        if (stack) stack.scrollTop += stack.scrollHeight - previousScrollHeight
+      } catch (error) {
+        submitError.value = toErrorMessage(error)
+      } finally {
+        olderMessagesLoading.value = false
       }
     }
 
@@ -665,6 +829,12 @@ const App = defineComponent({
 
       selectedConversationId.value = conversationId
       mobileSidebarOpen.value = false
+      messages.value = []
+      olderMessagesCursor.value = undefined
+      attachments.value = []
+      reasoningEffort.value = 'default'
+      modelPickerOpen.value = false
+      reasoningPickerOpen.value = false
       void loadConversationMessages(conversationId)
       refreshComposerInfo(conversationId)
       refreshSlashCommands(conversationId)
@@ -708,27 +878,30 @@ const App = defineComponent({
       }
     }
 
-    const refreshFromDesktopSync = () => {
+    const refreshFromDesktopSync = (reason?: string, conversationId?: string) => {
       if (syncTimer) window.clearTimeout(syncTimer)
       syncTimer = window.setTimeout(() => {
         syncTimer = undefined
         void loadConversations()
-        if (selectedConversationId.value) {
-          void loadConversationMessages(selectedConversationId.value)
-          refreshComposerInfo(selectedConversationId.value)
+        const selectedId = selectedConversationId.value
+        if (selectedId && (!conversationId || conversationId === selectedId)) {
+          if (reason === 'stream-terminal' || reason === 'message-submitted') {
+            void loadConversationMessages(selectedId, 'refresh')
+          }
+          refreshComposerInfo(selectedId)
         }
       }, 180)
     }
 
-    const applyStreamChunk = (payload: WebUiChunkPayload) => {
-      if (payload.conversationId !== selectedConversationId.value) return
+    const applyStreamChunk = (payload: WebUiChunkPayload): boolean => {
+      if (payload.conversationId !== selectedConversationId.value) return true
 
       const messageIndex = messages.value.findIndex((message) => message.id === payload.messageId)
-      if (messageIndex < 0) return
+      if (messageIndex < 0) return false
 
       const nextMessages = [...messages.value]
       const message = nextMessages[messageIndex]
-      if (!message) return
+      if (!message) return false
       const chunk = payload.chunk
       if (chunk.type === 'text-delta' && chunk.delta) {
         nextMessages[messageIndex] = { ...message, content: `${message.content}${chunk.delta}` }
@@ -771,9 +944,10 @@ const App = defineComponent({
           toolCalls: [...previousTools.filter((tool) => tool.id !== chunk.toolCallId), nextTool]
         }
       } else {
-        return
+        return true
       }
       messages.value = nextMessages
+      return true
     }
 
     const queueStreamChunk = (payload: WebUiChunkPayload) => {
@@ -784,35 +958,107 @@ const App = defineComponent({
 
       chunkFrame = window.requestAnimationFrame(() => {
         chunkFrame = undefined
+        const shouldFollow = !showScrollToBottom.value
+        const retryChunks: WebUiChunkPayload[] = []
         for (const queued of pendingChunks.values()) {
-          for (const chunk of queued) applyStreamChunk(chunk)
+          for (const chunk of queued) {
+            if (applyStreamChunk(chunk)) {
+              pendingChunkRetries.delete(chunk.messageId)
+              continue
+            }
+            const retries = pendingChunkRetries.get(chunk.messageId) ?? 0
+            if (retries < 2) {
+              pendingChunkRetries.set(chunk.messageId, retries + 1)
+              retryChunks.push(chunk)
+            }
+          }
         }
         pendingChunks.clear()
+        if (shouldFollow) scrollMessagesToEnd()
+        if (retryChunks.length > 0 && selectedConversationId.value) {
+          const conversationId = selectedConversationId.value
+          void loadConversationMessages(conversationId, 'refresh').finally(() => {
+            for (const chunk of retryChunks) queueStreamChunk(chunk)
+          })
+        }
       })
     }
 
-    const scrollMessagesToEnd = () => {
+    const scrollMessagesToEnd = (behavior: ScrollBehavior = 'auto') => {
       void nextTick(() => {
-        if (messageStack.value) messageStack.value.scrollTop = messageStack.value.scrollHeight
+        const stack = messageStack.value
+        if (stack) stack.scrollTo({ top: stack.scrollHeight, behavior })
+        showScrollToBottom.value = false
       })
     }
 
-    watch(messages, scrollMessagesToEnd)
+    const updateMessageScrollState = () => {
+      const stack = messageStack.value
+      if (!stack) return
+      showScrollToBottom.value = stack.scrollHeight - stack.scrollTop - stack.clientHeight > 96
+    }
+
+    const beginComposerResize = (event: PointerEvent) => {
+      event.preventDefault()
+      const startY = event.clientY
+      const startHeight = composerHeight.value
+      const onMove = (moveEvent: PointerEvent) => {
+        composerHeight.value = Math.max(76, Math.min(220, startHeight + startY - moveEvent.clientY))
+      }
+      const onEnd = () => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onEnd)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onEnd, { once: true })
+    }
+
+    const addAttachments = (selectedFiles: FileList | null) => {
+      if (!selectedFiles?.length) return
+      const next = [...attachments.value]
+      let totalBytes = next.reduce((sum, attachment) => sum + attachment.file.size, 0)
+      for (const file of Array.from(selectedFiles)) {
+        if (next.length >= maxAttachmentCount || file.size > maxAttachmentBytes || totalBytes + file.size > maxAttachmentsBytes) {
+          submitError.value = text('attachmentLimit')
+          break
+        }
+        next.push({ id: `${file.name}-${file.size}-${file.lastModified}-${next.length}`, file })
+        totalBytes += file.size
+      }
+      attachments.value = next
+    }
+
+    const buildSendAttachments = async (): Promise<readonly WebUiSendAttachment[]> =>
+      Promise.all(
+        attachments.value.map(async ({ file }) => ({
+          name: file.name,
+          mediaType: file.type || 'application/octet-stream',
+          size: file.size,
+          dataUrl: await readFileAsDataUrl(file)
+        }))
+      )
 
     const submitMessage = async () => {
       const conversationId = selectedConversationId.value
       const text = composerText.value.trim()
-      if (!conversationId || !text || activeRunConversationId.value) return
+      if (!conversationId || (!text && attachments.value.length === 0) || activeRunConversationId.value) return
 
       submitError.value = ''
       activeRunConversationId.value = conversationId
       try {
-        await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/messages`, { text })
+        const sendAttachments = await buildSendAttachments()
+        await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/messages`, {
+          text,
+          attachments: sendAttachments,
+          reasoningEffort: reasoningEffort.value
+        })
         composerText.value = ''
-        await loadConversationMessages(conversationId)
+        attachments.value = []
+        await loadConversationMessages(conversationId, 'refresh')
+        scrollMessagesToEnd('smooth')
         refreshSlashCommands(conversationId)
       } catch (error) {
-        submitError.value = toErrorMessage(error)
+        submitError.value = error instanceof DOMException ? text('attachmentReadFailed') : toErrorMessage(error)
         activeRunConversationId.value = undefined
       }
     }
@@ -908,13 +1154,16 @@ const App = defineComponent({
       }
     }
 
-    const unsubscribeSync = sseClient.subscribe('sync', refreshFromDesktopSync)
+    const unsubscribeSync = sseClient.subscribe<{ conversationId?: string; reason?: string }>('sync', ({ data }) =>
+      refreshFromDesktopSync(data?.reason, data?.conversationId)
+    )
     const unsubscribeChunk = sseClient.subscribe<WebUiChunkPayload>('chunk', ({ data }) => {
       if (data && typeof data === 'object') queueStreamChunk(data)
     })
     const unsubscribeDone = sseClient.subscribe<{ conversationId?: string }>('done', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
       if (data?.conversationId === selectedConversationId.value) {
+        void loadConversationMessages(data.conversationId, 'refresh')
         refreshComposerInfo(data.conversationId)
         refreshSlashCommands(data.conversationId)
       }
@@ -931,11 +1180,17 @@ const App = defineComponent({
       void loadAuthStatus()
     })
 
+    watch(selectedModel, () => {
+      if (!reasoningOptions.value.includes(reasoningEffort.value)) reasoningEffort.value = 'default'
+      reasoningPickerOpen.value = false
+    })
+
     onBeforeUnmount(() => {
       if (healthTimer) window.clearInterval(healthTimer)
       if (syncTimer) window.clearTimeout(syncTimer)
       if (chunkFrame !== undefined) window.cancelAnimationFrame(chunkFrame)
       pendingChunks.clear()
+      pendingChunkRetries.clear()
       unsubscribeSync()
       unsubscribeChunk()
       unsubscribeDone()
@@ -1069,11 +1324,12 @@ const App = defineComponent({
             },
             text('newConversation')
           ),
-          h(
-            'p',
-            { class: ['empty-copy', `empty-copy-${conversationLoadState.value}`] },
+          h('div', { class: 'conversation-list-heading' }, [
+            h('p', { class: 'conversation-section-label' }, text('conversationHistory')),
             conversationLoadMessage.value
-          ),
+              ? h('p', { class: ['empty-copy', `empty-copy-${conversationLoadState.value}`] }, conversationLoadMessage.value)
+              : undefined
+          ]),
           h(
             'nav',
             { class: 'conversation-nav', 'aria-label': text('desktopSession') },
@@ -1093,7 +1349,7 @@ const App = defineComponent({
                 [
                   h('span', { class: 'conversation-title' }, conversation.title),
                   h('span', { class: 'conversation-meta' }, [
-                    conversation.workspaceLabel ? `${conversation.workspaceLabel} · ` : '',
+                    `${conversationAgentName(conversation.agentId)} · `,
                     new Date(conversation.updatedAt).toLocaleString()
                   ])
                 ]
@@ -1115,10 +1371,15 @@ const App = defineComponent({
                   mobileSidebarOpen.value = !mobileSidebarOpen.value
                 }
               },
-              'Menu'
+              renderActionIcon('menu')
             ),
             h('div', [
-              h('p', { class: 'eyebrow' }, selectedConversation.value?.workspaceLabel ?? text('desktopSession')),
+              h('p', { class: 'eyebrow' }, [
+                selectedConversation.value?.workspaceLabel ?? selectedAgentName.value ?? text('desktopSession'),
+                conversationLoadState.value === 'loading' || messageLoadState.value === 'loading'
+                  ? h('span', { class: 'header-loading-state' }, ` · ${text('loadingConversations')}`)
+                  : undefined
+              ]),
               h('h2', selectedConversation.value?.title ?? text('selectConversation'))
             ]),
             h('div', { class: 'mobile-chat-actions' }, [
@@ -1138,24 +1399,22 @@ const App = defineComponent({
                 role: 'status',
                 title: bridgeDetail.value,
                 'aria-label': bridgeDetail.value
-              }),
-              h(
-                'button',
-                {
-                  class: 'mobile-sidebar-button',
-                  type: 'button',
-                  title: text('desktopSession'),
-                  'aria-label': text('desktopSession'),
-                  'aria-expanded': mobileSidebarOpen.value,
-                  onClick: () => {
-                    mobileSidebarOpen.value = !mobileSidebarOpen.value
-                  }
-                },
-                '☰'
-              )
+              })
             ])
           ]),
-          h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack }, [
+          h('div', { class: 'message-stack', 'aria-live': 'polite', ref: messageStack, onScroll: updateMessageScrollState }, [
+            olderMessagesCursor.value
+              ? h(
+                  'button',
+                  {
+                    class: 'load-older-button',
+                    type: 'button',
+                    disabled: olderMessagesLoading.value,
+                    onClick: () => void loadOlderMessages()
+                  },
+                  olderMessagesLoading.value ? text('loadingOlder') : text('loadOlder')
+                )
+              : undefined,
             messageLoadMessage.value ? h('p', { class: 'empty-copy' }, messageLoadMessage.value) : undefined,
             ...messages.value.map((message) =>
               h(
@@ -1180,13 +1439,18 @@ const App = defineComponent({
                       : undefined
                   ]),
                   message.reasoning
-                    ? h('details', { class: 'reasoning-block' }, [
-                        h('summary', text('reasoning')),
+                    ? h('details', { class: 'reasoning-block', open: message.status === 'pending' }, [
+                        h(
+                          'summary',
+                          message.status === 'pending' || !message.processingTimeMs
+                            ? text('reasoning')
+                            : `${text('processingTime')} ${formatDuration(message.processingTimeMs)}`
+                        ),
                         h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
                       ])
                     : undefined,
                   ...(message.toolCalls ?? []).map((tool) =>
-                    h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: !terminalToolStates.has(tool.state) }, [
+                    h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: message.status === 'pending' && !terminalToolStates.has(tool.state) }, [
                       h('summary', [
                         h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
                         h('span', { class: 'tool-call-name' }, tool.name),
@@ -1199,6 +1463,15 @@ const App = defineComponent({
                       ])
                     ])
                   ),
+                  message.attachments?.length
+                    ? h(
+                        'div',
+                        { class: 'message-attachments' },
+                        message.attachments.map((attachment) =>
+                          h('span', { class: 'message-attachment', title: attachment.mediaType }, attachment.name)
+                        )
+                      )
+                    : undefined,
                   message.content
                     ? h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.content) })
                     : message.toolCalls?.length
@@ -1209,13 +1482,62 @@ const App = defineComponent({
               )
             )
           ]),
+          showScrollToBottom.value
+            ? h(
+                'button',
+                {
+                  class: 'scroll-bottom-button',
+                  type: 'button',
+                  title: text('backToBottom'),
+                  'aria-label': text('backToBottom'),
+                  onClick: () => scrollMessagesToEnd('smooth')
+                },
+                renderActionIcon('down')
+              )
+            : undefined,
           h('footer', { class: 'composer' }, [
             h('div', { class: 'composer-surface' }, [
+              h('input', {
+                class: 'attachment-input',
+                ref: attachmentInput,
+                type: 'file',
+                multiple: true,
+                onChange: (event: Event) => {
+                  const input = event.target as HTMLInputElement
+                  addAttachments(input.files)
+                  input.value = ''
+                }
+              }),
+              attachments.value.length
+                ? h(
+                    'div',
+                    { class: 'attachment-strip' },
+                    attachments.value.map((attachment) =>
+                      h('span', { class: 'attachment-chip', key: attachment.id }, [
+                        h('span', { class: 'attachment-chip-name', title: attachment.file.name }, attachment.file.name),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            title: text('removeAttachment'),
+                            'aria-label': `${text('removeAttachment')}: ${attachment.file.name}`,
+                            onClick: () => {
+                              attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
+                            }
+                          },
+                          '×'
+                        )
+                      ])
+                    )
+                  )
+                : undefined,
               h('textarea', {
+                ref: composerTextarea,
                 disabled: !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
                 value: composerText.value,
                 placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
                 rows: 3,
+                style: { height: `${composerHeight.value}px` },
                 onInput: (event: Event) => {
                   composerText.value = (event.target as HTMLTextAreaElement).value
                 },
@@ -1226,8 +1548,52 @@ const App = defineComponent({
                   }
                 }
               }),
+              h(
+                'button',
+                {
+                  class: 'composer-resize-handle',
+                  type: 'button',
+                  title: text('resizeComposer'),
+                  'aria-label': text('resizeComposer'),
+                  onPointerdown: beginComposerResize,
+                  onDblclick: () => {
+                    composerHeight.value = 92
+                  }
+                },
+                renderActionIcon('resize')
+              ),
               h('div', { class: 'composer-toolbar' }, [
                 h('div', { class: 'composer-tools' }, [
+                  h(
+                    'button',
+                    {
+                      class: 'composer-tool-button',
+                      type: 'button',
+                      title: text('attachmentPending'),
+                      'aria-label': text('attachmentPending'),
+                      disabled: attachments.value.length >= maxAttachmentCount,
+                      onClick: () => attachmentInput.value?.click()
+                    },
+                    renderComposerToolIcon('attachment')
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: ['composer-tool-button', { 'composer-tool-button-active': reasoningEffort.value !== 'default' }],
+                      type: 'button',
+                      disabled: !reasoningConfigurable.value,
+                      title: reasoningConfigurable.value
+                        ? `${text('thinkingPending')}: ${reasoningLabel.value}`
+                        : text('thinkingUnavailable'),
+                      'aria-label': text('thinkingPending'),
+                      'aria-expanded': reasoningPickerOpen.value,
+                      onClick: () => {
+                        reasoningPickerOpen.value = !reasoningPickerOpen.value
+                        modelPickerOpen.value = false
+                      }
+                    },
+                    renderComposerToolIcon('thinking')
+                  ),
                   h(
                     'button',
                     {
@@ -1239,23 +1605,6 @@ const App = defineComponent({
                     },
                     renderComposerToolIcon('newConversation')
                   ),
-                  ...(['attachment', 'thinking'] as const).map((tool) => {
-                    const labels = {
-                      attachment: text('attachmentPending'),
-                      thinking: text('thinkingPending')
-                    }
-                    return h(
-                      'button',
-                      {
-                        class: ['composer-tool-button', 'composer-tool-button-pending'],
-                        type: 'button',
-                        title: labels[tool],
-                        'aria-label': labels[tool],
-                        'aria-disabled': 'true'
-                      },
-                      renderComposerToolIcon(tool)
-                    )
-                  }),
                   h(
                     'button',
                     {
@@ -1266,6 +1615,7 @@ const App = defineComponent({
                       'aria-expanded': modelPickerOpen.value,
                       onClick: () => {
                         modelPickerOpen.value = !modelPickerOpen.value
+                        reasoningPickerOpen.value = false
                       }
                     },
                     modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
@@ -1276,7 +1626,11 @@ const App = defineComponent({
                   {
                     class: ['send-button', { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }],
                     type: 'button',
-                    disabled: !selectedConversation.value || (!composerText.value.trim() && activeRunConversationId.value !== selectedConversationId.value),
+                    disabled:
+                      !selectedConversation.value ||
+                      (!composerText.value.trim() &&
+                        attachments.value.length === 0 &&
+                        activeRunConversationId.value !== selectedConversationId.value),
                     'aria-label': activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
                     title: activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send'),
                     onClick: () => {
@@ -1287,9 +1641,43 @@ const App = defineComponent({
                       void submitMessage()
                     }
                   },
-                  activeRunConversationId.value === selectedConversationId.value ? text('stop') : text('send')
+                  renderActionIcon(activeRunConversationId.value === selectedConversationId.value ? 'stop' : 'send')
                 )
               ]),
+            reasoningPickerOpen.value
+              ? h(
+                  'div',
+                  { class: 'reasoning-picker-menu', role: 'listbox' },
+                  reasoningOptions.value.map((option) =>
+                    h(
+                      'button',
+                      {
+                        class: ['reasoning-picker-option', { 'reasoning-picker-option-selected': option === reasoningEffort.value }],
+                        key: option,
+                        type: 'button',
+                        role: 'option',
+                        'aria-selected': option === reasoningEffort.value,
+                        onClick: () => {
+                          reasoningEffort.value = option
+                          reasoningPickerOpen.value = false
+                        }
+                      },
+                      text(
+                        ({
+                          default: 'reasoningDefault',
+                          none: 'reasoningNone',
+                          minimal: 'reasoningMinimal',
+                          low: 'reasoningLow',
+                          medium: 'reasoningMedium',
+                          high: 'reasoningHigh',
+                          xhigh: 'reasoningXhigh',
+                          auto: 'reasoningAuto'
+                        } as Record<string, TextKey>)[option] ?? 'reasoningDefault'
+                      )
+                    )
+                  )
+                )
+              : undefined,
             modelPickerOpen.value
               ? h(
                   'div',
@@ -1432,7 +1820,7 @@ const App = defineComponent({
                   h(
                     'button',
                     {
-                      class: 'send-button',
+                      class: 'primary-button',
                       type: 'button',
                       disabled: !selectedAgentId.value || newConversationState.value === 'creating',
                       onClick: () => void createConversation()
@@ -1450,6 +1838,7 @@ const App = defineComponent({
 const style = document.createElement('style')
 style.textContent = `
   :root {
+    --webui-divider: #e5e7eb;
     color: #1f2937;
     background: #f6f7fb;
     font-family:
@@ -1715,11 +2104,23 @@ style.textContent = `
     line-height: 1.6;
   }
 
+  .conversation-section-label {
+    margin: 10px 2px 0;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .header-loading-state {
+    color: #94a3b8;
+    font-weight: 400;
+  }
+
   .conversation-nav {
     display: grid;
     gap: 8px;
     min-height: 0;
-    margin-top: 18px;
+    margin-top: 8px;
     overflow-y: auto;
   }
 
@@ -1759,6 +2160,7 @@ style.textContent = `
   }
 
   .chat-stage {
+    position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     height: 100vh;
@@ -1777,13 +2179,43 @@ style.textContent = `
     padding: 12px 4px 8px;
   }
 
+  .load-older-button {
+    align-self: center;
+    min-height: 30px;
+    padding: 0 12px;
+    color: #64748b;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--webui-divider);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .scroll-bottom-button {
+    position: absolute;
+    z-index: 4;
+    right: 30px;
+    bottom: 148px;
+    display: grid;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    place-items: center;
+    color: #475569;
+    background: #ffffff;
+    border: 1px solid var(--webui-divider);
+    border-radius: 50%;
+    box-shadow: 0 5px 18px rgb(15 23 42 / 12%);
+    cursor: pointer;
+  }
+
   .chat-header {
     display: flex;
     gap: 12px;
     align-items: center;
     justify-content: space-between;
     padding-bottom: 16px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--webui-divider);
   }
 
   .chat-header h2 {
@@ -2068,6 +2500,34 @@ style.textContent = `
     margin-bottom: 0;
   }
 
+  .message-attachments,
+  .attachment-strip {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .message-attachments {
+    margin-bottom: 8px;
+  }
+
+  .message-attachment,
+  .attachment-chip {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 220px;
+    align-items: center;
+    color: inherit;
+    font-size: 12px;
+    background: rgb(148 163 184 / 16%);
+    border: 1px solid rgb(148 163 184 / 28%);
+    border-radius: 6px;
+  }
+
+  .message-attachment {
+    padding: 4px 8px;
+  }
+
   .composer {
     margin-top: 8px;
     padding-top: 8px;
@@ -2084,14 +2544,67 @@ style.textContent = `
     box-shadow: 0 1px 5px rgb(15 23 42 / 5%);
   }
 
+  .attachment-input {
+    display: none;
+  }
+
+  .attachment-strip {
+    padding: 10px 42px 0 12px;
+  }
+
+  .attachment-chip {
+    height: 28px;
+    padding-left: 8px;
+  }
+
+  .attachment-chip-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attachment-chip button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+
   .composer-surface textarea {
     display: block;
     min-height: 100px;
     padding: 14px 14px 8px;
-    resize: vertical;
+    resize: none;
     border: 0;
     border-radius: 18px 18px 0 0;
     outline: 0;
+  }
+
+  .composer-resize-handle {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 9px;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    place-items: center;
+    color: #94a3b8;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
+  .composer-resize-handle svg {
+    width: 14px;
+    height: 14px;
+    transform: rotate(45deg);
   }
 
   .composer-toolbar {
@@ -2168,6 +2681,11 @@ style.textContent = `
     color: #94a3b8;
   }
 
+  .composer-tool-button-active {
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
   .send-button {
     display: grid;
     width: 40px;
@@ -2176,33 +2694,29 @@ style.textContent = `
     height: 40px;
     padding: 0;
     place-items: center;
-    color: transparent;
-    font-size: 0;
-    line-height: 1;
+    color: #ffffff;
     border-radius: 50%;
     cursor: pointer;
   }
 
-  .send-button::after {
+  .send-button svg {
     display: block;
+    width: 20px;
+    height: 20px;
+  }
+
+  .send-button-is-stop {
     color: #ffffff;
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1;
-    content: '\\2191';
+    background: #dc2626;
   }
 
-  .send-button-is-stop::after {
-    font-size: 15px;
-    content: '\\25a0';
-  }
-
-  .model-picker-menu {
+  .model-picker-menu,
+  .reasoning-picker-menu {
     position: absolute;
     z-index: 6;
     right: 8px;
     bottom: calc(100% + 8px);
-    left: 0;
+    width: clamp(220px, 32%, 300px);
     display: grid;
     max-height: min(276px, 42dvh);
     overflow-y: auto;
@@ -2211,6 +2725,13 @@ style.textContent = `
     border: 1px solid #dbe1ea;
     border-radius: 12px;
     box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  }
+
+  .reasoning-picker-menu {
+    z-index: 7;
+    right: auto;
+    left: 8px;
+    max-height: min(276px, 42dvh);
   }
 
   .model-picker-group {
@@ -2239,6 +2760,23 @@ style.textContent = `
   .model-picker-option-selected {
     background: #eef2ff;
     outline: 0;
+  }
+
+  .reasoning-picker-option {
+    width: 100%;
+    min-height: 34px;
+    padding: 0 10px;
+    color: #1f2937;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .reasoning-picker-option:hover,
+  .reasoning-picker-option-selected {
+    background: #eef2ff;
   }
 
   .model-picker-name {
@@ -2316,8 +2854,8 @@ style.textContent = `
 
   textarea {
     min-height: 76px;
-    max-height: 180px;
-    resize: vertical;
+    max-height: 220px;
+    resize: none;
   }
 
   .composer-error {
@@ -2379,10 +2917,20 @@ style.textContent = `
     margin-top: 24px;
   }
 
+  .primary-button {
+    min-height: 40px;
+    padding: 0 16px;
+    color: #ffffff;
+    background: #111827;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
   .status-row {
     margin: 0 0 16px;
     padding-bottom: 14px;
-    border-bottom: 1px solid #f0f1f4;
+    border-bottom: 1px solid var(--webui-divider);
   }
 
   .bridge-indicator {
@@ -2413,9 +2961,15 @@ style.textContent = `
   }
 
   .version-block {
-    margin-top: 4px;
-    padding-top: 8px;
-    border-top: 1px solid #f0f1f4;
+    margin-top: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--webui-divider);
+  }
+
+  .status-panel > .status-row:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 12px;
+    border-bottom: 0;
   }
 
   .version-row {
@@ -2444,6 +2998,7 @@ style.textContent = `
 
   @media (prefers-color-scheme: dark) {
     :root {
+      --webui-divider: #334155;
       color: #e5e7eb;
       background: #111827;
       color-scheme: dark;
@@ -2536,7 +3091,9 @@ style.textContent = `
     .secondary-button,
     .icon-button,
     .slash-command-menu,
-    .model-picker-menu {
+    .model-picker-menu,
+    .reasoning-picker-menu,
+    .scroll-bottom-button {
       color: #e5e7eb;
       background: #273449;
       border-color: #475569;
@@ -2553,7 +3110,8 @@ style.textContent = `
       color: #e5e7eb;
     }
 
-    .model-picker-option {
+    .model-picker-option,
+    .reasoning-picker-option {
       color: #e5e7eb;
     }
 
@@ -2564,7 +3122,9 @@ style.textContent = `
 
     .model-picker-option:hover,
     .model-picker-option:focus-visible,
-    .model-picker-option-selected {
+    .model-picker-option-selected,
+    .reasoning-picker-option:hover,
+    .reasoning-picker-option-selected {
       background: #334155;
     }
 
@@ -2599,6 +3159,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] {
+    --webui-divider: #334155;
     color: #e5e7eb;
     background: #111827;
     color-scheme: dark;
@@ -2641,6 +3202,8 @@ style.textContent = `
   :root[data-webui-theme='dark'] .icon-button,
   :root[data-webui-theme='dark'] .slash-command-menu,
   :root[data-webui-theme='dark'] .model-picker-menu,
+  :root[data-webui-theme='dark'] .reasoning-picker-menu,
+  :root[data-webui-theme='dark'] .scroll-bottom-button,
   :root[data-webui-theme='dark'] .theme-toggle-button,
   :root[data-webui-theme='dark'] .panel-icon-button,
   :root[data-webui-theme='dark'] .status-github-link,
@@ -2654,6 +3217,8 @@ style.textContent = `
   :root[data-webui-theme='dark'] .conversation-item-selected,
   :root[data-webui-theme='dark'] .model-picker-option:hover,
   :root[data-webui-theme='dark'] .model-picker-option-selected,
+  :root[data-webui-theme='dark'] .reasoning-picker-option:hover,
+  :root[data-webui-theme='dark'] .reasoning-picker-option-selected,
   :root[data-webui-theme='dark'] .slash-command-option:hover,
   :root[data-webui-theme='dark'] .theme-toggle-button:hover {
     background: #334155;
@@ -2664,6 +3229,7 @@ style.textContent = `
   :root[data-webui-theme='dark'] .tool-call-data,
   :root[data-webui-theme='dark'] .slash-command-option,
   :root[data-webui-theme='dark'] .model-picker-option,
+  :root[data-webui-theme='dark'] .reasoning-picker-option,
   :root[data-webui-theme='dark'] .composer-tool-button {
     color: #e5e7eb;
   }
@@ -2684,6 +3250,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='light'] {
+    --webui-divider: #e5e7eb;
     color: #1f2937;
     background: #f6f7fb;
     color-scheme: light;
@@ -2722,6 +3289,8 @@ style.textContent = `
   :root[data-webui-theme='light'] .icon-button,
   :root[data-webui-theme='light'] .slash-command-menu,
   :root[data-webui-theme='light'] .model-picker-menu,
+  :root[data-webui-theme='light'] .reasoning-picker-menu,
+  :root[data-webui-theme='light'] .scroll-bottom-button,
   :root[data-webui-theme='light'] .theme-toggle-button,
   :root[data-webui-theme='light'] .panel-icon-button,
   :root[data-webui-theme='light'] .status-github-link,
@@ -2735,6 +3304,8 @@ style.textContent = `
   :root[data-webui-theme='light'] .conversation-item-selected,
   :root[data-webui-theme='light'] .model-picker-option:hover,
   :root[data-webui-theme='light'] .model-picker-option-selected,
+  :root[data-webui-theme='light'] .reasoning-picker-option:hover,
+  :root[data-webui-theme='light'] .reasoning-picker-option-selected,
   :root[data-webui-theme='light'] .slash-command-option:hover,
   :root[data-webui-theme='light'] .theme-toggle-button:hover {
     background: #eef2ff;
@@ -2745,6 +3316,7 @@ style.textContent = `
   :root[data-webui-theme='light'] .tool-call-data,
   :root[data-webui-theme='light'] .slash-command-option,
   :root[data-webui-theme='light'] .model-picker-option,
+  :root[data-webui-theme='light'] .reasoning-picker-option,
   :root[data-webui-theme='light'] .composer-tool-button {
     color: #1f2937;
   }
@@ -2867,18 +3439,16 @@ style.textContent = `
       height: 36px;
       padding: 0;
       place-items: center;
-      color: transparent;
-      font-size: 0;
+      color: #374151;
       background: #ffffff;
       border: 1px solid #d1d5db;
       border-radius: 6px;
     }
 
-    .mobile-sidebar-button::after {
-      color: #374151;
-      font-size: 20px;
-      line-height: 1;
-      content: '\\2261';
+    .mobile-sidebar-button svg {
+      display: block;
+      width: 20px;
+      height: 20px;
     }
 
     .mobile-bridge-indicator {
@@ -2902,13 +3472,9 @@ style.textContent = `
       }
 
       .mobile-sidebar-button {
-        color: transparent;
+        color: #e5e7eb;
         background: #273449;
         border-color: #475569;
-      }
-
-      .mobile-sidebar-button::after {
-        color: #e5e7eb;
       }
     }
 
@@ -2929,6 +3495,11 @@ style.textContent = `
       border: 1px solid #dbe1ea;
       border-radius: 22px;
       box-shadow: 0 8px 28px rgb(15 23 42 / 10%);
+    }
+
+    .scroll-bottom-button {
+      right: 20px;
+      bottom: 132px;
     }
 
     .status-panel {
@@ -2967,10 +3538,17 @@ style.textContent = `
       max-height: min(230px, 32dvh);
     }
 
-    .model-picker-menu {
+    .model-picker-menu,
+    .reasoning-picker-menu {
       right: 0;
       bottom: calc(100% + 10px);
+      width: min(280px, calc(100% - 8px));
       max-height: min(256px, 36dvh);
+    }
+
+    .reasoning-picker-menu {
+      right: auto;
+      left: 0;
     }
 
     .slash-command-option {
@@ -3032,10 +3610,6 @@ style.textContent = `
     color: #374151;
     background: #ffffff;
     border-color: #d1d5db;
-  }
-
-  :root[data-webui-theme='light'] .mobile-sidebar-button::after {
-    color: #374151;
   }
 
   :root[data-webui-theme='light'] .context-orb {

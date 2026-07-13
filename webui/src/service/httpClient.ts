@@ -18,7 +18,7 @@ export class WebUiHttpError extends Error {
   }
 }
 
-const DEFAULT_TIMEOUT_MS = 15_000
+const DEFAULT_TIMEOUT_MS = 60_000
 
 const isApiError = (value: unknown): value is WebUiApiError => {
   return Boolean(value && typeof value === 'object' && typeof (value as { message?: unknown }).message === 'string')

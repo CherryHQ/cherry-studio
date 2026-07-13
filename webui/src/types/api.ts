@@ -38,7 +38,22 @@ export type WebUiMessageSnapshot = {
   readonly content: string
   readonly reasoning?: string
   readonly toolCalls?: readonly WebUiToolCallSnapshot[]
+  readonly attachments?: readonly WebUiMessageAttachmentSnapshot[]
+  readonly status: 'pending' | 'success' | 'error' | 'paused'
+  readonly processingTimeMs?: number
   readonly createdAt: string
+}
+
+export type WebUiMessageAttachmentSnapshot = {
+  readonly name: string
+  readonly mediaType?: string
+}
+
+export type WebUiSendAttachment = {
+  readonly name: string
+  readonly mediaType: string
+  readonly size: number
+  readonly dataUrl: string
 }
 
 export type WebUiToolCallState =
@@ -131,6 +146,7 @@ export type WebUiModel = {
   readonly isEnabled: boolean
   readonly isHidden: boolean
   readonly capabilities: readonly string[]
+  readonly reasoningOptions?: readonly string[]
 }
 
 export type WebUiModelGroup = {
@@ -163,6 +179,13 @@ export type WebUiMessagePart = {
   readonly input?: unknown
   readonly output?: unknown
   readonly errorText?: string
+  readonly filename?: string
+  readonly mediaType?: string
+  readonly providerMetadata?: {
+    readonly cherry?: {
+      readonly thinkingMs?: number
+    }
+  }
 }
 
 export type WebUiAgentSessionMessageEntity = {
@@ -174,6 +197,10 @@ export type WebUiAgentSessionMessageEntity = {
   }
   readonly searchableText: string
   readonly status: 'pending' | 'success' | 'error' | 'paused'
+  readonly stats?: {
+    readonly timeCompletionMs?: number
+    readonly timeThinkingMs?: number
+  } | null
   readonly createdAt: string
   readonly updatedAt: string
 }
