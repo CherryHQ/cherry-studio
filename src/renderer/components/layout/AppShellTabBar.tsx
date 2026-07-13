@@ -4,6 +4,7 @@ import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -26,6 +27,7 @@ type AppShellTabBarProps = {
   unpinTab: (id: string) => void
   detachTab?: (id: string) => void
   openTab: (url: string, options?: OpenTabOptions) => string
+  leftInset?: 'platform' | 'none'
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -372,7 +374,8 @@ export const AppShellTabBar = ({
   pinTab,
   unpinTab,
   detachTab,
-  openTab
+  openTab,
+  leftInset = 'platform'
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -477,6 +480,7 @@ export const AppShellTabBar = ({
   const handleOpenLaunchpad = () => {
     openTab('/app/launchpad', { title: t('title.launchpad') })
   }
+  const leftPaddingClass = leftInset === 'none' ? 'pl-0' : isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -488,12 +492,15 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          'pl-0'
+          leftPaddingClass
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
+          className={cn(
+            'flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden',
+            leftInset === 'platform' && 'pl-1'
+          )}>
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

@@ -23,11 +23,8 @@ type AppItem = {
   contextMenuItems?: ResolvedSidebarEntry['contextMenuItems']
 }
 
-const { uiMocks, platformState } = vi.hoisted(() => ({
-  uiMocks: {
-    sortableCalls: [] as any[]
-  },
-  platformState: { isMac: false }
+const uiMocks = vi.hoisted(() => ({
+  sortableCalls: [] as any[]
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -69,12 +66,6 @@ vi.mock('../Tooltip', () => ({
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
-}))
-
-vi.mock('@renderer/utils/platform', () => ({
-  get isMac() {
-    return platformState.isMac
-  }
 }))
 
 vi.mock('@renderer/components/command', () => ({
@@ -161,7 +152,6 @@ const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
   uiMocks.sortableCalls.length = 0
-  platformState.isMac = false
 })
 
 function dragResizeFrom(width: number, moves: number | number[]) {
@@ -190,20 +180,6 @@ function dragResizeFrom(width: number, moves: number | number[]) {
 }
 
 describe('Sidebar resize handle', () => {
-  it('reserves a non-draggable title bar area for the macOS window controls', () => {
-    platformState.isMac = true
-
-    render(<Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />)
-
-    const spacer = screen.getByTestId('sidebar-titlebar-spacer')
-    const sidebar = spacer.parentElement
-    const header = spacer.nextElementSibling
-
-    expect(spacer).toHaveClass('h-[37.5px]', '[-webkit-app-region:no-drag]')
-    expect(sidebar).not.toHaveClass('[-webkit-app-region:drag]')
-    expect(header).toHaveClass('[-webkit-app-region:drag]')
-  })
-
   it('keeps the existing handle width and opts out of window drag regions', () => {
     const { container } = render(
       <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
@@ -293,12 +269,7 @@ describe('Sidebar resize handle', () => {
     expect(getSidebarDisplayWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
-  it('uses a 65px icon sidebar width', () => {
-    expect(SIDEBAR_ICON_WIDTH).toBe(65)
-  })
-
   it('normalizes persisted intermediate widths to icon width', () => {
-    expect(normalizeSidebarWidth(50)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(INTERMEDIATE_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
     expect(normalizeSidebarWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)

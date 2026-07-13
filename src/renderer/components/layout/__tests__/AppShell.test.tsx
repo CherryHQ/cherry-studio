@@ -4,24 +4,15 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, platformState } = vi.hoisted(() => ({
-  mocks: {
-    commandHandlers: new Map<string, () => void>(),
-    showSearchPopup: vi.fn()
-  },
-  platformState: { isMac: false }
+const mocks = vi.hoisted(() => ({
+  commandHandlers: new Map<string, () => void>(),
+  showSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/databases/db', () => ({}))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
-}))
-
-vi.mock('@renderer/utils/platform', () => ({
-  get isMac() {
-    return platformState.isMac
-  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -90,26 +81,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.commandHandlers.clear()
-  platformState.isMac = false
 })
-
-function expectSidebarAndContentColumnLayout(container: HTMLElement) {
-  const root = container.firstElementChild
-  const sidebar = screen.getByTestId('sidebar')
-  const tabBar = screen.getByTestId('tab-bar')
-  const tabRouter = screen.getByTestId('tab-router')
-  const contentColumn = tabBar.parentElement
-
-  if (!(root instanceof HTMLElement) || !(contentColumn instanceof HTMLElement)) {
-    throw new Error('Expected AppShell to render a root and content column')
-  }
-
-  expect(sidebar.parentElement).toBe(root)
-  expect(contentColumn.parentElement).toBe(root)
-  expect(contentColumn).toContainElement(tabBar)
-  expect(contentColumn).toContainElement(tabRouter)
-  expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
-}
 
 describe('AppShell', () => {
   it('opens global search from the shell-level shortcut', () => {
@@ -123,14 +95,20 @@ describe('AppShell', () => {
   it('keeps the Windows and Linux tab bar inside the content column beside the sidebar', () => {
     const { container } = render(<AppShell />)
 
-    expectSidebarAndContentColumnLayout(container)
-  })
+    const root = container.firstElementChild
+    const sidebar = screen.getByTestId('sidebar')
+    const tabBar = screen.getByTestId('tab-bar')
+    const tabRouter = screen.getByTestId('tab-router')
+    const contentColumn = tabBar.parentElement
 
-  it('uses the same sidebar and content column layout on macOS', () => {
-    platformState.isMac = true
+    if (!(root instanceof HTMLElement) || !(contentColumn instanceof HTMLElement)) {
+      throw new Error('Expected AppShell to render a root and content column')
+    }
 
-    const { container } = render(<AppShell />)
-
-    expectSidebarAndContentColumnLayout(container)
+    expect(sidebar.parentElement).toBe(root)
+    expect(contentColumn.parentElement).toBe(root)
+    expect(contentColumn).toContainElement(tabBar)
+    expect(contentColumn).toContainElement(tabRouter)
+    expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
   })
 })

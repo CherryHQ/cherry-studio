@@ -7,7 +7,6 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
-import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -16,7 +15,6 @@ import {
   REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
-import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -29,12 +27,10 @@ import {
   getSidebarLayout,
   normalizeSidebarWidth,
   Sidebar as UISidebar,
-  SIDEBAR_ICON_WIDTH,
   type SidebarUser,
   type SidebarVisibleLayout,
   UserAvatar
 } from '../Sidebar'
-import { MacWindowControls } from '../WindowControls'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
@@ -60,7 +56,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
-  // intermediate 65-120px range uses a local preview width so the UI can
+  // intermediate 50-120px range uses a local preview width so the UI can
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
@@ -71,7 +67,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [activeSidebarWidth])
 
   // Migration, not dead code: the resize path only persists normalized widths,
-  // but older builds persisted the previous 50px icon width and intermediate
+  // but older builds (three-state layout, default 65) persisted intermediate
   // values that must be collapsed once on load. Writing derived state back
   // cannot loop — normalizeSidebarWidth is idempotent and the write is guarded
   // by the inequality check. Skip while a drag preview is active so the
@@ -271,12 +267,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div
-      ref={ref}
-      id="app-sidebar"
-      className={cn('relative h-full [-webkit-app-region:no-drag]', isMac && 'shrink-0')}
-      style={{ minWidth: isMac ? SIDEBAR_ICON_WIDTH : undefined }}>
-      {isMac && <MacWindowControls />}
+    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
       <UISidebar
         width={activeSidebarWidth}
         setWidth={setSidebarWidth}

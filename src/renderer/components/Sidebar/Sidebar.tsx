@@ -4,7 +4,6 @@ import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
-import { TITLE_BAR_HEIGHT_CLASS } from '../layout/titleBar'
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
@@ -61,12 +60,6 @@ export function Sidebar({
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
   const showSearch = Boolean(onSearchClick)
   const logoNode = logo ?? <DefaultLogo title={title} />
-  const titleBarSpacer = isMac ? (
-    <div
-      data-testid="sidebar-titlebar-spacer"
-      className={`shrink-0 [-webkit-app-region:no-drag] ${TITLE_BAR_HEIGHT_CLASS}`}
-    />
-  ) : null
 
   const renderLogo = (size: 'sm' | 'default' = 'default') => (
     <div
@@ -126,7 +119,8 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200'
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
@@ -139,7 +133,6 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          {titleBarSpacer}
           <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {renderLogo()}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
@@ -207,10 +200,9 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
+        'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {titleBarSpacer}
       {/* Header */}
       <div
         className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
