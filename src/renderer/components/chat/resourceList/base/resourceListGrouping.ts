@@ -1,44 +1,8 @@
-import dayjs from 'dayjs'
-
 import type { ResourceListGroup } from './ResourceListContext'
-
-export type ResourceListTimeBucket = 'today' | 'yesterday' | 'this-week' | 'earlier'
 
 export type ResourceListGroupResolver<T> = (item: T) => ResourceListGroup | null
 
-type TimestampInput = dayjs.ConfigType
 type GroupRankResolver<T> = (item: T) => number
-
-export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
-  if (timestamp === undefined) {
-    return 'earlier'
-  }
-
-  const item = dayjs(timestamp)
-  const current = now === undefined ? dayjs() : dayjs(now)
-  if (!item.isValid() || !current.isValid()) {
-    return 'earlier'
-  }
-
-  const itemStart = item.startOf('day')
-  const todayStart = current.startOf('day')
-
-  if (itemStart.isSame(todayStart)) {
-    return 'today'
-  }
-
-  const yesterdayStart = todayStart.subtract(1, 'day')
-  if (itemStart.isSame(yesterdayStart)) {
-    return 'yesterday'
-  }
-
-  const weekStart = todayStart.startOf('week')
-  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
-    return 'this-week'
-  }
-
-  return 'earlier'
-}
 
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
@@ -62,21 +26,6 @@ export function createPinnedGroupResolver<T>({
   return (item) => (isPinned(item) ? group : null)
 }
 
-export function createTimeGroupResolver<T>({
-  getTimestamp,
-  labels,
-  now
-}: {
-  getTimestamp: (item: T) => TimestampInput
-  labels: Record<ResourceListTimeBucket, string>
-  now?: TimestampInput
-}): ResourceListGroupResolver<T> {
-  return (item) => {
-    const bucket = getResourceTimeBucket(getTimestamp(item), now)
-    return { id: `time:${bucket}`, label: labels[bucket] }
-  }
-}
-
 export function createPinnedFirstSorter<T>({ isPinned }: { isPinned: (item: T) => boolean }): GroupRankResolver<T> {
   return (item) => (isPinned(item) ? 0 : 1)
 }
@@ -95,10 +44,8 @@ export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: Gr
  *
  * 1. `getRank` — group rank (callers fold pinned to `0` so pins float to the top).
  * 2. Pinned rows keep their incoming order — the server returns them by
- *    `pin.orderKey`, so they are never reshuffled by the within-group key.
- * 3. `compareWithinGroup` — non-pinned order inside a group: recency
- *    (`compareResourceRecency`) for time views, `compareResourceOrderKey` for
- *    manual/drag views.
+ *    the server's business ordering, so they are never reshuffled by the within-group key.
+ * 3. `compareWithinGroup` — non-pinned order inside a group.
  * 4. Stable incoming-index tiebreak.
  */
 export function sortRankedResourceItems<T>(
@@ -123,18 +70,4 @@ export function sortRankedResourceItems<T>(
       return a.index - b.index
     })
     .map(({ item }) => item)
-}
-
-/**
- * Within-group recency comparator for `sortRankedResourceItems`: newest
- * `updatedAt` first. Unparseable timestamps compare equal so they defer to the
- * caller's stable index tiebreak rather than sorting arbitrarily.
- */
-export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
-  return (a, b) => {
-    const aMs = Date.parse(getUpdatedAt(a))
-    const bMs = Date.parse(getUpdatedAt(b))
-    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
-    return 0
-  }
 }

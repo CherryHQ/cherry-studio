@@ -54,14 +54,11 @@ export {
   useResourceListView
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
-export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
+export type { ResourceListGroupResolver } from './resourceListGrouping'
 export {
-  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
-  createTimeGroupResolver,
-  getResourceTimeBucket,
   sortByResourceGroupRank,
   sortRankedResourceItems
 } from './resourceListGrouping'
@@ -71,8 +68,7 @@ export {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
-  moveResourceListStringGroupAfterDrop,
-  withResourceListGroupIdPrefix
+  moveResourceListStringGroupAfterDrop
 } from './resourceListReorder'
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'

@@ -1,5 +1,4 @@
 import type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceList'
-import type { ResourceListGroupResolver } from './resourceListGrouping'
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
 
@@ -46,15 +45,4 @@ export function moveResourceListStringGroupAfterDrop(
   next.splice(insertIndex, 0, activeId)
 
   return next
-}
-
-export function withResourceListGroupIdPrefix<T>(
-  prefix: string,
-  resolver: ResourceListGroupResolver<T>
-): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `${prefix}${group.id}` }
-  }
 }
