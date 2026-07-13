@@ -10,6 +10,7 @@ class FakeXlsxWorker {
   onerror: ((event: { message: string; error?: unknown }) => void) | null = null
   terminate = vi.fn()
   postMessage = vi.fn((request: XlsxParseRequest) => {
+    if (mocks.postMessageError) throw mocks.postMessageError
     mocks.requests.push(request)
   })
 
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   fsRead: vi.fn(),
   workers: [] as unknown[],
   requests: [] as Array<{ id: number; fileName: string; data: ArrayBuffer }>,
+  postMessageError: null as Error | null,
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -53,6 +55,7 @@ describe('useXlsxWorkbook', () => {
     vi.clearAllMocks()
     mocks.workers.length = 0
     mocks.requests.length = 0
+    mocks.postMessageError = null
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3, 4]))
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -96,6 +99,18 @@ describe('useXlsxWorkbook', () => {
 
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(result.current).toEqual({ status: 'ready', model })
+  })
+
+  it('terminates the worker and reports a synchronous postMessage failure', async () => {
+    const error = new Error('structured clone failed')
+    mocks.postMessageError = error
+
+    const { result } = renderHook(() => useXlsxWorkbook('/tmp/book.xlsx', 0))
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'error', message: error.message }))
+    expect(lastWorker().terminate).toHaveBeenCalledTimes(1)
+    expect(mocks.requests).toHaveLength(0)
+    expect(mocks.logger.error).toHaveBeenCalledWith('Failed to start xlsx parser worker', error)
   })
 
   it('discards responses whose id does not match the latest request', async () => {

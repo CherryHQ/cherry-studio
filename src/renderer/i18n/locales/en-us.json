@@ -8059,6 +8059,7 @@
     "visualization": "Visualization"
   },
   "xlsx_preview": {
+    "chart": "Chart",
     "chart_unsupported": "This chart type isn't supported yet",
     "error": {
       "description": "This spreadsheet couldn't be previewed."
@@ -8066,7 +8067,7 @@
     "formula_not_evaluated": "Formula couldn't be evaluated",
     "sheet_tabs_label": "Sheets",
     "too_large": {
-      "description": "File exceeds the {{limit}} preview limit.",
+      "description": "File size {{size}} exceeds the {{limit}} preview limit.",
       "title": "File too large to preview"
     }
   }

@@ -42,6 +42,12 @@ describe('parseTheme', () => {
     const theme = parseTheme('<not-xml-at-all')
     expect(theme.colors).toHaveLength(12)
   })
+
+  it('falls back per slot when a theme color is not a six-digit RGB value', () => {
+    const invalidAccentTheme = SAMPLE_THEME_XML.replace('val="4F81BD"', 'val="FFF"')
+
+    expect(parseTheme(invalidAccentTheme).colors[4]).toBe(parseTheme(null).colors[4])
+  })
 })
 
 describe('resolveColor', () => {

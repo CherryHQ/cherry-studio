@@ -271,6 +271,7 @@ interface ChartHostProps {
 
 /** Chart mount host. The ref callback owns the disposer returned by renderChart and calls it on unmount/replacement. */
 const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
+  const { t } = useTranslation()
   const disposeRef = useRef<(() => void) | null>(null)
   const setRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -280,7 +281,7 @@ const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
     [chart, renderChart]
   )
 
-  return <div ref={setRef} className="h-full w-full" />
+  return <div ref={setRef} className="h-full w-full" role="img" aria-label={chart.title || t('xlsx_preview.chart')} />
 }
 
 const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }: XlsxGridProps) => {

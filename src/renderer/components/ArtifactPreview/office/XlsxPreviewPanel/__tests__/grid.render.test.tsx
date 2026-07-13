@@ -628,6 +628,7 @@ describe('XlsxGrid — floating layer', () => {
     const [chartArg, container] = renderChart.mock.calls[0]
     expect(chartArg.type).toBe('bar')
     expect(container).toBeInstanceOf(HTMLElement)
+    expect(screen.getByRole('img', { name: 'Quarterly Sales' })).toBe(container)
     expect(dispose).not.toHaveBeenCalled()
 
     unmount()

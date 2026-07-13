@@ -171,6 +171,7 @@ function applyTint(rgbHex: string, tint: number): string {
 const rgbHexToCss = (rgbHex: string): string => `#${rgbHex.toLowerCase()}`
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
+const RGB_HEX_PATTERN = /^[0-9a-f]{6}$/i
 
 interface ClrNode {
   'a:srgbClr'?: { '@_val'?: string }
@@ -179,9 +180,8 @@ interface ClrNode {
 
 function readClr(node: ClrNode | undefined): string | undefined {
   if (!node) return undefined
-  if (node['a:srgbClr']?.['@_val']) return node['a:srgbClr']['@_val']
-  if (node['a:sysClr']?.['@_lastClr']) return node['a:sysClr']['@_lastClr']
-  return undefined
+  const value = node['a:srgbClr']?.['@_val'] ?? node['a:sysClr']?.['@_lastClr']
+  return value && RGB_HEX_PATTERN.test(value) ? value : undefined
 }
 
 /** themeXml null -> built-in Office default theme color table. */

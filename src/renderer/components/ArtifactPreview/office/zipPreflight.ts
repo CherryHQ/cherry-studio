@@ -50,9 +50,10 @@ function assertNoZip64Uint32Marker(value: number, label: string): void {
 }
 
 /**
- * OOXML (docx/xlsx/pptx) ZIP central-directory preflight. Before handing bytes to an unzip library, reject zip bombs
- * based on the central directory's declared entry count and uncompressed size. `label` is the user-facing format name,
- * such as 'DOCX' or 'XLSX'.
+ * OOXML (docx/xlsx/pptx) ZIP central-directory preflight. Before handing bytes to an unzip library, reject archives
+ * whose declared entry count or uncompressed size exceeds the preview budget. These fields are attacker-controlled
+ * metadata, so this is declared-size defense rather than a hard cap on actual decompressor output. `label` is the
+ * user-facing format name, such as 'DOCX' or 'XLSX'.
  */
 function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimits = OFFICE_ZIP_LIMITS): void {
   if (bytes.byteLength < ZIP_EOCD_MIN_BYTES) {

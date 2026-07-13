@@ -12,6 +12,7 @@ import XlsxPreviewPanel from '../XlsxPreviewPanel'
 const mocks = vi.hoisted(() => ({
   workbookState: { status: 'idle' } as unknown,
   useXlsxWorkbookCalls: [] as Array<{ filePath: string; refreshKey: number; sourceSize?: number }>,
+  translationCalls: [] as Array<{ key: string; options?: Record<string, unknown> }>,
   gridProps: [] as unknown[],
   chartRendererRender: vi.fn(() => () => {}),
   chartRendererModuleLoadCount: 0,
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../useXlsxWorkbook', () => ({
+  XLSX_PREVIEW_MAX_SIZE_BYTES: 20 * 1024 * 1024,
   useXlsxWorkbook: (filePath: string, refreshKey: number, sourceSize?: number) => {
     mocks.useXlsxWorkbookCalls.push({ filePath, refreshKey, sourceSize })
     return mocks.workbookState
@@ -139,7 +141,10 @@ vi.mock('@renderer/components/chat/primitives', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: Record<string, unknown>) => {
+      mocks.translationCalls.push({ key, options })
+      return key
+    }
   })
 }))
 
@@ -167,6 +172,7 @@ describe('XlsxPreviewPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useXlsxWorkbookCalls.length = 0
+    mocks.translationCalls.length = 0
     mocks.gridProps.length = 0
     mocks.chartRendererRender.mockImplementation(() => () => {})
     mocks.chartRendererModuleShouldReject = false
@@ -207,6 +213,10 @@ describe('XlsxPreviewPanel', () => {
 
     expect(screen.getByTestId('empty-state')).toHaveTextContent('xlsx_preview.too_large.title')
     expect(screen.getByTestId('empty-state')).toHaveTextContent('xlsx_preview.too_large.description')
+    expect(mocks.translationCalls).toContainEqual({
+      key: 'xlsx_preview.too_large.description',
+      options: { size: '25.0 MB', limit: '20.0 MB' }
+    })
   })
 
   it('surfaces the actions slot in the oversize and error states', () => {

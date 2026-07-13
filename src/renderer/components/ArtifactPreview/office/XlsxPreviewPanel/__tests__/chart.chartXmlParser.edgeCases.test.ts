@@ -246,6 +246,21 @@ describe('parseCharts — hostile cache declarations are bounded', () => {
     expect(charts[0].series[0].values).toEqual([10, 20])
   })
 
+  it('normalizes a non-Error failure from the chart data accessor', async () => {
+    const zip = buildHostileZip('<c:ptCount val="10000"/>')
+    const failure: unknown = null
+    const throwingDataAccessor: SheetDataAccessor = {
+      readRange: () => {
+        throw failure
+      }
+    }
+
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, throwingDataAccessor)
+
+    expect(charts).toHaveLength(1)
+    expect(warnings).toContain('chart data reference failed: Sheet1!$B$2:$B$3 (null)')
+  })
+
   it('caps untrusted chart series before parsing their declared caches', async () => {
     const seriesXml = `<c:ser>
       <c:cat><c:strRef><c:strCache><c:ptCount val="10000"/></c:strCache></c:strRef></c:cat>

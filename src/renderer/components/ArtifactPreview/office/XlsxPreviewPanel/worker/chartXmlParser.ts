@@ -38,6 +38,8 @@ const xmlParser = new XMLParser({
   trimValues: false
 })
 
+const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
 /** Any node value produced by fast-xml-parser: element object/array or primitive value. */
 type XmlNode = Record<string, unknown>
 
@@ -398,7 +400,7 @@ const safeReadRange = (
   try {
     return data.readRange(ref)
   } catch (err) {
-    warnings.push(`chart data reference failed: ${ref} (${(err as Error).message})`)
+    warnings.push(`chart data reference failed: ${ref} (${errorMessage(err)})`)
     return null
   }
 }
@@ -577,7 +579,7 @@ export async function parseCharts(
             parsed = parseChartXml(chartXml, data, warnings)
           }
         } catch (err) {
-          warnings.push(`failed to parse chart: ${(err as Error).message}`)
+          warnings.push(`failed to parse chart: ${errorMessage(err)}`)
           parsed = null
         }
         chartPartCache.set(chartPartPath, parsed)
@@ -585,7 +587,7 @@ export async function parseCharts(
       if (parsed) charts.push({ ...parsed, rect: anchored.rect })
     }
   } catch (err) {
-    warnings.push(`failed to parse charts for sheet "${sheetName}": ${(err as Error).message}`)
+    warnings.push(`failed to parse charts for sheet "${sheetName}": ${errorMessage(err)}`)
   }
 
   return { charts, warnings }

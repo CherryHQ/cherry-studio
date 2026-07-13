@@ -214,6 +214,18 @@ describe('createFormulaEvaluator — custom aggregate functions (library stubs)'
     expect(evaluator.evaluate('MAX(Z1:Z5)', at(23))).toEqual({ state: 'evaluated', value: 0 })
   })
 
+  it('propagates an error cell through custom numeric aggregates', () => {
+    const { evaluator } = setup({
+      Sheet1: {
+        '1:1': { value: 10 },
+        '2:1': { value: '#DIV/0!' }
+      }
+    })
+
+    expect(evaluator.evaluate('MAX(A1:A2)', at(24))).toEqual({ state: 'evaluated', value: '#DIV/0!' })
+    expect(evaluator.evaluate('MEDIAN(A1:A2)', at(25))).toEqual({ state: 'evaluated', value: '#DIV/0!' })
+  })
+
   it('MAX/MIN scan large combined inputs without spreading them into function arguments', () => {
     const values = Array.from({ length: 200_000 }, (_, index) => index - 100_000)
     const arg: FunctionArg = { value: [values], isArray: true }

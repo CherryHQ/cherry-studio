@@ -8059,6 +8059,7 @@
     "visualization": "可视化"
   },
   "xlsx_preview": {
+    "chart": "图表",
     "chart_unsupported": "暂不支持此图表类型",
     "error": {
       "description": "无法预览此电子表格。"
@@ -8066,7 +8067,7 @@
     "formula_not_evaluated": "公式无法求值",
     "sheet_tabs_label": "工作表",
     "too_large": {
-      "description": "文件超过 {{limit}} 的预览大小限制。",
+      "description": "文件大小 {{size}} 超过 {{limit}} 的预览大小限制。",
       "title": "文件过大，无法预览"
     }
   }

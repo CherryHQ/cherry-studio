@@ -19,11 +19,27 @@ const { NUMBER } = FormulaParser.Types
 const FormulaError = FormulaParser.FormulaError
 const IS_GREATER = (value: number, current: number): boolean => value > current
 const IS_LESS = (value: number, current: number): boolean => value < current
+const EXCEL_ERROR_CODES: ReadonlySet<string> = new Set([
+  '#DIV/0!',
+  '#N/A',
+  '#NAME?',
+  '#NULL!',
+  '#NUM!',
+  '#REF!',
+  '#VALUE!'
+])
+
+function throwIfErrorValue(value: unknown): void {
+  if (typeof value === 'string' && EXCEL_ERROR_CODES.has(value)) {
+    throw new FormulaError(value)
+  }
+}
 
 /** Flatten all arguments and collect numeric scalars only. Text, empty cells, and booleans follow Excel aggregate semantics. */
 function collectNumbers(params: FunctionArg[]): number[] {
   const nums: number[] = []
   H.flattenParams(params, NUMBER, true, (item) => {
+    throwIfErrorValue(item)
     if (typeof item === 'number' && !Number.isNaN(item)) nums.push(item)
   })
   return nums
@@ -34,6 +50,7 @@ function findExtremum(params: FunctionArg[], isBetter: (value: number, current: 
   let found = false
   let result = 0
   H.flattenParams(params, NUMBER, true, (item) => {
+    throwIfErrorValue(item)
     if (typeof item !== 'number' || Number.isNaN(item)) return
     if (!found || isBetter(item, result)) {
       result = item

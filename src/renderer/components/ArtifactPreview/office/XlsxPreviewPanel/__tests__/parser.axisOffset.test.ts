@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { axisOffsetPx } from '../worker/parseWorkbook'
+import { axisCountForPxExtent, axisOffsetPx, imageMimeForExtension } from '../worker/parseWorkbook'
 
 /**
  * Guards drawing-anchor offset math. Anchor col/row come from untrusted XML, so the offset must be computed without
@@ -29,5 +29,39 @@ describe('axisOffsetPx — anchor offset is independent of coordinate magnitude'
   it('treats non-positive coordinates as the sheet origin', () => {
     expect(axisOffsetPx(0, {}, 64)).toBe(0)
     expect(axisOffsetPx(-10, {}, 64)).toBe(0)
+  })
+})
+
+describe('axisCountForPxExtent — drawing extents use sparse inverse lookup', () => {
+  it('handles custom and hidden tracks at their exact boundaries', () => {
+    const sizes = { 2: 100, 3: 0 }
+
+    expect(axisCountForPxExtent(64, sizes, 64, 100)).toEqual({ count: 1, truncated: false })
+    expect(axisCountForPxExtent(164, sizes, 64, 100)).toEqual({ count: 2, truncated: false })
+    // Track 3 is hidden, so the first pixel after track 2 belongs to track 4.
+    expect(axisCountForPxExtent(164.01, sizes, 64, 100)).toEqual({ count: 4, truncated: false })
+  })
+
+  it('caps a hostile extent without scanning every possible row', () => {
+    const start = performance.now()
+    expect(axisCountForPxExtent(Number.MAX_SAFE_INTEGER, { 2: 100 }, 20, 1_000_000_000)).toEqual({
+      count: 1_000_000_000,
+      truncated: true
+    })
+    expect(performance.now() - start).toBeLessThan(50)
+  })
+})
+
+describe('imageMimeForExtension', () => {
+  it('accepts known bitmap formats case-insensitively', () => {
+    expect(imageMimeForExtension('PNG')).toBe('image/png')
+    expect(imageMimeForExtension('jpeg')).toBe('image/jpeg')
+    expect(imageMimeForExtension('webp')).toBe('image/webp')
+  })
+
+  it('rejects active or unknown embedded image formats', () => {
+    expect(imageMimeForExtension('svg')).toBeUndefined()
+    expect(imageMimeForExtension('html')).toBeUndefined()
+    expect(imageMimeForExtension(undefined)).toBeUndefined()
   })
 })

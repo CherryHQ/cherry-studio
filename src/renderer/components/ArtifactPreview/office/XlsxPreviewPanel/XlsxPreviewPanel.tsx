@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { formatFileSize } from '@renderer/utils/file'
 import { AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { ZoomControls } from '../../DocumentPreviewToolbar'
 import type { ChartRenderer } from './charts/ChartRenderer'
 import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './renderModel'
-import { useXlsxWorkbook } from './useXlsxWorkbook'
+import { useXlsxWorkbook, XLSX_PREVIEW_MAX_SIZE_BYTES } from './useXlsxWorkbook'
 import type { SelectedCellInfo } from './XlsxGrid'
 import XlsxGrid from './XlsxGrid'
 
@@ -25,9 +26,6 @@ interface XlsxPreviewPanelProps {
 /** Zoom levels. The default index is 2 (=1). */
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const DEFAULT_ZOOM = 1
-
-/** Keep the same static-label style as ArtifactPane's 2 MB text preview limit instead of formatting dynamically. */
-const XLSX_PREVIEW_MAX_SIZE_LABEL = '20 MB'
 
 const formatZoomLabel = (zoom: number) => `${Math.round(zoom * 100)}%`
 
@@ -161,7 +159,10 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
       <EmptyState
         icon={FileSpreadsheet}
         title={t('xlsx_preview.too_large.title')}
-        description={t('xlsx_preview.too_large.description', { limit: XLSX_PREVIEW_MAX_SIZE_LABEL })}
+        description={t('xlsx_preview.too_large.description', {
+          size: formatFileSize(state.sizeBytes),
+          limit: formatFileSize(XLSX_PREVIEW_MAX_SIZE_BYTES)
+        })}
         actions={actions}
       />
     )

@@ -55,6 +55,15 @@ const VERTICAL_ALIGNMENT_MAP: Record<string, CellStyle['vAlign']> = {
   middle: 'middle',
   bottom: 'bottom'
 }
+const IMAGE_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  webp: 'image/webp'
+}
+const FORMULA_DATE_KEY_STRIDE = MAX_COLS + 1
 
 /** Internal formula cell collected during the first parsing pass for later evaluation. */
 interface PendingFormulaCell {
@@ -140,6 +149,17 @@ interface AxisExtent {
   truncated: boolean
 }
 
+interface SparseAxisIndex {
+  defaultSizePx: number
+  overridePositions: number[]
+  cumulativeDeltas: number[]
+}
+
+interface SheetAxisIndexes {
+  rows: SparseAxisIndex
+  cols: SparseAxisIndex
+}
+
 interface RectUsedRange {
   rowCount: number
   colCount: number
@@ -173,33 +193,65 @@ function colNameToIndex(name: string): number {
   return n
 }
 
-function axisCountForPxExtent(
-  endPx: number,
-  defaultSizePx: number,
-  overrides: Record<number, number>,
-  maxCount: number
-): AxisExtent {
+function buildSparseAxisIndex(sizesByIndex: Record<number, number>, defaultSize: number): SparseAxisIndex {
+  const defaultSizePx = Math.max(defaultSize, 0)
+  const overridePositions = Object.keys(sizesByIndex)
+    .map(Number)
+    .filter((position) => Number.isInteger(position) && position >= 1)
+    .sort((a, b) => a - b)
+  const cumulativeDeltas = new Array<number>(overridePositions.length)
+  let cumulativeDelta = 0
+  for (let index = 0; index < overridePositions.length; index++) {
+    const position = overridePositions[index]
+    cumulativeDelta += Math.max(sizesByIndex[position] ?? defaultSizePx, 0) - defaultSizePx
+    cumulativeDeltas[index] = cumulativeDelta
+  }
+  return { defaultSizePx, overridePositions, cumulativeDeltas }
+}
+
+function upperBound(values: number[], target: number): number {
+  let low = 0
+  let high = values.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (values[mid] <= target) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+function axisOffsetFromIndex(index: number, axis: SparseAxisIndex): number {
+  const before = Math.max(index, 1) - 1
+  const overrideCount = upperBound(axis.overridePositions, before)
+  const correction = overrideCount > 0 ? axis.cumulativeDeltas[overrideCount - 1] : 0
+  return before * axis.defaultSizePx + correction
+}
+
+function axisCountFromIndex(endPx: number, axis: SparseAxisIndex, maxCount: number): AxisExtent {
   if (!Number.isFinite(endPx) || endPx <= 0) return { count: 0, truncated: false }
 
-  let offset = 0
-  for (let i = 1; i <= maxCount; i++) {
-    offset += Math.max(overrides[i] ?? defaultSizePx, 0)
-    if (offset >= endPx) return { count: i, truncated: false }
+  const maxExtentPx = axisOffsetFromIndex(maxCount + 1, axis)
+  if (endPx > maxExtentPx) return { count: maxCount, truncated: true }
+
+  let low = 1
+  let high = maxCount
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (axisOffsetFromIndex(mid + 1, axis) >= endPx) high = mid
+    else low = mid + 1
   }
-  return { count: maxCount, truncated: endPx > offset }
+  return { count: low, truncated: false }
 }
 
 function usedRangeForPxRect(
   rect: { x: number; y: number; width: number; height: number },
-  defaultRowHeightPx: number,
-  defaultColWidthPx: number,
-  rowHeightsPx: Record<number, number>,
-  colWidthsPx: Record<number, number>
+  rowAxis: SparseAxisIndex,
+  colAxis: SparseAxisIndex
 ): RectUsedRange {
   const right = rect.x + Math.max(rect.width, 0)
   const bottom = rect.y + Math.max(rect.height, 0)
-  const rowExtent = axisCountForPxExtent(bottom, defaultRowHeightPx, rowHeightsPx, MAX_ROWS)
-  const colExtent = axisCountForPxExtent(right, defaultColWidthPx, colWidthsPx, MAX_COLS)
+  const rowExtent = axisCountFromIndex(bottom, rowAxis, MAX_ROWS)
+  const colExtent = axisCountFromIndex(right, colAxis, MAX_COLS)
 
   return {
     rowCount: rowExtent.count,
@@ -231,7 +283,7 @@ function parseA1Range(ref: string): ParsedA1Range | null {
   const bangIndex = ref.lastIndexOf('!')
   if (bangIndex !== -1) {
     // Quoted sheet names escape an embedded apostrophe by doubling it, e.g. `'Bob''s Data'`. Strip the outer quotes,
-    // then unescape `''` -> `'` so the lookup key matches the sheet name stored in rawValueTable.
+    // then unescape `''` -> `'` so the lookup key matches the parsed sheet name.
     sheet = ref.slice(0, bangIndex).replace(/^'|'$/g, '').replace(/''/g, "'")
     rest = ref.slice(bangIndex + 1)
   }
@@ -254,12 +306,14 @@ function parseA1Range(ref: string): ParsedA1Range | null {
 }
 
 /**
- * Read an A1 range from the raw value table as a 2D array for chart reference backfill. Ranges exceeding
+ * Read an A1 range from the parsed cell-value reader as a 2D array for chart reference backfill. Ranges exceeding
  * MAX_CHART_RANGE_CELLS by area throw so chartXmlParser's safeReadRange catch treats them as missing data instead of
  * materializing a huge array. Booleans are mapped to 1/0, empty cells to null. Returns null for unparseable refs.
  */
-export function readRangeFromValueTable(
-  rawValueTable: Map<string, string | number | boolean | null>,
+type CellValueReader = (sheet: string, row: number, col: number) => string | number | boolean | null
+
+function readRangeFromValueReader(
+  readValue: CellValueReader,
   fallbackSheet: string,
   ref: string
 ): (string | number | null)[][] | null {
@@ -275,12 +329,25 @@ export function readRangeFromValueTable(
   for (let r = parsed.top; r <= parsed.bottom; r++) {
     const rowValues: (string | number | null)[] = []
     for (let c = parsed.left; c <= parsed.right; c++) {
-      const raw = rawValueTable.get(`${refSheet}!${r}:${c}`)
+      const raw = readValue(refSheet, r, c)
       rowValues.push(typeof raw === 'boolean' ? (raw ? 1 : 0) : (raw ?? null))
     }
     result.push(rowValues)
   }
   return result
+}
+
+/** Compatibility helper kept for the chart-range guard's pure unit coverage. Production uses the cell-model reader. */
+export function readRangeFromValueTable(
+  rawValueTable: Map<string, string | number | boolean | null>,
+  fallbackSheet: string,
+  ref: string
+): (string | number | null)[][] | null {
+  return readRangeFromValueReader(
+    (sheet, row, col) => rawValueTable.get(`${sheet}!${row}:${col}`) ?? null,
+    fallbackSheet,
+    ref
+  )
 }
 
 /**
@@ -290,15 +357,22 @@ export function readRangeFromValueTable(
  * custom-sized ones, so the cost is bounded by the sheet's actual custom-track count, independent of `index`.
  */
 export function axisOffsetPx(index: number, sizesByIndex: Record<number, number>, defaultSize: number): number {
-  const before = Math.max(index, 1) - 1
-  let offset = before * defaultSize
-  for (const key of Object.keys(sizesByIndex)) {
-    const i = Number(key)
-    if (i >= 1 && i < index) {
-      offset += sizesByIndex[i] - defaultSize
-    }
-  }
-  return offset
+  return axisOffsetFromIndex(index, buildSparseAxisIndex(sizesByIndex, defaultSize))
+}
+
+/** Inverse of axisOffsetPx, bounded by a binary search over sparse custom-track corrections. */
+export function axisCountForPxExtent(
+  endPx: number,
+  sizesByIndex: Record<number, number>,
+  defaultSize: number,
+  maxCount: number
+): AxisExtent {
+  return axisCountFromIndex(endPx, buildSparseAxisIndex(sizesByIndex, defaultSize), maxCount)
+}
+
+/** Only emit browser-safe bitmap MIME types for embedded workbook images. */
+export function imageMimeForExtension(extension: unknown): string | undefined {
+  return IMAGE_MIME_BY_EXTENSION[String(extension).toLowerCase()]
 }
 
 /** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
@@ -464,8 +538,8 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
  * Fixed pipeline order: unzip -> ExcelJS cells/styles -> formula evaluation -> charts -> images -> assembly.
  */
 export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promise<WorkbookRenderModel> {
-  // Preflight the central directory before the unzip library sees the bytes. A 20 MB compressed limit does not stop
-  // zip bombs that inflate to several GB.
+  // Reject ordinary declared-size zip bombs before an unzip library sees the bytes. ZIP metadata can be forged, so
+  // this does not claim a hard limit on actual decompressor output; enforcing that requires a streaming inflater cap.
   assertZipLimits(new Uint8Array(data), 'XLSX')
 
   let zip: JSZip
@@ -502,11 +576,27 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   let nextImageId = 0
 
   const sheets: SheetRenderModel[] = []
-  // Cross-sheet raw cell value table used by formula evaluation.
-  const rawValueTable = new Map<string, string | number | boolean | null>()
   const pendingFormulas: PendingFormulaCell[] = []
-  // sheet name -> cells table to fill during formula result backfill.
+  // Formula/chart reads reuse the render cell tables rather than duplicating every value into a second string-keyed Map.
   const sheetCellsByName = new Map<string, Record<string, CellRenderModel>>()
+  // Render cells keep ISO strings for dates; formulas and charts need Excel serials, so only date cells need overrides.
+  const formulaDateSerialsBySheet = new Map<string, Map<number, number>>()
+  const axisIndexesBySheet = new Map<string, SheetAxisIndexes>()
+
+  const setFormulaDateSerial = (sheetName: string, row: number, col: number, serial: number): void => {
+    let serials = formulaDateSerialsBySheet.get(sheetName)
+    if (!serials) {
+      serials = new Map<number, number>()
+      formulaDateSerialsBySheet.set(sheetName, serials)
+    }
+    serials.set(row * FORMULA_DATE_KEY_STRIDE + col, serial)
+  }
+
+  const readParsedCellValue: CellValueReader = (sheetName, row, col) => {
+    const dateSerial = formulaDateSerialsBySheet.get(sheetName)?.get(row * FORMULA_DATE_KEY_STRIDE + col)
+    if (dateSerial !== undefined) return dateSerial
+    return sheetCellsByName.get(sheetName)?.[`${row}:${col}`]?.raw ?? null
+  }
 
   for (const worksheet of workbook.worksheets) {
     const cells: Record<string, CellRenderModel> = {}
@@ -539,7 +629,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         if (value === null || value === undefined) {
           cellModel.text = ''
           cells[key] = cellModel
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
           return
         }
 
@@ -563,11 +652,10 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             cellModel.formula = formulaText || undefined
             cellModel.formulaState = 'cached'
             cellModel.text = formatCellValue(dateResult ?? rawResult, cell.numFmt, date1904)
-            // Store a numeric serial (not the ISO raw) so downstream formulas referencing this cell keep date math.
-            rawValueTable.set(
-              `${worksheet.name}!${rowNumber}:${colNumber}`,
-              dateResult ? dateToExcelSerial(dateResult) : rawResult
-            )
+            // Keep date math numeric without duplicating every ordinary cell into a second value table.
+            if (dateResult) {
+              setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(dateResult))
+            }
           } else if (formulaText) {
             // Formula text without a cached value enters the second-pass evaluator.
             cellModel.formula = formulaText
@@ -580,13 +668,11 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
               formula: formulaText,
               numFmt: cell.numFmt
             })
-            rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
           } else {
             // Shared-formula dependent without a cached value. v1 does not translate refs, so mark unevaluated.
             cellModel.formulaState = 'unevaluated'
             cellModel.text = ''
             warnings.add('shared-formula-without-cache-unevaluated')
-            rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
           }
           cells[key] = cellModel
           return
@@ -596,7 +682,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = value.error
           cellModel.text = value.error
           cells[key] = cellModel
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, value.error)
           return
         }
 
@@ -606,7 +691,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = text
           cellModel.text = text
           cells[key] = cellModel
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, text)
           return
         }
 
@@ -616,7 +700,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.text = text
           warnings.add('richtext-run-styles-dropped')
           cells[key] = cellModel
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, text)
           return
         }
 
@@ -624,9 +707,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = value.toISOString()
           cellModel.text = formatCellValue(value, cell.numFmt, date1904)
           cells[key] = cellModel
-          // The render model keeps the ISO raw, but formulas need a numeric serial so date arithmetic (e.g. =A1+1)
-          // works. numfmt renders in the 1900 system, so the 1900-system serial is stored regardless of date1904.
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, dateToExcelSerial(value))
+          // numfmt renders in the 1900 system, so formulas use that serial regardless of date1904.
+          setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(value))
           return
         }
 
@@ -634,7 +716,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         cellModel.raw = value as string | number | boolean
         cellModel.text = formatCellValue(value, cell.numFmt, date1904)
         cells[key] = cellModel
-        rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, value as string | number | boolean)
       })
     })
 
@@ -690,11 +771,18 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       }
     }
 
-    // Floating images. Image anchor coordinates are untrusted, so offsets go through the bounded axisOffsetPx —
-    // a crafted image with a huge <xdr:col>/<xdr:row> must not loop up to the anchor and pin the worker.
+    // Build sparse prefix indexes once per sheet. Offset and inverse-extent lookups are logarithmic in custom tracks,
+    // independent of an untrusted anchor coordinate's magnitude.
+    const axisIndexes: SheetAxisIndexes = {
+      rows: buildSparseAxisIndex(rowHeightsPx, defaultRowHeightPx),
+      cols: buildSparseAxisIndex(colWidthsPx, defaultColWidthPx)
+    }
+    axisIndexesBySheet.set(worksheet.name, axisIndexes)
+
+    // Floating images. A crafted image with huge <xdr:col>/<xdr:row> must not scan up to the anchor.
     const floatingImages: FloatingObjectModel[] = []
-    const colX = (col: number): number => axisOffsetPx(col, colWidthsPx, defaultColWidthPx)
-    const rowY = (row: number): number => axisOffsetPx(row, rowHeightsPx, defaultRowHeightPx)
+    const colX = (col: number): number => axisOffsetFromIndex(col, axisIndexes.cols)
+    const rowY = (row: number): number => axisOffsetFromIndex(row, axisIndexes.rows)
 
     for (const img of worksheet.getImages()) {
       // Anchor counts are untrusted; bound the number of <img> nodes the renderer will create.
@@ -707,11 +795,16 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       if (renderImageId === undefined) {
         const stored = workbook.getImage(excelImageId)
         if (stored?.buffer) {
+          const mime = imageMimeForExtension(stored.extension)
+          if (!mime) {
+            warnings.add('image-format-unsupported')
+            continue
+          }
           const nodeBuffer = stored.buffer as unknown as Uint8Array
           const copy = new ArrayBuffer(nodeBuffer.byteLength)
           new Uint8Array(copy).set(nodeBuffer)
           renderImageId = nextImageId++
-          images[renderImageId] = { mime: `image/${stored.extension}`, data: copy }
+          images[renderImageId] = { mime, data: copy }
           imageIdCache.set(excelImageId, renderImageId)
         }
       }
@@ -742,7 +835,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       const rect = { x, y, width, height }
       floatingImages.push({ rect, imageId: renderImageId })
 
-      const usedRange = usedRangeForPxRect(rect, defaultRowHeightPx, defaultColWidthPx, rowHeightsPx, colWidthsPx)
+      const usedRange = usedRangeForPxRect(rect, axisIndexes.rows, axisIndexes.cols)
       maxRow = Math.max(maxRow, Math.ceil(tl.nativeRow + 1), usedRange.rowCount)
       maxCol = Math.max(maxCol, Math.ceil(tl.nativeCol + 1), usedRange.colCount)
       if (usedRange.truncated) warnings.add('sheet-truncated')
@@ -773,15 +866,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   // Formula evaluation second pass.
   if (pendingFormulas.length > 0 && date1904) {
     // fast-formula-parser hard-codes the 1900 epoch (its date functions are built on a d1900 constant with no
-    // 1904 option) and rawValueTable stores 1900-system serials, so evaluating a 1904-system workbook could
+    // 1904 option) and date overrides use 1900-system serials, so evaluating a 1904-system workbook could
     // silently shift results by 1462 days wherever the workbook's own serial convention shows through (serial
     // literals in formulas, raw serial display). Prefer honestly unevaluated formulas over wrong values: skip
     // the second pass and keep the first-pass unevaluated state. Cached formula results are unaffected.
     warnings.add('formulas-unevaluated-date1904')
   } else if (pendingFormulas.length > 0) {
-    // Forward refs to formula cells later in file order must evaluate recursively instead of reading the null
-    // placeholders left in rawValueTable from the first pass. The evaluator has memoization and cycle detection,
-    // so re-entry is safe.
+    // Forward refs to formula cells later in file order evaluate recursively before falling back to parsed cell data.
+    // The evaluator has memoization and cycle detection, so re-entry is safe.
     const pendingByKey = new Map<string, PendingFormulaCell>()
     for (const pending of pendingFormulas) {
       pendingByKey.set(`${pending.sheetName}!${pending.row}:${pending.col}`, pending)
@@ -797,13 +889,11 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           // Memoization makes completed cells O(1). Cycles/failures are classified by the evaluator as unevaluated -> null.
           const outcome = evaluator.evaluate(pending.formula, { sheet: ref.sheet, row: ref.row, col: ref.col })
           if (outcome.state === 'evaluated') {
-            const value = outcome.value ?? null
-            rawValueTable.set(refKey, value)
-            return value
+            return outcome.value ?? null
           }
           return null
         }
-        return rawValueTable.get(refKey) ?? null
+        return readParsedCellValue(ref.sheet, ref.row, ref.col)
       }
     }
     evaluator = createFormulaEvaluator(evalContext, FORMULA_BUDGET_MS)
@@ -825,7 +915,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         cellModel.raw = value
         cellModel.formulaState = 'evaluated'
         cellModel.text = formatCellValue(value, pending.numFmt, date1904)
-        rawValueTable.set(`${pending.sheetName}!${pending.row}:${pending.col}`, value)
       } else {
         warnings.add('formula-unevaluated')
       }
@@ -836,20 +925,21 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   const chartSheetPartPaths = await chartSheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
-    if (!sheetModel) continue
+    const axisIndexes = axisIndexesBySheet.get(worksheet.name)
+    if (!sheetModel || !axisIndexes) continue
 
     const layout: SheetLayoutAccessor = {
       colX(col: number) {
-        return axisOffsetPx(col, sheetModel.colWidthsPx, sheetModel.defaultColWidthPx)
+        return axisOffsetFromIndex(col, axisIndexes.cols)
       },
       rowY(row: number) {
-        return axisOffsetPx(row, sheetModel.rowHeightsPx, sheetModel.defaultRowHeightPx)
+        return axisOffsetFromIndex(row, axisIndexes.rows)
       }
     }
 
     const dataAccessor: SheetDataAccessor = {
       readRange(ref: string): (string | number | null)[][] | null {
-        return readRangeFromValueTable(rawValueTable, worksheet.name, ref)
+        return readRangeFromValueReader(readParsedCellValue, worksheet.name, ref)
       }
     }
 
@@ -865,13 +955,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       )
       sheetModel.charts = charts
       for (const chart of charts) {
-        const usedRange = usedRangeForPxRect(
-          chart.rect,
-          sheetModel.defaultRowHeightPx,
-          sheetModel.defaultColWidthPx,
-          sheetModel.rowHeightsPx,
-          sheetModel.colWidthsPx
-        )
+        const usedRange = usedRangeForPxRect(chart.rect, axisIndexes.rows, axisIndexes.cols)
         sheetModel.rowCount = Math.max(sheetModel.rowCount, usedRange.rowCount)
         sheetModel.colCount = Math.max(sheetModel.colCount, usedRange.colCount)
         if (usedRange.truncated) warnings.add('sheet-truncated')

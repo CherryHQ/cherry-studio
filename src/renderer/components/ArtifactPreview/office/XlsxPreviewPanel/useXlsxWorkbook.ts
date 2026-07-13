@@ -53,16 +53,15 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
         const raw = await window.api.fs.read(filePath)
         if (cancelled || requestId !== requestIdRef.current) return
         bytes = toUint8Array(raw).slice().buffer
+        if (bytes.byteLength > XLSX_PREVIEW_MAX_SIZE_BYTES) {
+          setState({ status: 'oversize', sizeBytes: bytes.byteLength })
+          return
+        }
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error(`Failed to read file: ${filePath}`, normalized)
         setState({ status: 'error', message: normalized.message })
-        return
-      }
-
-      if (bytes.byteLength > XLSX_PREVIEW_MAX_SIZE_BYTES) {
-        setState({ status: 'oversize', sizeBytes: bytes.byteLength })
         return
       }
 
@@ -108,7 +107,16 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
 
       const fileName = filePath.split('/').pop() ?? filePath
       const request: XlsxParseRequest = { id: requestId, fileName, data: bytes }
-      worker.postMessage(request, [bytes])
+      try {
+        worker.postMessage(request, [bytes])
+      } catch (error) {
+        worker.terminate()
+        if (workerRef.current === worker) workerRef.current = null
+        if (cancelled || requestId !== requestIdRef.current) return
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to start xlsx parser worker', normalized)
+        setState({ status: 'error', message: normalized.message })
+      }
     })()
 
     // Terminating here (not just on unmount) frees the CPU held by a slow in-flight parse the moment the user

@@ -7967,6 +7967,7 @@
     "visualization": "Visualisierung"
   },
   "xlsx_preview": {
+    "chart": "[to be translated]:Chart",
     "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
     "error": {
       "description": "[to be translated]:This spreadsheet couldn't be previewed."
@@ -7974,7 +7975,7 @@
     "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
     "sheet_tabs_label": "[to be translated]:Sheets",
     "too_large": {
-      "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
       "title": "[to be translated]:File too large to preview"
     }
   }
