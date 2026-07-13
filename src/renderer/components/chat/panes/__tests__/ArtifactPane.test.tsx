@@ -744,7 +744,10 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
     await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument())
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    const overlay = screen.getByTestId('artifact-file-preview-overlay')
+    expect(overlay).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).toHaveClass('pl-3', 'pr-2')
+    expect(overlay.firstElementChild).not.toHaveClass('px-3')
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Overlay'))
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
 
@@ -1167,7 +1170,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('code-viewer').parentElement).toHaveClass('overflow-auto')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {

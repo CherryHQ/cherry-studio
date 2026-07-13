@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -687,6 +687,10 @@ describe('Shell.TabList', () => {
 
     const closeButton = screen.getByRole('button', { name: 'common.close_sidebar' })
     expect(closeButton).not.toHaveAttribute('data-shell-tab-shortcut')
+    expect(closeButton).toHaveAttribute('data-tone', 'conversation')
+    expect(closeButton).not.toHaveClass('[&_svg]:!size-3.5')
+    expect(within(closeButton).getByTestId('collapse-icon')).toBeInTheDocument()
+    expect(closeButton.querySelector('.lucide-x')).toBeNull()
 
     fireEvent.click(closeButton)
 

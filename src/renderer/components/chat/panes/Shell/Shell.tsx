@@ -435,12 +435,8 @@ function ShellTabList({
   )
   const closeButton = (
     <Tooltip content={closeLabel} delay={800}>
-      <NavbarIcon
-        tone="conversation"
-        className="[&_svg]:!size-3.5 shrink-0"
-        aria-label={closeLabel}
-        onClick={() => actions.close()}>
-        <X />
+      <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={() => actions.close()}>
+        <RightSidebarCollapseIcon />
       </NavbarIcon>
     </Tooltip>
   )

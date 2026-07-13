@@ -657,13 +657,8 @@ export function ArtifactPaneView({
         data-testid="artifact-file-preview-overlay"
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
-        className={cn(
-          'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-            ? 'overflow-hidden'
-            : 'overflow-auto'
-        )}>
-        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
+        className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
@@ -679,7 +674,13 @@ export function ArtifactPaneView({
             </Button>
           </Tooltip>
         </div>
-        <div className="min-h-0 flex-1">
+        <div
+          className={cn(
+            'min-h-0 flex-1',
+            isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
+              ? 'overflow-hidden'
+              : 'overflow-auto'
+          )}>
           <ArtifactFilePreview
             workspacePath={overlaySelection.workspacePath}
             filePath={overlaySelection.filePath}
