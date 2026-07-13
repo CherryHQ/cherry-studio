@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   showSearchPopup: vi.fn()
 }))
 
-vi.mock('@renderer/databases/db', () => ({}))
-
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
