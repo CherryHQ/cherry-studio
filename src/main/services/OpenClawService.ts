@@ -88,7 +88,8 @@ export interface OpenClawProviderConfig {
   models: OpenClawModelConfig[]
 }
 
-type OpenClawSyncModel = Model & Omit<OpenClawModelConfig, 'id' | 'name'>
+type OpenClawSyncModel = Model &
+  Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
 type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
