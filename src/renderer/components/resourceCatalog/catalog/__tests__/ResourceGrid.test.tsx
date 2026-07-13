@@ -319,6 +319,7 @@ vi.mock('@cherrystudio/ui', async () => {
       return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
     },
     Separator: () => <div />,
+    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

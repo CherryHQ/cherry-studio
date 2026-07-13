@@ -39,7 +39,8 @@ type OpenTarget = ExternalAppId | typeof FILE_MANAGER_TARGET
 const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalAppButtonProps) => {
   const { t } = useTranslation()
   const fileTargetPath = filePath ? joinPath(workdir, filePath) : null
-  const { data: externalApps } = useExternalApps({ enabled: !fileTargetPath })
+  const openTargetPath = fileTargetPath ?? workdir
+  const { data: externalApps } = useExternalApps({ enabled: true })
   const [lastUsedTarget, setLastUsedTarget] = usePersistCache('agent.open_external_app.last_used_target')
 
   const availableEditors = useMemo(() => {
@@ -78,29 +79,24 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      window.open(buildEditorUrl(app, workdir))
+      window.open(buildEditorUrl(app, openTargetPath))
       setLastUsedTarget(app.id)
     },
-    [setLastUsedTarget, workdir]
+    [openTargetPath, setLastUsedTarget]
   )
 
   const openFileManager = useCallback(async () => {
     try {
-      await window.api.file.openPath(workdir)
+      if (fileTargetPath) {
+        await window.api.file.showInFolder(fileTargetPath)
+      } else {
+        await window.api.file.openPath(workdir)
+      }
       setLastUsedTarget(FILE_MANAGER_TARGET)
     } catch (error) {
-      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: workdir })))
+      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: openTargetPath })))
     }
-  }, [setLastUsedTarget, t, workdir])
-
-  const revealFileTarget = useCallback(async () => {
-    if (!fileTargetPath) return
-    try {
-      await window.api.file.showInFolder(fileTargetPath)
-    } catch (error) {
-      toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
-    }
-  }, [fileTargetPath, t])
+  }, [fileTargetPath, openTargetPath, setLastUsedTarget, t, workdir])
 
   const openFileWithDefaultApp = useCallback(async () => {
     if (!fileTargetPath) return
@@ -121,58 +117,13 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
 
   const renderFileManagerIcon = () => (isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />)
 
-  if (fileTargetPath) {
-    const defaultAppName = t('agent.preview_pane.default_app')
-    const primaryLabel = t('common.open_in', { name: defaultAppName })
-
-    return (
-      <ButtonGroup attached={false} className={cn(SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
-        <NormalTooltip content={primaryLabel} delayDuration={500}>
-          <Button
-            type="button"
-            className={`w-8 min-w-8 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
-            variant="ghost"
-            size="icon-sm"
-            aria-label={primaryLabel}
-            onClick={() => void openFileWithDefaultApp()}>
-            <FileText size={16} />
-          </Button>
-        </NormalTooltip>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              className={`w-6 min-w-6 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('common.more')}>
-              <ChevronDown size={14} />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="end">
-            <MenuList>
-              <MenuItem
-                label={defaultAppName}
-                icon={<FileText size={16} />}
-                onClick={() => void openFileWithDefaultApp()}
-              />
-              <MenuItem
-                label={fileManagerName}
-                icon={renderFileManagerIcon()}
-                onClick={() => void revealFileTarget()}
-              />
-            </MenuList>
-          </PopoverContent>
-        </Popover>
-      </ButtonGroup>
-    )
-  }
-
   const selectedName = selectedEditor?.name ?? fileManagerName
   const primaryIcon = selectedEditor ? getEditorIcon(selectedEditor) : renderFileManagerIcon()
   const primaryLabel = t('common.open_in', { name: selectedName })
+  const defaultAppName = t('agent.preview_pane.default_app')
+  const hasAlternativeTargets = Boolean(fileTargetPath) || availableEditors.length > 0
 
-  if (availableEditors.length === 0) {
+  if (!hasAlternativeTargets) {
     return (
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
@@ -214,6 +165,13 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
         </PopoverTrigger>
         <PopoverContent className="w-56 p-1" align="end">
           <MenuList>
+            {fileTargetPath && (
+              <MenuItem
+                label={defaultAppName}
+                icon={<FileText size={16} />}
+                onClick={() => void openFileWithDefaultApp()}
+              />
+            )}
             <MenuItem
               label={fileManagerName}
               icon={renderFileManagerIcon()}
