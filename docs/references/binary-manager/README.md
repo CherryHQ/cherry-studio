@@ -44,6 +44,8 @@ These are the stable boundaries that survive across versions and renderer reload
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
 
+`binary.list_tools` returns state-file entries with `managed: true`. Its only live-mise supplement is an unrecorded `node` or `python` runtime dependency, marked `managed: false`; these entries are display-only and resolve through Cherry-managed mise shims. Other unrecorded `mise ls` entries are intentionally ignored because BinaryManager state remains the authority for manageable tools.
+
 `binary.get_latest_versions` is an on-demand update-check surface. `force=false` is a read-only cache lookup: it returns the current `feature.binary.latest_versions` shared-cache value, or `{}` when no session result exists. `force=true` runs `mise latest` for the current managed tools, omits failed lookups, and writes the confirmed result back to `feature.binary.latest_versions` only if the managed-tool snapshot has not changed during the batch. If every managed tool's lookup fails (offline, rate-limited), the IPC rejects so the caller can surface a failure. Install, remove, and state-mutation paths delete the shared cache so version hints do not survive a managed-set change.
 
 > **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binary.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
@@ -54,7 +56,7 @@ These are the stable boundaries that survive across versions and renderer reload
 
 ## Why state is a file, not DataApi / Preference
 
-BinaryManager state is operational cache for installed shim metadata, not user-authored business data. It must be readable before renderer windows exist, written atomically alongside the tool manager's filesystem operations, and safe to rebuild from `mise` plus the user's `feature.binary.tools` preference if lost. A small JSON file keeps that operational state close to the binaries it describes without adding a SQLite/DataApi boundary for non-business data.
+BinaryManager state is the operational manifest of tools Cherry installed and may manage, not user-authored business data. It must be readable before renderer windows exist and written atomically alongside the tool manager's filesystem operations. `mise` remains the live installation and availability probe, but arbitrary `mise ls` entries cannot reconstruct Cherry ownership or executable-name aliases; after state loss, only tools with a known catalog or `feature.binary.tools` declaration can be recovered safely. A small JSON file keeps that metadata close to the binaries it describes without adding a SQLite/DataApi boundary for non-business data.
 
 ## State contract: bundled vs mise-managed
 

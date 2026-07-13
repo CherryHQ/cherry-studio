@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { providerService } from '@main/data/services/ProviderService'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
@@ -401,7 +401,16 @@ export class CodeCliService extends BaseService {
     // Cherry's MISE_* variables are required only by Cherry-managed shims. Injecting
     // them while launching a system mise shim redirects that shim to Cherry's
     // isolated data directory, where the user's installed tool does not exist.
-    const env: Record<string, string> = isCherryManaged ? { ...getBinaryExecutionEnv() } : {}
+    // Start managed npm CLIs with Cherry's shims first so a `#!/usr/bin/env node`
+    // launcher resolves the matching Cherry-managed runtime. Only carry the raw
+    // login-shell PATH into the terminal command: exporting the whole shell env
+    // would leak unrelated values and user MISE_* settings. System CLIs still
+    // receive no Cherry environment at all.
+    const rawShellEnv = isCherryManaged ? await getRawShellEnv() : undefined
+    const rawPathEnv = Object.fromEntries(
+      Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
+    )
+    const env: Record<string, string> = isCherryManaged ? mergeBinaryExecutionEnv(rawPathEnv) : {}
     logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
@@ -697,8 +706,12 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const processEnv = isCherryManaged ? { ...process.env, ...env } : { ...(await getRawShellEnv()), ...env }
-    removeEnvProxy(processEnv as Record<string, string>)
+    const baseProcessEnv = isCherryManaged ? rawShellEnv! : await getRawShellEnv()
+    const processEnv = Object.fromEntries(
+      Object.entries(baseProcessEnv).filter(([key]) => !isCherryManaged || !key.startsWith('MISE_'))
+    )
+    Object.assign(processEnv, env)
+    removeEnvProxy(processEnv)
 
     // Launch terminal process
     try {

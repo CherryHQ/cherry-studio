@@ -22,7 +22,12 @@ import {
   TOOL_NAME_RE,
   validateManagedBinary
 } from '@shared/data/presets/binaryTools'
-import type { BinaryInstallState, BinaryResolution, BinaryResolutions } from '@shared/types/binary'
+import type {
+  BinaryInstallState,
+  BinaryResolution,
+  BinaryResolutions,
+  BinaryToolInventoryEntry
+} from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 
@@ -158,6 +163,7 @@ export class BinaryManager extends BaseService {
   // Serializes state read-modify-write across reconcile/install/remove so
   // concurrent callers can't clobber state.json or each other's mise mutations.
   private readonly stateMutex = new Mutex()
+  private readonly inFlightInstalls = new Map<string, { tool: ManagedBinary; promise: Promise<{ version: string }> }>()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
   protected async onInit() {
@@ -245,7 +251,7 @@ export class BinaryManager extends BaseService {
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
         const resolved = isWin
-          ? findExecutable(name, { extensions: ['.exe', '.cmd'], env: shellEnv })
+          ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
         if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
         return [name, resolved]
@@ -260,7 +266,19 @@ export class BinaryManager extends BaseService {
     if (uniqueNames.length === 0) return {}
     const state = this.loadState()
     const bundled = this.probeBundled()
-    const system = await this.probeSystem(uniqueNames.filter((name) => !state.tools[name] && !(name in bundled)))
+    const runtimePaths = Object.fromEntries(
+      await Promise.all(
+        uniqueNames
+          .filter((name) => !state.tools[name] && isRuntimeDependency(name))
+          .map(async (name): Promise<[string, string] | null> => {
+            const runtimePath = await this.resolveManagedBinaryPath(name)
+            return runtimePath ? [name, runtimePath] : null
+          })
+      ).then((entries) => entries.filter((entry): entry is [string, string] => entry !== null))
+    )
+    const system = await this.probeSystem(
+      uniqueNames.filter((name) => !state.tools[name] && !(name in bundled) && !runtimePaths[name])
+    )
 
     const entries = await Promise.all(
       uniqueNames.map(async (name): Promise<[string, BinaryResolution]> => {
@@ -269,6 +287,7 @@ export class BinaryManager extends BaseService {
           const managedPath = await this.resolveManagedBinaryPath(name)
           if (managedPath) return [name, { source: 'managed', path: managedPath, version: managed.version }]
         }
+        if (runtimePaths[name]) return [name, { source: 'managed', path: runtimePaths[name], version: '' }]
 
         if (name in bundled) {
           const version = bundled[name] ?? undefined
@@ -707,16 +726,15 @@ export class BinaryManager extends BaseService {
   }
 
   /**
-   * Full inventory of mise-managed installs: the persisted state file merged
-   * with `mise ls`. The live query catches installs the state file never
-   * records — chiefly RUNTIME_DEPS interpreters (node/python) that ride along
-   * on `mise use` — so the UI reflects what is actually installed.
+   * Inventory ownership follows state.json. Live mise data may supplement it
+   * only with node/python runtimes installed as package-backend dependencies.
    */
-  async listTools(): Promise<Array<{ name: string; tool: string; version: string }>> {
-    const tools = Object.entries(this.loadState().tools).map(([name, entry]) => ({
+  async listTools(): Promise<BinaryToolInventoryEntry[]> {
+    const tools: BinaryToolInventoryEntry[] = Object.entries(this.loadState().tools).map(([name, entry]) => ({
       name,
       tool: entry.tool,
-      version: entry.version
+      version: entry.version,
+      managed: true
     }))
     if (!this.miseBin) return tools
 
@@ -729,13 +747,10 @@ export class BinaryManager extends BaseService {
       const recorded = new Set(tools.map((tool) => normalize(tool.tool)))
       for (const [spec, versions] of Object.entries(installed)) {
         if (recorded.has(normalize(spec))) continue
-        // Unrecorded entries are realistically bare interpreter specs ('node');
-        // skip anything whose derived name is not addressable as a tool name,
-        // since downstream routes (resolve/remove) validate TOOL_NAME_RE.
         const name = normalize(spec).split('@')[0]
-        if (!TOOL_NAME_RE.test(name)) continue
+        if (!TOOL_NAME_RE.test(name) || !isRuntimeDependency(spec)) continue
         const version = versions.find((v) => v.active)?.version ?? versions.at(-1)?.version ?? ''
-        tools.push({ name, tool: spec, version })
+        tools.push({ name, tool: spec, version, managed: false })
       }
     } catch (err) {
       logger.warn('Failed to merge mise ls into inventory', {
@@ -761,12 +776,36 @@ export class BinaryManager extends BaseService {
     cacheService.setShared('feature.binary.install_states', states)
   }
 
-  async installTool(tool: ManagedBinary): Promise<{ version: string }> {
-    validateManagedBinary(tool)
+  installTool(tool: ManagedBinary): Promise<{ version: string }> {
+    try {
+      validateManagedBinary(tool)
+    } catch (err) {
+      return Promise.reject(err)
+    }
     if (!this.miseBin) {
-      throw new Error('Binary backend not available')
+      return Promise.reject(new Error('Binary backend not available'))
     }
 
+    const inFlight = this.inFlightInstalls.get(tool.name)
+    if (inFlight) {
+      if (inFlight.tool.tool === tool.tool && inFlight.tool.version === tool.version) return inFlight.promise
+      return Promise.reject(new Error(`Tool ${tool.name} is already installing with a different specification`))
+    }
+
+    const promise = this.installToolImpl(tool)
+    this.inFlightInstalls.set(tool.name, { tool, promise })
+    void promise.then(
+      () => {
+        if (this.inFlightInstalls.get(tool.name)?.promise === promise) this.inFlightInstalls.delete(tool.name)
+      },
+      () => {
+        if (this.inFlightInstalls.get(tool.name)?.promise === promise) this.inFlightInstalls.delete(tool.name)
+      }
+    )
+    return promise
+  }
+
+  private async installToolImpl(tool: ManagedBinary): Promise<{ version: string }> {
     // Marked before the mutex so an install queued behind another already
     // renders as installing instead of idling until its turn.
     this.setInstallState(tool.name, { status: 'installing' })

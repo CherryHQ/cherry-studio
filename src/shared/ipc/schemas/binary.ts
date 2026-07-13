@@ -1,6 +1,6 @@
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
-import type { BinaryResolution } from '@shared/types/binary'
+import type { BinaryResolution, BinaryToolInventoryEntry } from '@shared/types/binary'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -43,6 +43,11 @@ const binaryResolutionSchema: z.ZodType<BinaryResolution> = z.discriminatedUnion
 
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
+const binaryToolInventoryEntrySchema: z.ZodType<BinaryToolInventoryEntry> = z.discriminatedUnion('managed', [
+  z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(true) }),
+  z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(false) })
+])
+
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: managedBinarySchema, output: z.object({ version: z.string() }) }),
@@ -54,12 +59,9 @@ export const binaryRequestSchemas = {
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) }),
-  // Full inventory of mise-managed installs: state-file entries merged with
-  // live `mise ls`, so unrecorded runtime deps (node/python) surface too.
-  'binary.list_tools': defineRoute({
-    input: z.void(),
-    output: z.array(z.object({ name: z.string(), tool: z.string(), version: z.string() }))
-  }),
+  // State-file entries are manageable; only unrecorded node/python runtimes from
+  // live `mise ls` are included as display-only entries.
+  'binary.list_tools': defineRoute({ input: z.void(), output: z.array(binaryToolInventoryEntrySchema) }),
   // Whether a CLI tool binary is resolvable (bundled or on PATH). Legacy App_IsBinaryExist.
   'binary.is_installed': defineRoute({ input: z.string(), output: z.boolean() })
 }

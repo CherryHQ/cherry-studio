@@ -33,13 +33,8 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import {
-  type BinaryToolPreset,
-  isRuntimeDependency,
-  PRESETS_BINARY_TOOLS,
-  validateManagedBinary
-} from '@shared/data/presets/binaryTools'
-import type { BinaryResolutions } from '@shared/types/binary'
+import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import type { BinaryResolutions, BinaryToolInventoryEntry } from '@shared/types/binary'
 import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -114,7 +109,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [resolutionsReady, setResolutionsReady] = useState(false)
   // Everything recorded in BinaryManager's state file (minus code CLIs) — the
   // page shows the actual install inventory, not just what it can install.
-  const [inventoryTools, setInventoryTools] = useState<Array<{ name: string; tool: string; version: string }>>([])
+  const [inventoryTools, setInventoryTools] = useState<BinaryToolInventoryEntry[]>([])
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installStates] = useSharedCache('feature.binary.install_states', {})
@@ -229,7 +224,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     const allNames = [
       ...PRESETS_BINARY_TOOLS.map((p) => p.name),
       ...customTools.map((c) => c.name),
-      ...inventoryTools.map((i) => i.name)
+      ...inventoryTools.map((i) => i.name),
+      ...CODE_CLI_BINARIES
     ]
     if (allNames.includes(tool.name)) {
       toast.error(t('settings.dependencies.duplicateName'))
@@ -265,7 +261,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   // knows about — user-added custom tools plus state-file entries installed by
   // other features (code CLIs excluded; they are managed on the Code CLI page).
   const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-  const extraTools: ManagedBinary[] = [
+  const extraTools: Array<ManagedBinary | BinaryToolInventoryEntry> = [
     ...customTools.filter((tool) => !CODE_CLI_BINARIES.has(tool.name)),
     ...inventoryTools.filter(
       (tool) => !presetNames.has(tool.name) && !customTools.some((custom) => custom.name === tool.name)
@@ -362,15 +358,18 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         })}
         {extraTools.map((tool) => {
           const resolution = resolutions[tool.name] ?? { source: 'none' as const }
-          // Runtime deps come from the live mise inventory but may have no
-          // state-file record, so resolution can miss them — they are installed
-          // by construction and must never offer the install action.
-          const runtime = isRuntimeDependency(tool.tool)
+          // Only BinaryManager's explicit runtime entries are display-only.
+          // State-file entries remain its manageable authority.
+          const runtime = 'managed' in tool && tool.managed === false
           const managed = resolution.source === 'managed' || runtime
           const systemPath = !runtime && resolution.source === 'system' ? resolution.path : undefined
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
           const installedVersion =
-            resolution.source === 'managed' ? resolution.version : runtime ? tool.version || undefined : undefined
+            resolution.source === 'managed'
+              ? resolution.version || tool.version
+              : runtime
+                ? tool.version || undefined
+                : undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
           const installState = installStates[tool.name]

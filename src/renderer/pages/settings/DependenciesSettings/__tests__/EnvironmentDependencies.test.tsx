@@ -309,8 +309,7 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('shows a runtime dependency as display-only (badge, no remove/update)', async () => {
-    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
-    ipcMocks.getState.mockResolvedValue({ tools: { node: { version: '22.23.1' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: false }])
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -320,9 +319,7 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('treats an unrecorded runtime dependency as installed, never offering install', async () => {
-    // Fresh installs leave runtime deps out of the state file (mise ls only),
-    // so resolution comes back 'none' — the card must still read as installed.
-    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1' }])
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
     render(<EnvironmentDependencies />)
 
     // Name and tool spec are both the bare string 'node' — grab the card once.
@@ -344,6 +341,21 @@ describe('EnvironmentDependencies', () => {
       target: { value: 'node' }
     })
     fireEvent.click(await screen.findByRole('button', { name: /core:node/ }))
+    fireEvent.click(screen.getByText('common.add'))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.duplicateName'))
+    expect(ipcMocks.installTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects adding a Code CLI reserved binary name even when it is hidden from the inventory', async () => {
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'claude', tool: 'npm:other-claude' }])
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'claude' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /npm:other-claude/ }))
     fireEvent.click(screen.getByText('common.add'))
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.duplicateName'))

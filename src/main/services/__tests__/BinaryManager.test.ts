@@ -3,7 +3,8 @@ import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
+const { mockExecFileAsync, mockFs, mockPreferenceService, platformMock } = vi.hoisted(() => ({
+  platformMock: { isWin: false },
   mockExecFileAsync: vi.fn(),
   mockFs: {
     existsSync: vi.fn(() => false),
@@ -31,6 +32,12 @@ vi.mock('@application', async () => {
     PreferenceService: mockPreferenceService
   })
 })
+
+vi.mock('@main/core/platform', () => ({
+  get isWin() {
+    return platformMock.isWin
+  }
+}))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
@@ -83,7 +90,8 @@ vi.mock('@main/utils/shellEnv', () => ({
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
-  findCommandInShellEnv: vi.fn(async () => null)
+  findCommandInShellEnv: vi.fn(async () => null),
+  findExecutable: vi.fn(() => null)
 }))
 
 vi.mock('node:util', async (importOriginal) => {
@@ -92,7 +100,7 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
-const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
+const { findCommandInShellEnv, findExecutable } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -146,6 +154,7 @@ describe('BinaryManager', () => {
     vi.clearAllMocks()
     MockMainCacheServiceUtils.resetMocks()
     mockExecFileAsync.mockReset()
+    platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
     mockInstallPreferences()
@@ -403,8 +412,8 @@ describe('BinaryManager', () => {
       )
 
       await expect(service.listTools()).resolves.toEqual([
-        { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' },
-        { name: 'mytool', tool: 'npm:mytool', version: '1.2.3' }
+        { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0', managed: true },
+        { name: 'mytool', tool: 'npm:mytool', version: '1.2.3', managed: true }
       ])
     })
 
@@ -431,14 +440,15 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockResolvedValueOnce({
         stdout: JSON.stringify({
           'npm:openclaw': [{ version: '1.0.0' }],
-          node: [{ version: '22.23.1', active: true }, { version: '26.5.0' }]
+          node: [{ version: '22.23.1', active: true }, { version: '26.5.0' }],
+          'github:untracked/tool': [{ version: '1.0.0', active: true }]
         }),
         stderr: ''
       })
 
       await expect(service.listTools()).resolves.toEqual([
-        { name: 'openclaw', tool: 'npm:openclaw', version: '1.0.0' },
-        { name: 'node', tool: 'node', version: '22.23.1' }
+        { name: 'openclaw', tool: 'npm:openclaw', version: '1.0.0', managed: true },
+        { name: 'node', tool: 'node', version: '22.23.1', managed: false }
       ])
     })
 
@@ -456,7 +466,9 @@ describe('BinaryManager', () => {
         stderr: ''
       })
 
-      await expect(service.listTools()).resolves.toEqual([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+      await expect(service.listTools()).resolves.toEqual([
+        { name: 'node', tool: 'core:node', version: '22.23.1', managed: true }
+      ])
     })
 
     it('falls back to the state file when mise ls fails', async () => {
@@ -468,7 +480,7 @@ describe('BinaryManager', () => {
       mockFs.readFileSync.mockReturnValue(JSON.stringify({ tools: { fd: { tool: 'fd', version: '10.0.0' } } }))
       mockExecFileAsync.mockRejectedValueOnce(new Error('mise exploded'))
 
-      await expect(service.listTools()).resolves.toEqual([{ name: 'fd', tool: 'fd', version: '10.0.0' }])
+      await expect(service.listTools()).resolves.toEqual([{ name: 'fd', tool: 'fd', version: '10.0.0', managed: true }])
     })
   })
 
@@ -1116,6 +1128,64 @@ describe('BinaryManager', () => {
       expect(useEnds[0]).toContain('sharkdp/fd')
       expect(useStarts[1]).toContain('BurntSushi/ripgrep')
     })
+
+    it('coalesces identical same-name installs without replacing their live state', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      let releaseInstall!: () => void
+      const installStarted = new Promise<void>((resolve) => {
+        releaseInstall = resolve
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'use') await installStarted
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const first = service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
+      const second = service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'installing' }
+      })
+      releaseInstall()
+
+      await expect(Promise.all([first, second])).resolves.toEqual([{ version: '1.0.0' }, { version: '1.0.0' }])
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')).toHaveLength(1)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+    })
+
+    it('rejects conflicting same-name installs without changing the in-flight state', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      let releaseInstall!: () => void
+      const installStarted = new Promise<void>((resolve) => {
+        releaseInstall = resolve
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'use') await installStarted
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '1.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const first = service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
+      await expect(service.installTool({ name: 'fd', tool: 'github:other/fd', version: '2.0.0' })).rejects.toThrow(
+        'already installing with a different specification'
+      )
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'installing' }
+      })
+      releaseInstall()
+      await expect(first).resolves.toEqual({ version: '1.0.0' })
+    })
   })
 
   describe('installTool validation', () => {
@@ -1455,6 +1525,32 @@ describe('BinaryManager', () => {
         gemini: { source: 'managed', path: '/mock/managed/gemini', version: '1.2.3' }
       })
       expect(findCommandInShellEnv).not.toHaveBeenCalledWith('gemini', expect.anything())
+    })
+
+    it('resolves an unrecorded runtime through Cherry-managed mise', async () => {
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ tools: {} }))
+      mockExecFileAsync.mockResolvedValue({ stdout: '/mock/mise/shims/node\n', stderr: '' })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      await expect(service.resolveTools(['node'])).resolves.toEqual({
+        node: { source: 'managed', path: '/mock/mise/shims/node', version: '' }
+      })
+      expect(findCommandInShellEnv).not.toHaveBeenCalled()
+    })
+
+    it('includes .bat when probing Windows system tools', async () => {
+      platformMock.isWin = true
+      vi.mocked(findExecutable).mockReturnValue('C:\\Tools\\claude.bat')
+
+      await expect(new BinaryManager().resolveTools(['claude'])).resolves.toEqual({
+        claude: { source: 'system', path: 'C:\\Tools\\claude.bat' }
+      })
+      expect(findExecutable).toHaveBeenCalledWith('claude', {
+        extensions: ['.exe', '.cmd', '.bat'],
+        env: { PATH: '/usr/local/bin:/usr/bin' }
+      })
     })
 
     it('falls back to the system PATH when persisted managed state is stale', async () => {
