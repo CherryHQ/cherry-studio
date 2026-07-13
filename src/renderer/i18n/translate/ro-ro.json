@@ -1873,6 +1873,11 @@
         "label": "Prompturi subiect",
         "tips": "Prompturi subiect: Prompturi suplimentare furnizate pentru subiectul curent"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Caută subiecte...",
         "title": "Caută"

@@ -414,7 +414,6 @@ const Sessions = ({
   )
   const pinnedSessionsSource = useSessions(rightPanelAgentScope, {
     enabled: isSessionListEnabled,
-    keepPreviousData: false,
     pageSize: SESSION_PAGE_SIZE,
     pinned: true,
     q: debouncedRemoteQuery,
@@ -430,7 +429,6 @@ const Sessions = ({
   } = pinnedSessionsSource
   const createdSessionsSource = useSessions(rightPanelAgentScope, {
     enabled: isSessionListEnabled && displayMode === 'time',
-    keepPreviousData: false,
     pageSize: SESSION_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,

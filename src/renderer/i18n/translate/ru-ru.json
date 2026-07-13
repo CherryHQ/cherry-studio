@@ -1873,6 +1873,11 @@
         "label": "Тематические подсказки",
         "tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Искать темы...",
         "title": "Поиск"

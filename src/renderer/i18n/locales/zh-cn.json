@@ -1873,6 +1873,11 @@
         "label": "对话提示词",
         "tips": "对话提示词：针对当前对话提供额外的补充提示词"
       },
+      "reorder": {
+        "error": {
+          "failed": "对话排序失败"
+        }
+      },
       "search": {
         "placeholder": "搜索对话...",
         "title": "搜索"

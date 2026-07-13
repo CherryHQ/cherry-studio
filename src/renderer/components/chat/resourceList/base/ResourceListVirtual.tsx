@@ -7,6 +7,7 @@ import {
   type GroupedVirtualListGroup,
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
+import { useScrollEndReached } from '@renderer/hooks/useScrollEndReached'
 import { cn } from '@renderer/utils/style'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject, UIEvent as ReactUIEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -151,57 +152,6 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   useEffect(() => clearScrollingTimeout, [clearScrollingTimeout])
 
   return { stage, handleScroll }
-}
-
-function useEndReached(
-  scrollElementRef: RefObject<HTMLDivElement | null>,
-  itemCount: number,
-  onEndReached?: () => void
-) {
-  const onEndReachedRef = useRef(onEndReached)
-  const wasNearEndRef = useRef(false)
-  const observedStateRef = useRef<{ enabled: boolean; itemCount: number } | null>(null)
-  const enabled = onEndReached !== undefined
-
-  useLayoutEffect(() => {
-    onEndReachedRef.current = onEndReached
-  }, [onEndReached])
-
-  const checkEndReached = useCallback(
-    (element = scrollElementRef.current) => {
-      const callback = onEndReachedRef.current
-      if (!element || !callback) return
-      if (element.clientHeight <= 0 || element.scrollHeight <= 0) return
-      const isNearEnd = element.scrollTop + element.clientHeight >= element.scrollHeight - END_REACHED_THRESHOLD
-      if (!isNearEnd) {
-        wasNearEndRef.current = false
-        return
-      }
-      if (wasNearEndRef.current) return
-
-      wasNearEndRef.current = true
-      callback()
-    },
-    [scrollElementRef]
-  )
-
-  useEffect(() => {
-    const observedState = observedStateRef.current
-    if (!observedState || observedState.enabled !== enabled || observedState.itemCount !== itemCount) {
-      wasNearEndRef.current = false
-    }
-    observedStateRef.current = { enabled, itemCount }
-    checkEndReached()
-
-    const element = scrollElementRef.current
-    if (!element || !enabled || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => checkEndReached(element))
-    observer.observe(element)
-    if (element.firstElementChild) observer.observe(element.firstElementChild)
-    return () => observer.disconnect()
-  }, [checkEndReached, enabled, itemCount, scrollElementRef])
-
-  return checkEndReached
 }
 
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
@@ -547,7 +497,11 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
-  const checkEndReached = useEndReached(listboxRef, view.visibleItems.length, onEndReached)
+  const checkEndReached = useScrollEndReached(listboxRef, {
+    itemCount: view.visibleItems.length,
+    thresholdPx: END_REACHED_THRESHOLD,
+    onEndReached
+  })
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -669,7 +623,11 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
-  const checkEndReached = useEndReached(listboxRef, view.visibleItems.length, onEndReached)
+  const checkEndReached = useScrollEndReached(listboxRef, {
+    itemCount: view.visibleItems.length,
+    thresholdPx: END_REACHED_THRESHOLD,
+    onEndReached
+  })
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,

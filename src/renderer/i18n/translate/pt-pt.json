@@ -1873,6 +1873,11 @@
         "label": "Prompt do tópico",
         "tips": "Prompt do tópico: fornecer prompts adicionais para o tópico atual"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Pesquisar tópicos...",
         "title": "Pesquisar"

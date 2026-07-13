@@ -1873,6 +1873,11 @@
         "label": "Chủ đề Gợi ý",
         "tips": "Chủ đề Gợi ý: Các gợi ý bổ sung bổ trợ cho chủ đề hiện tại"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Tìm kiếm chủ đề...",
         "title": "Tìm kiếm"

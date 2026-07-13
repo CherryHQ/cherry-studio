@@ -1873,6 +1873,11 @@
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Rechercher des sujets...",
         "title": "Rechercher"

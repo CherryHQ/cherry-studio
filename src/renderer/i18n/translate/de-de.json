@@ -1873,6 +1873,11 @@
         "label": "Themen-Prompt",
         "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Themen durchsuchen...",
         "title": "Suche"

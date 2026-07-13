@@ -4,12 +4,13 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { useScrollEndReached } from '@renderer/hooks/useScrollEndReached'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { PinIcon, Trash2 } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
@@ -57,14 +58,11 @@ export function HistoryVirtualTable<TItem>({
   renderRow
 }: HistoryVirtualTableProps<TItem>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
-  const onEndReachedRef = useRef(onEndReached)
-  const wasNearEndRef = useRef(false)
-  const observedStateRef = useRef<{ enabled: boolean; itemCount: number } | null>(null)
-  const endReachedEnabled = onEndReached !== undefined
-
-  useLayoutEffect(() => {
-    onEndReachedRef.current = onEndReached
-  }, [onEndReached])
+  const checkEndReached = useScrollEndReached(scrollerRef, {
+    itemCount: items.length,
+    thresholdPx: END_REACHED_THRESHOLD_PX,
+    onEndReached
+  })
 
   const updateFixedActionShadow = useCallback(() => {
     const scroller = scrollerRef.current
@@ -75,27 +73,14 @@ export function HistoryVirtualTable<TItem>({
 
     const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth
     onFixedActionShadowChange(maxScrollLeft > 1 && scroller.scrollLeft < maxScrollLeft - 1)
-
-    const endReached = onEndReachedRef.current
-    if (!endReached || scroller.clientHeight <= 0 || scroller.scrollHeight <= 0) return
-
-    const isNearEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - END_REACHED_THRESHOLD_PX
-    if (!isNearEnd) {
-      wasNearEndRef.current = false
-      return
-    }
-    if (wasNearEndRef.current) return
-
-    wasNearEndRef.current = true
-    endReached()
   }, [onFixedActionShadowChange])
 
+  const handleScroll = useCallback(() => {
+    updateFixedActionShadow()
+    checkEndReached()
+  }, [checkEndReached, updateFixedActionShadow])
+
   useEffect(() => {
-    const observedState = observedStateRef.current
-    if (!observedState || observedState.enabled !== endReachedEnabled || observedState.itemCount !== items.length) {
-      wasNearEndRef.current = false
-    }
-    observedStateRef.current = { enabled: endReachedEnabled, itemCount: items.length }
     updateFixedActionShadow()
 
     const scroller = scrollerRef.current
@@ -111,7 +96,7 @@ export function HistoryVirtualTable<TItem>({
     // `header` is intentionally excluded: callers pass a fresh inline element each render, so keeping it
     // here would tear down and rebuild the observer on every render. `items.length` already covers the
     // empty<->non-empty scroller swap, and the observer itself handles size changes.
-  }, [endReachedEnabled, items.length, updateFixedActionShadow])
+  }, [items.length, updateFixedActionShadow])
 
   return (
     <div className="min-h-0 flex-1 px-3 pt-3 pb-2" role="table">
@@ -123,7 +108,7 @@ export function HistoryVirtualTable<TItem>({
             estimateSize={estimateSize}
             header={header}
             list={items}
-            onScroll={updateFixedActionShadow}
+            onScroll={handleScroll}
             overscan={8}
             role="rowgroup"
             scrollElementRef={scrollerRef}
@@ -131,7 +116,7 @@ export function HistoryVirtualTable<TItem>({
             {renderRow}
           </DynamicVirtualList>
         ) : (
-          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={updateFixedActionShadow}>
+          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
             {header}
             {emptyContent}
           </div>

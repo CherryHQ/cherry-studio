@@ -15,6 +15,7 @@ import {
   useMutation,
   useQuery
 } from '@renderer/data/hooks/useDataApi'
+import { registerDataApiCursorResource } from '@renderer/data/hooks/useDataApiCursorRevision'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
@@ -40,6 +41,10 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+// '/agent-sessions' is cursor-paged: a local write restarts its cursor chains
+// from page one, and every list refresh also refetches '/agent-sessions/stats'.
+registerDataApiCursorResource('/agent-sessions', { linkedRefreshPaths: ['/agent-sessions/stats'] })
+
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const AGENT_SESSION_IDS_PAGE_SIZE = 200
 const EMPTY_AGENT_SESSIONS: readonly AgentSessionListItem[] = Object.freeze([])
@@ -57,8 +62,6 @@ type UseSessionsOptions = {
   ids?: string[]
   /** Pin membership filter. Flat path only. */
   pinned?: boolean
-  /** Preserve the previous query window while filters change (default: DataApi hook policy). */
-  keepPreviousData?: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
 }
@@ -274,7 +277,6 @@ export const useSessions = (
   const searchScope = typeof options === 'number' ? undefined : options.searchScope
   const ids = typeof options === 'number' ? undefined : options.ids
   const pinned = typeof options === 'number' ? undefined : options.pinned
-  const keepPreviousData = typeof options === 'number' ? undefined : options.keepPreviousData
   const workspaceId = typeof options === 'number' ? undefined : options.workspaceId
 
   const query = useMemo(() => {
@@ -302,8 +304,7 @@ export const useSessions = (
     query,
     limit: pageSize,
     enabled,
-    resetOnLocalWrite: '/agent-sessions',
-    swrOptions: keepPreviousData === undefined ? undefined : { keepPreviousData }
+    resetOnLocalWrite: '/agent-sessions'
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')

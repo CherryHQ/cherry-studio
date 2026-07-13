@@ -60,8 +60,9 @@ import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
 
 import {
-  DATA_API_CURSOR_RESOURCES,
   type DataApiCursorResource,
+  getDataApiCursorLinkedRefreshPaths,
+  getRegisteredDataApiCursorResources,
   publishDataApiCursorRevision,
   useDataApiCursorRevision
 } from './useDataApiCursorRevision'
@@ -95,13 +96,14 @@ const EMPTY_ITEMS: readonly never[] = Object.freeze([])
 
 /**
  * Cursor pages cannot be safely patched after local writes that may change
- * ordering. Bump only the two list resources owned by this feature; this is a
- * Renderer-local revision and deliberately has no IPC/cross-window behavior.
+ * ordering. Bump only the resources their feature modules registered as
+ * cursor-paged; this is a Renderer-local revision and deliberately has no
+ * IPC/cross-window behavior.
  */
 function publishLocalCursorResets(patterns: readonly string[]): DataApiCursorResource[] {
   const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
   const resetResources: DataApiCursorResource[] = []
-  for (const resource of DATA_API_CURSOR_RESOURCES) {
+  for (const resource of getRegisteredDataApiCursorResources()) {
     if (!normalizedPatterns.has(resource)) continue
     publishDataApiCursorRevision(resource)
     resetResources.push(resource)
@@ -109,15 +111,14 @@ function publishLocalCursorResets(patterns: readonly string[]): DataApiCursorRes
   return resetResources
 }
 
+/** Expand refresh patterns with each registered resource's linked sibling paths (e.g. its /stats). */
 function expandLocalListRefreshPatterns(patterns: readonly string[]): string[] {
   const expanded = new Set(patterns)
   const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
 
-  if (normalizedPatterns.has('/topics')) {
-    expanded.add('/topics/stats')
-  }
-  if (normalizedPatterns.has('/agent-sessions')) {
-    expanded.add('/agent-sessions/stats')
+  for (const resource of getRegisteredDataApiCursorResources()) {
+    if (!normalizedPatterns.has(resource)) continue
+    for (const path of getDataApiCursorLinkedRefreshPaths(resource)) expanded.add(path)
   }
 
   return [...expanded]
@@ -665,7 +666,7 @@ export function useInvalidateCache() {
   const invalidate = useCallback(
     async (keys?: string | string[] | boolean): Promise<void> => {
       if (keys === true || keys === undefined) {
-        for (const resource of DATA_API_CURSOR_RESOURCES) publishDataApiCursorRevision(resource)
+        for (const resource of getRegisteredDataApiCursorResources()) publishDataApiCursorRevision(resource)
         await mutate(() => true)
         return
       }
@@ -932,7 +933,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     ...(resetOnLocalWrite ? { keepPreviousData: false } : {})
   })
 
-  const { error, isLoading, isValidating, mutate, setSize } = swrResult
+  const { error, isLoading, isValidating, mutate, setSize, size } = swrResult
 
   useLayoutEffect(() => {
     if (resetOnLocalWrite && revisionToken) {
@@ -942,8 +943,8 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     const previousRevisionToken = committedRevisionTokenRef.current
     committedRevisionTokenRef.current = revisionToken
     if (previousRevisionToken) evictInfiniteRevisionFamily(cache, previousRevisionToken)
-    void setSize(1)
-  }, [cache, resetOnLocalWrite, revisionToken, setSize])
+    if (size !== 1) void setSize(1)
+  }, [cache, resetOnLocalWrite, revisionToken, setSize, size])
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`

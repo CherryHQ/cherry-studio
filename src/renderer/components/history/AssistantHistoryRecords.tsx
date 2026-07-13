@@ -85,7 +85,6 @@ const AssistantHistoryRecords = ({
     loadNext: loadNextPinnedTopics,
     refetch: refetchPinnedTopics
   } = useTopics({
-    keepPreviousData: false,
     sortBy: historySortBy,
     q: debouncedSearch,
     assistantId: ownerScope,
@@ -100,7 +99,6 @@ const AssistantHistoryRecords = ({
     loadNext: loadNextUnpinnedTopics,
     refetch: refetchUnpinnedTopics
   } = useTopics({
-    keepPreviousData: false,
     sortBy: historySortBy,
     q: debouncedSearch,
     assistantId: ownerScope,

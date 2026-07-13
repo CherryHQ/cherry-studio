@@ -1,5 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
-import { getDataApiCursorRevision, publishDataApiCursorRevision } from '@data/hooks/useDataApiCursorRevision'
+import {
+  getDataApiCursorRevision,
+  publishDataApiCursorRevision,
+  registerDataApiCursorResource
+} from '@data/hooks/useDataApiCursorRevision'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
@@ -49,7 +53,9 @@ const {
 } = __testing
 
 describe('expandLocalListRefreshPatterns', () => {
-  it('refreshes list stats without invalidating read-on-demand latest queries', () => {
+  it('refreshes registered linked paths without invalidating read-on-demand latest queries', () => {
+    registerDataApiCursorResource('/topics', { linkedRefreshPaths: ['/topics/stats'] })
+    registerDataApiCursorResource('/agent-sessions', { linkedRefreshPaths: ['/agent-sessions/stats'] })
     expect(expandLocalListRefreshPatterns(['/topics'])).toEqual(['/topics', '/topics/stats'])
     expect(expandLocalListRefreshPatterns(['/agent-sessions'])).toEqual(['/agent-sessions', '/agent-sessions/stats'])
   })

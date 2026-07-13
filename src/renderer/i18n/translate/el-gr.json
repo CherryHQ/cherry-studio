@@ -1873,6 +1873,11 @@
         "label": "Προσδοκώμενα όρια",
         "tips": "Προσδοκώμενα όρια: προσθέτει επιπλέον επιστημονικές προσθήκες για το παρόν θέμα"
       },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Αναζήτηση θεμάτων...",
         "title": "Αναζήτηση"

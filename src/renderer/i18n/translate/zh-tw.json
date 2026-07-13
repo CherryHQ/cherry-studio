@@ -1873,6 +1873,11 @@
         "label": "對話提示詞",
         "tips": "對話提示詞：針對目前對話提供額外的補充提示詞"
       },
+      "reorder": {
+        "error": {
+          "failed": "對話排序失敗"
+        }
+      },
       "search": {
         "placeholder": "搜尋對話...",
         "title": "搜尋"

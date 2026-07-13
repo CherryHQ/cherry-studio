@@ -22,6 +22,7 @@ import {
   useMutation,
   useQuery
 } from '@data/hooks/useDataApi'
+import { registerDataApiCursorResource } from '@data/hooks/useDataApiCursorRevision'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
@@ -42,6 +43,10 @@ import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
+
+// '/topics' is cursor-paged: a local write restarts its cursor chains from
+// page one, and every list refresh also refetches the '/topics/stats' facts.
+registerDataApiCursorResource('/topics', { linkedRefreshPaths: ['/topics/stats'] })
 
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
@@ -230,7 +235,6 @@ export function useTopics(opts?: {
   pinned?: boolean
   pageSize?: number
   enabled?: boolean
-  keepPreviousData?: boolean
 }) {
   const q = opts?.q?.trim()
   const query = useMemo(() => {
@@ -246,8 +250,7 @@ export function useTopics(opts?: {
     query,
     limit: pageSize,
     enabled: opts?.enabled,
-    resetOnLocalWrite: '/topics',
-    swrOptions: opts?.keepPreviousData === undefined ? undefined : { keepPreviousData: opts.keepPreviousData }
+    resetOnLocalWrite: '/topics'
   })
   const topics = useInfiniteFlatItems(pages)
   return {

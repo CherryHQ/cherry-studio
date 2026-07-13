@@ -70,7 +70,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     reload: reloadPinnedSessions
   } = useSessions(ownerScope, {
     enabled: !usesRuntimeStatusIds,
-    keepPreviousData: false,
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
     searchScope: 'full',
@@ -91,7 +90,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     togglePin
   } = useSessions(ownerScope, {
     enabled: !usesRuntimeStatusIds,
-    keepPreviousData: false,
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
     searchScope: 'full',

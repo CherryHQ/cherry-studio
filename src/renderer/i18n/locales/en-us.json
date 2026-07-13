@@ -1873,6 +1873,11 @@
         "label": "Conversation Prompts",
         "tips": "Conversation Prompts: Additional supplementary prompts provided for the current conversation"
       },
+      "reorder": {
+        "error": {
+          "failed": "Failed to reorder conversations"
+        }
+      },
       "search": {
         "placeholder": "Search conversations...",
         "title": "Search"

@@ -296,7 +296,6 @@ export function Topics({
   const pinnedTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
     enabled: isTopicListEnabled,
-    keepPreviousData: false,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: true,
     q: debouncedRemoteQuery,
@@ -306,7 +305,6 @@ export function Topics({
   const createdTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
     enabled: isTopicListEnabled && !isAssistantDisplayMode,
-    keepPreviousData: false,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -1519,6 +1517,7 @@ export function Topics({
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
+        toast.error(formatErrorMessageWithPrefix(err, t('chat.topics.reorder.error.failed')))
       }
     },
     [assistantById, isAssistantDisplayMode, orderedAssistants, refreshAssistants, refreshTopics, t, topics]
