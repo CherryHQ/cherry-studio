@@ -17,12 +17,9 @@
  */
 
 import { application } from '@application'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -30,6 +27,7 @@ import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, Output
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -96,22 +94,18 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
 
-  // 1. Resolve model: "providerId:modelId" (split on FIRST ':'). Taken from an
-  // explicit override (Gemini's URL path) or the request body `model` field.
+  // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
+  // override or the request body, then map it to the internal model id.
   const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
   if (!modelString || typeof modelString !== 'string') {
     throw new Error('Request is missing a "model" field')
   }
-  const sepIdx = modelString.indexOf(':')
-  if (sepIdx <= 0 || sepIdx >= modelString.length - 1) {
-    throw new Error(`Invalid model format: "${modelString}". Expected "providerId:modelId".`)
-  }
-  const providerId = modelString.slice(0, sepIdx)
-  const modelId = modelString.slice(sepIdx + 1)
-  if (isManagedCherryAiDefaultModel(providerId, modelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
-  }
-  const uniqueModelId = createUniqueModelId(providerId, modelId)
+  const {
+    providerId,
+    apiModelId: modelId,
+    uniqueModelId,
+    provider: resolvedProvider
+  } = resolveGatewayModelAddress(modelString)
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 
@@ -132,16 +126,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const tools = converter.toAiSdkTools?.(params)
   const streamOptions = converter.extractStreamOptions(params)
 
-  // Provider options (reasoning/thinking) need a Provider; load it from the data
-  // layer. Best-effort — if unavailable, proceed without provider options.
-  let provider: Provider | undefined = config.provider
-  if (!provider) {
-    try {
-      provider = providerService.getByProviderId(providerId)
-    } catch {
-      provider = undefined
-    }
-  }
+  // Provider options (reasoning/thinking) use the same enabled provider resolved above.
+  const provider: Provider = config.provider ?? resolvedProvider
   const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).

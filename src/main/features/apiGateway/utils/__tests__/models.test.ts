@@ -110,6 +110,39 @@ describe('api gateway model listing', () => {
     expect(response.data).toEqual([])
   })
 
+  it('keeps valid models when another provider id contains ":"', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'corp:west', name: 'Corp West' },
+      { id: 'openai', name: 'OpenAI' }
+    ])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
+      if (providerId === 'corp:west') {
+        return [
+          {
+            id: 'corp:west::gpt-4o',
+            providerId: 'corp:west',
+            apiModelId: 'gpt-4o',
+            ownedBy: 'Corp',
+            capabilities: []
+          }
+        ]
+      }
+      return [
+        {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          apiModelId: 'gpt-4o',
+          ownedBy: 'OpenAI',
+          capabilities: []
+        }
+      ]
+    })
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
   // Reviewer A1: an external-cli provider (e.g. claude-code) authenticates via its own CLI login,
   // not an app-side key, so the proxy's AI-SDK path cannot call it. Its chat models pass the routable
   // predicate but must never be advertised, or a client that picks them from /v1/models fails auth.

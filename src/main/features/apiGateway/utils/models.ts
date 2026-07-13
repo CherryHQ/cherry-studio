@@ -1,7 +1,8 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import type { Model } from '@shared/data/types/model'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -29,6 +30,13 @@ export interface ApiModelsResponse {
 export interface ModelsFilter {
   offset?: number
   limit?: number
+}
+
+export interface ResolvedGatewayModelAddress {
+  providerId: string
+  apiModelId: string
+  uniqueModelId: UniqueModelId
+  provider: Provider
 }
 
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
@@ -63,16 +71,51 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
 
 /**
  * Project a data-layer `Model` into the OpenAI `/v1/models` entry shape. The `id` is
- * the gateway-addressable `"providerId:modelId"`.
+ * the gateway-addressable `"providerId:apiModelId"`.
  */
 function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
-  const apiModelId = model.apiModelId ?? model.id
+  const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
   return {
     id: formatGatewayModelId(model.providerId, apiModelId),
     object: 'model',
     created: Math.floor(Date.now() / 1000),
     owned_by: model.ownedBy || provider?.name || model.providerId
   }
+}
+
+/** Resolve an external `providerId:apiModelId` address to the enabled internal model record. */
+export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewayModelAddress {
+  const sepIdx = modelAddress.indexOf(':')
+  if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
+    throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
+  }
+
+  const providerId = modelAddress.slice(0, sepIdx)
+  const apiModelId = modelAddress.slice(sepIdx + 1)
+  if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
+    throw new Error('CherryAI managed default model is not available through the API gateway')
+  }
+
+  let provider: Provider
+  try {
+    provider = providerService.getByProviderId(providerId)
+  } catch {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+  if (!provider.isEnabled || isExternalCliProvider(provider)) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
+    if (!isGatewayRoutableModel(candidate)) return false
+    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
+    return candidateApiModelId === apiModelId
+  })
+  if (!model) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  return { providerId, apiModelId, uniqueModelId: model.id, provider }
 }
 
 /**
@@ -85,7 +128,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     const providers = getAvailableProviders()
     const models = await listAllAvailableModels(providers)
 
-    // Deduplicate by the gateway-addressable id ("providerId:modelId").
+    // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
