@@ -635,16 +635,16 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "Manage skills"
+      }
+    },
     "speed": {
       "fast": "Fast",
       "fast_description": "Faster responses use more credits.",
       "reasoning": "Reasoning effort",
       "title": "Response settings"
-    },
-    "skill": {
-      "manage": {
-        "title": "Manage skills"
-      }
     },
     "tasks": {
       "add": "Add Task",
@@ -1219,12 +1219,14 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
         "minimal_description": "Minimal reasoning",
         "off": "Off",
         "off_description": "Disable reasoning",
+        "ultra": "Ultra",
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },

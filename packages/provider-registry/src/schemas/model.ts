@@ -46,7 +46,8 @@ export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional()
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  defaultEffort: ReasoningEffortSchema.optional()
 }
 
 /**

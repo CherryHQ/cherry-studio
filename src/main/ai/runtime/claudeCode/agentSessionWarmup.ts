@@ -92,7 +92,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       fastMode: isClaudeCodeProviderId(providerId) ? runtimeOptions?.fastMode : undefined,
       thinkingOptions: runtimeOptions
         ? {
-            effort: runtimeOptions.reasoningEffort === 'xhigh' ? 'max' : runtimeOptions.reasoningEffort
+            effort:
+              runtimeOptions.reasoningEffort === 'xhigh' || runtimeOptions.reasoningEffort === 'ultra'
+                ? 'max'
+                : runtimeOptions.reasoningEffort
           }
         : undefined
     }),

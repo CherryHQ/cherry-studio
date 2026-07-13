@@ -1,5 +1,5 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Slider, Switch } from '@cherrystudio/ui'
-import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
+import { Button, Popover, PopoverContent, PopoverTrigger, Slider } from '@cherrystudio/ui'
+import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import type { Model } from '@shared/data/types/model'
@@ -7,14 +7,21 @@ import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const DEFAULT_EFFORTS: AgentReasoningEffort[] = ['low', 'medium', 'high']
-const AGENT_EFFORTS = new Set<AgentReasoningEffort>(['low', 'medium', 'high', 'xhigh'])
+const AGENT_EFFORTS = new Set<AgentReasoningEffort>(AGENT_REASONING_EFFORTS)
+const EFFORT_LABEL_KEYS: Record<AgentReasoningEffort, string> = {
+  low: 'assistants.settings.reasoning_effort.low',
+  medium: 'assistants.settings.reasoning_effort.medium',
+  high: 'assistants.settings.reasoning_effort.high',
+  xhigh: 'assistants.settings.reasoning_effort.xhigh',
+  max: 'assistants.settings.reasoning_effort.max',
+  ultra: 'assistants.settings.reasoning_effort.ultra'
+}
 
 export function getAgentReasoningEfforts(model: Model): AgentReasoningEffort[] {
-  const supported = model.reasoning?.supportedEfforts?.filter(
-    (effort): effort is AgentReasoningEffort => AGENT_EFFORTS.has(effort as AgentReasoningEffort)
+  const supported = model.reasoning?.supportedEfforts?.filter((effort): effort is AgentReasoningEffort =>
+    AGENT_EFFORTS.has(effort as AgentReasoningEffort)
   )
-  return supported?.length ? supported : DEFAULT_EFFORTS
+  return supported ?? []
 }
 
 export function getDefaultAgentReasoningEffort(model?: Model): AgentReasoningEffort {
@@ -28,14 +35,14 @@ export function getDefaultAgentReasoningEffort(model?: Model): AgentReasoningEff
 }
 
 export function supportsAgentSpeedControl(model: Model): boolean {
-  return isClaudeCodeProviderId(model.providerId) || isCodexProviderId(model.providerId)
+  return (
+    (isClaudeCodeProviderId(model.providerId) || isCodexProviderId(model.providerId)) &&
+    getAgentReasoningEfforts(model).length > 0
+  )
 }
 
 export function supportsAgentFastMode(model: Model): boolean {
-  const modelId = (model.apiModelId ?? model.id).toLowerCase()
-  if (isClaudeCodeProviderId(model.providerId)) return /^claude-opus-4-(7|8)(?:-|$)/.test(modelId)
-  if (isCodexProviderId(model.providerId)) return /^gpt-5\.(4|5)(?:-|$)/.test(modelId)
-  return false
+  return model.supportsFastMode === true
 }
 
 interface AgentSpeedControlProps {
@@ -61,7 +68,7 @@ export function AgentSpeedControl({
 
   if (!isAgentProvider) return null
 
-  const effortLabel = t(`assistants.settings.reasoning_effort.${efforts[currentIndex]}`)
+  const effortLabel = t(EFFORT_LABEL_KEYS[efforts[currentIndex]])
 
   return (
     <Popover>
@@ -70,7 +77,7 @@ export function AgentSpeedControl({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
+          className="h-7 gap-1 rounded-full px-2 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} />
           <span>{effortLabel}</span>
@@ -78,40 +85,45 @@ export function AgentSpeedControl({
           <ChevronDown size={12} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="top" align="end" className="w-72 p-4">
-        <div className="space-y-4">
-          <div>
-            <div className="mb-3 text-sm font-medium">{t('agent.speed.reasoning')}</div>
-            <Slider
-              aria-label={t('agent.speed.reasoning')}
-              value={[currentIndex]}
-              min={0}
-              max={Math.max(1, efforts.length - 1)}
-              step={1}
-              size="sm"
-              marks={efforts.map((effort, index) => ({
-                value: index,
-                label: t(`assistants.settings.reasoning_effort.${effort}`)
-              }))}
-              onValueChange={([index]) => {
-                const effort = efforts[index]
-                if (effort) onReasoningEffortChange(effort)
-              }}
-            />
-          </div>
-          {supportsFast ? (
-            <div className="flex items-center justify-between gap-4 border-t pt-3">
-              <div className="flex min-w-0 gap-2">
-                <Zap className="mt-0.5 shrink-0 text-amber-500" size={15} />
-                <div>
-                  <div className="text-sm font-medium">{t('agent.speed.fast')}</div>
-                  <div className="text-xs text-muted-foreground">{t('agent.speed.fast_description')}</div>
-                </div>
-              </div>
-              <Switch checked={fastMode} onCheckedChange={onFastModeChange} aria-label={t('agent.speed.fast')} />
+      <PopoverContent side="top" align="end" className="w-80 p-4">
+        <div className="font-medium text-sm">{t('agent.speed.reasoning')}</div>
+        <Slider
+          aria-label={t('agent.speed.reasoning')}
+          value={[currentIndex]}
+          min={0}
+          max={Math.max(1, efforts.length - 1)}
+          step={1}
+          size="sm"
+          className="mt-3"
+          marks={efforts.map((effort, index) => ({
+            value: index,
+            label: t(EFFORT_LABEL_KEYS[effort])
+          }))}
+          onValueChange={([index]) => {
+            const effort = efforts[index]
+            if (effort) onReasoningEffortChange(effort)
+          }}
+        />
+        {supportsFast ? (
+          <div className="mt-4 flex items-center justify-between gap-4 border-t pt-3">
+            <div className="min-w-0">
+              <div className="font-medium text-sm">{t('agent.speed.fast')}</div>
+              <div className="text-muted-foreground text-xs">{t('agent.speed.fast_description')}</div>
             </div>
-          ) : null}
-        </div>
+            <Button
+              type="button"
+              variant={fastMode ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-full"
+              aria-label={t('agent.speed.fast')}
+              aria-pressed={fastMode}
+              data-active={fastMode || undefined}
+              onClick={() => onFastModeChange(!fastMode)}>
+              <Zap fill={fastMode ? 'currentColor' : 'none'} size={14} />
+              <span>{t('agent.speed.fast')}</span>
+            </Button>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )

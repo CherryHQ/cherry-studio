@@ -74,8 +74,8 @@ import {
 import { AgentLabel } from './agent/AgentLabel'
 import {
   AgentSpeedControl,
-  getDefaultAgentReasoningEffort,
   getAgentReasoningEfforts,
+  getDefaultAgentReasoningEffort,
   supportsAgentFastMode,
   supportsAgentSpeedControl
 } from './agent/AgentSpeedControl'

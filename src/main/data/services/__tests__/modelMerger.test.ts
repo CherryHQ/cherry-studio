@@ -381,6 +381,7 @@ describe('mergePresetModel — reasoning', () => {
       reasoning: {
         type: 'builtin',
         supportedEfforts: ['low', 'medium', 'high'],
+        defaultEffort: 'high',
         thinkingTokenLimits: { min: 1024, max: 32768 }
       }
     } as any
@@ -390,6 +391,7 @@ describe('mergePresetModel — reasoning', () => {
     // type is derived from provider's reasoningFormatType, not from preset — empty when no provider config
     expect(model.reasoning!.type).toBe('')
     expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning!.defaultEffort).toBe('high')
     expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 32768 })
   })
 

@@ -602,7 +602,33 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return rowToRuntimeModel(row)
+    const model = rowToRuntimeModel(row)
+    if (!row.presetModelId) return model
+
+    try {
+      const registryData = providerRegistryService.lookupModel(providerId, row.presetModelId)
+      if (!registryData.presetModel) return model
+
+      const currentPreset = mergePresetModel(
+        registryData.presetModel,
+        registryData.registryOverride,
+        providerId,
+        registryData.reasoningFormatTypes,
+        registryData.defaultChatEndpoint
+      )
+      return {
+        ...model,
+        reasoning: row.userOverrides?.includes('reasoning') ? model.reasoning : currentPreset.reasoning,
+        supportsFastMode: currentPreset.supportsFastMode
+      }
+    } catch (error) {
+      logger.warn('Registry agent capability enrichment failed; serving persisted model data', {
+        providerId,
+        modelId,
+        error
+      })
+      return model
+    }
   }
 
   /**

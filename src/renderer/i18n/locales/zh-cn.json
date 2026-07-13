@@ -635,16 +635,16 @@
       }
     },
     "sidebar_title": "智能体",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "speed": {
       "fast": "快速",
       "fast_description": "响应更快，但会消耗更多额度。",
       "reasoning": "推理强度",
       "title": "响应设置"
-    },
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
     },
     "tasks": {
       "add": "添加任务",
@@ -1219,12 +1219,14 @@
         "label": "思维链长度",
         "low": "浮想",
         "low_description": "低强度推理",
+        "max": "极限",
         "medium": "斟酌",
         "medium_description": "中强度推理",
         "minimal": "微念",
         "minimal_description": "最小程度的推理",
         "off": "关闭",
         "off_description": "禁用推理",
+        "ultra": "究极",
         "xhigh": "穷究",
         "xhigh_description": "超高强度推理"
       },

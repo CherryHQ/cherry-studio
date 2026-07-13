@@ -213,6 +213,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    supportsFastMode: catalogOverride?.supportsFastMode,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -373,6 +374,7 @@ function extractRuntimeReasoning(
   return {
     type,
     supportedEfforts,
+    defaultEffort: reasoning.defaultEffort,
     thinkingTokenLimits: reasoning.thinkingTokenLimits
   }
 }

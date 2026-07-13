@@ -635,16 +635,16 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "speed": {
       "fast": "快速",
       "fast_description": "回應更快，但會消耗更多額度。",
       "reasoning": "推理強度",
       "title": "回應設定"
-    },
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
     },
     "tasks": {
       "add": "新增任務",
@@ -1219,12 +1219,14 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "low_description": "低階推理",
+        "max": "極限",
         "medium": "正常思考",
         "medium_description": "中等程度推理",
         "minimal": "最少思考",
         "minimal_description": "最少推理",
         "off": "關閉",
         "off_description": "禁用推理",
+        "ultra": "究極",
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
       },

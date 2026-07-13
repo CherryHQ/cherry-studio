@@ -1,6 +1,6 @@
-import type { ReasoningEffortOption } from '../utils/reasoning'
+export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
 
-export type AgentReasoningEffort = Extract<ReasoningEffortOption, 'low' | 'medium' | 'high' | 'xhigh'>
+export type AgentReasoningEffort = (typeof AGENT_REASONING_EFFORTS)[number]
 
 export interface AgentRuntimeOptions {
   reasoningEffort: AgentReasoningEffort

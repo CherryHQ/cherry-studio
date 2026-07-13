@@ -44,7 +44,7 @@ export interface AgentTurnInput {
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
-  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
+  const parts = input.options?.body?.userMessageParts
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 

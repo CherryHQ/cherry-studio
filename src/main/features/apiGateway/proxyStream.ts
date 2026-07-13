@@ -138,7 +138,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     providerOptions = {
       ...providerOptions,
       openai: {
-        ...(providerOptions?.openai ?? {}),
+        ...providerOptions?.openai,
         reasoningEffort: config.agentRuntimeOptions.reasoningEffort,
         // Codex app-server calls this mode "fast"; the Responses wire value is Priority processing.
         serviceTier: config.agentRuntimeOptions.fastMode ? 'priority' : 'default'

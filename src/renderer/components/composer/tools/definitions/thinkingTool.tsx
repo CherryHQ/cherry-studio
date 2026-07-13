@@ -8,8 +8,7 @@ const thinkingTool = defineTool({
   label: (t) => t('chat.input.thinking.label'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
   condition: ({ scope, model }) =>
-    scope !== TopicType.Session ||
-    (!isClaudeCodeProviderId(model.providerId) && !isCodexProviderId(model.providerId)),
+    scope !== TopicType.Session || (!isClaudeCodeProviderId(model.providerId) && !isCodexProviderId(model.providerId)),
   composer: {
     runtime: ({ context: { assistant, model, launcher, session } }) => (
       <ThinkingToolRuntime
