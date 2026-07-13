@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { copyFile, statfs } from 'node:fs/promises'
+import type { copyFile, statfs, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -72,7 +72,7 @@ function pending(from: string, to: string, overwrite = false) {
   return { status: 'pending' as const, from, to, copy: true, overwrite }
 }
 
-type FsPromisesOverrides = Partial<{ copyFile: typeof copyFile; statfs: typeof statfs }>
+type FsPromisesOverrides = Partial<{ copyFile: typeof copyFile; statfs: typeof statfs; symlink: typeof symlink }>
 
 async function usePromises(overrides: FsPromisesOverrides = {}) {
   vi.doMock('node:fs/promises', async () => {
@@ -89,6 +89,7 @@ async function loadGate() {
 beforeEach(async () => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.doMock('@main/core/platform', () => ({ isWin: false }))
   await usePromises()
 
   relocationState = { installPath: makeRoot(), 'temp.user_data_relocation': null }
@@ -150,6 +151,37 @@ describe('userDataRelocationGate', () => {
       valid: false,
       reason: 'target_inside_source'
     })
+  })
+
+  it('reports a non-absolute target with its own validation reason', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    fs.mkdirSync(source)
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, 'relative/target')).toEqual({
+      valid: false,
+      reason: 'target_not_absolute'
+    })
+  })
+
+  it('validates relocation paths before cleaning recovery artifacts', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(source, 'target')
+    const workPath = path.join(source, '.target.cherry-relocation-work')
+    fs.mkdirSync(source)
+    fs.mkdirSync(workPath)
+    fs.writeFileSync(path.join(workPath, 'partial.txt'), 'keep')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(workPath, 'partial.txt'), 'utf8')).toBe('keep')
+    expect(commitMock).not.toHaveBeenCalled()
   })
 
   it('refuses an existing target that carries an active Chromium singleton marker', async () => {
@@ -215,6 +247,29 @@ describe('userDataRelocationGate', () => {
 
     expect(fs.readlinkSync(path.join(target, 'data-link'))).toBe(path.join(fs.realpathSync(target), 'data.txt'))
     expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
+  })
+
+  it('resolves a relative directory link before creating a Windows junction', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(path.join(source, 'real'), { recursive: true })
+    fs.symlinkSync('real', path.join(source, 'relative-link'), 'dir')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+    vi.doMock('@main/core/platform', () => ({ isWin: true }))
+    const symlinkMock = vi.fn<typeof symlink>().mockResolvedValue(undefined)
+    await usePromises({ symlink: symlinkMock })
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(symlinkMock).toHaveBeenCalledWith(
+      path.join(fs.realpathSync(target), 'real'),
+      path.join(root, '.target.cherry-relocation-work', 'relative-link'),
+      'junction'
+    )
+    expect(commitMock).toHaveBeenCalledWith(target)
   })
 
   it('tolerates a source file that vanishes between enumeration and copy', async () => {

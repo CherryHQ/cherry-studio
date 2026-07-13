@@ -5486,7 +5486,7 @@
         "path_changed_without_copy": "Path changed successfully",
         "restart_notice": "The app may need to restart multiple times to apply the changes",
         "select": "Modify Directory",
-        "select_error": "Failed to change data directory",
+        "select_error": "The selected directory may be used by another Cherry Studio instance. Close other instances and try again. If none are running, remove stale SingletonLock and SingletonSocket files from that directory.",
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
         "select_error_root_path": "New path cannot be the root path",
         "select_error_same_path": "New path is the same as the old path, please select another path",

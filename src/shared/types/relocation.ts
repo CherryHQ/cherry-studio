@@ -11,6 +11,7 @@ export const USER_DATA_RELOCATION_VALIDATION_REASONS = [
   'target_inside_source',
   'target_contains_source',
   'target_inside_install',
+  'target_not_absolute',
   'target_parent_unwritable',
   'target_not_directory',
   'target_top_level_not_empty',

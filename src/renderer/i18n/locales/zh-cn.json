@@ -5486,7 +5486,7 @@
         "path_changed_without_copy": "路径已更改成功",
         "restart_notice": "应用可能会重启多次以应用更改",
         "select": "修改目录",
-        "select_error": "更改数据目录失败",
+        "select_error": "所选目录可能正被另一个 Cherry Studio 实例使用。请关闭其他实例后重试；若确认没有实例运行，请删除该目录中遗留的 SingletonLock 和 SingletonSocket 文件。",
         "select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
         "select_error_root_path": "新路径不能是根路径",
         "select_error_same_path": "新路径与旧路径相同，请选择其他路径",

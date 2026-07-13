@@ -139,7 +139,10 @@ async function executeRelocation(
   publish: (progress: RelocationProgress) => void,
   commit: () => void
 ): Promise<void> {
-  if (pending.copy) await recoverInterruptedCopy(pending.to)
+  if (pending.copy) {
+    assertRelocationPaths(pending.from, pending.to, { allowRelocationArtifacts: true })
+    await recoverInterruptedCopy(pending.to)
+  }
   assertUserDataRelocationRequest(pending)
 
   if (!pending.copy) {
@@ -209,9 +212,13 @@ async function executeRelocation(
   }
 }
 
-function assertRelocationPaths(fromValue: string, toValue: string): { targetExists: boolean; targetEmpty: boolean } {
+function assertRelocationPaths(
+  fromValue: string,
+  toValue: string,
+  options: { allowRelocationArtifacts?: boolean } = {}
+): { targetExists: boolean; targetEmpty: boolean } {
   if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
-  if (!path.isAbsolute(toValue)) invalid('target_parent_unwritable', `target must be an absolute path: ${toValue}`)
+  if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
 
   const from = normalizeForCompare(fromValue)
   const to = normalizeForCompare(toValue)
@@ -258,12 +265,15 @@ function assertRelocationPaths(fromValue: string, toValue: string): { targetExis
       invalid('target_top_level_not_empty', `top-level target directory is not empty: ${toValue}`)
     }
     if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
-      invalid('target_in_use', `target appears to be an active userData directory: ${toValue}`)
+      invalid(
+        'target_in_use',
+        `target appears to be an active userData directory; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${toValue}`
+      )
     }
   }
 
   const { workPath, asidePath } = relocationArtifactPaths(toValue)
-  if (pathEntryExists(workPath) || pathEntryExists(asidePath)) {
+  if (!options.allowRelocationArtifacts && (pathEntryExists(workPath) || pathEntryExists(asidePath))) {
     invalid('target_work_conflict', `relocation work paths already exist beside target: ${toValue}`)
   }
 
@@ -283,7 +293,10 @@ async function recoverInterruptedCopy(target: string): Promise<void> {
   if (pathEntryExists(target)) {
     const entries = fs.statSync(target).isDirectory() ? fs.readdirSync(target) : []
     if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
-      invalid('target_in_use', `target became active during relocation recovery: ${target}`)
+      invalid(
+        'target_in_use',
+        `target became active during relocation recovery; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${target}`
+      )
     }
     await fsp.rm(target, { recursive: true, force: true })
   }
@@ -366,12 +379,6 @@ async function copyTree(source: string, target: string, context: CopyContext, al
       if (allowMissing && isErrno(error, 'ENOENT')) return
       throw error
     }
-    const rewrittenTarget = await rewriteAbsoluteInternalLink(
-      source,
-      linkTarget,
-      context.sourceRootReal,
-      context.finalTargetEffective
-    )
     let type: 'dir' | 'file' | 'junction' | undefined
     try {
       const followed = await fsp.stat(source)
@@ -380,6 +387,13 @@ async function copyTree(source: string, target: string, context: CopyContext, al
       if (!isErrno(error, 'ENOENT')) throw error
       type = isWin ? 'file' : undefined
     }
+    const rewrittenTarget = await rewriteSymlinkTarget(
+      source,
+      linkTarget,
+      type,
+      context.sourceRootReal,
+      context.finalTargetEffective
+    )
     await fsp.symlink(rewrittenTarget, target, type)
     return
   }
@@ -401,15 +415,15 @@ async function copyTree(source: string, target: string, context: CopyContext, al
   logger.warn('Skipping unsupported file system entry during userData relocation', { source })
 }
 
-async function rewriteAbsoluteInternalLink(
+async function rewriteSymlinkTarget(
   source: string,
   linkTarget: string,
+  type: 'dir' | 'file' | 'junction' | undefined,
   sourceRootReal: string,
   finalTargetEffective: string
 ): Promise<string> {
-  if (!path.isAbsolute(linkTarget)) return linkTarget
-
-  let effectiveLinkTarget = path.resolve(linkTarget)
+  const isAbsolute = path.isAbsolute(linkTarget)
+  let effectiveLinkTarget = isAbsolute ? path.resolve(linkTarget) : path.resolve(path.dirname(source), linkTarget)
   try {
     effectiveLinkTarget = await fsp.realpath(effectiveLinkTarget)
   } catch (error) {
@@ -418,12 +432,17 @@ async function rewriteAbsoluteInternalLink(
 
   const sourceRoot = normalizeForCompare(sourceRootReal)
   const effective = normalizeForCompare(effectiveLinkTarget)
-  if (effective !== sourceRoot && !isPathInside(effective, sourceRoot)) return linkTarget
+  if (effective !== sourceRoot && !isPathInside(effective, sourceRoot)) {
+    return isWin && type === 'junction' ? effectiveLinkTarget : linkTarget
+  }
 
   const relative = path.relative(sourceRoot, effective)
   const rewritten = path.join(finalTargetEffective, relative)
-  logger.info('Rewriting absolute internal symlink during userData relocation', { source, linkTarget, rewritten })
-  return rewritten
+  if (isAbsolute || (isWin && type === 'junction')) {
+    logger.info('Rewriting internal symlink during userData relocation', { source, linkTarget, rewritten })
+    return rewritten
+  }
+  return linkTarget
 }
 
 async function calculateTotalBytes(root: string, allowMissing = false): Promise<number> {

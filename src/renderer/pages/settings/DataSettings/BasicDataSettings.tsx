@@ -67,6 +67,10 @@ const BasicDataSettings: React.FC = () => {
       toast.error(t('settings.data.app_data.select_error_same_path'))
     } else if (reason === 'target_inside_install') {
       toast.error(t('settings.data.app_data.select_error_in_app_path'))
+    } else if (reason === 'target_in_use') {
+      toast.error(t('settings.data.app_data.select_error'))
+    } else if (reason === 'target_top_level_not_empty') {
+      toast.error(t('settings.data.app_data.select_not_empty_dir'))
     } else if (
       reason === 'target_parent_unwritable' ||
       reason === 'source_missing' ||
