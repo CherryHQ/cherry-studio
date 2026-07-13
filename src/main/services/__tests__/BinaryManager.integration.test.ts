@@ -70,12 +70,17 @@ if (command === 'use') {
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it('installs, resolves, and removes through the production process runner', async () => {
+  const createService = () => {
     const service = new BinaryManager()
     ;(service as any).miseBin = misePath
     ;(service as any).isolatedEnv = Object.fromEntries(
       Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
     )
+    return service
+  }
+
+  it('installs, resolves, and removes through the production process runner', async () => {
+    const service = createService()
 
     await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).resolves.toEqual({ version: '1.2.3' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
@@ -88,5 +93,28 @@ if (command === 'use') {
     await expect(service.removeTool('fd')).resolves.toBeUndefined()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
     expect(fs.existsSync(path.join(tempDir, 'shims', 'fd'))).toBe(false)
+
+    const shimsDir = path.join(tempDir, 'shims')
+    fs.mkdirSync(shimsDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(tempDir, 'fake-installed-tools.json'),
+      JSON.stringify({
+        'core:node': [{ version: '22.23.1', active: true }]
+      })
+    )
+    fs.writeFileSync(path.join(shimsDir, 'node'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+
+    await expect(service.installTool({ intent: { name: 'node', tool: 'core:node' } })).resolves.toEqual({
+      version: '22.23.1'
+    })
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
+      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+    ])
+
+    fs.writeFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'not json')
+    await expect(service.installTool({ intent: { name: 'rg', tool: 'rg' } })).rejects.toThrow()
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
+      { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+    ])
   })
 })
