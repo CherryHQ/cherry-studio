@@ -18,9 +18,9 @@ export async function getMetadataByPath(path: FilePath): Promise<PhysicalFileMet
   }
   // Extension-derived type, with a content sniff upgrading extension-unknown
   // files to text (see `@main/utils/file/metadata`). Every per-type enrichment
-  // field (width/height/pageCount/encoding) is optional, so this base object is
-  // a valid `PhysicalFileMetadata` for whichever `type` getFileType returns —
-  // the cast just tells TS which discriminated member without listing them all.
+  // field (width/height/pageCount/encoding) is optional, so this base object —
+  // which omits them all — is assignable to the `PhysicalFileMetadata` union for
+  // whichever `type` getFileType returns, without a cast.
   return {
     kind: 'file',
     type: await getFileType(path),
@@ -28,5 +28,5 @@ export async function getMetadataByPath(path: FilePath): Promise<PhysicalFileMet
     createdAt: s.createdAt || s.modifiedAt,
     modifiedAt: s.modifiedAt,
     mime: mime.getType(path) ?? 'application/octet-stream'
-  } as PhysicalFileMetadata
+  }
 }
