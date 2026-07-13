@@ -2153,8 +2153,9 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
-  it('keeps an edited queued draft after leaving an active history preview', async () => {
-    seedInputHistory(['history entry'])
+  it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
+    seedInputHistory(['queued agent draft'])
+    mocks.availableSkills = [pdfSkill]
     mocks.files = [file]
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
@@ -2176,11 +2177,24 @@ describe('AgentComposer', () => {
         text: 'queued agent draft',
         tokens: [
           {
+            ...pdfSkillToken,
+            index: 0,
+            textOffset: 0
+          },
+          {
+            id: 'quote:queued-agent',
+            kind: 'quote',
+            label: 'Queued quote',
+            promptText: 'quoted agent context',
+            index: 1,
+            textOffset: 0
+          },
+          {
             id: `file:${file.fileTokenSourceId}`,
             kind: 'file',
             label: file.name,
             payload: file,
-            index: 0,
+            index: 2,
             textOffset: 0
           }
         ]
@@ -2190,7 +2204,7 @@ describe('AgentComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
 
     const queueContent = mocks.surfaceProps?.queueContent as any
     const itemId = queueContent.props.items[0].id
@@ -2198,6 +2212,25 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
     await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
     expect(mocks.files).toEqual([file])
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        text: 'queued agent draft',
+        tokens: expect.arrayContaining([
+          expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
+          expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' }),
+          expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
+        ])
+      })
+    )
+    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })])
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-session-draft-agent-1',
+      {
+        text: 'queued agent draft',
+        tokens: [expect.objectContaining({ id: 'skill:pdf', kind: 'skill' })]
+      },
+      86400000
+    )
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
@@ -2207,12 +2240,48 @@ describe('AgentComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
     expect(mocks.files).toEqual([file])
+  })
+
+  it('isolates input history and files when the session changes', async () => {
+    seedInputHistory(['history entry'])
+    mocks.files = [file]
+    mocks.getDraft.mockReturnValue({ text: 'session one draft', tokens: [] })
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.files).toEqual([])
+
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-2"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.files).toEqual([])
   })
 
   it('keeps a steered follow-up in the dock when its manual send fails', async () => {

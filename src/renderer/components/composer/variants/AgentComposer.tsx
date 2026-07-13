@@ -261,6 +261,7 @@ const AgentComposerRoot = ({
 
   return (
     <ComposerToolRuntimeProvider
+      key={`${agentId}:${sessionId}`}
       initialState={initialState}
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
@@ -1171,17 +1172,21 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
-  // it from the queue. Agent editor tokens derive from `files` + `selectedSkills`, so set those.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
+  // skill subset and managed file/skill state before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
+      const nextDraftTokens = getCachedSkillTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryFilesRef.current = null
+      actionsRef.current.replaceDraft(item.draft)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
+      setSelectedSkills(nextDraftTokens.map(getSkillFromCachedToken))
     },
-    [resetHistoryIndex, setFiles, setText]
+    [actionsRef, resetHistoryIndex, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
