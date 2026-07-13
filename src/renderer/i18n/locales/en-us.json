@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "name": "Default Assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
@@ -3267,6 +3267,7 @@
       },
       "knowledge": {
         "add": "Add knowledge base",
+        "create_first": "Open Knowledge to create one",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
         "doc_count": "{{count}} docs",
         "empty_desc": "Once linked, the assistant can answer based on document content",
@@ -3280,6 +3281,7 @@
         "title": "Knowledge bases"
       },
       "prompt": {
+        "copy_variable": "Copy {{variable}}",
         "create_title": "New Prompt",
         "dblclick_hint": "Double-click the preview to switch back to edit",
         "desc": "The system prompt is sent as the opening context of the assistant",
@@ -3594,6 +3596,7 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
+      "avatar_image_too_large": "Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
@@ -3615,6 +3618,7 @@
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "image_process_failed": "Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Invalid API Host",
@@ -4034,6 +4038,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },
@@ -6797,6 +6802,7 @@
           "confirm": "Are you sure you want to add all models to the list?",
           "label": "Add all models"
         },
+        "add_success_enable_failed": "Models were added, but the provider could not be enabled.",
         "add_whole_group": "Add the whole group",
         "clean_stale_models": "Clean stale models",
         "clean_stale_success": "Cleaned {{count}} stale model(s)",
@@ -7208,6 +7214,7 @@
         "fill_after_create": "Authentication fields can be filled after create",
         "menu_label": "Add instance"
       },
+      "enable_failed_after_connection": "Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Agent Supported",
         "all": "All Providers",

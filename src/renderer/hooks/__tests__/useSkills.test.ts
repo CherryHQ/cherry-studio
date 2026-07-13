@@ -8,11 +8,33 @@ const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
+const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
+
+function stubSkillRoutes() {
+  skillMocks.request.mockImplementation((route: string, input: unknown) => {
+    switch (route) {
+      case 'skill.uninstall':
+        return uninstallSkillMock(input)
+      case 'skill.list_local':
+        return listLocalSkillsMock(input)
+      case 'skill.install':
+        return installSkillMock(input)
+      case 'skill.install_from_zip':
+        return installSkillFromZipMock(input)
+      case 'skill.install_from_directory':
+        return installSkillFromDirectoryMock(input)
+      default:
+        throw new Error(`Unexpected skill route: ${route}`)
+    }
+  })
+}
 
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
@@ -61,16 +83,7 @@ describe('useInstalledSkills', () => {
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
-    vi.stubGlobal('api', {
-      skill: {
-        uninstall: uninstallSkillMock,
-        listLocal: listLocalSkillsMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    stubSkillRoutes()
   })
 
   it('reads skills with DataApi scoped to the agent', () => {
@@ -89,7 +102,7 @@ describe('useInstalledSkills', () => {
     })
 
     expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -103,7 +116,7 @@ describe('useInstalledSkills', () => {
     })
 
     expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -136,7 +149,7 @@ describe('useInstalledSkills', () => {
 
     const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
 
-    await waitFor(() => expect(listLocalSkillsMock).toHaveBeenCalledWith('/repo'))
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' }))
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.skills).toEqual([
@@ -187,17 +200,7 @@ describe('useSkillInstall', () => {
     installSkillFromZipMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-zip' }) })
     installSkillFromDirectoryMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-directory' }) })
 
-    vi.stubGlobal('api', {
-      skill: {
-        install: installSkillMock,
-        installFromZip: installSkillFromZipMock,
-        installFromDirectory: installSkillFromDirectoryMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    stubSkillRoutes()
   })
 
   it('installs remote skills through IPC with installSource', async () => {
@@ -208,7 +211,7 @@ describe('useSkillInstall', () => {
       expect(skill?.id).toBe('skill-installed')
     })
 
-    expect(installSkillMock).toHaveBeenCalledWith({ installSource: 'skills.sh:owner/repo/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install', { installSource: 'skills.sh:owner/repo/my-skill' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -269,7 +272,7 @@ describe('useSkillInstall', () => {
 
     expect(installResult?.skill?.id).toBe('skill-installed')
     expect(installResult?.error).toBeUndefined()
-    expect(installSkillMock).toHaveBeenCalledWith({ installSource: 'skills.sh:owner/repo/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install', { installSource: 'skills.sh:owner/repo/my-skill' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -281,8 +284,8 @@ describe('useSkillInstall', () => {
       await result.current.installFromDirectory('/tmp/my-skill')
     })
 
-    expect(installSkillFromZipMock).toHaveBeenCalledWith({ zipFilePath: '/tmp/my-skill.zip' })
-    expect(installSkillFromDirectoryMock).toHaveBeenCalledWith({ directoryPath: '/tmp/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install_from_zip', { zipFilePath: '/tmp/my-skill.zip' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install_from_directory', { directoryPath: '/tmp/my-skill' })
     expect(invalidateMock).toHaveBeenCalledTimes(2)
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })

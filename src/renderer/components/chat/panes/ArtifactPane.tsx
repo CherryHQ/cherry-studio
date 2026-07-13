@@ -69,7 +69,6 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
-  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
@@ -151,7 +150,6 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
-  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -368,7 +366,6 @@ export function ArtifactFilePreview({
         sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
         className="min-h-0"
         refreshKey={contentRefreshKey}
-        actions={officeActions}
       />
     )
   }
@@ -627,21 +624,21 @@ export function ArtifactPaneView({
     [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
   )
 
-  const searchToolbar = (
-    <div className="flex shrink-0 items-center gap-1">
-      <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-foreground-muted hover:bg-accent hover:text-foreground"
-          aria-label={t('agent.preview_pane.refresh')}
-          onClick={handleRefresh}>
-          <RotateCw size={16} />
-        </Button>
-      </Tooltip>
-    </div>
+  const refreshButton = (
+    <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-foreground-muted hover:bg-accent hover:text-foreground"
+        aria-label={t('agent.preview_pane.refresh')}
+        onClick={handleRefresh}>
+        <RotateCw size={16} />
+      </Button>
+    </Tooltip>
   )
+
+  const searchToolbar = <div className="flex shrink-0 items-center gap-1">{refreshButton}</div>
 
   const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
   const isSelectedPdfPreview = isPdfSelection
@@ -659,11 +656,6 @@ export function ArtifactPaneView({
         pdfLayoutPending={pdfLayoutPending}
         pdfLayoutRefreshKey={pdfLayoutRefreshKey}
         contentRefreshKey={contentRefreshToken}
-        officeActions={
-          isOfficeDocumentSelection ? (
-            <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
-          ) : undefined
-        }
       />
     )
 
@@ -678,17 +670,21 @@ export function ArtifactPaneView({
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
-          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground-muted hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.close')}
-              onClick={handleClosePreview}>
-              <X size={16} />
-            </Button>
-          </Tooltip>
+          <div className="flex shrink-0 items-center gap-1">
+            {refreshButton}
+            <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            <Tooltip content={t('agent.preview_pane.close')} delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-foreground-muted hover:bg-accent hover:text-foreground"
+                aria-label={t('agent.preview_pane.close')}
+                onClick={handleClosePreview}>
+                <X size={16} />
+              </Button>
+            </Tooltip>
+          </div>
         </div>
         {isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview ? (
           <div className="min-h-0 flex-1 overflow-hidden">{previewContent}</div>

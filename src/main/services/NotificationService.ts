@@ -13,7 +13,7 @@ class NotificationService {
 
     electronNotification.on('click', () => {
       application.get('MainWindowService').showMainWindow()
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'notification.clicked', notification)
     })
 
     electronNotification.show()

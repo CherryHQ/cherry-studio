@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "开始任务后，任务记录会显示在这里。",
-        "title": "还没有任务"
+        "title": "暂无任务"
       },
       "file_manager": {
         "file_explorer": "资源管理器",
@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
     "default": {
-      "description": "你好，我是默认助手。你可以立刻开始跟我聊天",
-      "name": "默认助手",
+      "description": "你好，我是 Cherry 助手。你可以立刻开始跟我聊天",
+      "name": "Cherry 助手",
       "topic": {
         "name": "默认对话"
       }
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
-        "title": "还没有对话"
+        "title": "暂无对话"
       },
       "export": {
         "failed": "导出失败",
@@ -3267,6 +3267,7 @@
       },
       "knowledge": {
         "add": "添加知识库",
+        "create_first": "前往知识库创建",
         "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
         "doc_count": "{{count}} 文档",
         "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
@@ -3280,6 +3281,7 @@
         "title": "知识库关联"
       },
       "prompt": {
+        "copy_variable": "复制 {{variable}}",
         "create_title": "新建 Prompt",
         "dblclick_hint": "双击预览区可切回编辑",
         "desc": "系统提示词将作为该助手的上下文开头发送给模型",
@@ -3594,6 +3596,7 @@
     },
     "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
     "error": {
+      "avatar_image_too_large": "图片过大（上限 {{limit}}）",
       "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
@@ -3615,6 +3618,7 @@
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
       "get_embedding_dimensions": "获取嵌入维度失败",
+      "image_process_failed": "图片处理失败，请重试",
       "invalid": {
         "api": {
           "host": "无效的 API 地址",
@@ -4034,6 +4038,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "配置自定义模型",
       "pin": "置顶此模型",
       "unpin": "取消置顶"
     },
@@ -6797,6 +6802,7 @@
           "confirm": "确定要添加所有模型到列表吗？",
           "label": "添加全部模型"
         },
+        "add_success_enable_failed": "模型已添加，但服务商启用失败。",
         "add_whole_group": "添加整个分组",
         "clean_stale_models": "清理失效模型",
         "clean_stale_success": "已清理 {{count}} 个失效模型",
@@ -7208,6 +7214,7 @@
         "fill_after_create": "创建后请在详情页填写认证字段",
         "menu_label": "添加实例"
       },
+      "enable_failed_after_connection": "连接成功，但服务商启用失败。",
       "filter": {
         "agent": "支持 Agent",
         "all": "全部服务商",

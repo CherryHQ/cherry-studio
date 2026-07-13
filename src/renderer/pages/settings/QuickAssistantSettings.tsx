@@ -27,6 +27,7 @@ import {
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
@@ -65,7 +66,7 @@ const QuickAssistantSettings: FC = () => {
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
 
-    void (!enable && window.api.quickAssistant.close())
+    void (!enable && ipcApi.request('quick_assistant.close'))
 
     if (enable && !clickTrayToShowQuickAssistant) {
       toast.info({
@@ -87,7 +88,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     await setReadClipboardAtStartup(checked)
-    void window.api.quickAssistant.close()
+    void ipcApi.request('quick_assistant.close')
   }
 
   return (
