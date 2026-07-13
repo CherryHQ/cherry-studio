@@ -159,6 +159,8 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
         resolve(Buffer.concat(chunks).toString('utf8'))
       })
 
+      response.on('aborted', () => fail(new Error('Remote response aborted before completion')))
+      response.on('close', () => fail(new Error('Remote response closed before completion')))
       response.on('error', fail)
     })
 
