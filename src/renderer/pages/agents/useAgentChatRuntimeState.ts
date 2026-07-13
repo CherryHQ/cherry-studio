@@ -16,6 +16,7 @@ import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@rendere
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -30,7 +31,12 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   output?: unknown
 }
 
-export type AgentSendOptions = { body?: Record<string, unknown> }
+export type AgentSendOptions = {
+  body?: Record<string, unknown> & {
+    userMessageParts?: CherryMessagePart[]
+    agentRuntimeOptions?: AgentRuntimeOptions
+  }
+}
 
 export interface AgentTurnInput {
   text: string
@@ -158,7 +164,8 @@ export function useAgentChatRuntimeState({
     buildStreamRequest: (input, conversation) => ({
       trigger: 'submit-message',
       topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
+      userMessageParts: getAgentTurnParts(input),
+      agentRuntimeOptions: input.options?.body?.agentRuntimeOptions
     })
   })
   const sendMessage = useCallback(

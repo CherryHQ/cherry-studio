@@ -117,6 +117,23 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBeTypeOf('string')
   })
 
+  it('maps the Work Fast setting to Codex priority processing', async () => {
+    const res = await processMessage({
+      provider: { id: 'openai-codex' } as any,
+      params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      agentRuntimeOptions: { reasoningEffort: 'high', fastMode: true }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'high', serviceTier: 'priority' }
+    })
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
   it('returns JSON (not a stream) for non-streaming requests', async () => {
     const resPromise = processMessage({
       params: { model: 'openai:gpt-4', messages: [] } as any,

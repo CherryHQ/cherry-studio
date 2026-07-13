@@ -155,7 +155,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
-      this.input.modelId
+      this.input.modelId,
+      this.input.options
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)

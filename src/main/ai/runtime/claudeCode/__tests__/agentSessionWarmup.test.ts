@@ -309,6 +309,47 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
   })
 
+  it('maps Work reasoning and Fast settings into a Claude Code session', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({ id: 'opus', apiModelId: 'claude-opus-4-8' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'xhigh',
+      fastMode: true
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: true, thinkingOptions: { effort: 'max' } })
+    )
+  })
+
+  it('forwards Work settings through internal headers for Codex gateway calls', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai-codex',
+      defaultChatEndpoint: 'openai-responses'
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-5-4', apiModelId: 'gpt-5.4' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-reasoning-effort: high')
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-fast-mode: true')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: undefined, thinkingOptions: { effort: 'high' } })
+    )
+  })
+
   it('rejects Gemini provider models instead of routing them through the API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

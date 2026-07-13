@@ -259,6 +259,7 @@ async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  fastMode?: boolean
   thinkingOptions?: {
     effort?: 'low' | 'medium' | 'high' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
@@ -364,7 +365,7 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent, provider),
-    settings: { autoCompactEnabled: true },
+    settings: { autoCompactEnabled: true, ...(options?.fastMode !== undefined ? { fastMode: options.fastMode } : {}) },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,

@@ -1689,6 +1689,7 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn({
       ...baseTurnInput,
       userMessage: userMessage('user-1'),
+      runtimeOptions: { reasoningEffort: 'high', fastMode: true },
       traceId: 'a'.repeat(32)
     })
     const stream = service.openTurnStream({
@@ -1704,6 +1705,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        options: { reasoningEffort: 'high', fastMode: true },
         resumeToken: undefined,
         trace: {
           topicId: 'agent-session:session-1',
@@ -1756,6 +1758,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        options: undefined,
         resumeToken: 'resume-db',
         trace: {
           topicId: 'agent-session:session-1',

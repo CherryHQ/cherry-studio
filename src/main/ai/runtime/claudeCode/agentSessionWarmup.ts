@@ -4,7 +4,14 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import {
+  AGENT_FAST_MODE_HEADER,
+  AGENT_REASONING_EFFORT_HEADER,
+  type AgentRuntimeOptions
+} from '@shared/ai/agentRuntimeOptions'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+import { isCodexProviderId } from '@shared/data/presets/codex'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -52,7 +59,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
    *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
    *  agent's current model (prewarm and turn-less connections). */
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  runtimeOptions?: AgentRuntimeOptions
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -80,9 +88,17 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(session, provider, {
-      lastAgentSessionId: resumeSessionId
+      lastAgentSessionId: resumeSessionId,
+      fastMode: isClaudeCodeProviderId(providerId) ? runtimeOptions?.fastMode : undefined,
+      thinkingOptions: runtimeOptions
+        ? {
+            effort: runtimeOptions.reasoningEffort === 'xhigh' ? 'max' : runtimeOptions.reasoningEffort
+          }
+        : undefined
     }),
-    route
+    route,
+    providerId,
+    runtimeOptions
   )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
@@ -252,7 +268,19 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
-function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {
+function mergeRuntimeSettings(
+  settings: ClaudeCodeSettings,
+  route: ClaudeCodeRuntimeRoute,
+  providerId: string,
+  runtimeOptions?: AgentRuntimeOptions
+): ClaudeCodeSettings {
+  const agentHeaders =
+    isCodexProviderId(providerId) && runtimeOptions
+      ? [
+          `${AGENT_REASONING_EFFORT_HEADER}: ${runtimeOptions.reasoningEffort}`,
+          `${AGENT_FAST_MODE_HEADER}: ${runtimeOptions.fastMode}`
+        ].join('\n')
+      : undefined
   return {
     ...settings,
     env: {
@@ -262,7 +290,12 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {})
+      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
+      ...(agentHeaders
+        ? {
+            ANTHROPIC_CUSTOM_HEADERS: [settings.env?.ANTHROPIC_CUSTOM_HEADERS, agentHeaders].filter(Boolean).join('\n')
+          }
+        : {})
     }
   }
 }

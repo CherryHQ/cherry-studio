@@ -192,6 +192,7 @@ describe('AgentChatContextProvider', () => {
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       headless: false,
+      runtimeOptions: undefined,
       traceId: 'a'.repeat(32),
       messageSnapshot: {
         id: 'agent-1',
@@ -226,7 +227,8 @@ describe('AgentChatContextProvider', () => {
           name: 'My Agent',
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-        }
+        },
+        runtimeOptions: undefined
       }
     )
     expect(prepared.models).toEqual([])
@@ -257,7 +259,38 @@ describe('AgentChatContextProvider', () => {
           name: 'My Agent',
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-        }
+        },
+        runtimeOptions: undefined
+      }
+    )
+  })
+
+  it('forwards Work response settings to a fresh runtime turn', async () => {
+    const runtimeOptions = { reasoningEffort: 'high' as const, fastMode: true }
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ agentRuntimeOptions: runtimeOptions }))
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ runtimeOptions }))
+  })
+
+  it('captures Work response settings on a queued follow-up', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    const runtimeOptions = { reasoningEffort: 'low' as const, fastMode: false }
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ agentRuntimeOptions: runtimeOptions }))
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user' }),
+      {
+        headless: false,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'My Agent',
+          emoji: '🤖',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        },
+        runtimeOptions
       }
     )
   })

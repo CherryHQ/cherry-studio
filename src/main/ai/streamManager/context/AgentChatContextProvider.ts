@@ -122,7 +122,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application
         .get('AgentSessionRuntimeService')
-        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true, messageSnapshot })
+        .enqueueUserMessage(sessionId, userMessage, {
+          headless: req.headless === true,
+          messageSnapshot,
+          runtimeOptions: req.agentRuntimeOptions
+        })
 
       return {
         topicId: req.topicId,
@@ -196,6 +200,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
+      runtimeOptions: req.agentRuntimeOptions,
       traceId,
       messageSnapshot
     })

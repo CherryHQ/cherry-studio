@@ -635,6 +635,12 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "fast": "Fast",
+      "fast_description": "Faster responses use more credits.",
+      "reasoning": "Reasoning effort",
+      "title": "Response settings"
+    },
     "skill": {
       "manage": {
         "title": "Manage skills"

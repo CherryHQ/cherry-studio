@@ -635,6 +635,12 @@
       }
     },
     "sidebar_title": "Agents",
+    "speed": {
+      "fast": "快速",
+      "fast_description": "回應更快，但會消耗更多額度。",
+      "reasoning": "推理強度",
+      "title": "回應設定"
+    },
     "skill": {
       "manage": {
         "title": "管理技能"

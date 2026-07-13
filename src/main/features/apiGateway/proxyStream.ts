@@ -21,7 +21,9 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
+import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { isCodexProviderId } from '@shared/data/presets/codex'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
@@ -73,6 +75,8 @@ export interface MessageConfig {
   signal?: AbortSignal
   onError?: (error: unknown) => void
   onComplete?: () => void
+  /** Internal Work-agent overrides forwarded by the Claude SDK gateway request. */
+  agentRuntimeOptions?: AgentRuntimeOptions
 }
 
 /**
@@ -129,7 +133,18 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       provider = undefined
     }
   }
-  const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
+  let providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
+  if (config.agentRuntimeOptions && isCodexProviderId(providerId)) {
+    providerOptions = {
+      ...providerOptions,
+      openai: {
+        ...(providerOptions?.openai ?? {}),
+        reasoningEffort: config.agentRuntimeOptions.reasoningEffort,
+        // Codex app-server calls this mode "fast"; the Responses wire value is Priority processing.
+        serviceTier: config.agentRuntimeOptions.fastMode ? 'priority' : 'default'
+      }
+    }
+  }
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {

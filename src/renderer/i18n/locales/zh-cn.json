@@ -635,6 +635,12 @@
       }
     },
     "sidebar_title": "智能体",
+    "speed": {
+      "fast": "快速",
+      "fast_description": "响应更快，但会消耗更多额度。",
+      "reasoning": "推理强度",
+      "title": "响应设置"
+    },
     "skill": {
       "manage": {
         "title": "管理技能"

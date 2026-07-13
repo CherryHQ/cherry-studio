@@ -81,4 +81,14 @@ describe('composer tool visibility', () => {
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
   })
+
+  it('replaces the thinking slash-board item with the Work speed control for Codex and Claude Code', () => {
+    for (const providerId of ['openai-codex', 'claude-code']) {
+      const tools = getToolsForScope(TopicType.Session, {
+        model: { id: 'model', providerId, name: 'Model' } as any
+      })
+
+      expect(tools.map((tool) => tool.key)).not.toContain('thinking')
+    }
+  })
 })
