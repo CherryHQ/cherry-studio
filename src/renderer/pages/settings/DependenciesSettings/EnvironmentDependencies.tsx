@@ -8,7 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input
+  Input,
+  SettingsPageHeader
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
@@ -25,6 +26,7 @@ import {
   Download,
   FolderOpen,
   Loader2,
+  PackageCheck,
   Plus,
   RefreshCw,
   Terminal,
@@ -233,26 +235,28 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground/50 hover:text-foreground"
-            onClick={() => void fetchLatestVersions(true)}
-            disabled={checkingUpdates}
-            title={t('settings.dependencies.checkUpdates')}>
-            {checkingUpdates ? (
-              <Loader2 className="size-3 motion-safe:animate-spin" />
-            ) : (
-              <RefreshCw className="size-3" />
-            )}
-          </Button>
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
-      </div>
+      <SettingsPageHeader
+        icon={<PackageCheck />}
+        title={
+          <>
+            {t('settings.dependencies.title')} <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground/50 hover:text-foreground"
+              onClick={() => void fetchLatestVersions(true)}
+              disabled={checkingUpdates}
+              title={t('settings.dependencies.checkUpdates')}>
+              {checkingUpdates ? (
+                <Loader2 className="size-3 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </Button>
+          </>
+        }
+        description={t('settings.dependencies.description')}
+      />
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
