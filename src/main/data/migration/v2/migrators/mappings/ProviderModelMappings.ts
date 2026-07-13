@@ -492,28 +492,31 @@ function mapCapabilities(
   capabilities?: LegacyModel['capabilities'],
   endpointTypes?: EndpointType[] | null
 ): ModelCapability[] {
-  const mapped: ModelCapability[] = []
-  const rerankExplicitlyDisabled =
-    capabilities?.some((capability) => capability.type === 'rerank' && capability.isUserSelected === false) ?? false
-
-  if (capabilities) {
-    for (const capability of capabilities) {
-      const result = CAPABILITY_MAP[capability.type]
-      if (result === undefined) {
-        if (capability.type !== 'text') {
-          logger.warn('Unknown capability type dropped during migration', { type: capability.type })
-        }
-        continue
-      }
-      if (capability.isUserSelected === false || (result === MODEL_CAPABILITY.RERANK && rerankExplicitlyDisabled)) {
-        continue
-      }
-
-      mapped.push(result)
+  // Capabilities the user explicitly turned off in v1 — respected over any
+  // duplicate "enabled" entry and never re-added by an endpoint.
+  const disabled = new Set<ModelCapability>()
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result !== undefined && capability.isUserSelected === false) {
+      disabled.add(result)
     }
   }
+
+  const mapped: ModelCapability[] = []
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result === undefined) {
+      if (capability.type !== 'text') {
+        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      }
+      continue
+    }
+    if (disabled.has(result)) continue
+    mapped.push(result)
+  }
+
   const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-  if (impliedCapability && !(impliedCapability === MODEL_CAPABILITY.RERANK && rerankExplicitlyDisabled)) {
+  if (impliedCapability && !disabled.has(impliedCapability)) {
     mapped.push(impliedCapability)
   }
 
