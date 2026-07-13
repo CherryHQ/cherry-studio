@@ -7,7 +7,7 @@
 // resolved in a global phase after all root/member writes. See spec
 // `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
 
-import type { AggregateBoundary } from '@main/data/db/backup/contributorTypes'
+import type { AggregateBoundary, FileEntryRewrite } from '@main/data/db/backup/contributorTypes'
 import type { DbColumnName, DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
@@ -96,6 +96,19 @@ export interface DegradedSkip {
 /** Merge engine result (degraded-to-SKIP records go to the BackupService-owned sidecar, NOT journal). */
 export interface MergeResult {
   readonly degradedToSkips: readonly DegradedSkip[]
+  /** file_entry roots inserted into work.sqlite during this merge. */
+  readonly acceptedFileEntryIds: readonly string[]
+  /** file_entry ids referenced by file-ref members inserted during this merge. */
+  readonly acceptedFileRefFileEntryIds: readonly string[]
+  /** State of a work-side row that survived a skipped file_entry root. */
+  readonly survivingFileEntries: ReadonlyMap<string, SurvivingFileEntry>
+}
+
+/** The only local file-entry facts needed by post-merge resource finalization. */
+export interface SurvivingFileEntry {
+  readonly origin: 'internal' | 'external'
+  readonly ext: string | null
+  readonly deletedAt: number | null
 }
 
 /**
@@ -122,6 +135,8 @@ export interface MergeContext {
   readonly userStrategy?: ConflictStrategy
   /** file_entry IDs whose blobs were not staged — skip these rows during import. */
   readonly skippedFileEntryIds: ReadonlySet<string>
+  /** Staged per-id metadata for the owning FILE_STORAGE row transform hook. */
+  readonly fileEntryRewrites: ReadonlyMap<string, FileEntryRewrite>
 }
 
 /** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */

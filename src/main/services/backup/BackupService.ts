@@ -53,11 +53,11 @@ import {
   OutputPathExistsError,
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError,
-  RestoreStagingNotImplementedError,
   UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
+import { finalizeFileResources, stageFileResources } from './fileResourceStaging'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine } from './merge'
 
@@ -278,6 +278,7 @@ export class BackupService extends BaseService {
         migrationsFolder: application.getPath('app.database.migrations'),
         liveDbPath: application.getPath('app.database.file'),
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
+        liveFileRoot: application.getPath('feature.files.data'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
@@ -298,9 +299,8 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
-        stageFileResources: async () => {
-          throw new RestoreStagingNotImplementedError()
-        }
+        stageFileResources: async (options) => stageFileResources(options),
+        finalizeFileResources: async (options) => finalizeFileResources(options)
       })
       await importOrch.importBackup({
         archivePath,

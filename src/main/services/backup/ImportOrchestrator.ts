@@ -33,6 +33,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
+import type { FileResourceFinalizeOptions, FileResourceStageOptions, PreMergeFileResourceStage } from './fileResourceStaging'
 import { captureLiveFingerprint } from './fingerprintProducer'
 import { type MergeContext, type MergeResult } from './merge'
 
@@ -98,8 +99,12 @@ export interface ImportOrchestratorDeps {
     workDb: DbType,
     ctx: MergeContext
   ) => Promise<MergeResult>
-  /** Stage file resources; return journal entries. Return [] until staging lands (safe — nothing to promote). */
-  readonly stageFileResources: () => Promise<RestoreJournal['fileResources']>
+  /** Stage resources before merge, returning candidates and file-entry ids that must be skipped. */
+  readonly stageFileResources: (options: FileResourceStageOptions) => Promise<PreMergeFileResourceStage>
+  /** Retain only candidates supported by the committed detached merge result. */
+  readonly finalizeFileResources: (options: FileResourceFinalizeOptions) => Promise<RestoreJournal['fileResources']>
+  /** Absolute live file root used only to calculate promotion targets. */
+  readonly liveFileRoot: string
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
 }
@@ -181,16 +186,25 @@ export class ImportOrchestrator {
       workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
-      // (b) Merge backup rows into work. remote-fills-local-empty + additive; skippedFileIds
-      // would prune file_entry rows whose blobs were not staged. ctx carries the post-migrate
-      // backupDbPath + topo-sorted domains; userStrategy omitted → per-aggregate conflictDefault
-      // (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证); skippedFileEntryIds empty until
-      // file-resource staging lands (plan (e)).
+      // Pre-merge resources decide whether a file_entry root and its dependent
+      // references are safe to import. Candidates remain inside this restore subtree.
+      this.emit(options, 'stage', 0, 1, 'staging file resources')
+      const stagedResources = await this.deps.stageFileResources({
+        archive: archiveContext,
+        backupRoot: path.join(workDir, 'resources'),
+        liveFileRoot: this.deps.liveFileRoot
+      })
+      this.assertNotCancelled(options)
+
+      // (b) Merge backup rows into work. Missing resources are transaction-time skips.
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
       const ctx: MergeContext = {
         backupDbPath: archiveContext.backupDbPath,
         domains: archiveContext.domains,
-        skippedFileEntryIds: new Set<string>()
+        skippedFileEntryIds: stagedResources.skippedFileEntryIds,
+        fileEntryRewrites: new Map(
+          [...stagedResources.candidates].map(([id, candidate]) => [id, candidate.rewrite])
+        )
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       if (result.degradedToSkips.length > 0) {
@@ -217,13 +231,13 @@ export class ImportOrchestrator {
       this.assertSealed(workPath)
       this.assertNotCancelled(options)
 
-      // (e) Stage file resources → journal entries. Empty until the staging track lands.
-      // Staging+sealing runs BEFORE the 2nd fingerprint so the fingerprint is the last async
-      // check before the synchronous journal write (plan (c) 时序: work seal → resource seal →
-      // 2nd fingerprint → journal).
-      this.emit(options, 'stage', 0, 1, 'staging file resources')
-      const fileResources = await this.deps.stageFileResources()
-      this.assertNotCancelled(options)
+      // Finalization follows the sealed detached merge and removes rejected candidates.
+      this.emit(options, 'stage', 0, 1, 'finalizing file resources')
+      const fileResources = await this.deps.finalizeFileResources({
+        candidates: stagedResources.candidates,
+        mergeResult: result,
+        userData: this.deps.userData
+      })
 
       // (c) Second fingerprint — the LAST async check before the journal write. Re-capture live
       // (checkpointTruncate + hash) and compare. A checkpoint fold is required so a writer whose

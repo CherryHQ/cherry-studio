@@ -121,7 +121,7 @@ const agentsSkillsCtx = (): MergeContext => ({
   backupDbPath: backupPath,
   domains: ['AGENTS', 'SKILLS'],
   userStrategy: 'SKIP',
-  skippedFileEntryIds: new Set<string>()
+  skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map()
 })
 
 const agentSkillRows = (): { agent_id: string; skill_id: string }[] =>
@@ -205,7 +205,7 @@ describe('importAllJunctionRows (global junction phase)', () => {
       backupDbPath: backupPath,
       domains: ['AGENTS', 'MCP_SERVERS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })
@@ -232,7 +232,7 @@ describe('importAllJunctionRows (global junction phase)', () => {
       backupDbPath: backupPath,
       domains: ['AGENTS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })

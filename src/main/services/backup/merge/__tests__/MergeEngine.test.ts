@@ -110,7 +110,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   const runMerge = (ctx: MergeContext): Promise<unknown> =>
     new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
-  const topCtx = (): MergeContext => ({ backupDbPath: backupPath, domains: ['TOPICS'], skippedFileEntryIds: new Set<string>() })
+  const topCtx = (): MergeContext => ({ backupDbPath: backupPath, domains: ['TOPICS'], skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map() })
 
   it('SKIPs a uuid-entity root that already exists in work (no duplicate, no overwrite)', async () => {
     // Both work and backup hold topic 'tpc-skip' (different names to detect overwrite).
@@ -182,7 +182,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // PROVIDERS aggregates finalize to identityClass 'natural-key'; scanAggregates
     // refuses them until FIELD_MERGE lands. Empty backup is enough — the guard
     // fires before any row read.
-    await expect(runMerge({ backupDbPath: backupPath, domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow(
+    await expect(runMerge({ backupDbPath: backupPath, domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map() })).rejects.toThrow(
       MergeStrategyNotImplementedError
     )
   })
@@ -210,7 +210,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // degrade to skip (which would ignore the user's choice). The guard fires at
     // scan entry, before any row read.
     await expect(
-      runMerge({ backupDbPath: backupPath, domains: ['TOPICS'], userStrategy: 'OVERWRITE', skippedFileEntryIds: new Set<string>() })
+      runMerge({ backupDbPath: backupPath, domains: ['TOPICS'], userStrategy: 'OVERWRITE', skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map() })
     ).rejects.toThrow(MergeStrategyNotImplementedError)
   })
 
@@ -226,7 +226,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const result = await runMerge({
       backupDbPath: backupPath,
       domains: ['FILE_STORAGE'],
-      skippedFileEntryIds: new Set(['fe-skip'])
+      skippedFileEntryIds: new Set(['fe-skip']),
+      fileEntryRewrites: new Map()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })
@@ -244,7 +245,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     insertFileEntry(dbh.sqlite, 'fe-local', '/tmp/dup')
     seedBackup((db) => insertFileEntry(db, 'fe-backup', '/tmp/dup'))
 
-    await expect(runMerge({ backupDbPath: backupPath, domains: ['FILE_STORAGE'], skippedFileEntryIds: new Set<string>() })).rejects.toThrow()
+    await expect(runMerge({ backupDbPath: backupPath, domains: ['FILE_STORAGE'], skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map() })).rejects.toThrow()
   })
 
   it('traverses nested include members via their parent member ids (chat_message_file_ref)', async () => {
@@ -268,12 +269,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const result = await runMerge(topCtx())
 
     expect(result).toMatchObject({ degradedToSkips: [] })
-    expect(countRows('chat_message_file_ref')).toBe(before + 1) // file_ref traversed via message id
-    const row = dbh.sqlite
-      .prepare(`SELECT source_id, file_entry_id FROM chat_message_file_ref WHERE id = 'fr-1'`)
-      .get() as { source_id: string; file_entry_id: string }
-    expect(row.source_id).toBe('msg-nest')
-    expect(row.file_entry_id).toBe('fe-local')
+    // External local file entries cannot support a managed restored blob, so their
+    // dependent references are pruned in the same detached transaction.
+    expect(countRows('chat_message_file_ref')).toBe(before)
   })
 
   it('honors an explicit SKIP override on a natural-key domain instead of throwing', async () => {
@@ -284,7 +282,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       backupDbPath: backupPath,
       domains: ['PROVIDERS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(), fileEntryRewrites: new Map()
     })
     expect(result).toMatchObject({ degradedToSkips: [] })
   })

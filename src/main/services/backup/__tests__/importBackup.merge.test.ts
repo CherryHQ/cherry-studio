@@ -14,7 +14,7 @@
 // better-sqlite3 online backup of the live test DB — same schema + migration chain, so the
 // admission chain gate classifies it as equal (no migrate-forward) and integrity_check passes.
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,7 +36,8 @@ import { assembleArchive } from '../archive'
 import { RestoreQuiesceNotImplementedError } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
-import { MergeEngine } from '../merge'
+import { finalizeFileResources, stageFileResources } from '../fileResourceStaging'
+import { MergeEngine, type MergeContext } from '../merge'
 
 // Production drizzle migrations folder — same resolution as ImportOrchestrator.test.ts so
 // admitArchive's chain gate + applyMigrations find _journal.json.
@@ -124,11 +125,25 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     ).run(id, parentId, topicId, role, JSON.stringify({ parts: [] }), now, now)
   }
 
-  /**
-   * Build a valid minimal manifest for a uuid-entity (TOPICS) lite archive. The admission
-   * chain gate reads backup.sqlite's actual __drizzle_migrations chain (NOT schemaMigrationId),
-   * so the manifest fields only need to satisfy the manifest zod schema.
-   */
+  /** Insert a portable archived external file entry; staging rewrites it to internal. */
+  const insertExternalFileEntry = (db: Database.Database, id: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO file_entry (id, origin, name, external_path, created_at, updated_at)
+       VALUES (?, 'external', ?, ?, ?, ?)`
+    ).run(id, id, `/archive/${id}`, now, now)
+  }
+
+  /** Insert an attachment reference owned by a topic message. */
+  const insertChatMessageFileRef = (db: Database.Database, id: string, sourceId: string, fileEntryId: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO chat_message_file_ref (id, source_id, file_entry_id, role, created_at, updated_at)
+       VALUES (?, ?, ?, 'attachment', ?, ?)`
+    ).run(id, sourceId, fileEntryId, now, now)
+  }
+
+  /** Build a minimal TOPICS lite manifest for archive admission. */
   const buildManifest = (): BackupManifest => ({
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
@@ -149,6 +164,32 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     await assembleArchive(archivePath, { manifest: buildManifest(), dbCopyPath: backupDbPath })
   }
 
+  /** Build a full archive manifest containing only the two domains exercised here. */
+  const buildFileManifest = (fileIds: readonly string[]): BackupManifest => ({
+    backupFormatVersion: BACKUP_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    preset: 'full',
+    domains: ['FILE_STORAGE', 'TOPICS'],
+    includeFiles: true,
+    includeKnowledgeFiles: false,
+    sensitiveData: { included: true, rotated: false },
+    schemaMigrationId: '0',
+    producerAppVersion: '0.0.0-test',
+    files: { ids: [...fileIds], total: fileIds.length, totalBytes: fileIds.length * 7 },
+    knowledge: { bases: [] },
+    notes: { paths: [] }
+  })
+
+  /** Pack a full archive with production file payload layout. */
+  const packFileArchive = async (fileIds: readonly string[]): Promise<void> => {
+    const filesDir = join(tmpDir, 'archive-files')
+    for (const id of fileIds) {
+      mkdirSync(filesDir, { recursive: true })
+      writeFileSync(join(filesDir, id), `blob-${id}`)
+    }
+    await assembleArchive(archivePath, { manifest: buildFileManifest(fileIds), dbCopyPath: backupDbPath, filesDir })
+  }
+
   /**
    * Build deps with REAL admitArchive + REAL MergeEngine. quiesce + file-resource staging
    * stay no-op (their tracks are not landed) — the spine still advances through merge to a
@@ -162,6 +203,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     migrationsFolder: MIGRATIONS_FOLDER,
     liveDbPath,
     restoreStagingRoot: stagingRoot,
+    liveFileRoot: join(tmpDir, 'Data', 'Files'),
     userData: tmpDir,
     journalPath,
     admitArchive,
@@ -175,7 +217,8 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
       expect(workSqlite.name.endsWith('work.sqlite')).toBe(true)
       return new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
     },
-    stageFileResources: async () => [],
+    stageFileResources: async () => ({ candidates: new Map(), skippedFileEntryIds: new Set() }),
+    finalizeFileResources: async () => [],
     ...overrides
   })
 
@@ -321,6 +364,62 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
       expect(existsSync(join(stagingRoot, 'rst-journal', 'work.sqlite'))).toBe(true)
       expect(existsSync(join(stagingRoot, 'rst-journal', 'work.sqlite-wal'))).toBe(false)
       expect(existsSync(join(stagingRoot, 'rst-journal', 'work.sqlite-shm'))).toBe(false)
+    } finally {
+      workRo.close()
+    }
+  })
+
+  it('stages before merge and journals only accepted promotable file blobs', async () => {
+    // `fe-drift` has neither manifest metadata nor a payload, so it must be
+    // skipped before merge. `fe-rejected` collides with an existing local external
+    // row, so finalization removes its staged candidate after merge.
+    insertExternalFileEntry(dbh.sqlite, 'fe-rejected')
+    seedBackup((db) => {
+      insertExternalFileEntry(db, 'fe-accepted')
+      insertExternalFileEntry(db, 'fe-rejected')
+      insertExternalFileEntry(db, 'fe-drift')
+      insertTopic(db, 'tpc-files')
+      insertMessage(db, 'msg-files', 'tpc-files', 'root', null)
+      insertChatMessageFileRef(db, 'ref-accepted', 'msg-files', 'fe-accepted')
+      insertChatMessageFileRef(db, 'ref-rejected', 'msg-files', 'fe-rejected')
+      insertChatMessageFileRef(db, 'ref-drift', 'msg-files', 'fe-drift')
+    })
+    await packFileArchive(['fe-accepted', 'fe-rejected'])
+
+    let receivedContext: MergeContext | undefined
+    const result = await new ImportOrchestrator(
+      makeDeps({
+        stageFileResources: (options) => stageFileResources(options),
+        finalizeFileResources: async (options) => finalizeFileResources(options),
+        mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
+          receivedContext = ctx
+          return new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
+        }
+      })
+    ).importBackup({ archivePath, restoreId: 'rst-files' })
+
+    expect(result.restoreId).toBe('rst-files')
+    expect(receivedContext?.skippedFileEntryIds).toEqual(new Set(['fe-drift']))
+    const journal = readRestoreJournal()
+    expect(journal.kind).toBe('ok')
+    if (journal.kind !== 'ok') return
+    expect(journal.journal.fileResources).toEqual([
+      {
+        kind: 'blob-add',
+        stagingPath: join('restore-staging', 'rst-files', 'resources', 'files', 'fe-accepted'),
+        livePath: join('Data', 'Files', 'fe-accepted')
+      }
+    ])
+    expect(existsSync(join(stagingRoot, 'rst-files', 'resources', 'files', 'fe-rejected'))).toBe(false)
+
+    const workRo = openWorkRo('rst-files')
+    try {
+      expect(workRo.prepare(`SELECT id FROM file_entry WHERE id = 'fe-accepted'`).get()).toBeDefined()
+      expect(workRo.prepare(`SELECT id FROM file_entry WHERE id = 'fe-drift'`).get()).toBeUndefined()
+      const refs = workRo.prepare('SELECT file_entry_id FROM chat_message_file_ref ORDER BY id').all() as {
+        file_entry_id: string
+      }[]
+      expect(refs).toEqual([{ file_entry_id: 'fe-accepted' }])
     } finally {
       workRo.close()
     }

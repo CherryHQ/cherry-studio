@@ -82,6 +82,7 @@ describe('ImportOrchestrator spine', () => {
     migrationsFolder: MIGRATIONS_FOLDER,
     liveDbPath,
     restoreStagingRoot: stagingRoot,
+    liveFileRoot: join(tmpDir, 'Data', 'Files'),
     userData: tmpDir,
     journalPath,
     // Archive admission is real (admitArchive.ts); spine tests use a no-op stub returning
@@ -95,8 +96,9 @@ describe('ImportOrchestrator spine', () => {
       resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
     }),
     quiesceWriters: async () => {},
-    mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
-    stageFileResources: async () => [],
+    mergeBackupIntoWork: async () => ({ degradedToSkips: [], acceptedFileEntryIds: [], acceptedFileRefFileEntryIds: [], survivingFileEntries: new Map() }),
+    stageFileResources: async () => ({ candidates: new Map(), skippedFileEntryIds: new Set() }),
+    finalizeFileResources: async () => [],
     ...overrides
   })
 
@@ -140,7 +142,7 @@ describe('ImportOrchestrator spine', () => {
           // Simulate a foreign writer touching the live DB mid-staging (after snapshot,
           // before the 2nd fingerprint). user_version lives in the DB header → flips the hash.
           dbh.sqlite.pragma('user_version = 12345')
-          return { degradedToSkips: [] }
+          return { degradedToSkips: [], acceptedFileEntryIds: [], acceptedFileRefFileEntryIds: [], survivingFileEntries: new Map() }
         }
       })
     )

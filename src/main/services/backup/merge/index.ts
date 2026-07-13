@@ -26,5 +26,6 @@ export type {
   MergeAction,
   MergeBackupIntoWork,
   MergeContext,
-  MergeResult
+  MergeResult,
+  SurvivingFileEntry
 } from './types'

@@ -20,7 +20,14 @@ import Database from 'better-sqlite3'
 
 import { FtsCentralHelper } from './FtsCentralHelper'
 import { deriveJunctionDescriptors } from './junctionDeriver'
-import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
+import type {
+  AggregateDecision,
+  DegradedSkip,
+  IdentityMap,
+  MergeContext,
+  MergeResult,
+  SurvivingFileEntry
+} from './types'
 
 /**
  * Convert a Drizzle logical (camelCase) column name to its physical (snake_case)
@@ -101,6 +108,8 @@ export class MergeEngine {
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
       const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
       const degradedToSkips: DegradedSkip[] = []
+      const acceptedFileEntryIds: string[] = []
+      const acceptedFileRefFileEntryIds: string[] = []
       // Snapshot app_state keys BEFORE the tx — the merge tx must not add/drop keys. PREFERENCES
       // may UPDATE values (forward-compat), but the key-set is invariant. app_state is ALWAYS_STRIP
       // (backup holds none), so any key-set change is a merge bug. undefined when app_state is absent.
@@ -112,7 +121,17 @@ export class MergeEngine {
         // a tx; defer_foreign_keys is tx-scoped). The whole-graph foreign_key_check below
         // validates consistency before COMMIT.
         workSqlite.pragma('defer_foreign_keys = ON')
-        this.importRows(workSqlite, ordered, decisions, ctx, backupDb, identityMap, degradedToSkips)
+        this.importRows(
+          workSqlite,
+          ordered,
+          decisions,
+          ctx,
+          backupDb,
+          identityMap,
+          degradedToSkips,
+          acceptedFileEntryIds,
+          acceptedFileRefFileEntryIds
+        )
         // Global junction phase — import pure junction tables after all root/member writes,
         // resolving each endpoint via the role-aware identityMap (R8) and cascade-pruning rows
         // whose source was not imported or whose target is unavailable (§5.2).
@@ -124,7 +143,12 @@ export class MergeEngine {
       })
       run()
 
-      return { degradedToSkips }
+      return {
+        degradedToSkips,
+        acceptedFileEntryIds,
+        acceptedFileRefFileEntryIds,
+        survivingFileEntries: this.readSurvivingFileEntries(workSqlite, ctx.fileEntryRewrites)
+      }
     } finally {
       backupDb.close()
     }
@@ -213,7 +237,9 @@ export class MergeEngine {
     ctx: MergeContext,
     backupDb: Database.Database,
     identityMap: IdentityMap,
-    degradedToSkips: DegradedSkip[]
+    degradedToSkips: DegradedSkip[],
+    acceptedFileEntryIds: string[],
+    acceptedFileRefFileEntryIds: string[]
   ): void {
     for (const decision of decisions) {
       switch (decision.action) {
@@ -246,7 +272,15 @@ export class MergeEngine {
           continue
         }
         case 'insert': {
-          this.insertAggregate(workSqlite, decision, ctx, backupDb, identityMap)
+          this.insertAggregate(
+            workSqlite,
+            decision,
+            ctx,
+            backupDb,
+            identityMap,
+            acceptedFileEntryIds,
+            acceptedFileRefFileEntryIds
+          )
           break
         }
         case 'overwrite':
@@ -271,9 +305,11 @@ export class MergeEngine {
   private insertAggregate(
     workSqlite: Database.Database,
     decision: AggregateDecision,
-    _ctx: MergeContext,
+    ctx: MergeContext,
     backupDb: Database.Database,
-    identityMap: IdentityMap
+    identityMap: IdentityMap,
+    acceptedFileEntryIds: string[],
+    acceptedFileRefFileEntryIds: string[]
   ): void {
     const { aggregate: agg, backupPrimaryKey } = decision
     // Root row — read from backup, insert into work. PK columns are logical → physical.
@@ -285,7 +321,10 @@ export class MergeEngine {
       | Record<string, unknown>
       | undefined
     if (!rootRow) return // root vanished from backup mid-merge — skip defensively
-    this.insertRow(workSqlite, agg.root, rootRow)
+    const transformedRoot = this.transformRow(agg.root, rootRow, ctx)
+    if (!transformedRoot) return
+    this.insertRow(workSqlite, agg.root, transformedRoot)
+    if (agg.root === 'file_entry') acceptedFileEntryIds.push(String(backupPrimaryKey[0]))
     // Record source eligibility (inserted) + target availability (inserted) for this root,
     // scoped per endpoint table (R8 + endpoint-disjoint — see IdentityMap).
     const pkStr = String(backupPrimaryKey[0])
@@ -309,7 +348,13 @@ export class MergeEngine {
         .all(...anchorIds) as Record<string, unknown>[]
       const memberPkCol = physicalColumn(this.registry.getPrimaryKey(member.table).columns[0])
       for (const memberRow of memberRows) {
-        this.insertRow(workSqlite, member.table, memberRow)
+        if (!this.shouldInsertFileReference(workSqlite, member.table, memberRow, ctx)) continue
+        const transformedMember = this.transformRow(member.table, memberRow, ctx)
+        if (!transformedMember) continue
+        this.insertRow(workSqlite, member.table, transformedMember)
+        if (member.table === 'chat_message_file_ref' || member.table === 'painting_file_ref') {
+          acceptedFileRefFileEntryIds.push(String(memberRow.file_entry_id))
+        }
         let bucket = memberPksByTable.get(member.table)
         if (!bucket) {
           bucket = new Set()
@@ -318,6 +363,53 @@ export class MergeEngine {
         bucket.add(String(memberRow[memberPkCol]))
       }
     }
+  }
+
+  /** Apply an owning contributor's synchronous row transform without embedding schema policy in the engine. */
+  private transformRow(
+    table: DbTableName,
+    row: Readonly<Record<string, unknown>>,
+    ctx: MergeContext
+  ): Readonly<Record<string, unknown>> | null {
+    const owner = this.registry.getTableOwner(table)
+    if (owner === 'excluded' || owner === 'infrastructure') return row
+    const transformRow = this.registry.getOperations(owner)?.transformRow
+    return transformRow ? transformRow({ row, table, fileEntryRewrites: ctx.fileEntryRewrites }) : row
+  }
+
+  /**
+   * File-ref members are include rows, so resource eligibility is resolved while
+   * deferred foreign keys are active. A skipped, external, or soft-deleted target
+   * must not survive into work.sqlite.
+   */
+  private shouldInsertFileReference(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    row: Readonly<Record<string, unknown>>,
+    ctx: MergeContext
+  ): boolean {
+    if (table !== 'chat_message_file_ref' && table !== 'painting_file_ref') return true
+    const fileEntryId = String(row.file_entry_id)
+    if (ctx.skippedFileEntryIds.has(fileEntryId)) return false
+    const survivor = workSqlite
+      .prepare('SELECT origin, deleted_at FROM file_entry WHERE id = ?')
+      .get(fileEntryId) as { origin: string; deleted_at: number | null } | undefined
+    return survivor === undefined || (survivor.origin === 'internal' && survivor.deleted_at === null)
+  }
+
+  /** Capture skipped-file survivors for post-merge resource finalization. */
+  private readSurvivingFileEntries(
+    workSqlite: Database.Database,
+    rewrites: ReadonlyMap<string, unknown>
+  ): ReadonlyMap<string, SurvivingFileEntry> {
+    const survivors = new Map<string, SurvivingFileEntry>()
+    for (const id of rewrites.keys()) {
+      const row = workSqlite
+        .prepare('SELECT origin, ext, deleted_at FROM file_entry WHERE id = ?')
+        .get(id) as { origin: 'internal' | 'external'; ext: string | null; deleted_at: number | null } | undefined
+      if (row) survivors.set(id, { origin: row.origin, ext: row.ext, deletedAt: row.deleted_at })
+    }
+    return survivors
   }
 
   /**
