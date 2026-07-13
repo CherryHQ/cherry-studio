@@ -221,6 +221,18 @@ describe('CitationsList', () => {
     expect(ipcRequest).not.toHaveBeenCalled()
   })
 
+  it('truncates X citation previews to 100 characters', async () => {
+    fetchMocks.isXPostUrl.mockReturnValue(true)
+    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'author', text: 'x'.repeat(110) })
+    const xUrl = 'https://x.com/author/status/123'
+    const citations: Citation[] = [{ number: 1, url: xUrl, title: 'X post', type: 'websearch' }]
+
+    render(<CitationsPanelContent citations={citations} />, { wrapper })
+
+    expect(await screen.findByText(`@author: ${'x'.repeat(91)}...`)).toBeInTheDocument()
+    expect(screen.queryByText(`@author: ${'x'.repeat(110)}`)).not.toBeInTheDocument()
+  })
+
   it('copies the display-ready preview returned by main without truncating it', async () => {
     const displayReadyContent = `${'A'.repeat(100)}...`
     ipcRequest.mockResolvedValue({ content: displayReadyContent })

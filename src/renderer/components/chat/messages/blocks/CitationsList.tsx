@@ -28,6 +28,9 @@ interface CitationsPanelContentProps {
   actions?: CitationPanelActions
 }
 
+const truncateText = (text: string, maxLength = 100) =>
+  text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
+
 const getCitationHostname = (citation: Citation) => {
   if (!citation.url) return undefined
   try {
@@ -169,7 +172,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
     async () => {
       if (isXPost) {
         const oembed = await fetchXOEmbed(citation.url)
-        return oembed ? `@${oembed.author}: ${oembed.text}` : ''
+        return oembed ? truncateText(`@${oembed.author}: ${oembed.text}`) : ''
       }
       const { content } = await ipcApi.request('citation.fetch_preview', { url: citation.url })
       return content
