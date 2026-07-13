@@ -13,6 +13,10 @@ export type ResolvedRemoteFetchUrl = {
   readonly address: RemoteFetchAddress
 }
 
+export type ResolveRemoteFetchUrlOptions = {
+  readonly signal?: AbortSignal
+}
+
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
 const BLOCKED_IPV4_RANGES = new Set([
   'broadcast',
@@ -141,19 +145,70 @@ export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): s
   return parsedUrl.toString()
 }
 
+function getAbortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) {
+    return signal.reason
+  }
+
+  return new Error(signal.reason ? String(signal.reason) : 'Operation aborted')
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw getAbortError(signal)
+  }
+}
+
+function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) {
+    return operation
+  }
+
+  throwIfAborted(signal)
+
+  return new Promise((resolve, reject) => {
+    function cleanup(): void {
+      signal.removeEventListener('abort', onAbort)
+    }
+
+    function onAbort(): void {
+      cleanup()
+      reject(getAbortError(signal))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    operation.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error) => {
+        cleanup()
+        reject(error)
+      }
+    )
+  })
+}
+
 /**
  * SSRF guard for direct main-process fetches. Combines literal URL validation
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
  */
-export async function resolveRemoteFetchUrl(rawUrl: string): Promise<ResolvedRemoteFetchUrl> {
+export async function resolveRemoteFetchUrl(
+  rawUrl: string,
+  options: ResolveRemoteFetchUrlOptions = {}
+): Promise<ResolvedRemoteFetchUrl> {
   const safeUrl = sanitizeRemoteUrl(rawUrl)
   const parsedUrl = parseRemoteUrl(safeUrl)
-  const address = await resolveRemoteFetchAddress(parsedUrl)
+  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal)
 
   return { url: safeUrl, address }
 }
 
-async function resolveRemoteFetchAddress(parsedUrl: URL): Promise<RemoteFetchAddress> {
+async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | undefined): Promise<RemoteFetchAddress> {
+  throwIfAborted(signal)
+
   if (isBlockedHostname(parsedUrl.hostname)) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
   }
@@ -163,7 +218,7 @@ async function resolveRemoteFetchAddress(parsedUrl: URL): Promise<RemoteFetchAdd
     return toRemoteFetchAddress(literalAddress)
   }
 
-  const addresses = await lookup(normalizeHostname(parsedUrl.hostname), { all: true })
+  const addresses = await raceWithAbort(lookup(normalizeHostname(parsedUrl.hostname), { all: true }), signal)
   const blockedAddress = addresses.find((address) => isBlockedIpHostname(address.address))
 
   if (blockedAddress) {

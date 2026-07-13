@@ -95,6 +95,39 @@ describe('fetchRemoteText', () => {
     expect(httpsRequestMock).not.toHaveBeenCalled()
   })
 
+  it('rejects promptly when the caller aborts while DNS resolution is pending', async () => {
+    lookupMock.mockReturnValue(new Promise(() => undefined))
+    const controller = new AbortController()
+
+    const result = Promise.race([
+      fetchRemoteText('https://example.com/article', { signal: controller.signal }),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('fetchRemoteText remained pending during DNS abort')), 20)
+      })
+    ])
+
+    controller.abort(new Error('dns aborted'))
+
+    await expect(result).rejects.toThrow('dns aborted')
+    expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects promptly when DNS resolution exceeds the fetch timeout', async () => {
+    lookupMock.mockReturnValue(new Promise(() => undefined))
+
+    const result = Promise.race([
+      fetchRemoteText('https://example.com/article', { timeoutMs: 1 }),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('fetchRemoteText remained pending while resolving DNS')), 20)
+      })
+    ])
+
+    await expect(result).rejects.toThrow(/timeout|aborted/i)
+    expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
   it('pins public IPv6 literals without sending an IP literal as TLS SNI', async () => {
     mockHttpsResponse({ body: 'hello' })
 
