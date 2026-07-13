@@ -15,6 +15,9 @@ export default defineProvider({
       official: 'https://aws.amazon.com/bedrock/'
     }
   },
+  // Bedrock is reached over the AWS SDK (SigV4), not an HTTP `/models` endpoint, so there is no
+  // upstream list to fetch — serve the shipped catalog (Claude + the Nova/Llama/Qwen/… overrides).
+  modelListSource: 'registry',
   overrides: [
     {
       modelId: 'claude-fable-5',
