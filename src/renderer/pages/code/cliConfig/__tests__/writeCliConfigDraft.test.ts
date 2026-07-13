@@ -594,6 +594,7 @@ describe('writeCliConfigDraft', () => {
 
     const reasoningModel = {
       id: 'deepseek-chat',
+      name: 'DeepSeek Chat',
       reasoning: { supportedEfforts: ['low', 'medium', 'high'] }
     } as unknown
 
@@ -618,6 +619,9 @@ describe('writeCliConfigDraft', () => {
       expect(model.name).toBe('deepseek-chat')
       expect(model).not.toHaveProperty('reasoning')
       expect(model).not.toHaveProperty('limit')
+      // Top-level default-model selector — OpenCode's launch reads the model from here
+      // (no --model flag), so it must reference the exact provider key + model key above.
+      expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
     })
 
     it('enables anthropic thinking when reasoning is on', async () => {
@@ -677,6 +681,8 @@ describe('writeCliConfigDraft', () => {
       const model = parsed.provider['cherry-DeepSeek'].models['deepseek-chat']
       expect(model.reasoning).toBe(true)
       expect(model.options.reasoningEffort).toBe('medium')
+      // Non-gateway mode also prefers the record's display name over the raw model id.
+      expect(model.name).toBe('DeepSeek Chat')
     })
 
     // Regression: catalog seeds deepseek/dmxapi without `/v1`. @ai-sdk/openai-compatible
@@ -1009,7 +1015,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('names the OpenCode provider "cherry-gateway" (not the localized-title-sanitized "cherry-Cherry-")', async () => {
-      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' }) })
 
       await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
@@ -1022,7 +1028,25 @@ describe('writeCliConfigDraft', () => {
       expect(provider).toBeTruthy()
       expect(provider.options.baseURL).toBe(`${GATEWAY_BASE_URL}/v1`)
       expect(provider.options.apiKey).toBe('cs-sk-gateway')
-      expect(provider.models['deepseek:deepseek-chat']).toBeTruthy()
+      // The map key stays the addressing id; `name` is what OpenCode's UI shows, so it
+      // carries the display name instead of the opaque gateway id.
+      expect(provider.models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+      // The gateway-addressed model id contains ":" and OpenCode splits the selector at the
+      // FIRST "/", so this exact string resolves to provider "cherry-gateway" + that model key.
+      expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
+    })
+
+    it('falls back to the bare model id as the OpenCode display name when the record has none', async () => {
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        gateway
+      })
+
+      const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
+      expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('deepseek-chat')
     })
 
     it('writes the gateway URL + key + gateway-addressed model for codex under the "cherry-gateway" key', async () => {

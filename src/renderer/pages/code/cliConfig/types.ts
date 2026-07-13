@@ -53,6 +53,12 @@ export interface ResolvedCliConfigContext {
   provider: Provider
   apiKey: string
   model: string
+  /**
+   * Human-readable model name for CLIs whose config carries a display-name field separate
+   * from the addressing id (OpenCode `models[key].name`). Matters in gateway mode, where
+   * `model` is the "providerId:apiModelId" addressing string — too opaque to display.
+   */
+  modelLabel?: string
   modelRecord: Model | null
   configBlob: Record<string, any>
 }

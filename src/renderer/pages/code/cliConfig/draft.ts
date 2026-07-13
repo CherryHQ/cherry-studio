@@ -62,6 +62,9 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
       provider: args.gateway.provider,
       apiKey: args.gateway.apiKey,
       model: formatGatewayModelId(providerId, modelRecord?.apiModelId ?? model),
+      // The gateway addressing id is UUID-prefixed and unreadable; label with the model's
+      // display name (falling back to the bare model id) for CLIs that show one.
+      modelLabel: modelRecord?.name ?? modelRecord?.apiModelId ?? model,
       modelRecord,
       configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
     }
@@ -96,6 +99,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     provider,
     apiKey: effectiveApiKey,
     model,
+    modelLabel: modelRecord?.name ?? model,
     modelRecord,
     configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
   }

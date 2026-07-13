@@ -162,12 +162,14 @@ export function buildOpenCodeConfig(
   existing: Record<string, any>,
   provider: OpenCodeProviderIdentity,
   npmInfo: OpenCodeNpmInfo,
-  resolved: { apiKey: string; baseUrl: string; model: string },
+  resolved: { apiKey: string; baseUrl: string; model: string; modelLabel?: string },
   options: Record<string, any>
 ): Record<string, any> {
   const providerName = cliProviderKeyName(provider)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
-  const modelConfig: Record<string, any> = { name: resolved.model }
+  // The models map key is the addressing id sent to the API; `name` is only what
+  // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
+  const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
@@ -178,6 +180,10 @@ export function buildOpenCodeConfig(
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
+    // OpenCode's default-model selector. It splits at the FIRST "/", so the model id may
+    // itself contain "/" (gateway ids do) but providerKey must not — cliProviderKeyName
+    // strips it. Without this field OpenCode falls back to its own last-used model.
+    model: `${providerKey}/${resolved.model}`,
     provider: {
       ...preservedProviders,
       [providerKey]: {
