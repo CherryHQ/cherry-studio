@@ -9,7 +9,8 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { Model } from '@shared/data/types/model'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -139,16 +140,17 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
+  const { defaultModel } = useDefaultModel()
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
-  // protection (overlay / Esc / X) stays locked for the entire submit, not just the
-  // window after the parent renders its loading state — otherwise a failure would write
-  // its error into an already-closed form. Subscribing to isSubmitting (not form values)
-  // keeps the shell off the field-edit re-render path the comment below relies on.
+  // protection (overlay / Esc / X / knowledge-page navigation) stays locked for the
+  // entire submit, not just the window after the parent renders its loading state —
+  // otherwise a failure would write its error into an already-closed form. Subscribing
+  // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
@@ -162,12 +164,24 @@ export function ResourceCreateWizard({
     return [basic, persona, last]
   }, [kind, t])
 
+  const defaultCreateModelId = useMemo<UniqueModelId | null>(() => {
+    if (!defaultModel) return null
+    if (modelFilter && !modelFilter(defaultModel)) return null
+    return defaultModel.id
+  }, [defaultModel, modelFilter])
+
   useEffect(() => {
     if (!open) return
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
+
+  useEffect(() => {
+    if (!open || !defaultCreateModelId) return
+    if (form.getValues('modelId')) return
+    form.setValue('modelId', defaultCreateModelId, { shouldDirty: false, shouldTouch: false })
+  }, [defaultCreateModelId, form, open])
 
   const isLast = stepIndex === steps.length - 1
 
@@ -314,7 +328,7 @@ export function ResourceCreateWizard({
                   <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} portalContainer={dialogContentElement} />
+                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
