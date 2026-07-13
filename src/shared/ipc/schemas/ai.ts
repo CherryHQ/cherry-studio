@@ -9,7 +9,7 @@ import type {
 } from '@shared/ai/transport'
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ImageGenerationModeSchema, ModelSchema, type UniqueModelId } from '@shared/data/types/model'
+import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -41,7 +41,11 @@ const aiTransportOptionsSchema = z.object({
 /** Clone-safe subset of `AiBaseRequest` shared by text / embed / image routes. */
 const aiBaseRequestShape = {
   assistantId: z.string().optional(),
-  uniqueModelId: z.custom<UniqueModelId>((v) => typeof v === 'string').optional(),
+  // Strict `providerId::modelId` validation (separator at a real position, both
+  // parts well-formed) — a malformed id is rejected here instead of throwing later
+  // in `parseUniqueModelId`. The brand `z.custom<UniqueModelId>` alone only checked
+  // string-ness, letting a bad id penetrate to the routing code.
+  uniqueModelId: UniqueModelIdSchema.optional(),
   mcpToolIds: z.array(z.string()).optional(),
   requestOptions: aiTransportOptionsSchema.optional()
 }
@@ -118,7 +122,7 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional(),
+        mentionedModelIds: z.array(UniqueModelIdSchema).optional(),
         knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
