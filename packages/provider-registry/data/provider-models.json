@@ -12828,15 +12828,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0168
+          "perMillionTokens": 0.0154
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.084
+          "perMillionTokens": 0.077
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.168
+          "perMillionTokens": 0.154
         }
       },
       "providerId": "openrouter"
@@ -13538,7 +13538,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.74
+          "perMillionTokens": 1.75
         }
       },
       "providerId": "openrouter"
@@ -15047,7 +15047,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.159
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
@@ -15055,7 +15055,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.49
+          "perMillionTokens": 3.5
         }
       },
       "providerId": "openrouter"
@@ -15353,32 +15353,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "meta-llama/llama-3-8b-instruct",
-      "modelId": "llama-3-8b-instruct",
-      "name": "Llama 3 8B Instruct",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.14
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.14
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "meta-llama/llama-4-maverick",
       "modelId": "llama-4-maverick",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.8
         }
       },
       "providerId": "openrouter"
@@ -16462,17 +16446,13 @@
       "apiModelId": "qwen/qwen2.5-vl-72b-instruct",
       "modelId": "qwen2-5-vl-72b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.8
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.75
         }
       },
       "providerId": "openrouter"
@@ -20021,6 +20001,21 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-2.5-flash-image",
+      "modelId": "gemini-2-5-flash-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-2.5-flash-lite",
       "modelId": "gemini-2-5-flash-lite",
       "pricing": {
@@ -20084,6 +20079,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 20
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-3.1-flash-image",
+      "modelId": "gemini-3-1-flash-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 60
         }
       },
       "providerId": "vertexai"
@@ -20198,6 +20208,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-3-pro-image",
+      "modelId": "gemini-3-pro-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 120
         }
       },
       "providerId": "vertexai"
@@ -20458,5 +20483,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a73c437172270dcc"
+  "version": "e4429a55168176e0"
 }

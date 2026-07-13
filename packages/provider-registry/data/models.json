@@ -5101,28 +5101,6 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek-thinking",
-      "id": "deepseek-r1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "DeepSeek R1 0528",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.574
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.294
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
@@ -5149,6 +5127,58 @@
       },
       "reasoning": {
         "supportedEfforts": ["high", "max", "none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "deepseek-thinking",
+      "id": "deepseek-v4-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4 Pro",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["high", "max", "none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek-thinking",
+      "id": "deepseek-r1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "DeepSeek R1 0528",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.574
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.294
+        }
       }
     },
     {
@@ -5197,36 +5227,6 @@
           "currency": "USD",
           "perMillionTokens": 0.861
         }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
-      "family": "deepseek-thinking",
-      "id": "deepseek-v4-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
-      "metadata": {},
-      "name": "DeepSeek V4 Pro",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.435
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.87
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -6327,14 +6327,21 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 131072,
-      "family": "gemini",
+      "family": "gemini-flash",
       "id": "gemini-3-1-flash-image",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 32768,
       "metadata": {},
-      "name": "Gemini 3.1 Flash Image (Nano Banana 2)",
+      "name": "Nano Banana 2",
       "outputModalities": ["text", "image"],
       "ownedBy": "google",
       "pricing": {
@@ -11458,6 +11465,75 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
+      "contextWindow": 128000,
+      "family": "gpt",
+      "id": "gpt-5-chat",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 16384,
+      "metadata": {},
+      "name": "GPT-5 Chat",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
+      "contextWindow": 400000,
+      "family": "gpt",
+      "id": "gpt-5-1",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT 5.1 Thinking",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 131072,
       "family": "gpt-oss",
@@ -11607,39 +11683,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 128000,
-      "family": "gpt",
-      "id": "gpt-5-chat",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "GPT-5 Chat",
-      "outputModalities": ["text", "image"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
         }
       }
     },
@@ -11813,42 +11856,6 @@
           "currency": "USD",
           "perMillionTokens": 14
         }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 400000,
-      "family": "gpt",
-      "id": "gpt-5-1",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.1 Thinking",
-      "outputModalities": ["text", "image"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "low", "medium", "high"]
       }
     },
     {
@@ -12093,7 +12100,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt",
+      "family": "gpt-luna",
       "id": "gpt-5-6-luna",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -12205,7 +12212,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt",
+      "family": "gpt-terra",
       "id": "gpt-5-6-terra",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -12541,7 +12548,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt",
+      "family": "gpt-sol",
       "id": "gpt-5-6-sol",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -13098,7 +13105,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt",
+      "family": "gpt-sol",
       "id": "gpt-5-6",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -14147,7 +14154,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 16384,
       "id": "step-2-16k",
       "inputModalities": ["text"],
@@ -14182,7 +14189,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 32768,
       "id": "step-1-32k",
       "inputModalities": ["text"],
@@ -16727,6 +16734,16 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": ["image-generation"],
+      "family": "seed",
+      "id": "seedream-5-0-pro",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Seedream 5.0 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 256000,
       "family": "seed",
@@ -17595,5 +17612,5 @@
       }
     }
   ],
-  "version": "2ed35287d8eb9abf"
+  "version": "2639e11bec5f5503"
 }
