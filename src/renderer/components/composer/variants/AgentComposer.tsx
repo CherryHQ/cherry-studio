@@ -172,6 +172,8 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
+type AgentTriggerMode = 'selector' | 'edit'
+
 type Props = {
   agentId: string
   sessionId: string
@@ -181,6 +183,7 @@ type Props = {
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
+  agentTriggerMode?: AgentTriggerMode
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   showWorkspaceSelector?: boolean
@@ -204,6 +207,7 @@ const AgentComposerRoot = ({
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  agentTriggerMode,
   workspaceId,
   onWorkspaceChange,
   showWorkspaceSelector,
@@ -278,6 +282,7 @@ const AgentComposerRoot = ({
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
+        agentTriggerMode={agentTriggerMode}
         onWorkspaceChange={onWorkspaceChange}
         showWorkspaceSelector={showWorkspaceSelector}
         workspaceChanging={workspaceChanging}
@@ -304,6 +309,7 @@ interface InnerProps {
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
+  agentTriggerMode?: AgentTriggerMode
   onWorkspaceChange?: Props['onWorkspaceChange']
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
@@ -322,7 +328,7 @@ interface AgentComposerContextControlsProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   showAgentTrigger?: boolean
-  agentTriggerMode?: 'selector' | 'edit'
+  agentTriggerMode?: AgentTriggerMode
   onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
@@ -718,7 +724,7 @@ const AgentComposerContextControlsWithAutoFocus = ({
   return <AgentComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
 }
 
-// Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
+// Started sessions keep the agent trigger in edit mode. Empty sessions may opt into the selector mode.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
     renderLeftControls: (inputAdapter, unifiedPanelControl) => {
@@ -804,6 +810,7 @@ const AgentComposerInner = ({
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  agentTriggerMode,
   onWorkspaceChange,
   showWorkspaceSelector,
   workspaceChanging,
@@ -1241,6 +1248,7 @@ const AgentComposerInner = ({
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
     showAgentTrigger: !isClassicSessionLayout,
+    agentTriggerMode,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,

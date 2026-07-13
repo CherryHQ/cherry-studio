@@ -15,6 +15,7 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
+  canChangeAgent?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
@@ -33,6 +34,7 @@ export default function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
+  canChangeAgent,
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
@@ -51,6 +53,7 @@ export default function AgentComposerSlot({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
+        agentTriggerMode={canChangeAgent ? 'selector' : undefined}
         workspaceId={workspaceId}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}

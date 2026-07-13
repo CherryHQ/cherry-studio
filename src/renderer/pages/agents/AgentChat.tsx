@@ -373,6 +373,7 @@ const AgentChatSessionFrame = ({
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const isEmptyConversation =
     !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
+  const canChangeAgent = sessionMessagesEnabled && isEmptyConversation
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
 
   useEffect(() => {
@@ -424,6 +425,7 @@ const AgentChatSessionFrame = ({
       isStreaming={runtime.isPending}
       sendDisabled={false}
       onCreateEmptySession={onCreateEmptySession}
+      canChangeAgent={canChangeAgent}
       workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}

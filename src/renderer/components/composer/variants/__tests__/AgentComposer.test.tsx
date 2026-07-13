@@ -1945,6 +1945,36 @@ describe('AgentComposer', () => {
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
+  it.each(['time', 'workdir'])(
+    'switches the empty %s-grouped session agent from the toolbar selector',
+    async (layout) => {
+      mocks.sessionLayout = layout
+
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+          agentTriggerMode="selector"
+        />
+      )
+
+      expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
+      expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('select agent 2'))
+
+      await waitFor(() => {
+        expect(mocks.updateSession).toHaveBeenCalledWith(
+          { id: 'session-1', agentId: 'agent-2' },
+          { showSuccessToast: false }
+        )
+      })
+    }
+  )
+
   it('restores composer focus after closing the active session agent edit dialog', async () => {
     render(
       <AgentComposer
