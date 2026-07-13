@@ -10,6 +10,7 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
+  platformState: { isMac: false },
   showSearchPopup: vi.fn()
 }))
 
@@ -32,7 +33,9 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
-  isMac: false,
+  get isMac() {
+    return mocks.platformState.isMac
+  },
   isLinux: false,
   isWin: false,
   platform: 'linux'
@@ -105,6 +108,7 @@ import { AppShellTabBar, getTabCapabilities } from '../AppShellTabBar'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.platformState.isMac = false
 })
 
 describe('AppShellTabBar', () => {
@@ -250,7 +254,7 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
-  it('can remove the platform left inset when aligned inside a content column', () => {
+  it('removes the left inset on Windows and Linux without caller configuration', () => {
     const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
 
     render(
@@ -263,7 +267,6 @@ describe('AppShellTabBar', () => {
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
         openTab={vi.fn()}
-        leftInset="none"
       />
     )
 
@@ -275,6 +278,18 @@ describe('AppShellTabBar', () => {
     expect(tabStrip).toHaveClass('pr-1')
     expect(tabStrip).not.toHaveClass('px-1')
     expect(tabStrip).not.toHaveClass('pl-1')
+  })
+
+  it('keeps the platform titlebar inset on macOS without caller configuration', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar()
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+
+    expect(header).toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(tabStrip).toHaveClass('pr-1', 'pl-1')
   })
 
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {

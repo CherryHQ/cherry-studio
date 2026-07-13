@@ -27,7 +27,6 @@ type AppShellTabBarProps = {
   unpinTab: (id: string) => void
   detachTab?: (id: string) => void
   openTab: (url: string, options?: OpenTabOptions) => string
-  leftInset?: 'platform' | 'none'
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -374,8 +373,7 @@ export const AppShellTabBar = ({
   pinTab,
   unpinTab,
   detachTab,
-  openTab,
-  leftInset = 'platform'
+  openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -480,7 +478,7 @@ export const AppShellTabBar = ({
   const handleOpenLaunchpad = () => {
     openTab('/app/launchpad', { title: t('title.launchpad') })
   }
-  const leftPaddingClass = leftInset === 'none' ? 'pl-0' : isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+  const leftPaddingClass = isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-0'
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -499,7 +497,7 @@ export const AppShellTabBar = ({
           data-testid="app-shell-tab-strip"
           className={cn(
             'flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden',
-            leftInset === 'platform' && 'pl-1'
+            isMac && 'pl-1'
           )}>
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (

@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   commandHandlers: new Map<string, () => void>(),
+  platformState: { isMac: false },
+  tabBarProps: undefined as Record<string, unknown> | undefined,
   showSearchPopup: vi.fn()
 }))
 
@@ -13,6 +15,12 @@ vi.mock('@renderer/databases/db', () => ({}))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
+}))
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return mocks.platformState.isMac
+  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -68,7 +76,10 @@ vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
 }))
 
 vi.mock('../AppShellTabBar', () => ({
-  AppShellTabBar: () => <header data-testid="tab-bar" />
+  AppShellTabBar: (props: Record<string, unknown>) => {
+    mocks.tabBarProps = props
+    return <header data-testid="tab-bar" />
+  }
 }))
 
 vi.mock('../TabRouter', () => ({
@@ -81,6 +92,8 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.commandHandlers.clear()
+  mocks.platformState.isMac = false
+  mocks.tabBarProps = undefined
 })
 
 describe('AppShell', () => {
@@ -110,5 +123,29 @@ describe('AppShell', () => {
     expect(contentColumn).toContainElement(tabBar)
     expect(contentColumn).toContainElement(tabRouter)
     expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
+    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
+  })
+
+  it('keeps the macOS tab bar full width above the sidebar and content row', () => {
+    mocks.platformState.isMac = true
+
+    const { container } = render(<AppShell />)
+
+    const root = container.firstElementChild
+    const sidebar = screen.getByTestId('sidebar')
+    const tabBar = screen.getByTestId('tab-bar')
+    const tabRouter = screen.getByTestId('tab-router')
+    const mainRow = sidebar.parentElement
+
+    if (!(root instanceof HTMLElement) || !(mainRow instanceof HTMLElement)) {
+      throw new Error('Expected AppShell to render a root and macOS main row')
+    }
+
+    expect(tabBar.parentElement).toBe(root)
+    expect(mainRow.parentElement).toBe(root)
+    expect(mainRow).toContainElement(sidebar)
+    expect(mainRow).toContainElement(tabRouter)
+    expect(Array.from(root.children)).toEqual([tabBar, mainRow])
+    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })
 })

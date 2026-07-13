@@ -85,7 +85,6 @@ export const AppShell = () => {
       unpinTab={unpinTab}
       detachTab={detachTab}
       openTab={openTab}
-      leftInset={isMac ? 'platform' : 'none'}
     />
   )
 
