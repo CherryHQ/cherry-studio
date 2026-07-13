@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Dialog, DIALOG_CLOSE_DURATION_MS, DialogContent, DialogTitle } from '../dialog'
+import { DialogPortalContainerProvider } from '../portal-container'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../select'
 
 beforeAll(() => {
@@ -46,6 +47,35 @@ function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => v
 }
 
 describe('Dialog primitive', () => {
+  it('keeps nested dialogs in the page dialog portal instead of the parent dialog content', () => {
+    const pagePortalContainer = document.createElement('div')
+    document.body.appendChild(pagePortalContainer)
+
+    render(
+      <DialogPortalContainerProvider container={pagePortalContainer}>
+        <Dialog open>
+          <DialogContent aria-describedby={undefined}>
+            <DialogTitle>Outer dialog</DialogTitle>
+            <Dialog open>
+              <DialogContent aria-describedby={undefined}>
+                <DialogTitle>Inner dialog</DialogTitle>
+              </DialogContent>
+            </Dialog>
+          </DialogContent>
+        </Dialog>
+      </DialogPortalContainerProvider>
+    )
+
+    const outerContent = screen.getByText('Outer dialog').closest('[data-slot="dialog-content"]')
+    const innerContent = screen.getByText('Inner dialog').closest('[data-slot="dialog-content"]')
+
+    expect(outerContent?.parentElement).toBe(pagePortalContainer)
+    expect(innerContent?.parentElement).toBe(pagePortalContainer)
+    expect(innerContent?.parentElement).not.toBe(outerContent)
+
+    pagePortalContainer.remove()
+  })
+
   it('renders the close animation at DIALOG_CLOSE_DURATION_MS so imperative hosts unmount in sync', () => {
     // Guards the desync the constant exists to prevent: the `duration-*` class and
     // DIALOG_CLOSE_DURATION_MS must agree, or popups (renderer POPUP_EXIT_MS, derived from
@@ -179,6 +209,45 @@ describe('Dialog primitive', () => {
 
     expect(handleOpenChange).not.toHaveBeenCalled()
   })
+
+  it('keeps the overlay mounted when overlay click close is toggled', () => {
+    const handleOpenChange = vi.fn()
+    const { rerender } = render(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    rerender(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick={false}>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    fireEvent.click(overlay!)
+    expect(handleOpenChange).not.toHaveBeenCalled()
+
+    rerender(
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
+          <DialogTitle>Create item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay)
+    fireEvent.click(overlay!)
+    expect(handleOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('keeps the dialog open when dismissing an in-dialog select from another dialog field', async () => {
     const handleOpenChange = vi.fn()
 
