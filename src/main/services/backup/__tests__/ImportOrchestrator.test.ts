@@ -22,6 +22,7 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ArchiveContext } from '../admitArchive'
+import { BackupRestoreJobQuiesce } from '../BackupService'
 import {
   BackupCancelledError,
   RestoreFingerprintMismatchError,
@@ -101,11 +102,26 @@ describe('ImportOrchestrator spine', () => {
   })
 
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
-    const orch = new ImportOrchestrator(makeDeps())
+    const disposeHold = vi.fn()
+    const originalGet = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'JobManager') {
+        return {
+          pause: vi.fn(() => ({ dispose: disposeHold })),
+          drainInFlight: vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+        } as never
+      }
+      return originalGet(name)
+    })
+    const quiesce = new BackupRestoreJobQuiesce(5000)
+    const orch = new ImportOrchestrator(makeDeps({ quiesceWriters: (signal) => quiesce.quiesce(signal) }))
 
     const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-001' })
+    quiesce.retainForRelaunch()
+    quiesce.disposeOnAbort()
 
     expect(result.restoreId).toBe('rst-001')
+    expect(disposeHold).not.toHaveBeenCalled()
     const read = readRestoreJournal()
     expect(read.kind).toBe('ok')
     if (read.kind !== 'ok') return
@@ -134,8 +150,19 @@ describe('ImportOrchestrator spine', () => {
   })
 
   it('aborts without a journal when a writer touches live during staging (2nd fingerprint mismatch)', async () => {
+    const disposeHold = vi.fn()
+    const drainInFlight = vi.fn().mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+    const originalGet = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'JobManager') {
+        return { pause: vi.fn(() => ({ dispose: disposeHold })), drainInFlight } as never
+      }
+      return originalGet(name)
+    })
+    const quiesce = new BackupRestoreJobQuiesce(5000)
     const orch = new ImportOrchestrator(
       makeDeps({
+        quiesceWriters: (signal) => quiesce.quiesce(signal),
         mergeBackupIntoWork: async () => {
           // Simulate a foreign writer touching the live DB mid-staging (after snapshot,
           // before the 2nd fingerprint). user_version lives in the DB header → flips the hash.
@@ -145,13 +172,18 @@ describe('ImportOrchestrator spine', () => {
       })
     )
 
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-002' })).rejects.toThrow(
-      RestoreFingerprintMismatchError
-    )
+    try {
+      await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-002' })).rejects.toThrow(
+        RestoreFingerprintMismatchError
+      )
+    } finally {
+      quiesce.disposeOnAbort()
+    }
 
-    // No journal written, staging subtree cleaned up (fail-closed).
+    // No journal written, staging subtree cleaned up, and the writer hold is released once.
     expect(readRestoreJournal().kind).toBe('none')
     expect(existsSync(join(stagingRoot, 'rst-002'))).toBe(false)
+    expect(disposeHold).toHaveBeenCalledOnce()
   })
 
   it('refuses to write a journal when the merge engine is not implemented (fail-closed)', async () => {
@@ -187,6 +219,42 @@ describe('ImportOrchestrator spine', () => {
     expect(readRestoreJournal().kind).toBe('none')
     // Quiesce throws before createSnapshot → no work.sqlite
     expect(existsSync(join(stagingRoot, 'rst-004', 'work.sqlite'))).toBe(false)
+  })
+
+  it('aborts before fingerprint, snapshot, and journal when the JobManager drain is not clean', async () => {
+    const disposeHold = vi.fn()
+    const originalGet = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'JobManager') {
+        return {
+          pause: vi.fn(() => ({ dispose: disposeHold })),
+          drainInFlight: vi.fn().mockResolvedValue({ stragglerIds: ['job-1'], startupRecoveryPending: false })
+        } as never
+      }
+      return originalGet(name)
+    })
+    const checkpointTruncate = vi.fn()
+    const createSnapshot = vi.fn()
+    const quiesce = new BackupRestoreJobQuiesce(5000)
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        dbService: { checkpointTruncate, createSnapshot } as unknown as DbService,
+        quiesceWriters: (signal) => quiesce.quiesce(signal)
+      })
+    )
+
+    try {
+      await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-dirty' })).rejects.toThrow(
+        /did not drain cleanly/
+      )
+    } finally {
+      quiesce.disposeOnAbort()
+    }
+
+    expect(checkpointTruncate).not.toHaveBeenCalled()
+    expect(createSnapshot).not.toHaveBeenCalled()
+    expect(readRestoreJournal().kind).toBe('none')
+    expect(disposeHold).toHaveBeenCalledOnce()
   })
 
   it('rejects an unsafe restoreId (path-traversal / non-basename)', async () => {

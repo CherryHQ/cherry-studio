@@ -31,7 +31,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/legacyFile'
@@ -98,6 +98,65 @@ interface ActiveOperation {
   readonly kind: 'export' | 'restore'
   readonly id: string
   readonly abortController: AbortController
+}
+
+/**
+ * Dormant JobManager-only restore quiesce capability.
+ *
+ * Production restore must not use this until the remaining AI, channel, and renderer
+ * mutation barriers land. The owner injects `quiesce` through ImportOrchestrator's
+ * existing boundary, calls `retainForRelaunch` only after the staged journal commits,
+ * and calls `disposeOnAbort` from every uncommitted exit path.
+ */
+export class BackupRestoreJobQuiesce {
+  private hold: Disposable | undefined
+  private retainedForRelaunch = false
+
+  constructor(private readonly timeoutMs: number) {
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
+      throw new Error('backup restore drain timeoutMs must be a positive integer')
+    }
+  }
+
+  /** Acquire the JobManager hold and require a strict clean drain verdict. */
+  async quiesce(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new BackupCancelledError()
+    if (this.hold) throw new Error('backup restore JobManager quiesce already acquired')
+
+    const jobManager = application.get('JobManager')
+    this.hold = jobManager.pause('backup restore')
+
+    try {
+      const verdict = await jobManager.drainInFlight({ timeoutMs: this.timeoutMs })
+      const clean = verdict.stragglerIds.length === 0 && !verdict.startupRecoveryPending
+      if (!clean) {
+        logger.warn('restore JobManager drain was not clean', {
+          stragglerIds: verdict.stragglerIds,
+          startupRecoveryPending: verdict.startupRecoveryPending,
+          timeoutMs: this.timeoutMs
+        })
+        throw new Error('backup restore JobManager did not drain cleanly')
+      }
+      if (signal?.aborted) throw new BackupCancelledError()
+    } catch (error) {
+      this.disposeOnAbort()
+      throw error
+    }
+  }
+
+  /** Transfer ownership to process exit after the staged journal has committed. */
+  retainForRelaunch(): void {
+    if (!this.hold) throw new Error('backup restore JobManager quiesce was not acquired')
+    this.retainedForRelaunch = true
+  }
+
+  /** Release an acquired hold once on every uncommitted restore exit. */
+  disposeOnAbort(): void {
+    if (this.retainedForRelaunch) return
+    const hold = this.hold
+    this.hold = undefined
+    hold?.dispose()
+  }
 }
 
 @Injectable('BackupService')
@@ -310,9 +369,9 @@ export class BackupService extends BaseService {
       })
       // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
       // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
-      // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
-      // so no in-flight state outlives the exit. The journal is already durable (committed
-      // above), so skipping onStop is intentional: the preboot gate owns the next state.
+      // clear activeOperation first. Once the complete writer barrier lands, its committed
+      // pause holds must remain live through this relaunch/exit rather than being disposed.
+      // The journal is already durable, so the preboot gate owns the next state.
       this.activeOperation = null
       this.triggerRelaunch()
       return { restoreId }

@@ -26,6 +26,9 @@ describe('captureLiveFingerprint', () => {
     // Assert — checkpoint runs first (folds WAL), then hash reads the main file
     expect(checkpointTruncate).toHaveBeenCalledOnce()
     expect(hashDbFile).toHaveBeenCalledWith('/tmp/live.sqlite')
+    expect(checkpointTruncate.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(hashDbFile).mock.invocationCallOrder[0]
+    )
     expect(result).toBe('deadbeef')
   })
 
