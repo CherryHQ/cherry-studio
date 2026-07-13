@@ -17,7 +17,6 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
@@ -302,8 +301,6 @@ function AgentEditDialogContent({
     }
   })
 
-  const closeBeforeAction = useCloseBeforeAction(onOpenChange)
-
   return (
     <EditDialogShell
       activeTab={activeTab}
@@ -319,39 +316,36 @@ function AgentEditDialogContent({
       groupPresentation="inline"
       tabs={tabs}
       title={t('library.config.dialogs.edit.agent_title')}>
-      <>
-        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-          <AgentBasicFields
+      <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+        <AgentBasicFields
+          form={form}
+          modelFilter={modelFilter}
+          portalContainer={dialogContentElement}
+          modelLabels={modelLabels}
+          setModelLabels={setModelLabels}
+          patchAgentForm={patchAgentForm}
+          emojiPickerOpen={emojiPickerOpen}
+          setEmojiPickerOpen={setEmojiPickerOpen}
+        />
+      </TabsContent>
+      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+        <AgentPromptField form={form} portalContainer={dialogContentElement} />
+      </TabsContent>
+      {isToolTab(activeTab) ? (
+        <TabsContent value={activeTab} forceMount className="m-0">
+          <AgentToolsFields
+            agent={resource}
             form={form}
-            modelFilter={modelFilter}
+            activeToolTab={activeTab}
             portalContainer={dialogContentElement}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            patchAgentForm={patchAgentForm}
-            emojiPickerOpen={emojiPickerOpen}
-            setEmojiPickerOpen={setEmojiPickerOpen}
-            onSettingsNavigate={closeBeforeAction}
+            skills={skills}
+            skillsLoading={skillsLoading}
           />
         </TabsContent>
-        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-          <AgentPromptField form={form} portalContainer={dialogContentElement} />
-        </TabsContent>
-        {isToolTab(activeTab) ? (
-          <TabsContent value={activeTab} forceMount className="m-0">
-            <AgentToolsFields
-              agent={resource}
-              form={form}
-              activeToolTab={activeTab}
-              portalContainer={dialogContentElement}
-              skills={skills}
-              skillsLoading={skillsLoading}
-            />
-          </TabsContent>
-        ) : null}
-        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AgentAdvancedFields form={form} />
-        </TabsContent>
-      </>
+      ) : null}
+      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+        <AgentAdvancedFields form={form} />
+      </TabsContent>
     </EditDialogShell>
   )
 }
@@ -364,8 +358,7 @@ function AgentBasicFields({
   setModelLabels,
   patchAgentForm,
   emojiPickerOpen,
-  setEmojiPickerOpen,
-  onSettingsNavigate
+  setEmojiPickerOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: (model: Model) => boolean
@@ -375,7 +368,6 @@ function AgentBasicFields({
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
-  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
@@ -408,7 +400,6 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -420,7 +411,6 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
         />
         <CompactModelField
           form={form}
@@ -432,7 +422,6 @@ function AgentBasicFields({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
         />
       </div>
       <TextInputField
@@ -625,7 +614,7 @@ function AgentToolsFields({
           id: tool.name,
           name: t(`agent.tools.builtin.${tool.key}.label`, tool.label),
           description: t(`agent.tools.builtin.${tool.key}.description`, tool.description),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
+          icon: <Wrench size={13} className="text-foreground/55" />
         }))
     })).filter((section) => section.items.length > 0)
   }, [t])
@@ -653,7 +642,7 @@ function AgentToolsFields({
         id: skill.id,
         name: skill.name,
         description: skill.description,
-        icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
+        icon: <Sparkles size={13} className="text-amber-500/60" />
       })),
     [skills]
   )

@@ -70,6 +70,8 @@ vi.mock('@cherrystudio/ui', async () => {
     CustomTag: passthrough('span'),
     Flex: passthrough('div'),
     InfoTooltip: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
     Input: (props: any) => React.createElement('input', props),
     MenuItem: ({ active, icon, label, onClick, ...props }: any) => {
       const cleanProps = { ...props }
@@ -90,6 +92,8 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children, asChild }: any) =>
       asChild && React.isValidElement(children) ? children : React.createElement('div', null, children),
     RowFlex: passthrough('div'),
+    SettingsPageHeader: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) =>
+      React.createElement('header', null, title, description),
     SegmentedControl: ({ options = [], value, onValueChange }: any) =>
       React.createElement(
         'div',
@@ -171,8 +175,8 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
       React.createElement(tag, props, children)
 
   return {
+    SettingCard: passthrough('div'),
     SettingDescription: passthrough('p'),
-    SettingDivider: passthrough('hr'),
     SettingGroup: passthrough('section'),
     SettingRow: passthrough('div'),
     SettingRowTitle: passthrough('div'),

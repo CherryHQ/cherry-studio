@@ -1,4 +1,4 @@
-import { Divider as SettingDivider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { SettingRow as BaseSettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { Info } from 'lucide-react'
@@ -10,7 +10,9 @@ export const SettingRowTitleSmall = ({
   hint,
   ...rest
 }: ComponentPropsWithoutRef<typeof SettingRowTitle> & { hint?: string }) => (
-  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-foreground text-sm leading-4.5', className)} {...rest}>
+  <SettingRowTitle
+    className={cn('text-(length:--font-size-body-xs) min-w-0 gap-1.5 text-foreground leading-4.5', className)}
+    {...rest}>
     <span className="min-w-0 truncate">{children}</span>
     {hint && (
       <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-xs leading-relaxed">
@@ -34,11 +36,5 @@ export const SettingSwitch = ({
 )
 
 export const SettingRow = ({ className, ...rest }: ComponentPropsWithoutRef<typeof BaseSettingRow>) => (
-  <BaseSettingRow className={cn('min-h-6 gap-3', className)} {...rest} />
+  <BaseSettingRow className={cn('min-h-8 gap-3', className)} {...rest} />
 )
-
-export const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full flex-col gap-0', className)} {...rest} />
-)
-
-export { SettingDivider }

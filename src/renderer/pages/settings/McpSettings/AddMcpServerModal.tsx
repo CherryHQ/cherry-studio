@@ -362,7 +362,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
       <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="font-medium text-base">
             {importMethod === 'mcpb'
               ? t('settings.mcp.addServer.importFrom.mcpb')
               : importMethod === 'dxt'
@@ -381,26 +381,31 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 name="serverConfig"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('settings.mcp.addServer.importFrom.tooltip')}</FormLabel>
+                    <FormLabel className="font-normal text-xs leading-snug">
+                      {t('settings.mcp.addServer.importFrom.tooltip')}
+                    </FormLabel>
                     <FormControl>
-                      <CodeEditor
-                        theme={activeCmTheme}
-                        fontSize={fontSize - 1}
-                        value={field.value}
-                        placeholder={initialJsonExample}
-                        language="json"
-                        onChange={(newContent) => field.onChange(newContent)}
-                        height="60vh"
-                        expanded={false}
-                        wrapped
-                        options={{
-                          lint: true,
-                          lineNumbers: true,
-                          foldGutter: true,
-                          highlightActiveLine: true,
-                          keymap: true
-                        }}
-                      />
+                      <div className="h-60 max-h-[60vh] min-h-30 resize-y overflow-hidden">
+                        <CodeEditor
+                          theme={activeCmTheme}
+                          fontSize={fontSize - 1}
+                          value={field.value}
+                          placeholder={initialJsonExample}
+                          language="json"
+                          onChange={(newContent) => field.onChange(newContent)}
+                          height="100%"
+                          style={{ height: '100%' }}
+                          expanded={false}
+                          wrapped
+                          options={{
+                            lint: true,
+                            lineNumbers: true,
+                            foldGutter: true,
+                            highlightActiveLine: true,
+                            keymap: true
+                          }}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

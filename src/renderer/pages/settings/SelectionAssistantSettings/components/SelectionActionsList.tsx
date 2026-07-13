@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { DragDropContext } from '@hello-pangea/dnd'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
-import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -61,43 +61,43 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         onAdd={handleAddNewAction}
       />
 
-      <SettingDivider />
-
-      <div className="my-6 flex items-center justify-center">
-        <SelectionToolbarView
-          actionItems={actionItems?.filter((item) => item.enabled) ?? []}
-          isCompact={isCompact}
-          handleAction={() => {}}
-          copyIconStatus="normal"
-          copyIconAnimation="none"
-        />
-      </div>
-
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <ActionsList
-              droppableId="enabled"
-              items={enabledItems}
-              isLastEnabledItem={enabledItems.length === 1}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-
-            <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
-
-            <ActionsList
-              droppableId="disabled"
-              items={disabledItems}
-              isLastEnabledItem={false}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-          </div>
+      <div className="mt-3 rounded-xl border border-border-muted p-4">
+        <div className="my-2 flex items-center justify-center">
+          <SelectionToolbarView
+            actionItems={actionItems?.filter((item) => item.enabled) ?? []}
+            isCompact={isCompact}
+            handleAction={() => {}}
+            copyIconStatus="normal"
+            copyIconAnimation="none"
+          />
         </div>
-      </DragDropContext>
+
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex flex-col gap-4">
+            <div className="w-full">
+              <ActionsList
+                droppableId="enabled"
+                items={enabledItems}
+                isLastEnabledItem={enabledItems.length === 1}
+                onEdit={handleEditActionItem}
+                onDelete={handleDeleteActionItem}
+                getSearchEngineInfo={getSearchEngineInfo}
+              />
+
+              <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
+
+              <ActionsList
+                droppableId="disabled"
+                items={disabledItems}
+                isLastEnabledItem={false}
+                onEdit={handleEditActionItem}
+                onDelete={handleDeleteActionItem}
+                getSearchEngineInfo={getSearchEngineInfo}
+              />
+            </div>
+          </div>
+        </DragDropContext>
+      </div>
 
       {isUserModalOpen && (
         <SelectionActionUserModal

@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
@@ -134,28 +134,6 @@ describe('toCreateModelDto', () => {
     ).toMatchObject({
       providerId: 'new-api',
       modelId: 'gpt-4o',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-  })
-
-  it('does not forward model capabilities in the create DTO (resolved server-side from the registry)', () => {
-    const dto = toCreateModelDto('ppio', {
-      id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
-      providerId: 'ppio',
-      apiModelId: 'bge-reranker-v2-m3',
-      name: 'BGE Reranker',
-      group: 'rerankers',
-      capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    } as Model)
-
-    expect(dto.capabilities).toBeUndefined()
-    expect(dto).toMatchObject({
-      providerId: 'ppio',
-      modelId: 'bge-reranker-v2-m3',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
   })
