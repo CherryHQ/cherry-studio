@@ -12,15 +12,15 @@ import { useCallback, useEffect, useMemo } from 'react'
 const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
   switch (mode) {
     case 'default':
-      return <Pointer size={18} color="#00b96b" />
+      return <Pointer className="text-foreground" />
     case 'plan':
-      return <Route size={18} color="#faad14" />
+      return <Route className="text-foreground" />
     case 'acceptEdits':
-      return <FolderPen size={18} color="#52c41a" />
+      return <FolderPen className="text-foreground" />
     case 'bypassPermissions':
-      return <RefreshCcw size={18} color="#722ed1" />
+      return <RefreshCcw className="text-foreground" />
     default:
-      return <Pointer size={18} color="#00b96b" />
+      return <Pointer className="text-foreground" />
   }
 }
 

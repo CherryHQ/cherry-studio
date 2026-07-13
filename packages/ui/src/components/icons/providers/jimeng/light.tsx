@@ -5,7 +5,13 @@ const JimengLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="18.53 18.07 81.99 84.34"
+      {...props}>
       <mask
         id={`${iconId}-jimenglight__a`}
         width={79}

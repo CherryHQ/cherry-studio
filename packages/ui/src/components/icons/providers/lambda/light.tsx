@@ -5,7 +5,13 @@ const LambdaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="16.89 16.49 86.22 87.02"
+      {...props}>
       <g clipPath={`url(#${iconId}-lambdalight__a)`}>
         <path fill="#000" d="M101.5 18.5H18.5V101.5H101.5V18.5Z" />
         <mask

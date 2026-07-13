@@ -18,8 +18,8 @@ const NavbarIcon = ({ active, className, tone = 'default', type = 'button', ...p
       data-active={active || undefined}
       className={cn(
         conversation
-          ? 'text-foreground/70! duration-150 ease-in-out [-webkit-app-region:none] hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-secondary data-[state=open]:bg-secondary data-[active=true]:text-secondary-foreground! data-[state=open]:text-secondary-foreground! [&_.lucide:not(.lucide-custom)]:text-current!'
-          : 'text-foreground/70! duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground',
+          ? 'text-foreground/80! duration-150 ease-in-out [-webkit-app-region:none] hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-secondary data-[state=open]:bg-secondary data-[active=true]:text-secondary-foreground! data-[state=open]:text-secondary-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:[stroke-width:var(--icon-stroke)]'
+          : 'text-foreground/80! duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]',
         conversation && active && 'bg-secondary text-secondary-foreground!',
         className
       )}

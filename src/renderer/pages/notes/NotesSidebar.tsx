@@ -352,7 +352,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             <span>{t('notes.search.searching')}</span>
             <button
               type="button"
-              className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+              className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-foreground/80 transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent [&_svg]:[stroke-width:var(--icon-stroke)]"
               onClick={cancel}
               title={t('common.cancel')}>
               <X size={14} />
@@ -401,7 +401,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       </div>
 
       {isDragOverSidebar && (
-        <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
+        <div className="pointer-events-none absolute inset-0 rounded border-2 border-control-accent border-dashed bg-control-accent/10" />
       )}
     </div>
   )

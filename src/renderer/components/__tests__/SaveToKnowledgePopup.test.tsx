@@ -126,6 +126,7 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogTitle: ({ children, ...props }: React.ComponentProps<'h2'>) => <h2 {...props}>{children}</h2>,
   Flex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   HelpTooltip: () => null,
+  InfoTooltip: () => null,
   Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
 }))
 

@@ -51,12 +51,12 @@
         "channelIdsPlaceholder": "channel:123456789, dm:987654321",
         "description": "Receive and respond to messages via a Discord bot using WebSocket gateway.",
         "title": "Discord",
-        "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+        "whoamiTip": "Send /whoami to the bot to get your channel ID in the correct format."
       },
       "error": "Error",
       "feishu": {
         "appId": "App ID",
-        "appIdPlaceholder": "Enter your Feishu app ID",
+        "appIdPlaceholder": "cli_xxxxxxxxxxxx",
         "appSecret": "App Secret",
         "appSecretPlaceholder": "Enter your Feishu app secret",
         "chatIds": "Allowed Chat IDs",
@@ -93,7 +93,7 @@
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
         "title": "QQ",
-        "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        "whoamiTip": "Send /whoami to the bot to get your chat ID in the correct format."
       },
       "security": {
         "inheritFromAgent": "Inherit from agent",
@@ -103,15 +103,15 @@
       "selectAgent": "Select an agent to bind",
       "slack": {
         "appToken": "App-Level Token",
-        "appTokenPlaceholder": "xapp-...",
+        "appTokenPlaceholder": "xapp-xxxxxxxxxxxx",
         "botToken": "Bot Token",
-        "botTokenPlaceholder": "xoxb-...",
+        "botTokenPlaceholder": "xoxb-xxxxxxxxxxxx",
         "channelIds": "Allowed Channel IDs",
         "channelIdsHint": "Slack channel IDs. Leave empty to allow all.",
         "channelIdsPlaceholder": "C01234567, D89012345",
         "description": "Receive and respond to messages via a Slack bot using Socket Mode.",
         "title": "Slack",
-        "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
+        "whoamiTip": "Send /whoami to the bot to get the channel ID."
       },
       "tab": "Channels",
       "telegram": {
@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks"
+        "title": "No tasks yet"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -663,9 +663,12 @@
         "updateFailed": "Failed to update task"
       },
       "frequency": {
+        "cronExpression": "Cron Expression",
         "everyPrefix": "Every",
         "everySuffix": "minutes",
-        "label": "Execution Frequency"
+        "interval": "Interval",
+        "label": "Execution Frequency",
+        "onceAt": "Run At"
       },
       "intervalPlaceholder": "At least 1",
       "intervalUnit": "minutes",
@@ -1343,8 +1346,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
-      "name": "Cherry Assistant",
+      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
+      "name": "Default Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1754,7 +1757,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No conversations"
+        "title": "No chats yet"
       },
       "export": {
         "failed": "Export failed",
@@ -4036,7 +4039,6 @@
   },
   "models": {
     "action": {
-      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },
@@ -5182,6 +5184,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
+    "description": "Select any text to instantly translate, explain, summarize, and more",
     "name": "Selection Assistant",
     "settings": {
       "actions": {
@@ -5420,6 +5423,7 @@
         "title": "Feedback"
       },
       "label": "About & Feedback",
+      "page_description": "Version info, updates, and community links",
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -5448,6 +5452,7 @@
       }
     },
     "appearance": {
+      "description": "Language, theme, fonts, and display preferences",
       "title": "Appearance"
     },
     "assistant": {
@@ -6147,7 +6152,8 @@
         "uv": "Python package manager for MCP services and dependency installation."
       },
       "update": "Update to latest version",
-      "updateCheckFailed": "Failed to check for updates"
+      "updateCheckFailed": "Failed to check for updates",
+      "update_short": "Update"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
@@ -6370,6 +6376,7 @@
       "args": "Arguments",
       "argsTooltip": "Each argument on a new line",
       "baseUrlTooltip": "Remote server base URL",
+      "basicSettings": "Basic Settings",
       "builtinServers": "Builtin Servers",
       "builtinServersDescriptions": {
         "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
@@ -6727,6 +6734,10 @@
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
         },
+        "section": {
+          "capabilities": "Capabilities",
+          "pricing": "Pricing"
+        },
         "supported_text_delta": {
           "label": "Support incremental text output",
           "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
@@ -6869,6 +6880,7 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "page_description": "Configure the default models used by each feature",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -6919,6 +6931,7 @@
     "notification": {
       "assistant": "Assistant Message",
       "backup": "Backup Message",
+      "description": "Choose which events send system notifications",
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications"
     },
@@ -7147,6 +7160,7 @@
         "sign_in_success": "Signed in to OpenAI Codex",
         "signing_in": "Waiting for browser…"
       },
+      "connection_title": "Connections",
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
@@ -7342,6 +7356,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
+      "description": "A lightweight AI assistant summoned anytime via shortcut or tray",
       "enable_quick_assistant": "Enable Quick Assistant",
       "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",
@@ -7407,6 +7422,7 @@
       "close_tab": "Close Tab",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
+      "description": "View and customize keyboard shortcuts",
       "edit_last_user_message": "Edit Last User Message",
       "empty": "No shortcuts are available in this group",
       "enabled": "Enable",
@@ -7486,6 +7502,7 @@
       "zip": "ZIP"
     },
     "system": {
+      "description": "Startup, tray, network proxy, and developer options",
       "title": "System"
     },
     "theme": {
@@ -7648,6 +7665,12 @@
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
           "tavily": "Search engine optimized for LLMs.",
           "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."
+        },
+        "provider_status": {
+          "fetch": {
+            "available": "Built-in URL fetch is ready to use.",
+            "no_configuration": "No API key or configuration required."
+          }
         },
         "search_max_result": {
           "label": "Number of search results",

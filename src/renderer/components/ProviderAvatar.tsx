@@ -51,7 +51,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     return (
       <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon style={{ width: '70%', height: '70%' }} />
+          <Icon style={{ width: '100%', height: '100%' }} />
         </AvatarFallback>
       </Avatar>
     )

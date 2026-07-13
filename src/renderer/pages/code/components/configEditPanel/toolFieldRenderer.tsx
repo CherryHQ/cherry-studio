@@ -58,12 +58,8 @@ export function renderClaudeDetailedModelSlot({
   config,
   onChange,
   providerId,
-  modelFilter,
-  onSettingsNavigate
-}: Omit<ToolFieldRenderOptions, 'cliTool' | 'section'> & {
-  hint: ReactNode
-  onSettingsNavigate?: (navigate: () => void) => void
-}): ReactNode {
+  modelFilter
+}: Omit<ToolFieldRenderOptions, 'cliTool' | 'section'> & { hint: ReactNode }): ReactNode {
   return (
     <>
       {hint}
@@ -74,7 +70,6 @@ export function renderClaudeDetailedModelSlot({
         section="advanced"
         providerId={providerId}
         modelFilter={modelFilter}
-        onSettingsNavigate={onSettingsNavigate}
       />
     </>
   )

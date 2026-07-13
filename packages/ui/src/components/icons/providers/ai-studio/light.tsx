@@ -5,7 +5,13 @@ const AiStudioLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="26.34 18.37 70.91 72.1"
+      {...props}>
       <g clipPath={`url(#${iconId}-aistudiolight__a)`}>
         <mask
           id={`${iconId}-aistudiolight__b`}

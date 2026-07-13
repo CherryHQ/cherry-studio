@@ -160,7 +160,7 @@ const WindowFooter: FC<FooterProps> = ({
 
   const footerButtonClassName = (enabled: boolean, hovered: boolean) =>
     cn(
-      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-foreground-secondary text-xs transition-colors',
+      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-muted px-2 text-foreground-secondary text-xs transition-colors',
       enabled ? 'opacity-100' : 'opacity-20',
       hovered && 'text-primary [&_.btn-icon]:text-primary',
       'hover:text-primary hover:[&_.btn-icon]:text-primary'

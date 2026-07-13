@@ -182,7 +182,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
           className={cn(
             'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-ring)_40%,transparent)]'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}
@@ -190,8 +190,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
           <div
             className={cn(
               'mini-app-icon-frame relative flex items-center justify-center',
-              isLaunchpad &&
-                'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+              isLaunchpad && 'size-[58px] rounded-[14px]'
             )}>
             <MiniAppIcon size={size} app={app} appearance={isLaunchpad ? 'plain' : 'avatar'} />
             {isOpened && (

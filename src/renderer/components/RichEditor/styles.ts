@@ -254,7 +254,7 @@ const STYLE_CONTENT = `
   padding: 0.25rem 0.5rem;
   color: var(--color-foreground-secondary);
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.9rem;
   line-height: 1.4;
   transition: all 0.2s ease;
@@ -266,8 +266,8 @@ const STYLE_CONTENT = `
 }
 
 .TableOfContentsWrapper .toc-item.is-active a {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-control-accent) 60%, transparent);
+  color: var(--color-control-accent);
   font-weight: 500;
 }
 

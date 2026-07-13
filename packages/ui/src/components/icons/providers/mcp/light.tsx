@@ -5,7 +5,13 @@ const McpLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="28.05 25.33 63.22 70.7"
+      {...props}>
       <g clipPath={`url(#${iconId}-mcplight__a)`}>
         <path
           fill="#FEFEFE"

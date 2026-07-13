@@ -5,7 +5,13 @@ const InfiniLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="15.65 15.25 89.11 89.51"
+      {...props}>
       <g clipPath={`url(#${iconId}-infinilight__a)`}>
         <path
           fill="#6A3CFD"

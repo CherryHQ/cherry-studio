@@ -119,7 +119,7 @@ const useKnowledgeBaseToolController = ({
       label: base.name,
       description: tRef.current('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       filterText: [base.name, base.id].join(' '),
-      icon: <FileSearch />,
+      icon: <FileSearch className="text-foreground" />,
       isSelected: selectedBaseIds.has(base.id),
       action: ({ context, inputAdapter, item }) => {
         const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
@@ -192,7 +192,7 @@ const useKnowledgeBaseToolController = ({
         description: resolvedDisabledReason ?? '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.knowledge_base', ['knowledge base']),
         disabledReason: resolvedDisabledReason,
-        icon: <FileSearch />,
+        icon: <FileSearch className="text-foreground" />,
         active: isEnabled,
         showInActiveControls: false,
         disabled: isDisabled,

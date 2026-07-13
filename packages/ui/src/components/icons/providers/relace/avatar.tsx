@@ -10,7 +10,7 @@ export function RelaceAvatar({ size = 32, shape = 'circle', className }: Omit<Ic
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <RelaceLight style={{ width: size * 0.7, height: size * 0.7 }} />
+        <RelaceLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

@@ -359,7 +359,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_tags')}
                   title={t('library.toolbar.all_tags')}
                   onClick={() => setShowAllTags((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
+                  className="size-6 shrink-0 rounded-full text-foreground/80 hover:bg-accent hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]">
                   {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -390,7 +390,7 @@ export const ResourceGrid: FC<Props> = ({
                     size="icon-sm"
                     onClick={() => void handleAddTag()}
                     disabled={addingTag || !newTagName.trim()}
-                    className="size-6 text-foreground-muted hover:text-foreground">
+                    className="size-6 text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]">
                     <Plus size={12} />
                   </Button>
                 </div>

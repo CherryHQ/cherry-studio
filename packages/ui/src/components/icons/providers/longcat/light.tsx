@@ -5,7 +5,13 @@ const LongcatLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="15.25 26.01 89.51 64.01"
+      {...props}>
       <g clipPath={`url(#${iconId}-longcatlight__a)`}>
         <mask
           id={`${iconId}-longcatlight__b`}
@@ -27,7 +33,7 @@ const LongcatLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
             clipRule="evenodd"
           />
           <path
-            fill="#000"
+            fill="currentColor"
             d="M50.0107 77.3544H55.4574V64.6479H50.8349L50.0107 77.3544ZM69.9807 77.3544H64.534V64.6479H69.1565L69.9807 77.3544Z"
           />
         </g>

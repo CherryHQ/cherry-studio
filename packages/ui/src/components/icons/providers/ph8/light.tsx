@@ -5,7 +5,13 @@ const Ph8Light: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="21.05 21.05 77.9 77.9"
+      {...props}>
       <g clipPath={`url(#${iconId}-ph8light__a)`}>
         <mask
           id={`${iconId}-ph8light__b`}

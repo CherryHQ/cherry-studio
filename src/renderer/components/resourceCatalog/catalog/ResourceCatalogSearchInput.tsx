@@ -31,7 +31,7 @@ export function ResourceCatalogSearchInput({
 
   return (
     <div className={cn('relative', className)}>
-      <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+      <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted/80" />
       <Input
         value={value}
         onChange={handleChange}

@@ -270,7 +270,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
             }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
-              <Upload size={26} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
+              <Upload size={26} className="mb-3 text-foreground-muted [stroke-width:var(--icon-stroke-display)]" />
               <p className="mb-1 text-foreground-secondary text-xs">
                 {t('library.import_skill_dialog.local.drop_hint')}
               </p>

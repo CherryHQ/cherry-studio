@@ -50,7 +50,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <Cable />,
+    icon: <Cable className="text-foreground" />,
     disabled: true
   }
 }
@@ -69,7 +69,7 @@ function createMcpStatusItem(
     label: server?.name ?? t('settings.quickPanel.mcp.unknownServer', 'Unknown MCP server'),
     description,
     filterText: [server?.name, server?.description, description].filter(Boolean).join(' '),
-    icon: <Cable />
+    icon: <Cable className="text-foreground" />
   }
 }
 
@@ -159,7 +159,7 @@ export function createMcpStatusLauncher(
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
     disabledReason: isDisabled ? modeLabel : undefined,
     disabled: isDisabled,
-    icon: <Cable />,
+    icon: <Cable className="text-foreground" />,
     action: isDisabled
       ? undefined
       : ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {

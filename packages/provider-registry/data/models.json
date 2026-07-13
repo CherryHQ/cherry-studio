@@ -256,36 +256,6 @@
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["rerank"],
-      "contextWindow": 32768,
-      "family": "qwen",
-      "id": "qwen3-reranker-0-6b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Qwen3 Reranker 0.6B",
-      "ownedBy": "alibaba"
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 32768,
-      "family": "qwen",
-      "id": "qwen3-reranker-4b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Qwen3 Reranker 4B",
-      "ownedBy": "alibaba"
-    },
-    {
-      "capabilities": ["rerank"],
-      "contextWindow": 32768,
-      "family": "qwen",
-      "id": "qwen3-reranker-8b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Qwen3 Reranker 8B",
-      "ownedBy": "alibaba"
-    },
-    {
       "capabilities": ["function-call"],
       "contextWindow": 4096,
       "family": "qwen",
@@ -5131,6 +5101,28 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek-thinking",
+      "id": "deepseek-r1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "DeepSeek R1 0528",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.574
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.294
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
@@ -5157,58 +5149,6 @@
       },
       "reasoning": {
         "supportedEfforts": ["high", "max", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
-      "family": "deepseek-thinking",
-      "id": "deepseek-v4-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
-      "metadata": {},
-      "name": "DeepSeek V4 Pro",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.435
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.87
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["high", "max", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek-thinking",
-      "id": "deepseek-r1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "DeepSeek R1 0528",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.574
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.294
-        }
       }
     },
     {
@@ -5257,6 +5197,36 @@
           "currency": "USD",
           "perMillionTokens": 0.861
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "deepseek-thinking",
+      "id": "deepseek-v4-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4 Pro",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -6357,21 +6327,14 @@
       }
     },
     {
-      "capabilities": [
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 131072,
-      "family": "gemini-flash",
+      "family": "gemini",
       "id": "gemini-3-1-flash-image",
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 32768,
       "metadata": {},
-      "name": "Nano Banana 2",
+      "name": "Gemini 3.1 Flash Image (Nano Banana 2)",
       "outputModalities": ["text", "image"],
       "ownedBy": "google",
       "pricing": {
@@ -12130,7 +12093,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt-luna",
+      "family": "gpt",
       "id": "gpt-5-6-luna",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -12242,7 +12205,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt-terra",
+      "family": "gpt",
       "id": "gpt-5-6-terra",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -12578,7 +12541,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt-sol",
+      "family": "gpt",
       "id": "gpt-5-6-sol",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -13135,7 +13098,7 @@
         "web-search"
       ],
       "contextWindow": 1050000,
-      "family": "gpt-sol",
+      "family": "gpt",
       "id": "gpt-5-6",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -16764,16 +16727,6 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["image-generation"],
-      "family": "seed",
-      "id": "seedream-5-0-pro",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Seedream 5.0 Pro",
-      "outputModalities": ["image"],
-      "ownedBy": "bytedance"
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 256000,
       "family": "seed",
@@ -17642,5 +17595,5 @@
       }
     }
   ],
-  "version": "906c9d8989aa38ed"
+  "version": "2ed35287d8eb9abf"
 }

@@ -53,9 +53,9 @@ export function FileSidebar({
         size="sm"
         onClick={() => onFilterChange({ kind: entry.kind, value: entry.value } as SidebarFilter)}
         className={`w-full justify-start gap-2 px-2.5 py-[5px] ${
-          active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+          active ? 'bg-accent text-foreground' : 'text-foreground/80 hover:bg-accent/50 hover:text-foreground'
         }`}>
-        <Icon size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
+        <Icon size={13} className="shrink-0 text-muted-foreground/60" />
         <span className="flex-1 truncate text-left text-sm">{entry.label(t)}</span>
         {count !== undefined && count > 0 && <span className="text-muted-foreground/40 text-xs">{count}</span>}
       </Button>

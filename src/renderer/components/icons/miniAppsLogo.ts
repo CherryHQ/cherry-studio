@@ -6,6 +6,55 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { type IconRef, modelIconRef, providerIconRef, useIcon } from '@cherrystudio/ui/icons'
 
+// Logo ids whose artwork reads as a complete tile design (rounded-square/circular plate)
+// and renders edge-to-edge in the launchpad tile. Everything else — bare vector marks and
+// wordmark-on-white plates — gets the logo scaled and centered instead. Hand-picked with
+// design review.
+const FULL_BLEED_LOGO_IDS = new Set([
+  '3mintop',
+  'mintop3',
+  'anthropic',
+  'claude',
+  'bolt',
+  'coze',
+  'doubao',
+  'genspark',
+  'groq',
+  'ima',
+  'lambda',
+  'minimax',
+  'notebooklm'
+])
+
+export function isMiniAppLogoFullBleed(logoId: string | undefined): boolean {
+  return !!logoId && FULL_BLEED_LOGO_IDS.has(logoId.toLowerCase())
+}
+
+// Bordered launchpad tiles letterbox the logo via preserveAspectRatio, so a flat
+// scale makes long/tall marks (silicon, tng, n8n…) read far smaller than square
+// ones. Square and near-square logos (aspect ratio ≤ 1.3, which includes dify/grok)
+// all share the 84% base; only clearly elongated marks scale their long edge
+// further toward a 92% cap, so every tile reads at a comparable visual weight.
+// Values derived from measured glyph bounding boxes; logos not listed here fall
+// back to the base.
+const MINI_APP_LOGO_SCALE_BASE = 0.84
+const MINI_APP_LOGO_SCALE: Record<string, number> = {
+  silicon: 0.92,
+  tng: 0.92,
+  n8n: 0.92,
+  metaso: 0.92,
+  dify: 0.92,
+  mistral: 0.87,
+  flowith: 0.87,
+  longcat: 0.87,
+  deepseek: 0.86
+}
+
+export function getMiniAppLogoScale(logoId: string | undefined): number {
+  if (!logoId) return MINI_APP_LOGO_SCALE_BASE
+  return MINI_APP_LOGO_SCALE[logoId.toLowerCase()] ?? MINI_APP_LOGO_SCALE_BASE
+}
+
 /**
  * Mini-app logo id → exact catalog ref. Keys are compile-time checked against
  * the generated meta catalogs; refs resolve synchronously, the icon component
@@ -76,7 +125,9 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   ima: providerIconRef('ima'),
   dangbei: providerIconRef('dangbei'),
   hailuo: modelIconRef('hailuo'),
-  ling: modelIconRef('ling')
+  ling: modelIconRef('ling'),
+  skywork: providerIconRef('skywork'),
+  tiangong: providerIconRef('skywork')
 }
 
 export function getMiniAppsLogoRef(logoId: string | undefined): IconRef | undefined {

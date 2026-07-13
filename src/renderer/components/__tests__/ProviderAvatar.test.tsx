@@ -53,7 +53,7 @@ describe('ProviderAvatarPrimitive', () => {
       />
     )
 
-    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '70%', height: '70%' })
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '100%', height: '100%' })
   })
 
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {

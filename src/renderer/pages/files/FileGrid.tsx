@@ -119,7 +119,10 @@ export const FileGrid = memo(function FileGrid({
                     onDoubleClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
+                  <Icon
+                    size={22}
+                    className={`[stroke-width:var(--icon-stroke-display)] ${typeIconColors[file.type]}`}
+                  />
                 )}
                 {!isImage && (
                   <span className="absolute top-1.5 left-1.5 rounded bg-muted/50 px-1.5 py-[1px] font-medium text-muted-foreground/60 text-xs tracking-wide">

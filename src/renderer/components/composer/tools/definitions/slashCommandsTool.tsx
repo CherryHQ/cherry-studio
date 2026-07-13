@@ -83,7 +83,7 @@ const slashCommandsTool = defineTool({
             label: cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
             searchAliases: descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : undefined,
-            icon: <Terminal size={16} />,
+            icon: <Terminal size={16} className="text-foreground" />,
             action: ({ inputAdapter }) => {
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
             }

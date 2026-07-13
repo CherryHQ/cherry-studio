@@ -41,16 +41,12 @@ export function resolveCreateModelEndpointTypes(
   return provider.defaultChatEndpoint ? [provider.defaultChatEndpoint] : undefined
 }
 
-function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string {
-  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
-}
-
 export function toCreateModelDto(
   providerId: string,
   model: Model,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
-  const modelId = getRawModelId(model)
+  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
 
   return {
