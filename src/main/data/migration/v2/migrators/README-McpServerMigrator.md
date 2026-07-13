@@ -17,7 +17,6 @@ Migrates MCP server configurations from Redux to SQLite.
 | Field | Reason | V2 Target |
 |-------|--------|-----------|
 | `isUvInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_uv_installed')` |
-| `isBunInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_bun_installed')` |
 
 ## Not Migrated (Regenerable Cache)
 

@@ -371,12 +371,12 @@ export class CodeCliService extends BaseService {
     logger.debug(`Executable name: ${executableName}`)
     logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Prefer Cherry-managed/bundled binaries, then the user's login-shell PATH.
-    // Only install when neither source has the executable.
+    // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
+    // install when no currently available source can execute the CLI.
     const binaryManager = application.get('BinaryManager')
-    let resolution = (await binaryManager.resolveTools([executableName]))[executableName]
+    let availability = (await binaryManager.getToolSnapshots([executableName]))[executableName].availability
 
-    if (resolution.source === 'none') {
+    if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
         await binaryManager.installTool({ intent: spec })
@@ -387,30 +387,27 @@ export class CodeCliService extends BaseService {
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
 
-      resolution = (await binaryManager.resolveTools([executableName]))[executableName]
-      if (resolution.source === 'none') {
+      availability = (await binaryManager.getToolSnapshots([executableName]))[executableName].availability
+      if (availability.source === 'none') {
         const message = `${cliTool} is not available after install`
         logger.error(message)
         return { success: false, message }
       }
     }
 
-    const executablePath = resolution.path
-    const isCherryManaged = resolution.source !== 'system'
+    const executablePath = availability.path
+    const usesCherryExecutionEnv = availability.source !== 'system'
 
-    // Cherry's MISE_* variables are required only by Cherry-managed shims. Injecting
-    // them while launching a system mise shim redirects that shim to Cherry's
-    // isolated data directory, where the user's installed tool does not exist.
-    // Start managed npm CLIs with Cherry's shims first so a `#!/usr/bin/env node`
-    // launcher resolves the matching Cherry-managed runtime. Only carry the raw
-    // login-shell PATH into the terminal command: exporting the whole shell env
-    // would leak unrelated values and user MISE_* settings. System CLIs still
-    // receive no Cherry environment at all.
-    const rawShellEnv = isCherryManaged ? await getRawShellEnv() : undefined
+    // Cherry's MISE_* variables are needed for currently available mise shims
+    // and bundled binaries. A system CLI receives no Cherry environment: adding
+    // it could redirect a user mise shim to Cherry's isolated data directory.
+    // The install request above is the only operation that declares ownership;
+    // execution depends only on this live availability fact.
+    const rawShellEnv = usesCherryExecutionEnv ? await getRawShellEnv() : undefined
     const rawPathEnv = Object.fromEntries(
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
-    const env: Record<string, string> = isCherryManaged ? mergeBinaryExecutionEnv(rawPathEnv) : {}
+    const env: Record<string, string> = usesCherryExecutionEnv ? mergeBinaryExecutionEnv(rawPathEnv) : {}
     logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
@@ -705,9 +702,9 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const baseProcessEnv = isCherryManaged ? rawShellEnv! : await getRawShellEnv()
+    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
     const processEnv = Object.fromEntries(
-      Object.entries(baseProcessEnv).filter(([key]) => !isCherryManaged || !key.startsWith('MISE_'))
+      Object.entries(baseProcessEnv).filter(([key]) => !usesCherryExecutionEnv || !key.startsWith('MISE_'))
     )
     Object.assign(processEnv, env)
     removeEnvProxy(processEnv)

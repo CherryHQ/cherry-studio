@@ -101,7 +101,7 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateBinaryManifestEntry } = await import('../BinaryManager')
-const { findCommandInShellEnv, findExecutable } = await import('@main/utils/commandResolver')
+const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -191,78 +191,6 @@ describe('BinaryManager', () => {
         ],
         expect.any(Function)
       )
-    })
-  })
-
-  describe('listTools', () => {
-    it('maps manifest entries to the inventory shape', async () => {
-      const service = new BinaryManager()
-
-      manifestRef.value = [
-        { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' },
-        { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.2.3' }
-      ]
-
-      await expect(service.listTools()).resolves.toEqual([
-        { name: 'fd', tool: 'fd', version: '', requestedVersion: '10.0.0', managed: true },
-        { name: 'mytool', tool: 'npm:mytool', version: '', requestedVersion: '1.2.3', managed: true }
-      ])
-    })
-
-    it('returns an empty inventory when the manifest is empty', async () => {
-      await expect(new BinaryManager().listTools()).resolves.toEqual([])
-    })
-
-    it('merges runtime dependencies that the manifest does not own', async () => {
-      // Runtime deps (node/python) can ride along on `mise use` without intent;
-      // entry — the live `mise ls` merge is what surfaces them in the UI.
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      manifestRef.value = [{ name: 'openclaw', tool: 'npm:openclaw', requestedVersion: '1.0.0' }]
-      mockExecFileAsync.mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          'npm:openclaw': [{ version: '1.0.0' }],
-          node: [{ version: '22.23.1', active: true }, { version: '26.5.0' }],
-          'github:untracked/tool': [{ version: '1.0.0', active: true }]
-        }),
-        stderr: ''
-      })
-
-      await expect(service.listTools()).resolves.toEqual([
-        { name: 'openclaw', tool: 'npm:openclaw', version: '1.0.0', requestedVersion: '1.0.0', managed: true },
-        { name: 'node', tool: 'node', version: '22.23.1', managed: false }
-      ])
-    })
-
-    it('dedupes a core:-pinned manifest entry against the bare mise ls key', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }]
-      mockExecFileAsync.mockResolvedValueOnce({
-        stdout: JSON.stringify({ node: [{ version: '22.23.1', active: true }] }),
-        stderr: ''
-      })
-
-      await expect(service.listTools()).resolves.toEqual([
-        { name: 'node', tool: 'core:node', version: '22.23.1', requestedVersion: '22.23.1', managed: true }
-      ])
-    })
-
-    it('falls back to manifest intent when mise ls fails', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      manifestRef.value = [{ name: 'fd', tool: 'fd', requestedVersion: '10.0.0' }]
-      mockExecFileAsync.mockRejectedValueOnce(new Error('mise exploded'))
-
-      await expect(service.listTools()).resolves.toEqual([
-        { name: 'fd', tool: 'fd', version: '', requestedVersion: '10.0.0', managed: true }
-      ])
     })
   })
 
@@ -429,37 +357,6 @@ describe('BinaryManager', () => {
       ;(service as any).onAllReady()
 
       expect(mockExecFileAsync).not.toHaveBeenCalled()
-    })
-
-    it('keeps requestedVersion separate from the live mise version in inventory', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      manifestRef.value = [{ name: 'fd', tool: 'fd', requestedVersion: '1.0.0' }]
-      mockExecFileAsync.mockResolvedValue({
-        stdout: JSON.stringify({ fd: [{ version: '2.0.0', active: true }] }),
-        stderr: ''
-      })
-
-      await expect(service.listTools()).resolves.toEqual([
-        { name: 'fd', tool: 'fd', version: '2.0.0', requestedVersion: '1.0.0', managed: true }
-      ])
-    })
-
-    it('exposes the live mise version through resolveTools instead of requestedVersion', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-      manifestRef.value = [{ name: 'fd', tool: 'fd', requestedVersion: '1.0.0' }]
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls')
-          return { stdout: JSON.stringify({ fd: [{ version: '2.0.0', active: true }] }), stderr: '' }
-        return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
-      })
-
-      await expect(service.resolveTools(['fd'])).resolves.toEqual({
-        fd: { source: 'managed', path: '/mock/mise/shims/fd', version: '2.0.0' }
-      })
     })
 
     it('leaves an installed binary unowned when the manifest write fails', async () => {
@@ -1724,110 +1621,6 @@ describe('BinaryManager', () => {
       await (service as any).extractBundledBinaries()
 
       expect(mockFsp.copyFile).toHaveBeenCalled()
-    })
-  })
-
-  describe('resolveTools', () => {
-    it('resolves system tools against the raw login-shell PATH', async () => {
-      const { getRawShellEnv } = await import('@main/utils/shellEnv')
-      vi.mocked(getRawShellEnv).mockResolvedValueOnce({ PATH: '/usr/local/bin:/usr/bin' })
-      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
-        name === 'gemini' ? '/usr/local/bin/gemini' : null
-      )
-
-      await expect(new BinaryManager().resolveTools(['gemini'])).resolves.toEqual({
-        gemini: { source: 'system', path: '/usr/local/bin/gemini' }
-      })
-      expect(findCommandInShellEnv).toHaveBeenCalledWith('gemini', {
-        PATH: '/usr/local/bin:/usr/bin'
-      })
-    })
-
-    it('returns none for a Cherry-owned result found by the system probe', async () => {
-      vi.mocked(findCommandInShellEnv).mockResolvedValue('/mock/cherry.bin/uv')
-
-      await expect(new BinaryManager().resolveTools(['uv'])).resolves.toEqual({ uv: { source: 'none' } })
-    })
-
-    it('prefers a bundled binary over the system PATH', async () => {
-      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === '/mock/cherry.bin/uv')
-      mockFs.readFileSync.mockImplementation((candidate: unknown) => {
-        if (candidate === '/mock/cherry.bin/.uv-version') return '1.0.0'
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/uv')
-
-      await expect(new BinaryManager().resolveTools(['uv'])).resolves.toEqual({
-        uv: { source: 'bundled', path: '/mock/cherry.bin/uv', version: '1.0.0' }
-      })
-      expect(findCommandInShellEnv).not.toHaveBeenCalledWith('uv', expect.anything())
-    })
-
-    it('resolves secondary bundled executables such as uvx', async () => {
-      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === '/mock/cherry.bin/uvx')
-      mockFs.readFileSync.mockImplementation((candidate: unknown) => {
-        if (candidate === '/mock/cherry.bin/.uv-version') return '1.0.0'
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-
-      await expect(new BinaryManager().resolveTools(['uvx'])).resolves.toEqual({
-        uvx: { source: 'bundled', path: '/mock/cherry.bin/uvx', version: '1.0.0' }
-      })
-    })
-
-    it('prefers a valid managed binary over the system PATH', async () => {
-      manifestRef.value = [{ name: 'gemini', tool: 'npm:@google/gemini-cli', requestedVersion: '1.2.3' }]
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls')
-          return { stdout: JSON.stringify({ 'npm:@google/gemini-cli': [{ version: '1.2.3' }] }), stderr: '' }
-        return { stdout: '/mock/managed/gemini\n', stderr: '' }
-      })
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      await expect(service.resolveTools(['gemini'])).resolves.toEqual({
-        gemini: { source: 'managed', path: '/mock/managed/gemini', version: '1.2.3' }
-      })
-      expect(findCommandInShellEnv).not.toHaveBeenCalledWith('gemini', expect.anything())
-    })
-
-    it('resolves an unrecorded runtime through Cherry-managed mise', async () => {
-      mockExecFileAsync.mockResolvedValue({ stdout: '/mock/mise/shims/node\n', stderr: '' })
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      await expect(service.resolveTools(['node'])).resolves.toEqual({
-        node: { source: 'managed', path: '/mock/mise/shims/node', version: '' }
-      })
-      expect(findCommandInShellEnv).not.toHaveBeenCalled()
-    })
-
-    it('includes .bat when probing Windows system tools', async () => {
-      platformMock.isWin = true
-      vi.mocked(findExecutable).mockReturnValue('C:\\Tools\\claude.bat')
-
-      await expect(new BinaryManager().resolveTools(['claude'])).resolves.toEqual({
-        claude: { source: 'system', path: 'C:\\Tools\\claude.bat' }
-      })
-      expect(findExecutable).toHaveBeenCalledWith('claude', {
-        extensions: ['.exe', '.cmd', '.bat'],
-        env: { PATH: '/usr/local/bin:/usr/bin' }
-      })
-    })
-
-    it('falls back to the system PATH when managed intent is unavailable', async () => {
-      manifestRef.value = [{ name: 'gemini', tool: 'npm:@google/gemini-cli', requestedVersion: '1.2.3' }]
-      mockExecFileAsync.mockRejectedValue(new Error('not installed'))
-      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/gemini')
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      ;(service as any).isolatedEnv = {}
-
-      await expect(service.resolveTools(['gemini'])).resolves.toEqual({
-        gemini: { source: 'system', path: '/usr/local/bin/gemini' }
-      })
     })
   })
 })

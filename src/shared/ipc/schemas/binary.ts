@@ -4,8 +4,6 @@ import type {
   BinaryAvailability,
   BinaryInstallRequest,
   BinaryOperation,
-  BinaryResolution,
-  BinaryToolInventoryEntry,
   BinaryToolSnapshot
 } from '@shared/types/binary'
 import * as z from 'zod'
@@ -34,25 +32,7 @@ import { defineRoute } from '../define'
  */
 const toolNameSchema = z.string().regex(TOOL_NAME_RE)
 
-const binaryResolutionSchema: z.ZodType<BinaryResolution> = z.discriminatedUnion('source', [
-  z.object({ source: z.literal('managed'), path: z.string(), version: z.string() }),
-  z.object({ source: z.literal('bundled'), path: z.string(), version: z.string().optional() }),
-  z.object({ source: z.literal('system'), path: z.string() }),
-  z.object({ source: z.literal('none') })
-])
-
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
-
-const binaryToolInventoryEntrySchema: z.ZodType<BinaryToolInventoryEntry> = z.discriminatedUnion('managed', [
-  z.object({
-    name: z.string(),
-    tool: z.string(),
-    version: z.string(),
-    requestedVersion: z.string().optional(),
-    managed: z.literal(true)
-  }),
-  z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(false) })
-])
 
 /** Durable management intent stored in the BinaryManager-owned Preference manifest. */
 export const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
@@ -96,28 +76,17 @@ export const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object(
 export const binaryRequestSchemas = {
   'binary.install_tool': defineRoute({ input: binaryInstallRequestSchema, output: z.object({ version: z.string() }) }),
   'binary.remove_tool': defineRoute({ input: toolNameSchema, output: z.void() }),
-  'binary.resolve_tools': defineRoute({
-    input: z.array(toolNameSchema),
-    output: z.record(z.string(), binaryResolutionSchema)
-  }),
   'binary.get_tool_snapshots': defineRoute({
     input: z.array(toolNameSchema),
     output: z.record(z.string(), binaryToolSnapshotSchema)
   }),
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
-  'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) }),
-  // Manifest entries are manageable; only unrecorded node/python runtimes from
-  // live `mise ls` are included as display-only entries.
-  'binary.list_tools': defineRoute({ input: z.void(), output: z.array(binaryToolInventoryEntrySchema) }),
-  // Whether a CLI tool binary is resolvable (bundled or on PATH). Legacy App_IsBinaryExist.
-  'binary.is_installed': defineRoute({ input: z.string(), output: z.boolean() })
+  'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type BinaryEventSchemas = {
   // Availability may have changed — consumers re-resolve the tools they display.
   'binary.availability_changed': void
-  // Comma-joined names of tools that failed the boot-time reconcile.
-  'binary.reconcile_failed': string
 }

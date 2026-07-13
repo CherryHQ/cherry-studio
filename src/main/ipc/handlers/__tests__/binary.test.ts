@@ -8,11 +8,9 @@ import { binaryHandlers } from '../binary'
 const binaryManager = {
   installTool: vi.fn(),
   removeTool: vi.fn(),
-  resolveTools: vi.fn(),
   getToolSnapshots: vi.fn(),
   searchRegistry: vi.fn(),
-  getLatestVersions: vi.fn(),
-  listTools: vi.fn()
+  getLatestVersions: vi.fn()
 }
 
 beforeEach(() => {
@@ -39,13 +37,6 @@ describe('binaryHandlers', () => {
     expect(binaryManager.removeTool).toHaveBeenCalledWith('fd')
   })
 
-  it('resolve_tools forwards names and returns the manager resolutions', async () => {
-    binaryManager.resolveTools.mockResolvedValue({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
-    const result = await binaryHandlers['binary.resolve_tools'](['fd'], ctx)
-    expect(binaryManager.resolveTools).toHaveBeenCalledWith(['fd'])
-    expect(result).toEqual({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
-  })
-
   it('get_tool_snapshots forwards names and returns the manager snapshots', async () => {
     binaryManager.getToolSnapshots.mockResolvedValue({
       fd: { name: 'fd', availability: { source: 'none' } }
@@ -67,11 +58,5 @@ describe('binaryHandlers', () => {
     const result = await binaryHandlers['binary.get_latest_versions'](false, ctx)
     expect(binaryManager.getLatestVersions).toHaveBeenCalledWith(false)
     expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
-  })
-
-  it('list_tools returns the manager inventory', async () => {
-    binaryManager.listTools.mockReturnValue([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
-    const result = await binaryHandlers['binary.list_tools'](undefined, ctx)
-    expect(result).toEqual([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
   })
 })

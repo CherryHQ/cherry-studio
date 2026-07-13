@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({
   installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
   removeTool: vi.fn(() => Promise.resolve()),
-  resolveTools: vi.fn()
+  getToolSnapshots: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -120,9 +120,15 @@ describe('CodeCliService', () => {
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
     shellEnvMock.getRawShellEnv.mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
-    binaryManagerMock.resolveTools.mockImplementation(async (names: string[]) =>
+    binaryManagerMock.getToolSnapshots.mockImplementation(async (names: string[]) =>
       Object.fromEntries(
-        names.map((name) => [name, { source: 'managed', path: `/mock/bin/${name}`, version: '1.0.0' }])
+        names.map((name) => [
+          name,
+          {
+            name,
+            availability: { source: 'mise', tool: name, path: `/mock/bin/${name}`, version: '1.0.0' }
+          }
+        ])
       )
     )
     binaryManagerMock.installTool.mockResolvedValue({ version: 'latest' })
@@ -273,8 +279,8 @@ describe('CodeCliService', () => {
     })
 
     it('launches a system PATH binary without installing a managed copy', async () => {
-      binaryManagerMock.resolveTools.mockResolvedValue({
-        claude: { source: 'system', path: '/usr/local/bin/claude' }
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } }
       })
       const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()
@@ -287,7 +293,7 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       expect(binaryManagerMock.installTool).not.toHaveBeenCalled()
-      expect(binaryManagerMock.resolveTools).toHaveBeenCalledWith(['claude'])
+      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)
       expect(launchCall).toBeDefined()
       const launchArgs = (launchCall?.[1] ?? []).join(' ')
@@ -301,8 +307,11 @@ describe('CodeCliService', () => {
         MISE_CONFIG_FILE: '/home/me/.config/mise/config.toml',
         PRIVATE_TOKEN: 'must-not-be-exported'
       })
-      binaryManagerMock.resolveTools.mockResolvedValue({
-        claude: { source: 'managed', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: {
+          name: 'claude',
+          availability: { source: 'mise', tool: 'claude', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+        }
       })
       const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()

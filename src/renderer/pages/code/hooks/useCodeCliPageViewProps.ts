@@ -14,7 +14,6 @@ import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { useBinaryActions } from './useBinaryActions'
-import { useBunInstallationCache } from './useBunInstallationCache'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
@@ -40,7 +39,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     }),
     [t]
   )
-  useBunInstallationCache()
   const {
     configs,
     selectedCliTool,

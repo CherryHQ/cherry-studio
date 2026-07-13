@@ -8,19 +8,6 @@ export type BinaryOperation =
 
 export type BinaryOperations = Record<string, BinaryOperation>
 
-/** A BinaryManager inventory entry: persisted installs are manageable; auto-discovered runtimes are display-only. */
-export type BinaryToolInventoryEntry =
-  | { name: string; tool: string; version: string; requestedVersion?: string; managed: true }
-  | { name: string; tool: string; version: string; managed: false }
-
-export type BinaryResolution =
-  | { source: 'managed'; path: string; version: string }
-  | { source: 'bundled'; path: string; version?: string }
-  | { source: 'system'; path: string }
-  | { source: 'none' }
-
-export type BinaryResolutions = Record<string, BinaryResolution>
-
 /** An install command separates durable user intent from a one-shot version target. */
 export type BinaryInstallRequest = {
   intent: BinaryManifestEntry

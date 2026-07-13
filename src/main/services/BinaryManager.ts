@@ -19,7 +19,6 @@ import {
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
   TOOL_KEY_RE,
-  TOOL_NAME_RE,
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
@@ -27,9 +26,6 @@ import type {
   BinaryAvailability,
   BinaryInstallRequest,
   BinaryOperation,
-  BinaryResolution,
-  BinaryResolutions,
-  BinaryToolInventoryEntry,
   BinaryToolSnapshot
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
@@ -349,55 +345,6 @@ export class BinaryManager extends BaseService {
     return snapshots
   }
 
-  /** Resolve each binary once using managed → bundled → system precedence. */
-  public async resolveTools(names: string[]): Promise<BinaryResolutions> {
-    const uniqueNames = [...new Set(names)]
-    if (uniqueNames.length === 0) return {}
-    const manifest = this.getManifest()
-    const intentsByName = new Map(manifest.map((intent) => [intent.name, intent]))
-    const managedVersions = await this.getInstalledVersions(manifest)
-    const bundled = this.probeBundled()
-    const runtimePaths = Object.fromEntries(
-      await Promise.all(
-        uniqueNames
-          .filter((name) => !intentsByName.has(name) && isRuntimeDependency(name))
-          .map(async (name): Promise<[string, string] | null> => {
-            const runtimePath = await this.resolveManagedBinaryPath(name)
-            return runtimePath ? [name, runtimePath] : null
-          })
-      ).then((entries) => entries.filter((entry): entry is [string, string] => entry !== null))
-    )
-    const system = await this.probeSystem(
-      uniqueNames.filter((name) => !intentsByName.has(name) && !(name in bundled) && !runtimePaths[name])
-    )
-
-    const entries = await Promise.all(
-      uniqueNames.map(async (name): Promise<[string, BinaryResolution]> => {
-        const intent = intentsByName.get(name)
-        if (intent) {
-          const managedPath = await this.resolveManagedBinaryPath(name)
-          if (managedPath) {
-            return [name, { source: 'managed', path: managedPath, version: managedVersions[intent.name] ?? '' }]
-          }
-        }
-        if (runtimePaths[name]) return [name, { source: 'managed', path: runtimePaths[name], version: '' }]
-
-        if (name in bundled) {
-          const version = bundled[name] ?? undefined
-          const binaryPath = path.join(application.getPath('cherry.bin'), getBinaryName(name))
-          return [
-            name,
-            version ? { source: 'bundled', path: binaryPath, version } : { source: 'bundled', path: binaryPath }
-          ]
-        }
-
-        const systemPath = system[name] ?? (intent ? (await this.probeSystem([name]))[name] : undefined)
-        return [name, systemPath ? { source: 'system', path: systemPath } : { source: 'none' }]
-      })
-    )
-    return Object.fromEntries(entries)
-  }
-
   private async extractBundledBinaries(): Promise<void> {
     const platformKey = `${process.platform}-${process.arch}`
     const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
@@ -701,40 +648,6 @@ export class BinaryManager extends BaseService {
     return matching.version
   }
 
-  private async getInstalledVersions(intents: BinaryManifestEntry[]): Promise<Record<string, string>> {
-    if (!this.miseBin || intents.length === 0) return {}
-
-    try {
-      const { stdout } = await this.runMise(['ls', '--json'])
-      const installed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-      return this.getInstalledVersionsFromOutput(intents, installed)
-    } catch (err) {
-      logger.warn('Failed to query installed versions via mise ls', {
-        error: err instanceof Error ? err.message : String(err)
-      })
-      return {}
-    }
-  }
-
-  private getInstalledVersionsFromOutput(
-    intents: BinaryManifestEntry[],
-    installed: Record<string, Array<{ version?: string; active?: boolean }>>
-  ): Record<string, string> {
-    const versions: Record<string, string> = {}
-    const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
-    for (const intent of intents) {
-      const normalized = normalize(intent.tool)
-      const runtimeName = isRuntimeDependency(intent.tool) ? normalized.split('@')[0] : undefined
-      const entries =
-        installed[normalized] ??
-        (runtimeName
-          ? Object.entries(installed).find(([spec]) => normalize(spec).split('@')[0] === runtimeName)?.[1]
-          : undefined)
-      versions[intent.name] = entries?.find((entry) => entry.active)?.version ?? entries?.at(-1)?.version ?? ''
-    }
-    return versions
-  }
-
   private async isMiseToolAbsent(tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
     const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
@@ -794,44 +707,6 @@ export class BinaryManager extends BaseService {
     if ((usesRuntimeBackend && request.intent.name !== runtimeTool) || (hasRuntimeName && !usesRuntimeBackend)) {
       throw new Error(`Runtime ${request.intent.name} must use its canonical runtime specification`)
     }
-  }
-
-  /**
-   * Inventory ownership follows the durable Preference manifest. Live mise data
-   * may supplement it only with node/python runtime dependencies.
-   */
-  async listTools(): Promise<BinaryToolInventoryEntry[]> {
-    const manifest = this.getManifest()
-    const tools: BinaryToolInventoryEntry[] = manifest.map((intent) => ({
-      name: intent.name,
-      tool: intent.tool,
-      version: '',
-      ...(intent.requestedVersion ? { requestedVersion: intent.requestedVersion } : {}),
-      managed: true
-    }))
-    if (!this.miseBin) return tools
-
-    try {
-      const { stdout } = await this.runMise(['ls', '--json'])
-      const installed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-      const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
-      const managedVersions = this.getInstalledVersionsFromOutput(manifest, installed)
-      for (const tool of tools) tool.version = managedVersions[tool.name] ?? ''
-
-      const recorded = new Set(tools.map((tool) => normalize(tool.tool)))
-      for (const [spec, versions] of Object.entries(installed)) {
-        if (recorded.has(normalize(spec))) continue
-        const name = normalize(spec).split('@')[0]
-        if (!TOOL_NAME_RE.test(name) || !isRuntimeDependency(spec)) continue
-        const version = versions.find((v) => v.active)?.version ?? versions.at(-1)?.version ?? ''
-        tools.push({ name, tool: spec, version, managed: false })
-      }
-    } catch (err) {
-      logger.warn('Failed to merge mise ls into inventory', {
-        error: err instanceof Error ? err.message : String(err)
-      })
-    }
-    return tools
   }
 
   /** Session-only operation state; every transition triggers a renderer refresh. */

@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BinaryManager } from '../BinaryManager'
 
@@ -19,6 +20,10 @@ describeFakeMise('BinaryManager fake-mise integration', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-fake-mise-'))
     misePath = path.join(tempDir, 'mise')
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      const base = key === 'feature.binary.data' ? tempDir : `/mock/${key}`
+      return filename ? path.join(base, filename) : base
+    })
 
     const script = `#!/usr/bin/env node
 const fs = require('node:fs')
@@ -79,15 +84,19 @@ if (command === 'use') {
     return service
   }
 
-  it('installs, resolves, and removes through the production process runner', async () => {
+  it('installs, snapshots, and removes through the production process runner', async () => {
     const service = createService()
 
     await expect(service.installTool({ intent: { name: 'fd', tool: 'fd' } })).resolves.toEqual({ version: '1.2.3' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([
       { name: 'fd', tool: 'fd' }
     ])
-    await expect(service.resolveTools(['fd'])).resolves.toEqual({
-      fd: { source: 'managed', path: path.join(tempDir, 'shims', 'fd'), version: '1.2.3' }
+    await expect(service.getToolSnapshots(['fd'])).resolves.toEqual({
+      fd: {
+        name: 'fd',
+        intent: { name: 'fd', tool: 'fd' },
+        availability: { source: 'mise', tool: 'fd', path: path.join(tempDir, 'shims', 'fd'), version: '1.2.3' }
+      }
     })
 
     await expect(service.removeTool('fd')).resolves.toBeUndefined()

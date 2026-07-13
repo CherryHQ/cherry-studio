@@ -39,12 +39,7 @@ import {
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
 import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
-import type {
-  BinaryAvailability,
-  BinaryOperation,
-  BinaryToolInventoryEntry,
-  BinaryToolSnapshot
-} from '@shared/types/binary'
+import type { BinaryAvailability, BinaryOperation, BinaryToolSnapshot } from '@shared/types/binary'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -109,11 +104,13 @@ type ToolSource = BinaryAvailability['source']
 // management surface (the Code CLI page) — keep them out of this inventory.
 const CODE_CLI_BINARIES = new Set<string>(Object.values(CLI_BINARY_NAMES))
 
-const toManifestIntent = (tool: BinaryToolInventoryEntry): BinaryManifestEntry => ({
-  name: tool.name,
-  tool: tool.tool,
-  ...(tool.managed && tool.requestedVersion ? { requestedVersion: tool.requestedVersion } : {})
-})
+const toManifestIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry => {
+  if (snapshot.intent) return snapshot.intent
+  return {
+    name: snapshot.name,
+    tool: snapshot.availability.source === 'mise' ? snapshot.availability.tool : snapshot.name
+  }
+}
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -195,38 +192,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     setLatestVersions(null)
     void refreshState()
   })
-  useIpcOn('binary.reconcile_failed', (names) => {
-    toast.error(`${t('settings.dependencies.installError')}: ${names}`)
-  })
 
-  const inventoryTools = useMemo<BinaryToolInventoryEntry[]>(
+  const inventorySnapshots = useMemo(
     () =>
-      Object.values(snapshots)
-        .filter(
-          (snapshot) =>
-            !CODE_CLI_BINARIES.has(snapshot.name) &&
-            (snapshot.intent ||
-              (snapshot.availability.source === 'mise' && isRuntimeDependency(snapshot.availability.tool)))
-        )
-        .map((snapshot) =>
-          snapshot.intent
-            ? {
-                name: snapshot.name,
-                tool: snapshot.intent.tool,
-                version:
-                  snapshot.availability.source === 'mise' || snapshot.availability.source === 'bundled'
-                    ? (snapshot.availability.version ?? '')
-                    : '',
-                ...(snapshot.intent.requestedVersion ? { requestedVersion: snapshot.intent.requestedVersion } : {}),
-                managed: true as const
-              }
-            : {
-                name: snapshot.name,
-                tool: snapshot.availability.source === 'mise' ? snapshot.availability.tool : snapshot.name,
-                version: snapshot.availability.source === 'mise' ? (snapshot.availability.version ?? '') : '',
-                managed: false as const
-              }
-        ),
+      Object.values(snapshots).filter(
+        (snapshot) =>
+          !CODE_CLI_BINARIES.has(snapshot.name) &&
+          (snapshot.intent ||
+            (snapshot.availability.source === 'mise' && isRuntimeDependency(snapshot.availability.tool)))
+      ),
     [snapshots]
   )
   // Operation status is part of each snapshot, so a window mounted mid-mutation
@@ -257,7 +231,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
     const allNames = [
       ...PRESETS_BINARY_TOOLS.map((p) => p.name),
-      ...inventoryTools.filter((tool) => tool.managed).map((tool) => tool.name),
+      ...inventorySnapshots.filter((snapshot) => snapshot.intent).map((snapshot) => snapshot.name),
       ...CODE_CLI_BINARIES
     ]
     if (allNames.includes(tool.name)) {
@@ -265,10 +239,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    const discoveredRuntime = inventoryTools.find(
-      (entry) => !entry.managed && entry.name === tool.name && isRuntimeDependency(entry.tool)
+    const discoveredRuntime = inventorySnapshots.find(
+      (snapshot) =>
+        !snapshot.intent &&
+        snapshot.name === tool.name &&
+        snapshot.availability.source === 'mise' &&
+        isRuntimeDependency(snapshot.availability.tool)
     )
-    const requestedVersion = tool.requestedVersion || discoveredRuntime?.version
+    const requestedVersion =
+      tool.requestedVersion ||
+      (discoveredRuntime?.availability.source === 'mise' ? discoveredRuntime.availability.version : undefined)
     const claimedTool = requestedVersion ? { ...tool, requestedVersion } : tool
     if (!(await installTool(claimedTool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
   }
@@ -294,7 +274,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   // knows about — custom tools and feature-owned entries (Code CLIs stay on
   // their dedicated page).
   const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-  const extraTools = inventoryTools.filter((tool) => !presetNames.has(tool.name))
+  const extraTools = inventorySnapshots.filter((snapshot) => !presetNames.has(snapshot.name))
   const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
 
   if (mini) {
@@ -390,27 +370,23 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             />
           )
         })}
-        {extraTools.map((tool) => {
-          const snapshot = snapshots[tool.name]
-          const availability = snapshot?.availability ?? { source: 'none' as const }
-          const runtime = isRuntimeDependency(tool.tool)
-          const readOnly = !snapshot?.intent
-          const owned = !!snapshot?.intent
+        {extraTools.map((snapshot) => {
+          const { availability } = snapshot
+          const toolSpec = snapshot.intent?.tool ?? (availability.source === 'mise' ? availability.tool : snapshot.name)
+          const runtime = isRuntimeDependency(toolSpec)
+          const readOnly = !snapshot.intent
+          const owned = !!snapshot.intent
           const available = availability.source !== 'none'
           const systemPath = !readOnly && availability.source === 'system' ? availability.path : undefined
           const resolvedPath = availability.source === 'none' ? undefined : availability.path
           const installedVersion =
-            availability.source === 'mise' || availability.source === 'bundled'
-              ? availability.version || tool.version
-              : readOnly
-                ? tool.version || undefined
-                : undefined
-          const latestVersion = latestVersions?.[tool.name]
+            availability.source === 'mise' || availability.source === 'bundled' ? availability.version : undefined
+          const latestVersion = latestVersions?.[snapshot.name]
           const hasUpdate = owned && isNewerVersion(latestVersion, installedVersion)
           return (
             <CustomToolCard
-              key={tool.name}
-              tool={tool}
+              key={snapshot.name}
+              tool={snapshot}
               runtime={runtime}
               owned={owned}
               available={available}
@@ -418,12 +394,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
-              operation={snapshot?.operation}
-              onShowError={(message) => setInstallError({ name: tool.name, message })}
-              onInstall={() => installTool(toManifestIntent(tool))}
-              onUpdate={() => installTool(toManifestIntent(tool), { targetVersion: latestVersion ?? 'latest' })}
+              operation={snapshot.operation}
+              onShowError={(message) => setInstallError({ name: snapshot.name, message })}
+              onInstall={() => installTool(toManifestIntent(snapshot))}
+              onUpdate={() => installTool(toManifestIntent(snapshot), { targetVersion: latestVersion ?? 'latest' })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
-              onRemove={() => setDeleteTarget({ name: tool.name, runtime })}
+              onRemove={() => setDeleteTarget({ name: snapshot.name, runtime })}
             />
           )
         })}
@@ -632,7 +608,7 @@ const BinaryToolPresetCard: FC<{
 }
 
 const CustomToolCard: FC<{
-  tool: BinaryToolInventoryEntry
+  tool: BinaryToolSnapshot
   owned: boolean
   available: boolean
   runtime?: boolean
@@ -663,6 +639,7 @@ const CustomToolCard: FC<{
   onRemove
 }) => {
   const { t } = useTranslation()
+  const toolSpec = tool.intent?.tool ?? (tool.availability.source === 'mise' ? tool.availability.tool : tool.name)
   const installed = available
   const installing = operation?.status === 'installing'
   const removing = operation?.status === 'removing'
@@ -685,7 +662,7 @@ const CustomToolCard: FC<{
           </div>
           <div className="min-w-0">
             <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
-            <div className="mt-0.5 text-muted-foreground text-xs">{tool.tool}</div>
+            <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
             {installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {installedVersion && (

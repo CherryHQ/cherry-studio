@@ -146,12 +146,6 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [false, vi.fn()],
-  // useCodeCliPageViewProps reads the main-owned install-state map from here.
-  useSharedCache: () => [{}, vi.fn()]
-}))
-
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => useCodeCliMock()
 }))

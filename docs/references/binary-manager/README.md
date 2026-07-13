@@ -1,145 +1,89 @@
 # BinaryManager Reference
 
-BinaryManager is the single lifecycle service responsible for acquiring and managing third-party CLI binaries (uv, bun, ripgrep, claude-code, gh, etc.). It wraps [mise](https://mise.jdx.dev) as the only acquisition backend.
+`BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the BinaryManager manifest and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
 
-> **Why mise, no custom backend interface?** mise already ships a polyglot tool grammar (`npm:`, `pipx:`, `github:`, `http:`, plus its built-in registry). Building a `BinaryBackend` abstraction over the top would be a shallow wrapper that re-implements grammar mise already owns. We delete more code by importing mise's primitives directly than by hiding them behind our own seam.
+> **Why mise, not a custom backend interface?** mise already owns the polyglot tool grammar (`npm:`, `pipx:`, `github:`, `http:`, and its registry). A `BinaryBackend` wrapper would be a shallow abstraction that duplicates those semantics.
 
-## Quick links
+## Scope
 
-- Implementation: `src/main/services/BinaryManager.ts`
-- IPC channels: `src/shared/ipc/schemas/binary.ts` (`binary.*`)
-- Persisted state: `feature.binary.tools` preference + `feature.binary.state_file` path
-- Preset catalog: `src/shared/data/presets/binaryTools.ts`
-- Renderer entry point: `src/renderer/pages/settings/McpSettings/EnvironmentDependencies.tsx`
+BinaryManager is for a single CLI executable that mise can install (`npm:`, `pipx:`, `github:`, mise registry, and so on). It is not for multi-file server packages, hardware detection, generated configuration, or data/model downloads. Those remain with their domain service.
 
-## Scope: what belongs and what doesn't
+Examples in scope: `uv`, `bun`, `ripgrep`, `gh`, `claude-code`, and npm/pipx CLI tools. The bundled `mise` executable is internal infrastructure, not a user-facing managed tool.
 
-> BinaryManager manages **single, relocatable CLI binaries installable via mise's backends**. Multi-file server packages, tools requiring host hardware detection, or tools that generate their own configuration belong with their domain service.
+## Durable ownership and runtime facts
 
-| Tool | Status | Reason |
-|---|---|---|
-| uv, bun, ripgrep | **In** — bundled + mise-managed | Single relocatable binaries |
-| fd, rtk | **In** — mise-managed | Single relocatable binaries installed on demand |
-| claude-code, gh, opencode, gemini-cli, etc. | **In** — mise-managed | Installable via `npm:` / `pipx:` / mise registry |
-| OvmsManager | **Out** — domain service | OS-specific multi-file tarball, hardware detection, generated config |
-| Tesseract (`feature.ocr.tesseract`) | **Out** — data/models | Not a CLI binary; OCR data files live with `TesseractRuntimeService` |
+`feature.binary.tools` is the sole durable ownership manifest. Each `BinaryManifestEntry` records the executable name, mise tool specification, and optional requested version. It means Cherry is allowed to update and remove that tool; it does **not** prove that an executable exists right now.
 
-When adding a new tool, ask: *can mise install this as a single binary?* If yes, it goes in BinaryManager. If it needs hardware checks, multi-file extraction, or post-install patching, it stays with its domain service.
+Only the main process writes this preference, through `BinaryManager.installTool()` and `BinaryManager.removeTool()`. The renderer sends commands and renders snapshots; it never writes manifest entries directly. There is no `state.json`, and startup never reinstalls manifest entries. A missing executable remains recoverable through the normal install path, while a manifest entry remains removable.
 
-## Persisted / contract surface
+mise is an availability backend, not an ownership database. An executable visible to mise can be unowned; conversely, an owned manifest entry can be unavailable after external deletion. A failed manifest write after mise succeeds therefore leaves a runnable-but-unowned binary and a failed install operation, rather than silently claiming it.
 
-These are the stable boundaries that survive across versions and renderer reloads. Treat them as the public API:
+Bundled copies are a separate availability source. The app extracts its shipped binaries to `cherry.bin`; that extraction does not create ownership. The runtime lookup order is mise shim, bundled binary, then the user's login-shell PATH.
 
-| Surface | Value | Used by |
-|---|---|---|
-| Preference key | `feature.binary.tools` → `ManagedBinary[]` | Renderer custom-tool list |
-| Path key | `feature.binary.data` → `~/.cherrystudio/binary-manager` | mise install root |
-| Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
-| Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
-| Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
-| Shared cache key | `feature.binary.install_states` → `BinaryInstallStates` | Live install activity (installing/failed), main-owned |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.resolve_tools`, `binary.search_registry`, `binary.get_latest_versions`, `binary.list_tools` | Renderer → main |
-| IPC events | `binary.availability_changed`, `binary.reconcile_failed` | Main → renderer |
-| Types | install state in `preferenceTypes.ts`; `BinaryResolution` in `src/shared/types/binary.ts` | Both sides |
+## Snapshots
 
-`ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
+`getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines three independent dimensions:
 
-`binary.list_tools` returns state-file entries with `managed: true`, including explicitly installed `node` or `python` runtimes. These entries show the Runtime badge but remain updateable and removable through the normal mise path; removal warns that dependent npm/pip tools may break. Package-backend installs reuse the concrete version of an explicitly managed runtime instead of silently replacing it with BinaryManager's default Node/Python version. Its only live-mise supplement is an **unrecorded** `node` or `python` runtime dependency, marked `managed: false`; these auto-discovered entries are display-only and resolve through Cherry-managed mise shims. Other unrecorded `mise ls` entries are intentionally ignored because BinaryManager state remains the authority for manageable tools.
+- `intent`: optional durable manifest ownership.
+- `availability`: current `mise`, `bundled`, `system`, or `none` fact, including an executable path when available.
+- `operation`: optional current install/remove state.
 
-`binary.get_latest_versions` is an on-demand update-check surface. `force=false` is a read-only cache lookup: it returns the current `feature.binary.latest_versions` shared-cache value, or `{}` when no session result exists. `force=true` runs `mise latest` for the current managed tools, omits failed lookups, and writes the confirmed result back to `feature.binary.latest_versions` only if the managed-tool snapshot has not changed during the batch. If every managed tool's lookup fails (offline, rate-limited), the IPC rejects so the caller can surface a failure. Install, remove, and state-mutation paths delete the shared cache so version hints do not survive a managed-set change.
+The returned record is intentionally a superset of the requested names. It also includes manifest entries, active operation entries, and discovered `node`/`python` runtime dependencies from mise. Predefined BinaryManager and Code CLI specifications provide candidate mappings for their requested names; they do not make unrelated tools appear in every response. This lets a newly mounted settings window render a complete management view without reconstructing ownership from availability.
 
-> **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binary.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
+A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check. System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
 
-## Availability resolution
+Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The manifest, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and never derive durable ownership from `availability`.
 
-`BinaryManager.resolveTools()` is the single availability boundary for renderer and main consumers. It validates and resolves each requested name with managed → bundled → system → none precedence, returning a discriminated source plus an absolute path when available. Inventory ownership and live availability are deliberately separate: a `managed: true` state entry may resolve to `none` after external deletion, in which case the UI keeps recovery/removal controls but must not present the tool as installed or expose an invalid path. The lower-level `getBinaryPath()` remains an internal Cherry-directory lookup; consumers must not combine it with PATH checks themselves. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath(...)`.
+## Mutation behavior
 
-## Why state is a file, not DataApi / Preference
+Install and remove mutations are serialized with the manifest and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
 
-BinaryManager state is the operational manifest of tools Cherry installed and may manage, not user-authored business data. It must be readable before renderer windows exist and written atomically alongside the tool manager's filesystem operations. `mise` remains the live installation and availability probe, but arbitrary `mise ls` entries cannot reconstruct Cherry ownership or executable-name aliases; after state loss, only tools with a known catalog or `feature.binary.tools` declaration can be recovered safely. A small JSON file keeps that metadata close to the binaries it describes without adding a SQLite/DataApi boundary for non-business data.
+Installation publishes `installing` before waiting for the global mutation lock. Under the lock it validates the intent, runs `mise use -g`, reshims, verifies that the executable is runnable, then writes the manifest. A failure leaves the manifest unchanged and publishes a failed operation with the install intent so the UI can offer recovery.
 
-## State contract: bundled vs mise-managed
+Removal publishes `removing`, removes the mise tool when present, reshims even when it was already absent, verifies removal when applicable, and only then removes the manifest entry. Failure preserves ownership and publishes a failed removal, so the UI cannot accidentally replace a removal failure with an install retry.
 
-Four sources for a tool to be available, in order of precedence:
+Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, installation claims it by writing a pinned manifest entry at its observed version. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime while making a durable claim explicit.
 
-| State | Detected by | UI label |
-|---|---|---|
-| **managed (mise)** | `resolve_tools` validates the persisted mise target | "v1.2.3" version chip |
-| **available (bundled)** | `resolve_tools` finds the extracted binary in `cherry.bin` | "bundled" chip (no install CTA — it already works) |
-| **available (system)** | `resolve_tools` resolves the login-shell PATH | "system" chip, with the path on hover |
-| **not installed** | `resolve_tools` returns `none` | "Install" CTA |
+`feature.binary.install_states` is a main-owned, session-only operation cache. It is not a renderer storage API; operations reach renderer windows only as part of snapshots. `feature.binary.latest_versions` is likewise a session cache: non-forced reads are cache-only, while a forced lookup runs `mise latest` for manifest entries and writes results only if the manifest did not change during the batch.
 
-The system fallback resolves against `getRawShellEnv`, before Cherry injects managed directories or isolated `MISE_*` values. This preserves the user's own PATH and mise configuration. Consumers receive facts (`source`, absolute `path`, optional version) and derive only presentation policy.
+## IPC and events
 
-**Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The internal checks remain orthogonal: install state answers "what did the user install?", while filesystem probing answers "what shipped in the box?". `resolve_tools` combines those facts only at the ownership boundary.
+Current BinaryManager request routes are:
 
-The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible. RTK is installed on demand from Settings → Plugins instead of being extracted automatically at startup.
+- `binary.install_tool`
+- `binary.remove_tool`
+- `binary.get_tool_snapshots`
+- `binary.search_registry`
+- `binary.get_latest_versions`
 
-**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a mise-managed copy of a bundled tool exists (e.g. `uv` installed via mise), it wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-resolves after install and updates the "managed / bundled" label accordingly.
+`binary.availability_changed` is the sole BinaryManager event. It tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route and does not model ownership.
 
 ## GitHub rate-limit opt-in
 
-mise's `github:` backend (used by `github:larksuite/cli`, `github:sharkdp/fd`, etc.) hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 req/hour per IP — easily exhausted behind shared NAT (offices, mainland-China ISPs, Codespaces, CI).
+mise's `github:` backend hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 requests per hour per IP, which is easy to exhaust behind shared NAT.
 
-`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can opt in by setting `CHERRY_GITHUB_TOKEN` in their shell before launching Cherry; it is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour.
+`BinaryManager.buildIsolatedEnv()` does not forward ambient `GITHUB_TOKEN` or `GH_TOKEN` values. Users can explicitly opt in through the `feature.binary.install.github_token` preference or by setting `CHERRY_GITHUB_TOKEN`; BinaryManager forwards the selected explicit value to mise as `GITHUB_TOKEN`.
 
 ```bash
-export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail with HTTP 403
+export CHERRY_GITHUB_TOKEN=ghp_xxx
 ```
 
-## China mirror behavior
+## China mirrors and advanced install settings
 
-`BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true, injects mirror URLs into the mise subprocess env:
+When the region service identifies China, BinaryManager supplies npm and pip mirror defaults to its isolated mise subprocess. An explicit user value wins over a regional default.
 
-- `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com`
-- `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
+Settings → Dependencies → Advanced install settings persists the GitHub mirror, GitHub token, npm registry, pip index URL, and signature-verification preferences under `feature.binary.install.*`. These values affect only the isolated install subprocess, never the execution environment of installed CLIs. Empty URL/token values retain default behavior, and signature verification defaults to enabled.
 
-These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per app launch and applies to all `npm:` / `pipx:` backends without per-tool configuration.
+## Adding a tool
 
-## Advanced install settings
+For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS` in `src/shared/data/presets/binaryTools.ts`. Use the executable name for `name` and the canonical mise specification for `tool`; add the associated user-visible description through the normal i18n workflow.
 
-**Settings → Dependencies → Advanced install settings** persists five atomic preferences: `feature.binary.install.github_mirror`, `feature.binary.install.github_token`, `feature.binary.install.npm_registry`, `feature.binary.install.pip_index_url`, and `feature.binary.install.verify_signatures`. These settings affect only BinaryManager's isolated mise install subprocess, never the execution environment of installed CLIs. Empty URL/token fields preserve the existing behavior; signature verification defaults to enabled. URL presets live in `src/renderer/pages/settings/DependenciesSettings/binaryInstallPresets.ts`.
+For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-## Adding a new managed binary
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
-**Preset (built-in tool, appears in the predefined list):**
+## Consuming a tool
 
-1. Add an entry to `PRESETS_BINARY_TOOLS` in `src/shared/data/presets/binaryTools.ts`:
-   ```ts
-   {
-     name: 'gh',           // executable name (also the mise shim name)
-     displayName: 'GitHub CLI',
-     tool: 'gh',           // mise tool spec — registry entry, npm:..., pipx:..., etc.
-     icon: 'simple-icons:github', // optional iconify id
-     repoUrl: 'https://github.com/cli/cli',
-     homepage: 'https://cli.github.com/' // optional
-   }
-   ```
-2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
-3. No code change in BinaryManager — the renderer picks it up via the preset list.
+A service that needs to execute a CLI asks `getToolSnapshots([executableName])` and uses the current availability path. It may execute a `mise`, bundled, or system result; availability alone is sufficient for that decision. If availability is `none` and the service has a known canonical install specification, it calls `installTool({ intent })`; that explicit call, not an execution-source guess, declares ownership. Re-read the snapshot after installation before launching.
 
-**Custom (user-added from the settings UI):**
-
-1. User clicks "Add Tool" and selects a registry result.
-2. Renderer writes to `feature.binary.tools` preference after `binary.install_tool` succeeds; BinaryManager reconciles saved tools during startup.
-
-**To bundle the binary at build time** (so it's available without mise install — only for tools small enough to ship):
-
-1. Add the tool to `scripts/download-binaries.js` with platform-specific URLs and SHA256 checksums.
-2. Add it to the module-level `BUNDLED_TOOLS` array in `BinaryManager.ts` — a single source consumed by extraction and the bundled stage of `resolveTools()`, so one entry wires up both.
-
-## Consumer pattern
-
-From other main-process services:
-
-```ts
-const result = await application.get('BinaryManager').installTool({
-  name: 'gh',
-  tool: 'gh'
-})
-// result is { version: string }
-```
-
-Examples: `OpenClawService.install()` calls `installTool({name: 'openclaw', tool: 'npm:openclaw'})`; `CodeCliService.run()` calls `installTool()` lazily when the executable isn't on disk.
-
-Do not re-implement install/uninstall logic in your service — delegate to BinaryManager and keep your service focused on runtime orchestration (config generation, process spawning, health checks).
+Do not recreate mise commands, manifest writes, or binary search paths in a consumer. Use BinaryManager for install/remove and `application.getPath()` for main-process paths. `getBinaryPath()` and `isBinaryExists()` are narrower main-only helpers for Cherry search directories, not substitutes for snapshots when a consumer needs system-path availability.
