@@ -27,6 +27,7 @@ interface PromptEditorFieldProps {
   minHeight?: string
   maxHeight?: string
   autoFocus?: boolean
+  fill?: boolean
 }
 
 export function PromptEditorField({
@@ -42,7 +43,8 @@ export function PromptEditorField({
   resetPreviewKey,
   minHeight = '200px',
   maxHeight = '50vh',
-  autoFocus = false
+  autoFocus = false,
+  fill = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const previewId = useId()
@@ -79,7 +81,7 @@ export function PromptEditorField({
   }
 
   return (
-    <Field data-invalid={hasError || undefined} className="gap-1.5">
+    <Field data-invalid={hasError || undefined} className={fill ? 'min-h-0 flex-1 gap-1.5' : 'gap-1.5'}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {label}
@@ -99,19 +101,21 @@ export function PromptEditorField({
         </div>
       </div>
 
-      <FieldContent>
+      <FieldContent className={fill ? 'min-h-0' : undefined}>
         <div
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={`overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20 ${
+            fill ? 'flex min-h-0 flex-1 flex-col ' : ''
+          }${
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
               : 'border-border/20 focus-within:border-border/40'
           }`}>
           {effectiveShowPreview ? (
             <div
-              className="markdown overflow-auto p-3 text-foreground text-xs"
-              style={{ minHeight, maxHeight }}
+              className={`markdown overflow-auto p-3 text-foreground text-xs${fill ? ' min-h-0 flex-1' : ''}`}
+              style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>
             </div>
@@ -125,8 +129,10 @@ export function PromptEditorField({
               language="markdown"
               onChange={handleChange}
               expanded={false}
-              minHeight={minHeight}
-              maxHeight={maxHeight}
+              className={fill ? 'min-h-0 flex-1' : undefined}
+              height={fill ? '100%' : undefined}
+              minHeight={fill ? undefined : minHeight}
+              maxHeight={fill ? undefined : maxHeight}
               placeholder={placeholder}
             />
           )}

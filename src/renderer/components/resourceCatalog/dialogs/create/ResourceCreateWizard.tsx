@@ -237,7 +237,7 @@ export function ResourceCreateWizard({
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
+        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
           </div>

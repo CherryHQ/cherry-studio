@@ -349,7 +349,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
-        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} portalContainer={dialogContentElement} />
         </TabsContent>
         {isToolTab(activeTab) ? (
@@ -601,6 +605,7 @@ function AgentPromptField({
           value={field.value}
           onChange={field.onChange}
           placeholder={t('library.config.agent.field.instructions.placeholder')}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />

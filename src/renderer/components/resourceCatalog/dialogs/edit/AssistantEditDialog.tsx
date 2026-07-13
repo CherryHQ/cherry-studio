@@ -295,7 +295,11 @@ function AssistantEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
           />
         </TabsContent>
-        <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
           <AssistantPromptField
             form={form}
             resource={resource}
@@ -542,6 +546,7 @@ function AssistantPromptField({
           previewValue={processedPrompt || prompt}
           resetPreviewKey={resetPreviewKey}
           actions={promptActions}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />

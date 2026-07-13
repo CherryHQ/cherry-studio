@@ -2,7 +2,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogTitle,
   Form,
   FormControl,
@@ -89,7 +88,7 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
   { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
 ]
 
-export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '500px'
+export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '200px'
 export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '50vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
@@ -355,7 +354,6 @@ export function EditDialogShell<TValues extends FieldValues>({
   onActiveTabChange,
   onOpenChange,
   open,
-  rootError,
   setDialogContentElement,
   tabs,
   title,
@@ -429,7 +427,7 @@ export function EditDialogShell<TValues extends FieldValues>({
             onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             {/* Header — title, matching the create wizard's top bar. */}
-            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
+            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
               <div className="min-w-0">
                 <DialogTitle className="truncate text-base">{title}</DialogTitle>
               </div>
@@ -511,14 +509,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                 <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-4">
                   {children}
                 </Scrollbar>
-
-                {/* Live-save has no Save/Cancel; the header close (X) persists on the way out.
-                    Footer is just a reserved-height row for the save error, if any. */}
-                <DialogFooter className="flex-row items-center px-5 pb-4">
-                  <p className="min-h-4 flex-1 text-destructive text-xs" aria-live="polite">
-                    {rootError ?? ''}
-                  </p>
-                </DialogFooter>
               </div>
             </Tabs>
           </form>
