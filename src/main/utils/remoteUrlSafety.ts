@@ -28,7 +28,26 @@ const BLOCKED_IPV4_RANGES = new Set([
   'reserved',
   'unspecified'
 ])
-const BLOCKED_IPV6_RANGES = new Set(['linkLocal', 'loopback', 'multicast', 'uniqueLocal', 'unspecified'])
+const BLOCKED_IPV6_RANGES = new Set([
+  '6to4',
+  'benchmarking',
+  'discard',
+  'linkLocal',
+  'loopback',
+  'multicast',
+  'reserved',
+  'rfc6052',
+  'rfc6145',
+  'teredo',
+  'uniqueLocal',
+  'unspecified'
+])
+const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = [
+  [ipaddr.IPv6.parse('64:ff9b:1::'), 48],
+  [ipaddr.IPv6.parse('100:0:0:1::'), 64],
+  [ipaddr.IPv6.parse('3fff::'), 20],
+  [ipaddr.IPv6.parse('5f00::'), 16]
+]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -65,7 +84,10 @@ function isBlockedIpHostname(hostname: string): boolean {
     return BLOCKED_IPV4_RANGES.has(address.range())
   }
 
-  return BLOCKED_IPV6_RANGES.has(address.range())
+  return (
+    BLOCKED_IPV6_RANGES.has(address.range()) ||
+    BLOCKED_IPV6_CIDR_RANGES.some(([rangeAddress, bits]) => address.match(rangeAddress, bits))
+  )
 }
 
 function isLoopbackHostname(hostname: string): boolean {
