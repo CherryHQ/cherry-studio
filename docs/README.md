@@ -97,3 +97,4 @@
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |
 | [LAN Transfer Protocol](./references/lan-transfer-protocol.md) | LAN file transfer protocol spec |
+| [Remote Fetch Safety](./references/security/remote-fetch.md) | Main-process direct URL fetch SSRF guardrails |
