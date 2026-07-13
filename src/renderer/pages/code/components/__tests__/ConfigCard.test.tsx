@@ -29,6 +29,7 @@ const provider = {
 } as Provider
 
 function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
+  const onMoveToTop = vi.fn()
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
   const isCurrent = options.isCurrent ?? false
@@ -39,6 +40,7 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
       providerName="Anthropic"
       modelName={modelName}
       isCurrent={isCurrent}
+      onMoveToTop={onMoveToTop}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
     />
@@ -49,6 +51,8 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
     enableButton,
     cardShell: enableButton.closest('.rounded-xl') as HTMLElement,
     configureButton: screen.getByRole('button', { name: 'code.configure' }),
+    moveToTopButton: screen.getByRole('button', { name: 'code.move_provider_to_top' }),
+    onMoveToTop,
     onConfigure,
     onToggleCurrent
   }
@@ -89,6 +93,21 @@ describe('ProviderCard', () => {
     fireEvent.click(configureButton)
 
     expect(onConfigure).toHaveBeenCalledWith(provider)
+    expect(onToggleCurrent).not.toHaveBeenCalled()
+  })
+
+  it('moves the provider to the top from the icon button before Configure', () => {
+    const { moveToTopButton, configureButton, onMoveToTop, onConfigure, onToggleCurrent } = renderCard()
+
+    expect(moveToTopButton.querySelector('.lucide-arrow-up-to-line')).toBeInTheDocument()
+    expect(moveToTopButton).toHaveClass('border-border/50')
+    expect(configureButton).toHaveClass('border-border/50')
+    expect(moveToTopButton.compareDocumentPosition(configureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(moveToTopButton)
+
+    expect(onMoveToTop).toHaveBeenCalledWith(provider)
+    expect(onConfigure).not.toHaveBeenCalled()
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 

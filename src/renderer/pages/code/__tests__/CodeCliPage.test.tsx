@@ -520,7 +520,7 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('auto-sorts a provider to the first position after it is enabled', async () => {
+  it('does not reorder providers after one is enabled', async () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: {
@@ -534,9 +534,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('toggle anthropic'))
 
     await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
-    await waitFor(() => expect(reorderProvidersMock).toHaveBeenCalled())
-    const orderedIds = reorderProvidersMock.mock.calls.at(-1)?.[0]
-    expect(orderedIds?.[0]).toBe('anthropic')
+    expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
   it('shows a provider selection hint when launch needs a current provider', () => {

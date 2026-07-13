@@ -1,10 +1,10 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
-import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,7 @@ export interface ProviderCardProps {
   description?: string
   isCurrent: boolean
   dragging?: boolean
+  onMoveToTop?: (provider: Provider) => void
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
 }
@@ -29,6 +30,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   description,
   isCurrent,
   dragging,
+  onMoveToTop,
   onConfigure,
   onToggleCurrent
 }) => {
@@ -84,6 +86,19 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+          {onMoveToTop && (
+            <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={t('code.move_provider_to_top')}
+                onClick={() => onMoveToTop(provider)}
+                className="size-6 border-border/50">
+                <ArrowUpToLine size={13} />
+              </Button>
+            </NormalTooltip>
+          )}
           <Button
             type="button"
             variant="outline"

@@ -129,26 +129,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     apiGatewayProvider: apiGatewayBundle
   })
 
-  // Float a provider to the top of the list (persisted via the same reorder path as drag-sort).
-  const moveProviderToFront = useCallback(
-    async (providerId: string) => {
-      const target = supportedProviders.find((p) => p.id === providerId)
-      if (!target || supportedProviders[0]?.id === providerId) return
-      await handleReorder([target, ...supportedProviders.filter((p) => p.id !== providerId)])
-    },
-    [supportedProviders, handleReorder]
-  )
-
-  // Enabling a provider auto-sorts it to the first position. Only the config-panel controller's setter
-  // is wrapped; launch dialog / OpenClaw gateway / tool removal keep the raw setCurrentProvider.
-  const setCurrentProviderForConfigPanel = useCallback(
-    async (providerId: string | null) => {
-      await setCurrentProvider(providerId)
-      if (providerId) await moveProviderToFront(providerId)
-    },
-    [setCurrentProvider, moveProviderToFront]
-  )
-
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
     [selectedCliTool]
@@ -175,7 +155,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
-    setCurrentProvider: setCurrentProviderForConfigPanel,
+    setCurrentProvider,
     setCurrentCliConfigConnection,
     makeModelFilter,
     apiGatewayProvider: apiGatewayBundle
