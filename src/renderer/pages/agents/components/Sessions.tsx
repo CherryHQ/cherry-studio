@@ -16,7 +16,8 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   SESSION_DISPLAY_LABEL_KEYS,
-  SessionListOptionsMenu
+  SessionListOptionsMenu,
+  useResourceListPinnedItems
 } from '@renderer/components/chat/resourceList/base'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
@@ -665,9 +666,11 @@ const Sessions = ({
     reset: resetRemoteSessionWindows,
     windows: remoteSessionWindows
   } = useCursorGroupWindows<AgentSessionListItem>({
+    continuityKey: JSON.stringify({ mode: displayMode, q: debouncedRemoteQuery }),
     enabled: isSessionListEnabled && displayMode !== 'time',
     fetchPage: fetchSessionGroupPage,
     getItemId: getRemoteSessionId,
+    groupIds: displayMode === 'agent' ? orderedAgentSessionGroupIds : orderedWorkdirSessionGroupIds,
     initialGroupIds: initialRemoteSessionGroupIds,
     queryKey: JSON.stringify({
       groups:
@@ -682,15 +685,31 @@ const Sessions = ({
     }),
     resourcePath: '/agent-sessions'
   })
-  const sessionItems = useMemo<AgentSessionListItem[]>(() => {
+  const commitSessionPin = useCallback(
+    async (session: AgentSessionListItem) => {
+      if (session.pinId) {
+        await unpinSession({ params: { id: session.pinId } })
+      } else {
+        await pinSession({ body: { entityId: session.id, entityType: 'session' } })
+      }
+    },
+    [pinSession, unpinSession]
+  )
+  const sourceSessionItems = useMemo<AgentSessionListItem[]>(() => {
     const byId = new Map<string, AgentSessionListItem>()
-    for (const session of pinnedSessions) byId.set(session.id, session)
     for (const session of displayMode === 'time' ? createdSessions : remoteWindowSessions) {
       byId.set(session.id, session)
     }
+    for (const session of pinnedSessions) byId.set(session.id, session)
     if (revealedSession && !byId.has(revealedSession.id)) byId.set(revealedSession.id, revealedSession)
     return [...byId.values()]
   }, [createdSessions, displayMode, pinnedSessions, remoteWindowSessions, revealedSession])
+  const { items: sessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
+    disabled: isSessionPinMutating,
+    items: sourceSessionItems,
+    onTogglePin: commitSessionPin,
+    resetKey: JSON.stringify({ agentScope: rightPanelAgentScope, displayMode, q: debouncedRemoteQuery })
+  })
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
 
@@ -717,19 +736,16 @@ const Sessions = ({
     async (sessionId: string) => {
       if (isSessionPinMutating) return false
       const session = sessionItemsRef.current.find((candidate) => candidate.id === sessionId)
+      if (!session) return false
       try {
-        if (session?.pinId) {
-          await unpinSession({ params: { id: session.pinId } })
-        } else {
-          await pinSession({ body: { entityId: sessionId, entityType: 'session' } })
-        }
+        await togglePinnedSessionItem(session)
         return true
       } catch (err) {
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.pin.error.failed')))
         return false
       }
     },
-    [isSessionPinMutating, pinSession, t, unpinSession]
+    [isSessionPinMutating, t, togglePinnedSessionItem]
   )
   const reloadSessionViews = useCallback(async () => {
     resetRemoteSessionWindows()

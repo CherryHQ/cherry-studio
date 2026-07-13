@@ -96,7 +96,9 @@ const cursorGroupWindowMocks = vi.hoisted(() => ({
   options: undefined as
     | undefined
     | {
+        continuityKey: string
         fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
+        groupIds: readonly string[]
         queryKey: string
       }
 }))
@@ -931,6 +933,11 @@ describe('Topics', () => {
       expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
         expect.objectContaining({ sortBy: 'updatedAt' })
       )
+      expect(JSON.parse(cursorGroupWindowMocks.options?.continuityKey ?? '{}')).toEqual({
+        mode: 'assistant',
+        q: ''
+      })
+      expect(cursorGroupWindowMocks.options?.groupIds).toContain('topic:assistant:assistant-1')
       await cursorGroupWindowMocks.options?.fetchPage('topic:assistant:assistant-1')
       expect(getSpy).toHaveBeenCalledWith(
         '/topics',

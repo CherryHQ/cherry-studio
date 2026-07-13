@@ -254,6 +254,13 @@ offset-paginated paths at compile time. See
 [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll)
 for the hook signatures and the hook-choosing table.
 
+Ordering transitions must reset the active cursor chain even when the UI keeps
+the previous rows mounted. Cursor consumers that opt into `continuityKey` get
+that split explicitly: `pages` is the visible snapshot, `isLoading` identifies
+the first-page handoff, and `hasNext` remains false until the current request
+identity has settled. Never derive a load-more action from a previous snapshot's
+`nextCursor`.
+
 ### Reorder + pagination
 
 `useReorder` works on paginated lists transparently. Both

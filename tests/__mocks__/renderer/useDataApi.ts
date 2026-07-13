@@ -257,6 +257,8 @@ export const mockUseInfiniteQuery = vi.fn(
       query?: Record<string, unknown>
       limit?: number
       enabled?: boolean
+      continuityKey?: string
+      resetOnLocalWrite?: string
       swrOptions?: any
     }
   ) => ({

@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useResourceListPinnedState } from '../useResourceListPinnedState'
+import { useResourceListPinnedItems, useResourceListPinnedState } from '../useResourceListPinnedState'
 
 describe('useResourceListPinnedState', () => {
   it('maps source pinned ids to current pin state', () => {
@@ -193,5 +193,52 @@ describe('useResourceListPinnedState', () => {
       resolveToggle()
       await promise
     })
+  })
+})
+
+describe('useResourceListPinnedItems', () => {
+  type Item = { id: string; name: string; pinned: boolean }
+  const alpha: Item = { id: 'alpha', name: 'Alpha', pinned: false }
+
+  it('retains an optimistically pinned row while authoritative windows are between generations', async () => {
+    let resolveToggle: () => void = () => {}
+    const onTogglePin = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveToggle = resolve
+        })
+    )
+    const { rerender, result } = renderHook(({ items }) => useResourceListPinnedItems({ items, onTogglePin }), {
+      initialProps: { items: [alpha] as Item[] }
+    })
+
+    let promise = Promise.resolve()
+    await act(async () => {
+      promise = result.current.togglePinned(alpha)
+    })
+    expect(result.current.items).toEqual([{ ...alpha, pinned: true }])
+
+    rerender({ items: [] })
+    expect(result.current.items).toEqual([{ ...alpha, pinned: true }])
+
+    rerender({ items: [{ ...alpha, pinned: true }] })
+    await act(async () => {
+      resolveToggle()
+      await promise
+    })
+    expect(result.current.items).toEqual([{ ...alpha, pinned: true }])
+  })
+
+  it('removes the retained row and rolls pin state back when the mutation fails', async () => {
+    const onTogglePin = vi.fn(async () => {
+      throw new Error('pin failed')
+    })
+    const { result } = renderHook(() => useResourceListPinnedItems({ items: [alpha], onTogglePin }))
+
+    await act(async () => {
+      await expect(result.current.togglePinned(alpha)).rejects.toThrow('pin failed')
+    })
+
+    expect(result.current.items).toEqual([alpha])
   })
 })

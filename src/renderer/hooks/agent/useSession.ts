@@ -300,7 +300,21 @@ export const useSessions = (
     return Object.keys(built).length > 0 ? built : undefined
   }, [agentId, ids, pinned, q, searchScope, sortBy, workspaceId])
 
+  const continuityKey = useMemo(
+    () =>
+      JSON.stringify({
+        agentId,
+        ids,
+        mode: sortBy ? 'flat' : 'legacy',
+        pinned,
+        q,
+        searchScope,
+        workspaceId
+      }),
+    [agentId, ids, pinned, q, searchScope, sortBy, workspaceId]
+  )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
+    continuityKey,
     query,
     limit: pageSize,
     enabled,

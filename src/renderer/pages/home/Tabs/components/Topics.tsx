@@ -25,6 +25,7 @@ import {
   type ResourceListSection,
   TopicListOptionsMenu,
   useResourceListActions,
+  useResourceListPinnedItems,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
@@ -538,9 +539,15 @@ export function Topics({
     loadMoreGroup: loadMoreAssistantTopicGroup,
     windows: assistantTopicWindows
   } = useCursorGroupWindows<RemoteTopic>({
+    continuityKey: JSON.stringify({
+      mode: 'assistant',
+      ownerScope: rightPanelOwnerScope,
+      q: debouncedRemoteQuery
+    }),
     enabled: isTopicListEnabled && isAssistantDisplayMode,
     fetchPage: fetchAssistantTopicPage,
     getItemId: getRemoteTopicId,
+    groupIds: orderedAssistantTopicGroupIds,
     initialGroupIds: initialAssistantTopicGroupIds,
     queryKey: JSON.stringify({
       groups: orderedAssistantTopicGroupIds,
@@ -552,15 +559,31 @@ export function Topics({
   })
   const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapTopicListItem), [pinnedTopicRows])
   const createdTopics = useMemo(() => createdTopicRows.map(mapTopicListItem), [createdTopicRows])
-  const topics = useMemo(() => {
+  const commitTopicPin = useCallback(
+    async (topic: RemoteTopic) => {
+      if (topic.pinId) {
+        await unpinTopic({ params: { id: topic.pinId } })
+      } else {
+        await pinTopic({ body: { entityId: topic.id, entityType: 'topic' } })
+      }
+    },
+    [pinTopic, unpinTopic]
+  )
+  const sourceTopics = useMemo(() => {
     const byId = new Map<string, RemoteTopic>()
-    for (const topic of pinnedTopics) byId.set(topic.id, topic)
     for (const topic of isAssistantDisplayMode ? assistantWindowTopics : createdTopics) {
       byId.set(topic.id, topic)
     }
+    for (const topic of pinnedTopics) byId.set(topic.id, topic)
     if (revealedTopic && !byId.has(revealedTopic.id)) byId.set(revealedTopic.id, revealedTopic)
     return [...byId.values()]
   }, [assistantWindowTopics, createdTopics, isAssistantDisplayMode, pinnedTopics, revealedTopic])
+  const { items: topics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
+    disabled: isPinsMutating,
+    items: sourceTopics,
+    onTogglePin: commitTopicPin,
+    resetKey: JSON.stringify({ displayMode, ownerScope: rightPanelOwnerScope, q: debouncedRemoteQuery })
+  })
   const topicOrderSignature = useMemo(
     () =>
       topics
@@ -590,13 +613,9 @@ export function Topics({
   const toggleTopicPinned = useCallback(
     async (topicId: string) => {
       const topic = topicsRef.current.find((candidate) => candidate.id === topicId)
-      if (topic?.pinId) {
-        await unpinTopic({ params: { id: topic.pinId } })
-      } else {
-        await pinTopic({ body: { entityId: topicId, entityType: 'topic' } })
-      }
+      if (topic) await togglePinnedTopicItem(topic)
     },
-    [pinTopic, unpinTopic]
+    [togglePinnedTopicItem]
   )
 
   const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(

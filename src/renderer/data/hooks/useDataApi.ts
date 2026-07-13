@@ -830,6 +830,7 @@ export function useWriteCache() {
  * @param options.limit - Items per page (default: 10)
  * @param options.enabled - Set to false to disable fetching (default: true)
  * @param options.resetOnLocalWrite - Renderer-local resource revision that rebuilds the cursor chain
+ * @param options.continuityKey - Stable collection identity used to retain visible pages across ordering/revision changes
  * @param options.swrOptions - Override SWR infinite configuration
  * @returns Infinite query result with full pages, pagination controls, and loading states
  *
@@ -872,6 +873,11 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     enabled?: boolean
     /** Rebuild from page one after a local write touches this resource */
     resetOnLocalWrite?: DataApiCursorResource
+    /**
+     * Stable identity of the rows this query may contain. Keep it unchanged for
+     * ordering-only changes and change it for search/scope/filter changes.
+     */
+    continuityKey?: string
     /** Override SWR infinite configuration */
     swrOptions?: SWRInfiniteConfiguration
   }
@@ -879,10 +885,12 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
   const resetOnLocalWrite = options?.resetOnLocalWrite
+  const continuityKey = options?.continuityKey
   const cursorRevision = useDataApiCursorRevision(resetOnLocalWrite)
   const revisionToken = resetOnLocalWrite ? `${resetOnLocalWrite}:${cursorRevision}` : undefined
   const { cache } = useSWRConfig()
   const committedRevisionTokenRef = useRef(revisionToken)
+  const settledContinuityKeyRef = useRef(continuityKey)
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
@@ -927,10 +935,14 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     return response
   }
 
+  const configuredKeepPreviousData = options?.swrOptions?.keepPreviousData ?? DEFAULT_SWR_OPTIONS.keepPreviousData
+  const canKeepPreviousData =
+    continuityKey !== undefined ? settledContinuityKeyRef.current === continuityKey : resetOnLocalWrite === undefined
+
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
     ...DEFAULT_SWR_OPTIONS,
     ...options?.swrOptions,
-    ...(resetOnLocalWrite ? { keepPreviousData: false } : {})
+    keepPreviousData: configuredKeepPreviousData && canKeepPreviousData
   })
 
   const { error, isLoading, isValidating, mutate, setSize, size } = swrResult
@@ -953,12 +965,18 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     () => (swrResult.data as ResponseForPath<TPath, 'GET'>[] | undefined) ?? [],
     [swrResult.data]
   )
+  const isTransitioning = isLoading && pages.length > 0
+
+  useEffect(() => {
+    if (continuityKey === undefined || isLoading || error || swrResult.data === undefined) return
+    settledContinuityKeyRef.current = continuityKey
+  }, [continuityKey, error, isLoading, swrResult.data])
 
   const hasNext = useMemo(() => {
-    if (!pages.length) return false
+    if (!pages.length || isTransitioning || error) return false
     const last = pages[pages.length - 1] as CursorPaginationResponse<unknown>
     return !!last.nextCursor
-  }, [pages])
+  }, [error, isTransitioning, pages])
 
   // Rapid double-clicks are deduped by SWR's `dedupingInterval` — no callback-level guard needed.
   const loadNext = useCallback(() => {

@@ -246,7 +246,18 @@ export function useTopics(opts?: {
     return Object.keys(built).length > 0 ? built : undefined
   }, [q, opts?.sortBy, opts?.assistantId, opts?.pinned])
   const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
+  const continuityKey = useMemo(
+    () =>
+      JSON.stringify({
+        assistantId: opts?.assistantId,
+        mode: opts?.sortBy ? 'flat' : 'legacy',
+        pinned: opts?.pinned,
+        q
+      }),
+    [opts?.assistantId, opts?.pinned, opts?.sortBy, q]
+  )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
+    continuityKey,
     query,
     limit: pageSize,
     enabled: opts?.enabled,

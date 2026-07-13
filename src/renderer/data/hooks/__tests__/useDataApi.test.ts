@@ -726,6 +726,14 @@ describe('useInfiniteQuery integration', () => {
   // etc.) — the original would throw in this test environment.
   const emptyPage = { items: [], nextCursor: undefined, activeNodeId: null }
 
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((resolvePromise) => {
+      resolve = resolvePromise
+    })
+    return { promise, resolve }
+  }
+
   function spyGet() {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue(emptyPage as never)
   }
@@ -773,6 +781,103 @@ describe('useInfiniteQuery integration', () => {
 
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
     expect(result.current.hasNext).toBe(false)
+  })
+
+  it('keeps visible pages but retires their cursor during an ordering-only transition', async () => {
+    const nextPage = deferred<{ items: never[]; nextCursor?: string }>()
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { sortBy?: string } } = {}) => {
+      if (opts.query?.sortBy === 'updatedAt') return nextPage.promise
+      return { items: [], nextCursor: 'old-cursor' }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ sortBy }: { sortBy: 'createdAt' | 'updatedAt' }) =>
+        useInfiniteQuery('/topics', {
+          continuityKey: 'topics:all',
+          query: { sortBy },
+          resetOnLocalWrite: '/topics'
+        }),
+      { initialProps: { sortBy: 'createdAt' as 'createdAt' | 'updatedAt' }, wrapper: Wrapper }
+    )
+
+    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('old-cursor'))
+    rerender({ sortBy: 'updatedAt' })
+
+    expect(result.current.pages[0]?.nextCursor).toBe('old-cursor')
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.hasNext).toBe(false)
+
+    await act(async () => {
+      nextPage.resolve({ items: [], nextCursor: 'new-cursor' })
+    })
+    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('new-cursor'))
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.hasNext).toBe(true)
+  })
+
+  it('keeps visible pages while a local-write revision rebuilds the active cursor family', async () => {
+    const refreshedPage = deferred<{ items: never[]; nextCursor?: string }>()
+    let phase: 'initial' | 'refresh' = 'initial'
+    spyGet().mockImplementation((async () => {
+      if (phase === 'refresh') return refreshedPage.promise
+      return { items: [], nextCursor: 'old-cursor' }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () =>
+        useInfiniteQuery('/topics', {
+          continuityKey: 'topics:all',
+          query: { sortBy: 'createdAt' },
+          resetOnLocalWrite: '/topics'
+        }),
+      { wrapper: Wrapper }
+    )
+
+    await waitFor(() => expect(result.current.pages[0]?.nextCursor).toBe('old-cursor'))
+    phase = 'refresh'
+    act(() => {
+      publishDataApiCursorRevision('/topics')
+    })
+
+    expect(result.current.pages[0]?.nextCursor).toBe('old-cursor')
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.hasNext).toBe(false)
+
+    await act(async () => {
+      refreshedPage.resolve({ items: [] })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.pages).toEqual([{ items: [] }])
+  })
+
+  it('does not retain pages when the collection continuity key changes', async () => {
+    const filteredPage = deferred<{ items: never[] }>()
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { q?: string } } = {}) => {
+      if (opts.query?.q === 'beta') return filteredPage.promise
+      return { items: [], nextCursor: undefined }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ q }: { q: string }) =>
+        useInfiniteQuery('/topics', {
+          continuityKey: `topics:${q}`,
+          query: { q, sortBy: 'createdAt' },
+          resetOnLocalWrite: '/topics'
+        }),
+      { initialProps: { q: 'alpha' }, wrapper: Wrapper }
+    )
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    rerender({ q: 'beta' })
+    expect(result.current.pages).toEqual([])
+
+    await act(async () => {
+      filteredPage.resolve({ items: [] })
+    })
+    await waitFor(() => expect(result.current.pages).toEqual([{ items: [] }]))
   })
 
   it('reset() collapses back to the first page', async () => {

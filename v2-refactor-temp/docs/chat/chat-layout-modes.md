@@ -103,15 +103,23 @@ record filters.
   windows with the same selected topic/session sort. The assistant, agent, or
   workspace group rank is applied before sorting items within each group, so
   changing item sort never changes the outer entity order.
-- Changing sort changes the grouped query key, clears the existing cursor
-  windows, and starts each group again from its first page.
+- Outer groups come from the assistant, agent, or workspace catalog and use the
+  topic/session stats aggregates only to omit groups without ordinary rows.
+  Child rows are fetched lazily from the corresponding owner/workspace list.
+- Changing sort retires each affected cursor and starts the expanded group from
+  its first page, while keeping its previous rows mounted until that page
+  settles. Removed groups are pruned without clearing retained siblings.
+- Pin/unpin keeps the toggled row visible while the pinned and ordinary windows
+  reconcile independently. The active cursor families still reset, and an old
+  cursor is never exposed for load-more during the transition.
 - Topic/session item drag is enabled only for `orderKey`; timestamp sorts are
   read-only. Assistant, agent, and workspace group drag remains independent and
   available where the display mode already supports it.
 - Right panels apply the current assistant/agent scope on the server instead of
   loading a global list and filtering it in the renderer.
-- Create/delete/rename/clear/move reset the affected cursor windows inside the
-  current Renderer after the local mutation succeeds.
+- Create/delete/rename/clear/move refresh the affected cursor windows inside the
+  current Renderer after the local mutation succeeds; compatible visible rows
+  remain mounted during the first-page handoff.
 - History records keep their own updated-time order and do not read these list
   sort preferences.
 

@@ -341,6 +341,8 @@ describe('useSessions', () => {
     )
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      continuityKey:
+        '{"agentId":"unlinked","ids":["session-1"],"mode":"flat","pinned":false,"q":"needle","searchScope":"full"}',
       enabled: undefined,
       limit: 20,
       query: {

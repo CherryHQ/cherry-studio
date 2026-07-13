@@ -99,6 +99,18 @@ generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
 across rerenders when SWR's underlying data is unchanged, so
 `useInfiniteFlatItems(pages)` skips recomputation.
 
+For lists whose request ordering can change without changing row membership,
+pass a `continuityKey` that includes collection filters/scope but excludes the
+ordering fields. While the new request restarts from page one, `pages` may keep
+the previous rows visible while `isLoading` remains `true`. During that interval
+`hasNext` is always `false`, so a cursor issued by the retired ordering can never
+be reused. Change the continuity key for search, owner, or other membership
+changes that must remove incompatible rows immediately.
+
+Local-write revisions follow the same display rule only for callers that opt in
+with a continuity key: the active cursor family is still retired immediately,
+while its rows may remain as a visual snapshot until the new first page settles.
+
 ### usePaginatedQuery (Offset-based Pagination)
 
 For page-by-page navigation with previous/next controls. Rejects

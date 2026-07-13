@@ -173,4 +173,108 @@ describe('useCursorGroupWindows', () => {
     expect(result.current.items).toEqual([])
     expect(result.current.windows).toEqual({})
   })
+
+  it('retains resolved group rows while an ordering-only query starts again from page one', async () => {
+    const nextPage = deferred<{ items: Item[] }>()
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [{ id: 'old-a', name: 'Old A' }], nextCursor: 'old-cursor' })
+      .mockImplementationOnce(() => nextPage.promise)
+    const { result, rerender } = renderHook(
+      ({ queryKey }) =>
+        useCursorGroupWindows<Item>({
+          continuityKey: 'same-collection',
+          enabled: true,
+          fetchPage,
+          getItemId: (item) => item.id,
+          groupIds: ['group-a'],
+          initialGroupIds: [],
+          queryKey,
+          resourcePath: '/topics'
+        }),
+      { initialProps: { queryKey: 'created-at' } }
+    )
+
+    await act(async () => {
+      await result.current.loadGroup('group-a')
+    })
+    expect(result.current.windows['group-a']?.nextCursor).toBe('old-cursor')
+
+    rerender({ queryKey: 'updated-at' })
+    expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }])
+    expect(result.current.windows['group-a']?.nextCursor).toBeUndefined()
+
+    let request!: Promise<string | null>
+    act(() => {
+      request = result.current.loadGroup('group-a')
+    })
+    expect(fetchPage).toHaveBeenLastCalledWith('group-a', undefined)
+
+    await act(async () => {
+      nextPage.resolve({ items: [{ id: 'new-a', name: 'New A' }] })
+      await request
+    })
+    expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }])
+  })
+
+  it('retains visible groups across a resource revision and refreshes expanded groups independently', async () => {
+    const refreshedPage = deferred<{ items: Item[] }>()
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [{ id: 'old-a', name: 'Old A' }], nextCursor: 'old-cursor' })
+      .mockImplementationOnce(() => refreshedPage.promise)
+    const { result } = renderHook(() =>
+      useCursorGroupWindows<Item>({
+        continuityKey: 'same-collection',
+        enabled: true,
+        fetchPage,
+        getItemId: (item) => item.id,
+        groupIds: ['group-a'],
+        initialGroupIds: ['group-a'],
+        queryKey: 'query-a',
+        resourcePath: '/agent-sessions'
+      })
+    )
+
+    await waitFor(() => expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }]))
+    act(() => {
+      publishDataApiCursorRevision('/agent-sessions')
+    })
+
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2))
+    expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }])
+    expect(result.current.windows['group-a']?.nextCursor).toBeUndefined()
+
+    await act(async () => {
+      refreshedPage.resolve({ items: [{ id: 'new-a', name: 'New A' }] })
+    })
+    await waitFor(() => expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }]))
+  })
+
+  it('prunes a removed group without clearing retained sibling windows', async () => {
+    const fetchPage = vi.fn(async (groupId: string) => ({ items: [{ id: `item-${groupId}`, name: groupId }] }))
+    const { result, rerender } = renderHook(
+      ({ groupIds, queryKey }) =>
+        useCursorGroupWindows<Item>({
+          continuityKey: 'same-collection',
+          enabled: true,
+          fetchPage,
+          getItemId: (item) => item.id,
+          groupIds,
+          initialGroupIds: [],
+          queryKey,
+          resourcePath: '/topics'
+        }),
+      { initialProps: { groupIds: ['group-a', 'group-b'], queryKey: 'groups-a-b' } }
+    )
+
+    await act(async () => {
+      await result.current.loadGroup('group-a')
+      await result.current.loadGroup('group-b')
+    })
+    rerender({ groupIds: ['group-b'], queryKey: 'groups-b' })
+
+    expect(result.current.windows['group-a']).toBeUndefined()
+    expect(result.current.windows['group-b']?.items).toEqual([{ id: 'item-group-b', name: 'group-b' }])
+  })
 })
