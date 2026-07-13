@@ -7,6 +7,7 @@
  * with `session.agentId`.
  */
 
+import { dataApiService } from '@renderer/data/DataApiService'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -23,6 +24,12 @@ import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/e
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
+  AgentSessionListItem,
+  AgentSessionOwnerScope,
+  AgentSessionSearchScope,
+  AgentSessionSortBy,
+  AgentSessionStatsQuery,
+  AgentSessionWorkspaceScope,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   SetAgentSessionWorkspaceDto,
@@ -31,13 +38,31 @@ import type {
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const AGENT_SESSION_IDS_PAGE_SIZE = 200
+const EMPTY_AGENT_SESSIONS: readonly AgentSessionListItem[] = Object.freeze([])
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
+  /** @deprecated Transitional compatibility for History; new consumers page explicitly. */
   loadAll?: boolean
   enabled?: boolean
+  /** Flat sort profile (D1 of #16890). Required for q/searchScope and the 'unlinked' owner scope. */
+  sortBy?: AgentSessionSortBy
+  /** Literal substring search term (server-side, escaped LIKE). */
+  q?: string
+  /** 'name' (default) or 'full' (name OR description OR owning agent name). */
+  searchScope?: AgentSessionSearchScope
+  /** Bounded explicit id filter for runtime History status rows. Flat path only. */
+  ids?: string[]
+  /** Pin membership filter. Flat path only. */
+  pinned?: boolean
+  /** Preserve the previous query window while filters change (default: DataApi hook policy). */
+  keepPreviousData?: boolean
+  /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
+  workspaceId?: AgentSessionWorkspaceScope
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -87,6 +112,99 @@ export function useLatestSession(opts?: { enabled?: boolean }) {
     isLoading: isLoading || isRefreshing,
     refetch,
     mutate
+  }
+}
+
+/**
+ * Factual session aggregation from `GET /agent-sessions/stats` (D3 of
+ * #16890): totals, pinned counts, and a per-agent breakdown whose
+ * `agentId: null` entry represents orphaned (unlinked) sessions. Local list
+ * mutations refetch it through the ordinary DataApi cache refresh path.
+ */
+export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSessionStatsQuery }) {
+  const { data, isLoading, error, refetch } = useQuery('/agent-sessions/stats', {
+    enabled: opts?.enabled,
+    query: opts?.query
+  })
+
+  return { stats: data, isLoading, error, refetch }
+}
+
+/**
+ * Resolve runtime-selected session ids through bounded DataApi requests. History
+ * uses this for `running` / `failed`: runtime status remains in SharedCache,
+ * while SQLite still owns pin/source/search filtering. History order is always
+ * reapplied by `updatedAt` across 200-id request chunks.
+ */
+type UseAgentSessionsByIdsOptions = {
+  agentId?: AgentSessionOwnerScope
+  enabled?: boolean
+  pinned?: boolean
+  q?: string
+  searchScope?: AgentSessionSearchScope
+}
+
+const compareOrderToken = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0)
+
+export function useAgentSessionsByIds(sessionIds: readonly string[], options: UseAgentSessionsByIdsOptions = {}) {
+  const normalizedIds = useMemo(() => [...new Set(sessionIds)].sort(), [sessionIds])
+  const idsKey = normalizedIds.join('\u0000')
+  const q = options.q?.trim() || undefined
+  const enabled = options.enabled !== false && normalizedIds.length > 0
+  const key = enabled
+    ? [
+        '/agent-sessions',
+        'history-status-ids',
+        idsKey,
+        options.agentId ?? '',
+        options.pinned ?? '',
+        q ?? '',
+        options.searchScope ?? ''
+      ]
+    : null
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR<readonly AgentSessionListItem[]>(
+    key,
+    async () => {
+      const sessions: AgentSessionListItem[] = []
+      for (let index = 0; index < normalizedIds.length; index += AGENT_SESSION_IDS_PAGE_SIZE) {
+        const ids = normalizedIds.slice(index, index + AGENT_SESSION_IDS_PAGE_SIZE)
+        const page = await dataApiService.get('/agent-sessions', {
+          query: {
+            agentId: options.agentId,
+            ids,
+            limit: AGENT_SESSION_IDS_PAGE_SIZE,
+            pinned: options.pinned,
+            q,
+            searchScope: q ? options.searchScope : undefined,
+            sortBy: 'updatedAt'
+          }
+        })
+        sessions.push(...page.items)
+      }
+
+      sessions.sort((left, right) => {
+        const updatedAtDelta = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
+        if (updatedAtDelta !== 0) return updatedAtDelta
+        return compareOrderToken(left.id, right.id)
+      })
+      return sessions
+    },
+    {
+      dedupingInterval: 5000,
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false
+    }
+  )
+
+  return {
+    sessions: data ?? EMPTY_AGENT_SESSIONS,
+    error,
+    isLoading: enabled && isLoading,
+    isRefreshing: enabled && isValidating && data !== undefined,
+    refetch: mutate
   }
 }
 
@@ -150,10 +268,10 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
 /**
  * Cursor-paginated session list. With `agentId` undefined / null the result
  * spans every agent (the global session view); pass an id to scope the
- * listing. Consumers that genuinely need every session can pass
- * `{ loadAll: true }` to auto-page to completion; grouped sidebars use this
- * so drag order is based on the complete list. Reorder uses the same cache key
- * so applying a new order syncs the infinite-query view.
+ * listing. Flat sort profiles include immutable creation order (`createdAt`),
+ * activity order (`updatedAt`), and manual order (`orderKey`). Consumers page
+ * explicitly with `loadMore()`; grouped sidebars own independent per-group
+ * cursor windows.
  */
 export const useSessions = (
   agentId?: string | null,
@@ -162,38 +280,59 @@ export const useSessions = (
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
-  const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
+  const loadAll = typeof options === 'number' ? false : options.loadAll === true
   const enabled = typeof options === 'number' ? undefined : options.enabled
+  const sortBy = typeof options === 'number' ? undefined : options.sortBy
+  const q = typeof options === 'number' ? undefined : options.q?.trim() || undefined
+  const searchScope = typeof options === 'number' ? undefined : options.searchScope
+  const ids = typeof options === 'number' ? undefined : options.ids
+  const pinned = typeof options === 'number' ? undefined : options.pinned
+  const keepPreviousData = typeof options === 'number' ? undefined : options.keepPreviousData
+  const workspaceId = typeof options === 'number' ? undefined : options.workspaceId
+
+  const query = useMemo(() => {
+    const built: {
+      agentId?: string
+      sortBy?: AgentSessionSortBy
+      q?: string
+      searchScope?: AgentSessionSearchScope
+      ids?: string[]
+      pinned?: boolean
+      workspaceId?: AgentSessionWorkspaceScope
+    } = {}
+    if (agentId) built.agentId = agentId
+    if (sortBy) built.sortBy = sortBy
+    // q/searchScope are flat-path record filters — the legacy composite view rejects them.
+    if (sortBy && q) built.q = q
+    if (sortBy && q && searchScope) built.searchScope = searchScope
+    if (sortBy && ids?.length) built.ids = ids
+    if (sortBy && pinned !== undefined) built.pinned = pinned
+    if (sortBy && workspaceId !== undefined) built.workspaceId = workspaceId
+    return Object.keys(built).length > 0 ? built : undefined
+  }, [agentId, ids, pinned, q, searchScope, sortBy, workspaceId])
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: agentId ? { agentId } : undefined,
+    query,
     limit: pageSize,
-    enabled
+    enabled,
+    resetOnLocalWrite: '/agent-sessions',
+    swrOptions: keepPreviousData === undefined ? undefined : { keepPreviousData }
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 
-  // AgentSessionService returns sessions pinned-first (by `pin.orderKey`) then by
-  // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
-  // for row indicators, toggle handling, and display grouping/sorting that
-  // promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
-  const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(
-    () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
-    [pinList]
+    () => new Map(sessions.flatMap((session) => (session.pinId ? [[session.id, session.pinId] as const] : []))),
+    [sessions]
   )
   const total = sessions.length
   const hasMore = hasNext
-  const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
-  const isLoadingAll = isLoading || (loadAll && hasMore)
-  const isLoadingMore = isRefreshing && pages.length > 1
+  const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
 
   useEffect(() => {
-    if (loadAll && hasMore && !isLoading && !isRefreshing) {
-      loadNext()
-    }
-  }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
+    if (loadAll && hasMore && !isLoading && !isRefreshing) loadNext()
+  }, [hasMore, isLoading, isRefreshing, loadAll, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
 
@@ -304,8 +443,8 @@ export const useSessions = (
   const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/agent-sessions'] })
   const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
   const togglePin = useCallback(
-    async (sessionId: string) => {
-      const pinId = pinIdBySessionId.get(sessionId)
+    async (sessionId: string, projectedPinId?: string | null) => {
+      const pinId = projectedPinId === undefined ? pinIdBySessionId.get(sessionId) : projectedPinId
       try {
         if (pinId) {
           await unpinTrigger({ params: { id: pinId } })
@@ -323,6 +462,7 @@ export const useSessions = (
 
   return {
     sessions,
+    pages,
     pinIdBySessionId,
     total,
     hasMore,
@@ -337,10 +477,7 @@ export const useSessions = (
     deleteSessions,
     reorderSession,
     reorderSessions,
-    togglePin,
-    isFullyLoaded,
-    isLoadingAll,
-    isPinsLoading
+    togglePin
   }
 }
 

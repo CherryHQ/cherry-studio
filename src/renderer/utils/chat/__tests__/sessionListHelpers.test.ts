@@ -17,18 +17,13 @@ import {
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
+  SESSION_CREATED_GROUP_ID,
   SESSION_NO_PROJECT_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 
 const SESSION_GROUP_LABELS = {
   pinned: 'Pinned',
-  time: {
-    today: 'Today',
-    yesterday: 'Yesterday',
-    'this-week': 'This week',
-    earlier: 'Earlier'
-  },
   agent: {
     unknown: 'Unknown agent'
   },
@@ -176,25 +171,19 @@ describe('SessionList helpers', () => {
     ).toBe(false)
   })
 
-  it('groups sessions by time with pinned sessions taking precedence', () => {
-    const now = new Date(2026, 4, 15, 12)
+  it('groups sessions into a flat creation stream with pinned sessions taking precedence', () => {
     const groupSession = createSessionDisplayGroupResolver({
       labels: SESSION_GROUP_LABELS,
-      mode: 'time',
-      now
+      mode: 'time'
     })
 
     expect(groupSession(createSession({ id: 'pinned', pinned: true }))).toEqual({
       id: 'session:pinned',
       label: 'Pinned'
     })
-    expect(groupSession(createSession({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) }))).toEqual({
-      id: 'session:time:today',
-      label: 'Today'
-    })
-    expect(groupSession(createSession({ id: 'earlier', updatedAt: localIso(2026, 5, 8, 9) }))).toEqual({
-      id: 'session:time:earlier',
-      label: 'Earlier'
+    expect(groupSession(createSession({ id: 'regular' }))).toEqual({
+      id: SESSION_CREATED_GROUP_ID,
+      label: ''
     })
   })
 
@@ -331,6 +320,16 @@ describe('SessionList helpers', () => {
     ).toEqual(['session-b', 'session-a'])
   })
 
+  it('builds stable workspace groups from stats paths before session rows load', () => {
+    const workspaces = [makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A' })]
+
+    const display = createSessionWorkdirDisplayMaps([], workspaces, ['/Users/jd/project-a', '/Users/jd/unregistered'])
+
+    expect(display.groupIdByPath.get('/Users/jd/project-a')).toBe('session:workspace:ws-a')
+    expect(display.labelByGroupId.get('session:workspace:ws-a')).toBe('Project A')
+    expect(display.groupIdByPath.get('/Users/jd/unregistered')).toBe('session:workdir:%2FUsers%2Fjd%2Funregistered')
+  })
+
   it('keeps session-derived fallback workdirs after known workspace rows', () => {
     const sessions = [
       createSession({
@@ -385,15 +384,14 @@ describe('SessionList helpers', () => {
 
   it('sorts display groups by mode-specific ranks', () => {
     const sessions = [
-      createSession({ id: 'older', orderKey: 'b', updatedAt: localIso(2026, 5, 14, 9) }),
-      createSession({ id: 'pinned', pinned: true, orderKey: 'z', updatedAt: localIso(2026, 5, 10, 9) }),
-      createSession({ id: 'newer', orderKey: 'a', updatedAt: localIso(2026, 5, 15, 9) })
+      createSession({ id: 'older', orderKey: 'b', createdAt: localIso(2026, 5, 14, 9) }),
+      createSession({ id: 'pinned', pinned: true, orderKey: 'z', createdAt: localIso(2026, 5, 10, 9) }),
+      createSession({ id: 'newer', orderKey: 'a', createdAt: localIso(2026, 5, 15, 9) })
     ]
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
-        mode: 'time',
-        now: new Date(2026, 4, 15, 12)
+        mode: 'time'
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
 

@@ -404,14 +404,10 @@
         "collapse_all": "すべて折りたたむ",
         "conversation": "会話",
         "drag_hint": "ドラッグして並び替えます。タスクをドラッグして表示グループと非表示グループを調整してください。",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "no_workdir": "作業ディレクトリがありません",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
-        "unknown_agent": "不明なエージェント",
-        "yesterday": "昨日"
+        "unknown_agent": "不明なエージェント"
       },
       "label_one": "セッション",
       "label_other": "セッション",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "折りたたみ表示",
         "collapse_all": "すべて折りたたむ",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
-        "unknown_assistant": "リンクされていないアシスタント",
-        "yesterday": "昨日"
+        "unknown_assistant": "リンクされていないアシスタント"
       },
       "list": "トピックリスト",
       "manage": {

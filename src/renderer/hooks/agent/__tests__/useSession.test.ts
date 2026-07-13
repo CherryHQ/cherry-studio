@@ -1,5 +1,6 @@
+import { dataApiService } from '@renderer/data/DataApiService'
 import { toast } from '@renderer/services/toast'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
   MockUseDataApiUtils,
@@ -7,12 +8,13 @@ import {
   mockUseInvalidateCache,
   mockUseMutation
 } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   useActiveSession,
   useAgentSessionAutoRenameSync,
+  useAgentSessionsByIds,
   useLatestSession,
   useSessions,
   useUpdateSession
@@ -72,7 +74,7 @@ const workspace = {
   updatedAt: '2024-01-01T00:00:00Z'
 }
 
-const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity => ({
+const createSession = (overrides: Partial<AgentSessionListItem> = {}): AgentSessionListItem => ({
   id: 'session-1',
   agentId: 'agent-1',
   name: 'Session',
@@ -80,6 +82,8 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   workspaceId: workspace.id,
   workspace,
   orderKey: 'a0',
+  pinId: null,
+  pinned: false,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,
@@ -241,40 +245,38 @@ describe('useSessions', () => {
     expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
-  it('auto-loads the next page when loadAll is enabled', async () => {
-    const loadNext = vi.fn()
+  it('reports loading-more while fetching after the first loaded page', () => {
     mockUseInfiniteQuery.mockReturnValue(
       buildInfiniteReturn({
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true,
-        loadNext
+        isRefreshing: true
       }) as never
     )
 
-    renderHook(() => useSessions('agent-1', { loadAll: true }))
-    await act(async () => {})
+    const { result } = renderHook(() => useSessions('agent-1'))
 
-    expect(loadNext).toHaveBeenCalledTimes(1)
+    expect(result.current.isLoadingMore).toBe(true)
   })
 
-  it('exposes full-load and pin-loading state for grouped sidebars', async () => {
+  it('derives pin ids from the paged list projection', async () => {
     mockUseInfiniteQuery.mockReturnValue(
       buildInfiniteReturn({
-        pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
-        hasNext: true
+        pages: [
+          {
+            items: [
+              { id: 's-1', name: 'Session 1', pinId: 'pin-1', pinned: true },
+              { id: 's-2', name: 'Session 2', pinId: null, pinned: false }
+            ]
+          }
+        ]
       }) as never
     )
-    MockUseDataApiUtils.mockQueryResult('/pins', {
-      data: [],
-      isLoading: true
-    })
 
-    const { result } = renderHook(() => useSessions('agent-1', { loadAll: true }))
+    const { result } = renderHook(() => useSessions('agent-1'))
     await act(async () => {})
 
-    expect(result.current.isFullyLoaded).toBe(false)
-    expect(result.current.isLoadingAll).toBe(true)
-    expect(result.current.isPinsLoading).toBe(true)
+    expect(result.current.pinIdBySessionId).toEqual(new Map([['s-1', 'pin-1']]))
   })
 
   it('does not auto-load more pages by default', async () => {
@@ -323,6 +325,35 @@ describe('useSessions', () => {
     const { result } = renderHook(() => useSessions('agent-1'))
 
     expect(result.current.hasMore).toBe(true)
+  })
+
+  it('passes flat History filters through to the cursor query', () => {
+    mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
+
+    renderHook(() =>
+      useSessions('unlinked', {
+        ids: ['session-1'],
+        pinned: false,
+        q: 'needle',
+        searchScope: 'full',
+        sortBy: 'updatedAt'
+      })
+    )
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      enabled: undefined,
+      limit: 20,
+      query: {
+        agentId: 'unlinked',
+        ids: ['session-1'],
+        pinned: false,
+        q: 'needle',
+        searchScope: 'full',
+        sortBy: 'updatedAt'
+      },
+      resetOnLocalWrite: '/agent-sessions',
+      swrOptions: undefined
+    })
   })
 
   it('creates a session through DataApi and refreshes the session list', async () => {
@@ -447,6 +478,76 @@ describe('useSessions', () => {
 
     expect(created).toBeNull()
     expect(toast.error).toHaveBeenCalled()
+  })
+})
+
+describe('useAgentSessionsByIds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves runtime ids through bounded 200-id DataApi pages', async () => {
+    const sessionIds = Array.from({ length: 201 }, (_, index) => `session-${String(index).padStart(3, '0')}`)
+    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
+      const ids = options?.query?.ids ?? []
+      return {
+        items: ids.map((id) => createSession({ id })),
+        nextCursor: undefined
+      } as never
+    })
+
+    const { result } = renderHook(() =>
+      useAgentSessionsByIds(sessionIds, {
+        agentId: '00000000-0000-4000-8000-000000000001',
+        q: 'needle',
+        searchScope: 'full'
+      })
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({
+      ids: sessionIds.slice(0, 200),
+      limit: 200,
+      q: 'needle',
+      searchScope: 'full',
+      sortBy: 'updatedAt'
+    })
+    expect(vi.mocked(dataApiService.get).mock.calls[1][1]?.query).toMatchObject({
+      ids: sessionIds.slice(200),
+      limit: 200
+    })
+    expect(result.current.sessions).toHaveLength(201)
+  })
+
+  it('reapplies updatedAt order across bounded pinned-id request chunks', async () => {
+    const sessionIds = Array.from({ length: 201 }, (_, index) => `session-${String(index).padStart(3, '0')}`)
+    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
+      const ids = options?.query?.ids ?? []
+      return {
+        items: ids.map((id) =>
+          createSession({
+            id,
+            pinId: `pin-${id}`,
+            pinned: true,
+            updatedAt: id === 'session-200' ? '2025-01-01T00:00:00Z' : '2024-01-01T00:00:00Z'
+          })
+        ),
+        nextCursor: undefined
+      } as never
+    })
+
+    const { result } = renderHook(() => useAgentSessionsByIds(sessionIds, { pinned: true }))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(dataApiService.get).mock.calls[0][1]?.query).toMatchObject({
+      pinned: true,
+      sortBy: 'updatedAt'
+    })
+    expect(result.current.sessions[0]?.id).toBe('session-200')
   })
 })
 

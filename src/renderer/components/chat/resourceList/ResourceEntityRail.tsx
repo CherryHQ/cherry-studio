@@ -1,9 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -19,6 +21,8 @@ import {
   type ResourceListSection,
   type ResourceListStatus
 } from './base'
+
+const logger = loggerService.withContext('ResourceEntityRail')
 
 export type ResourceEntityRailItem = {
   id: string
@@ -149,15 +153,23 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
   const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
+  const reportSelectionError = useCallback(
+    (error: unknown, item: T) => {
+      logger.error('Failed to select resource entity rail item', { error, itemId: item.id, variant })
+      toast.error(t('common.error'))
+    },
+    [t, variant]
+  )
   const handleItemClick = useCallback(
     (item: T) => {
-      if (effectiveSelectedClickId === item.id && onSelectedClick) {
-        void onSelectedClick(item)
-        return
+      const action = effectiveSelectedClickId === item.id && onSelectedClick ? onSelectedClick : onSelect
+      try {
+        void Promise.resolve(action(item)).catch((error) => reportSelectionError(error, item))
+      } catch (error) {
+        reportSelectionError(error, item)
       }
-      void onSelect(item)
     },
-    [effectiveSelectedClickId, onSelect, onSelectedClick]
+    [effectiveSelectedClickId, onSelect, onSelectedClick, reportSelectionError]
   )
   // Keyboard activation (Enter/Space) goes through the list's `selectItem` action, not the row's
   // onClick, so route it back through `handleItemClick` to keep keyboard and mouse in sync —

@@ -64,7 +64,6 @@ const homeMocks = vi.hoisted(() => ({
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   isTopicsFirstPageLoading: false,
   isTopicsLoadingAll: false,
-  isTopicsFullyLoaded: true,
   isLatestTopicLoading: false,
   // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
@@ -214,18 +213,31 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
   const React = await import('react')
 
   return {
-    // Match the real useTopics shape: isLoading (first page) / isLoadingAll / isFullyLoaded present.
     useAssistantTopicsSource: (options: { enabled?: boolean } = {}) => {
-      const source = React.useMemo(
-        () => ({
-          topics: options.enabled === false ? [] : homeMocks.classicLayoutTopics,
+      const source = React.useMemo(() => {
+        const topics = options.enabled === false ? [] : homeMocks.classicLayoutTopics
+        const byAssistant = Array.from(new Set(topics.map((topic) => topic.assistantId ?? null))).map(
+          (assistantId) => ({
+            assistantId,
+            count: topics.filter((topic) => (topic.assistantId ?? null) === assistantId).length,
+            pinnedCount: 0
+          })
+        )
+        return {
+          topics,
           isLoading: homeMocks.isTopicsFirstPageLoading,
-          isLoadingAll: homeMocks.isTopicsLoadingAll,
-          isFullyLoaded: homeMocks.isTopicsFullyLoaded,
-          error: undefined
-        }),
-        [options.enabled]
-      )
+          isStatsLoading: homeMocks.isTopicsLoadingAll,
+          error: undefined,
+          stats: { total: topics.length, pinnedCount: 0, byAssistant },
+          loadFirstTopic: vi.fn(async (assistantId: string | null) =>
+            topics.find((topic) => (topic.assistantId ?? null) === assistantId)
+          ),
+          loadLatestTopic: vi.fn(async () => topics[0] ?? null),
+          loadTopicSeedCandidates: vi.fn(async (assistantId: string | null) =>
+            topics.filter((topic) => (topic.assistantId ?? null) === assistantId)
+          )
+        }
+      }, [options.enabled])
       homeMocks.assistantTopicsSourceOptions.push(options)
       homeMocks.createdAssistantTopicsSource = source
       return source
@@ -688,7 +700,6 @@ describe('HomePage', () => {
     homeMocks.classicLayoutTopics = []
     homeMocks.isTopicsFirstPageLoading = false
     homeMocks.isTopicsLoadingAll = false
-    homeMocks.isTopicsFullyLoaded = true
     homeMocks.isLatestTopicLoading = false
     homeMocks.latestTopicOverride = undefined
     homeMocks.assistantsError = undefined
@@ -1099,7 +1110,6 @@ describe('HomePage', () => {
     // The paged history is still loading in the background; the dedicated latest query has resolved.
     homeMocks.isTopicsFirstPageLoading = true
     homeMocks.isTopicsLoadingAll = true
-    homeMocks.isTopicsFullyLoaded = false
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }

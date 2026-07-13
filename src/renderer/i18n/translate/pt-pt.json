@@ -404,14 +404,10 @@
         "collapse_all": "Recolher tudo",
         "conversation": "Conversas",
         "drag_hint": "Arraste para reordenar. Arraste as tarefas para ajustar os grupos exibidos e ocultos.",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem diretório de trabalho",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
-        "unknown_agent": "Agente desconhecido",
-        "yesterday": "Ontem"
+        "unknown_agent": "Agente desconhecido"
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Recolher exibição",
         "collapse_all": "Recolher tudo",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
-        "unknown_assistant": "Assistente Desvinculado",
-        "yesterday": "Ontem"
+        "unknown_assistant": "Assistente Desvinculado"
       },
       "list": "Lista de tópicos",
       "manage": {

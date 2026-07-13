@@ -404,14 +404,10 @@
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
         "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
-        "unknown_agent": "Đại lý không xác định",
-        "yesterday": "Hôm qua"
+        "unknown_agent": "Đại lý không xác định"
       },
       "label_one": "Phiên",
       "label_other": " sessions",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
-        "unknown_assistant": "Trợ lý Không liên kết",
-        "yesterday": "Hôm qua"
+        "unknown_assistant": "Trợ lý Không liên kết"
       },
       "list": "Daftar Topik",
       "manage": {

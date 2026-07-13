@@ -1,31 +1,93 @@
-import { useSessions } from './agent/useSession'
-import { useTopics } from './useTopic'
+import { dataApiService } from '@renderer/data/DataApiService'
+import type { AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
+import type { TopicListItem } from '@shared/data/api/schemas/topics'
+import { useCallback } from 'react'
+
+import { useAgentSessionStats } from './agent/useSession'
+import { useTopicStats } from './useTopic'
 
 /**
- * Shared page-level data sources for the classic-layout layout.
- *
- * In classic layout the entity rail and the right-panel resource list are two separate components that
- * both need the full topic/session list (the rail to decide which entities own resources, the panel
- * to render the current entity's resources). The page owns these source objects and threads them into
- * child views so there is one load policy and no chance of the call sites drifting on options
- * (e.g. page size).
+ * Page-level resource facts and bounded seed lookups shared by classic rails,
+ * conversation pages, and their right-panel lists.
  */
 
-/** Full agent-session page size — kept in one place so the rail and right panel never drift. */
-const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
+const RESOURCE_SEED_PAGE_SIZE = 50
 
 /**
- * The shared full-topics source for the assistant classic-layout rail + right-panel topic list.
- *
- * `enabled` lets the owning page gate the fetch when the route does not need the full topic list.
+ * Factual counts replace the former load-all visibility scan. Imperative lookups
+ * deliberately fetch one bounded page for rail navigation and placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const statsSource = useTopicStats({ enabled })
+  const loadFirstTopic = useCallback(async (assistantId: string | null): Promise<TopicListItem | null> => {
+    const page = await dataApiService.get('/topics', {
+      query: {
+        assistantId: assistantId ?? 'unlinked',
+        limit: 1,
+        sortBy: 'updatedAt'
+      }
+    })
+    return page.items[0] ?? null
+  }, [])
+  const loadLatestTopic = useCallback(async () => {
+    const result = await dataApiService.get('/topics/latest')
+    return result.topic
+  }, [])
+  const loadTopicSeedCandidates = useCallback(async (assistantId: string | null): Promise<TopicListItem[]> => {
+    const page = await dataApiService.get('/topics', {
+      query: {
+        assistantId: assistantId ?? 'unlinked',
+        limit: RESOURCE_SEED_PAGE_SIZE,
+        sortBy: 'orderKey'
+      }
+    })
+    return page.items
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadFirstTopic,
+    loadLatestTopic,
+    loadTopicSeedCandidates
+  }
 }
 
-/** The shared full-sessions source for the agent classic-layout rail + right-panel session list. */
+/** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const statsSource = useAgentSessionStats({ enabled })
+  const loadFirstSession = useCallback(async (agentId: string): Promise<AgentSessionListItem | null> => {
+    const page = await dataApiService.get('/agent-sessions', {
+      query: { agentId, limit: 1, sortBy: 'updatedAt' }
+    })
+    return page.items[0] ?? null
+  }, [])
+  const loadLatestSession = useCallback(async () => {
+    const result = await dataApiService.get('/agent-sessions/latest')
+    return result.session
+  }, [])
+  const loadSessionSeedCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {
+    const page = await dataApiService.get('/agent-sessions', {
+      query: {
+        agentId,
+        limit: RESOURCE_SEED_PAGE_SIZE,
+        sortBy: 'orderKey'
+      }
+    })
+    return page.items
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadFirstSession,
+    loadLatestSession,
+    loadSessionSeedCandidates
+  }
 }
 
 export type AssistantTopicsSource = ReturnType<typeof useAssistantTopicsSource>

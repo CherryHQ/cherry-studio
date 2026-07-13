@@ -122,7 +122,7 @@ describe('useActiveTopic', () => {
 
   it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
     // Core of the /latest fast path: with no active id yet the hook resolves the active
-    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // topic by id (not by scanning a paged list), so it is not "loading" and the
     // first-entry effect is free to resume the latest topic immediately.
     const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
 

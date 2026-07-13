@@ -15,7 +15,6 @@ type TestEntity = {
 type TestResource = {
   id: string
   entityId: string
-  updatedAt: number
 }
 
 const ENTITIES: TestEntity[] = [
@@ -24,9 +23,13 @@ const ENTITIES: TestEntity[] = [
 ]
 
 const RESOURCES: TestResource[] = [
-  { id: 'topic-a', entityId: 'assistant-a', updatedAt: 2 },
-  { id: 'topic-b', entityId: 'assistant-b', updatedAt: 1 }
+  { id: 'topic-a', entityId: 'assistant-a' },
+  { id: 'topic-b', entityId: 'assistant-b' }
 ]
+const RESOURCE_COUNTS = new Map([
+  ['assistant-a', 1],
+  ['assistant-b', 1]
+])
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -69,13 +72,14 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
     {
       initialProps: {
         entities: ENTITIES,
-        resources: RESOURCES,
-        getResourceParentId: (resource) => resource.entityId,
+        resourceCountByEntityId: RESOURCE_COUNTS,
         activeEntityId: 'assistant-a',
         isLoading: false,
         isError: false,
-        sortResourcesForEntity: (resources) => [...resources].sort((a, b) => b.updatedAt - a.updatedAt),
         onPickResource: vi.fn(),
+        loadFirstResource: vi.fn(
+          async (entityId) => RESOURCES.find((resource) => resource.entityId === entityId) ?? null
+        ),
         onCreateResource: vi.fn(),
         reorder: vi.fn().mockResolvedValue(undefined),
         refetchEntities: vi.fn().mockResolvedValue(undefined),
@@ -95,7 +99,7 @@ describe('useResourceEntityRail', () => {
   })
 
   it('shows loading only while there are no confirmed entity rows', () => {
-    const { result } = renderRail({ isLoading: true, resources: [] })
+    const { result } = renderRail({ isLoading: true, resourceCountByEntityId: new Map() })
 
     expect(result.current.listStatus).toBe('loading')
     expect(result.current.items).toEqual([])
@@ -103,9 +107,7 @@ describe('useResourceEntityRail', () => {
 
   it('hides a brand-new entity that owns no resources while keeping the others shown', () => {
     const { result } = renderRail({
-      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
-      // assistant-c owns no resources yet; only a and b do.
-      resources: RESOURCES
+      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }]
     })
 
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
@@ -119,13 +121,14 @@ describe('useResourceEntityRail', () => {
 
     rerender({
       entities: ENTITIES,
-      resources: RESOURCES,
-      getResourceParentId: (resource) => resource.entityId,
+      resourceCountByEntityId: RESOURCE_COUNTS,
       activeEntityId: 'assistant-b',
       isLoading: true,
       isError: false,
-      sortResourcesForEntity: (resources) => [...resources].sort((a, b) => b.updatedAt - a.updatedAt),
       onPickResource: vi.fn(),
+      loadFirstResource: vi.fn(
+        async (entityId) => RESOURCES.find((resource) => resource.entityId === entityId) ?? null
+      ),
       onCreateResource: vi.fn(),
       reorder: vi.fn().mockResolvedValue(undefined),
       refetchEntities: vi.fn().mockResolvedValue(undefined),
@@ -137,13 +140,62 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
   })
 
-  it('enters the first/most-recent resource on select even while resources are still loading', () => {
+  it('loads and enters the first resource on select even while counts are refreshing', async () => {
     const onPickResource = vi.fn()
     const { result } = renderRail({ isLoading: true, onPickResource })
 
-    result.current.handleSelect(ENTITIES[0])
+    await act(async () => {
+      await result.current.handleSelect(ENTITIES[0])
+    })
 
     expect(onPickResource).toHaveBeenCalledWith(RESOURCES[0])
+  })
+
+  it('ignores an older first-resource lookup that resolves after the latest selection', async () => {
+    const firstLookup = createDeferred<TestResource | null>()
+    const secondLookup = createDeferred<TestResource | null>()
+    const loadFirstResource = vi.fn((entityId: string) =>
+      entityId === 'assistant-a' ? firstLookup.promise : secondLookup.promise
+    )
+    const onPickResource = vi.fn()
+    const { result } = renderRail({ loadFirstResource, onPickResource })
+
+    let firstSelection!: Promise<void>
+    let secondSelection!: Promise<void>
+    await act(async () => {
+      firstSelection = result.current.handleSelect(ENTITIES[0])
+      secondSelection = result.current.handleSelect(ENTITIES[1])
+      secondLookup.resolve(RESOURCES[1])
+      await secondSelection
+    })
+
+    expect(onPickResource).toHaveBeenCalledTimes(1)
+    expect(onPickResource).toHaveBeenCalledWith(RESOURCES[1])
+
+    await act(async () => {
+      firstLookup.resolve(RESOURCES[0])
+      await firstSelection
+    })
+
+    expect(onPickResource).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates a failure from the latest selection to the UI reporting boundary', async () => {
+    const error = new Error('lookup failed')
+    const onPickResource = vi.fn()
+    const onCreateResource = vi.fn()
+    const { result } = renderRail({
+      loadFirstResource: vi.fn().mockRejectedValue(error),
+      onCreateResource,
+      onPickResource
+    })
+
+    await act(async () => {
+      await expect(result.current.handleSelect(ENTITIES[0])).rejects.toBe(error)
+    })
+
+    expect(onPickResource).not.toHaveBeenCalled()
+    expect(onCreateResource).not.toHaveBeenCalled()
   })
 
   it('floats pinned entities to the top while preserving relative order of each partition', () => {
@@ -153,21 +205,23 @@ describe('useResourceEntityRail', () => {
         { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b', pinned: true },
         { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
       ],
-      resources: [
-        { id: 'topic-a', entityId: 'assistant-a', updatedAt: 3 },
-        { id: 'topic-b', entityId: 'assistant-b', updatedAt: 2 },
-        { id: 'topic-c', entityId: 'assistant-c', updatedAt: 1 }
-      ]
+      resourceCountByEntityId: new Map([
+        ['assistant-a', 1],
+        ['assistant-b', 1],
+        ['assistant-c', 1]
+      ])
     })
 
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
   })
 
-  it('falls back to a blank resource when the entity has no resources yet', () => {
+  it('creates a blank resource when the first-resource lookup returns no row', async () => {
     const onCreateResource = vi.fn()
-    const { result } = renderRail({ onCreateResource })
+    const { result } = renderRail({ loadFirstResource: vi.fn().mockResolvedValue(null), onCreateResource })
 
-    result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' })
+    await act(async () => {
+      await result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' })
+    })
 
     expect(onCreateResource).toHaveBeenCalledWith('assistant-c')
   })

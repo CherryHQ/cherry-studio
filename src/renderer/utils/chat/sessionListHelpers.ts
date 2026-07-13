@@ -1,20 +1,16 @@
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
+  compareResourceCreationOrder,
   compareResourceOrderKey,
-  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
-  createTimeGroupResolver,
-  getResourceTimeBucket,
   moveResourceListStringGroupAfterDrop,
   type ResourceListGroup,
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket,
-  sortRankedResourceItems,
-  withResourceListGroupIdPrefix
+  sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -30,7 +26,6 @@ export type SessionDisplayAgent = {
 
 export type SessionDisplayGroupLabels = {
   pinned: string
-  time: Record<ResourceListTimeBucket, string>
   agent: {
     unknown: string
   }
@@ -43,7 +38,6 @@ export type SessionDisplayGroupOptions = {
   agentById?: ReadonlyMap<string, SessionDisplayAgent>
   labels: SessionDisplayGroupLabels
   mode: AgentSessionDisplayMode
-  now?: Parameters<typeof getResourceTimeBucket>[1]
   pinnedAsSection?: boolean
   workdirDisplay?: SessionWorkdirDisplayMaps
 }
@@ -51,7 +45,6 @@ export type SessionDisplayGroupOptions = {
 export type SessionDisplaySortOptions = {
   agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
-  now?: Parameters<typeof getResourceTimeBucket>[1]
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
 }
 
@@ -71,14 +64,8 @@ export type SessionWorkdirDisplayMaps = {
   workspaceIdByGroupId: ReadonlyMap<string, string>
 }
 
-const SESSION_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
-  today: 1,
-  yesterday: 2,
-  'this-week': 3,
-  earlier: 4
-}
-
 export const SESSION_PINNED_GROUP_ID = 'session:pinned'
+export const SESSION_CREATED_GROUP_ID = 'session:created'
 export const SESSION_PINNED_SECTION_ID = 'session:section:pinned'
 export const SESSION_AGENT_SECTION_ID = 'session:section:agent'
 export const SESSION_WORKDIR_SECTION_ID = 'session:section:workdir'
@@ -93,11 +80,7 @@ const SESSION_WORKDIR_GROUP_ID_PREFIX = 'session:workdir:'
 const NO_PROJECT_GROUP_RANK = Number.MAX_SAFE_INTEGER
 const UNKNOWN_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1
 
-function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
-  return withResourceListGroupIdPrefix('session:', resolver)
-}
-
-function getSessionAgentGroupId(agentId: string) {
+export function getSessionAgentGroupId(agentId: string) {
   return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
 }
 
@@ -212,7 +195,9 @@ function createFallbackWorkdirLabelEntries(paths: readonly string[]) {
 
 export function createSessionWorkdirDisplayMaps(
   sessions: readonly SessionWorkdirSource[],
-  workspaces: readonly WorkspaceDisplaySource[] = []
+  workspaces: readonly WorkspaceDisplaySource[] = [],
+  knownWorkdirPaths: readonly string[] = [],
+  knownWorkspaceIds: readonly string[] = []
 ): SessionWorkdirDisplayMaps {
   const groupIdByPath = new Map<string, string>()
   const groupIdByWorkspaceId = new Map<string, string>()
@@ -221,12 +206,15 @@ export function createSessionWorkdirDisplayMaps(
   const rankByGroupId = new Map<string, number>()
   const workspaceIdByGroupId = new Map<string, string>()
   const referencedWorkspaceIds = new Set(
-    sessions
-      .map((session) => session.workspaceId)
-      .filter((workspaceId): workspaceId is string => typeof workspaceId === 'string' && workspaceId.length > 0)
+    [...sessions.map((session) => session.workspaceId), ...knownWorkspaceIds].filter(
+      (workspaceId): workspaceId is string => typeof workspaceId === 'string' && workspaceId.length > 0
+    )
   )
   const referencedWorkspacePaths = new Set(
-    sessions.map(getPrimarySessionWorkdir).filter((path): path is string => typeof path === 'string')
+    [
+      ...sessions.map(getPrimarySessionWorkdir),
+      ...knownWorkdirPaths.map((path) => normalizeSessionWorkdirPath(path))
+    ].filter((path): path is string => typeof path === 'string')
   )
 
   for (const workspace of workspaces) {
@@ -248,7 +236,12 @@ export function createSessionWorkdirDisplayMaps(
   }
 
   for (const [path, label] of createFallbackWorkdirLabelEntries(
-    getUniqueSessionFallbackWorkdirPaths(sessions, groupIdByWorkspaceId, groupIdByPath)
+    Array.from(
+      new Set([
+        ...getUniqueSessionFallbackWorkdirPaths(sessions, groupIdByWorkspaceId, groupIdByPath),
+        ...referencedWorkspacePaths
+      ])
+    ).filter((path) => !groupIdByPath.has(path))
   )) {
     const groupId = getFallbackWorkdirSessionGroupId(path)
     if (labelByGroupId.has(groupId)) continue
@@ -280,7 +273,6 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   agentById,
   labels,
   mode,
-  now,
   pinnedAsSection = false,
   workdirDisplay
 }: SessionDisplayGroupOptions): ResourceListGroupResolver<T> {
@@ -289,19 +281,10 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   if (mode === 'time') {
     const pinnedResolver = createPinnedGroupResolver<T>({
       isPinned: (session) => session.pinned === true,
-      group: { id: 'pinned', label: pinnedGroupLabel } satisfies ResourceListGroup
+      group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
     })
 
-    return withSessionGroupIdPrefix(
-      composeResourceListGroupResolvers(
-        pinnedResolver,
-        createTimeGroupResolver<T>({
-          getTimestamp: (session) => session.updatedAt,
-          labels: labels.time,
-          now
-        })
-      )
-    )
+    return composeResourceListGroupResolvers(pinnedResolver, () => ({ id: SESSION_CREATED_GROUP_ID, label: '' }))
   }
 
   if (mode === 'agent') {
@@ -370,10 +353,9 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
   if (options.mode === 'time') {
     return sortRankedResourceItems(sessions, {
-      getRank: (session) =>
-        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
+      getRank: (session) => (session.pinned === true ? 0 : 1),
       isPinned,
-      compareWithinGroup: compareResourceRecency((session) => session.updatedAt)
+      compareWithinGroup: compareResourceCreationOrder
     })
   }
 

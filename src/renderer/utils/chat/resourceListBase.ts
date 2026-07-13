@@ -1,12 +1,8 @@
-import dayjs from 'dayjs'
-
 export type ResourceListGroup = {
   id: string
   label: string
   count?: number
 }
-
-export type ResourceListTimeBucket = 'today' | 'yesterday' | 'this-week' | 'earlier'
 
 export type ResourceListGroupResolver<T> = (item: T) => ResourceListGroup | null
 
@@ -31,39 +27,7 @@ export type ResourceListGroupReorderPayload = {
   targetIndex: number
 }
 
-type TimestampInput = dayjs.ConfigType
 type GroupRankResolver<T> = (item: T) => number
-
-export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
-  if (timestamp === undefined) {
-    return 'earlier'
-  }
-
-  const item = dayjs(timestamp)
-  const current = now === undefined ? dayjs() : dayjs(now)
-  if (!item.isValid() || !current.isValid()) {
-    return 'earlier'
-  }
-
-  const itemStart = item.startOf('day')
-  const todayStart = current.startOf('day')
-
-  if (itemStart.isSame(todayStart)) {
-    return 'today'
-  }
-
-  const yesterdayStart = todayStart.subtract(1, 'day')
-  if (itemStart.isSame(yesterdayStart)) {
-    return 'yesterday'
-  }
-
-  const weekStart = todayStart.startOf('week')
-  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
-    return 'this-week'
-  }
-
-  return 'earlier'
-}
 
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
@@ -85,21 +49,6 @@ export function createPinnedGroupResolver<T>({
   isPinned: (item: T) => boolean
 }): ResourceListGroupResolver<T> {
   return (item) => (isPinned(item) ? group : null)
-}
-
-export function createTimeGroupResolver<T>({
-  getTimestamp,
-  labels,
-  now
-}: {
-  getTimestamp: (item: T) => TimestampInput
-  labels: Record<ResourceListTimeBucket, string>
-  now?: TimestampInput
-}): ResourceListGroupResolver<T> {
-  return (item) => {
-    const bucket = getResourceTimeBucket(getTimestamp(item), now)
-    return { id: `time:${bucket}`, label: labels[bucket] }
-  }
 }
 
 export function createPinnedFirstSorter<T>({ isPinned }: { isPinned: (item: T) => boolean }): GroupRankResolver<T> {
@@ -137,13 +86,12 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
-export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
-  return (a, b) => {
-    const aMs = Date.parse(getUpdatedAt(a))
-    const bMs = Date.parse(getUpdatedAt(b))
-    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
-    return 0
-  }
+export function compareResourceCreationOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
+  const aMs = Date.parse(a.createdAt)
+  const bMs = Date.parse(b.createdAt)
+  if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) return bMs - aMs
+  if (Number.isFinite(aMs) !== Number.isFinite(bMs)) return Number.isFinite(aMs) ? -1 : 1
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
@@ -191,15 +139,4 @@ export function moveResourceListStringGroupAfterDrop(
   next.splice(insertIndex, 0, activeId)
 
   return next
-}
-
-export function withResourceListGroupIdPrefix<T>(
-  prefix: string,
-  resolver: ResourceListGroupResolver<T>
-): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `${prefix}${group.id}` }
-  }
 }

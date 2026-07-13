@@ -96,7 +96,6 @@ const agentPageMocks = vi.hoisted(() => ({
   }>,
   sessionsFirstPageLoading: false,
   sessionsLoadingAll: false,
-  sessionsFullyLoaded: true,
   isLatestSessionLoading: false,
   // `undefined` → derive the latest from `classicLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
@@ -123,12 +122,25 @@ vi.mock('@data/DataApiService', () => ({
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
   useAgentSessionsSource: (options?: { enabled?: boolean }) => {
+    const sessions = options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions
+    const byAgent = Array.from(new Set(sessions.map((session) => session.agentId ?? null))).map((agentId) => ({
+      agentId,
+      count: sessions.filter((session) => (session.agentId ?? null) === agentId).length,
+      pinnedCount: 0
+    }))
     const source = {
-      sessions: options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions,
-      isFullyLoaded: agentPageMocks.sessionsFullyLoaded,
-      isLoadingAll: agentPageMocks.sessionsLoadingAll,
+      sessions,
       isLoading: agentPageMocks.sessionsFirstPageLoading,
-      hasMore: false
+      isStatsLoading: agentPageMocks.sessionsLoadingAll,
+      hasMore: false,
+      stats: { total: sessions.length, pinnedCount: 0, byAgent, byWorkspace: [] },
+      loadFirstSession: vi.fn(
+        async (agentId: string) => sessions.find((session) => session.agentId === agentId) ?? null
+      ),
+      loadLatestSession: vi.fn(async () => sessions[0] ?? null),
+      loadSessionSeedCandidates: vi.fn(async (agentId: string) =>
+        sessions.filter((session) => session.agentId === agentId)
+      )
     }
     agentPageMocks.agentSessionsSourceOptions.push(options)
     agentPageMocks.createdAgentSessionsSource = source
@@ -694,7 +706,6 @@ describe('AgentPage', () => {
     agentPageMocks.classicLayoutSessions = []
     agentPageMocks.sessionsFirstPageLoading = false
     agentPageMocks.sessionsLoadingAll = false
-    agentPageMocks.sessionsFullyLoaded = true
     agentPageMocks.isLatestSessionLoading = false
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
@@ -1194,7 +1205,6 @@ describe('AgentPage', () => {
     // The paged history is still loading in the background; the dedicated latest query has resolved.
     agentPageMocks.sessionsFirstPageLoading = true
     agentPageMocks.sessionsLoadingAll = true
-    agentPageMocks.sessionsFullyLoaded = false
     agentPageMocks.classicLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-03T00:00:00.000Z' }

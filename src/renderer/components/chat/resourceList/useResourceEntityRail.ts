@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   buildResourceListItemDropAnchor,
@@ -13,15 +13,14 @@ export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceLis
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
   /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
   entities: readonly TEntity[]
-  /** Every resource for the current scope; an entity is only visible while it owns at least one. */
-  resources: readonly TResource[]
-  getResourceParentId: (resource: TResource) => string | null | undefined
+  /** Factual server counts used to keep only entities that own at least one resource. */
+  resourceCountByEntityId: ReadonlyMap<string, number>
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
-  /** Orders an entity's own resources so `handleSelect` can enter the first one (time/pin precedence). */
-  sortResourcesForEntity: (resources: TResource[]) => readonly TResource[]
   onPickResource: (resource: TResource) => void
+  /** Load the entity's first resource before navigating. */
+  loadFirstResource: (entityId: string) => Promise<TResource | null>
   onCreateResource: (entityId: string) => void | Promise<unknown>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
@@ -32,7 +31,7 @@ type UseResourceEntityRailResult<TEntity> = {
   items: TEntity[]
   listStatus: ResourceListStatus
   selectedId: string | null
-  handleSelect: (item: TEntity) => void
+  handleSelect: (item: TEntity) => Promise<void>
   handleReorder: (payload: ResourceListReorderPayload) => Promise<void>
 }
 
@@ -44,23 +43,30 @@ type UseResourceEntityRailResult<TEntity> = {
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
   entities,
-  resources,
-  getResourceParentId,
+  resourceCountByEntityId,
   activeEntityId,
   isLoading,
   isError,
-  sortResourcesForEntity,
   onPickResource,
+  loadFirstResource,
   onCreateResource,
   reorder,
   refetchEntities,
   onReorderError
 }: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
+  const selectRequestGenerationRef = useRef(0)
+
+  useEffect(
+    () => () => {
+      selectRequestGenerationRef.current += 1
+    },
+    []
+  )
 
   const entityIdsWithResources = useMemo(
-    () => new Set(resources.map(getResourceParentId).filter((id): id is string => !!id)),
-    [getResourceParentId, resources]
+    () => new Set([...resourceCountByEntityId].flatMap(([entityId, count]) => (count > 0 ? [entityId] : []))),
+    [resourceCountByEntityId]
   )
   const orderSignature = useMemo(
     () => entities.map((entity) => `${entity.id}:${entity.orderKey ?? ''}`).join('|'),
@@ -95,19 +101,24 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
 
   const handleSelect = useCallback(
-    (item: TEntity) => {
-      // A visible rail entity always owns at least one loaded resource (rail visibility derives from
-      // `resources`), so enter its first/most-recent resource — no need to wait for the full load.
-      // Only the (effectively unreachable) no-resource case falls back to creating a blank resource.
-      const entityResources = resources.filter((resource) => getResourceParentId(resource) === item.id)
-      const first = sortResourcesForEntity(entityResources)[0]
-      if (first) {
-        onPickResource(first)
-        return
+    async (item: TEntity) => {
+      const requestGeneration = ++selectRequestGenerationRef.current
+      try {
+        const first = await loadFirstResource(item.id)
+        if (requestGeneration !== selectRequestGenerationRef.current) return
+        if (first) {
+          onPickResource(first)
+          return
+        }
+        await onCreateResource(item.id)
+      } catch (error) {
+        // Superseded requests are intentionally ignored: their result no longer represents
+        // the entity the user most recently selected. The current request still rejects so
+        // the UI boundary can report it through the standard logger/toast path.
+        if (requestGeneration === selectRequestGenerationRef.current) throw error
       }
-      void onCreateResource(item.id)
     },
-    [getResourceParentId, onCreateResource, onPickResource, resources, sortResourcesForEntity]
+    [loadFirstResource, onCreateResource, onPickResource]
   )
 
   const handleReorder = useCallback(

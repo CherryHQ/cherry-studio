@@ -165,10 +165,9 @@ const HomePage: FC = () => {
     enabled: isClassicTopicLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
-  // Shared full-topics source for classic history selection and persisted empty-topic reuse.
-  // Modern layout also creates real empty topics now, so it needs the same candidates.
+  // Shared topic facts plus bounded seed lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
-  const { topics: allTopics } = assistantTopicsSource
+  const { stats: topicStats, loadLatestTopic, loadTopicSeedCandidates } = assistantTopicsSource
   // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
   // depends on the pinned-first `/topics` list order (which would miss the latest unpinned topic when
@@ -256,9 +255,10 @@ const HomePage: FC = () => {
   const visibleTopic = isMessageOnlyView
     ? routeTopic
     : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
-  const topicReuseCandidates = useMemo(
-    () => mergeReusableTopicCandidates(allTopics, visibleTopic),
-    [allTopics, visibleTopic]
+  const loadReusableTopicCandidates = useCallback(
+    async (assistantId: string | null) =>
+      mergeReusableTopicCandidates(await loadTopicSeedCandidates(assistantId), visibleTopic),
+    [loadTopicSeedCandidates, visibleTopic]
   )
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
@@ -359,14 +359,18 @@ const HomePage: FC = () => {
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+  const topicCountByAssistantId = useMemo(
+    () => new Map((topicStats?.byAssistant ?? []).map(({ assistantId, count }) => [assistantId, count])),
+    [topicStats?.byAssistant]
+  )
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
     if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
-      count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
+      count: topicCountByAssistantId.get(visibleAssistantId) ?? 0
     }
-  }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
+  }, [isClassicTopicLayout, t, topicCountByAssistantId, topicListPosition, visibleAssistantId])
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
@@ -459,7 +463,7 @@ const HomePage: FC = () => {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
         // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
-        const reusableTopic = findReusableEmptyTopic(topicReuseCandidates, assistantId)
+        const reusableTopic = findReusableEmptyTopic(await loadReusableTopicCandidates(assistantId), assistantId)
 
         const rendererTopic = reusableTopic ?? mapApiTopicToRendererTopic(await createTopic({ assistantId }))
 
@@ -478,11 +482,11 @@ const HomePage: FC = () => {
     },
     [
       createTopic,
+      loadReusableTopicCandidates,
       refreshTopics,
       resolveAssistantIdForSelection,
       setActiveTopicAndCloseResourceView,
-      t,
-      topicReuseCandidates
+      t
     ]
   )
 
@@ -498,6 +502,7 @@ const HomePage: FC = () => {
         const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
         // Drop the topic being replaced (post-delete): a stale candidate list still holds it, and
         // reusing it would reactivate the just-deleted topic instead of opening a fresh one.
+        const topicReuseCandidates = await loadReusableTopicCandidates(reuseTargetAssistantId ?? null)
         const reuseCandidates = payload?.excludeReuseTopicId
           ? topicReuseCandidates.filter((topic) => topic.id !== payload.excludeReuseTopicId)
           : topicReuseCandidates
@@ -527,11 +532,11 @@ const HomePage: FC = () => {
     },
     [
       createTopic,
+      loadReusableTopicCandidates,
       refreshTopics,
       resolveNewTopicAssistantTarget,
       setActiveTopicAndCloseResourceView,
-      t,
-      topicReuseCandidates
+      t
     ]
   )
 
@@ -620,7 +625,7 @@ const HomePage: FC = () => {
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
     async (deletedAssistantId: string) => {
-      const nextTopic = findLatestUpdated(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
+      const nextTopic = await loadLatestTopic()
       if (lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
       }
@@ -634,10 +639,10 @@ const HomePage: FC = () => {
       }
     },
     [
-      allTopics,
       clearActiveTopic,
       createAndActivateEmptyTopic,
       lastUsedAssistantId,
+      loadLatestTopic,
       setActiveTopicAndCloseResourceView,
       setLastUsedAssistantId
     ]
@@ -783,7 +788,9 @@ const HomePage: FC = () => {
         const activeAssistantGroupId = visibleTopic ? getTopicAssistantDisplayGroupId(visibleTopic) : undefined
         const collapsedAssistantGroupIds = Array.from(
           new Set(
-            allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
+            (topicStats?.byAssistant ?? [])
+              .map(({ assistantId }) => getTopicAssistantDisplayGroupId({ assistantId }))
+              .filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
         setTopicExpansionAssistant(collapsedAssistantGroupIds)
@@ -793,12 +800,12 @@ const HomePage: FC = () => {
       setResourceListOpen(true)
     },
     [
-      allTopics,
       setPanePosition,
       setResourceListOpen,
       setTopicDisplayMode,
       setTopicExpansionAssistant,
       setTopicPaneOpen,
+      topicStats?.byAssistant,
       visibleTopic
     ]
   )

@@ -92,6 +92,16 @@ vi.mock('@dnd-kit/utilities', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
+  useCursorGroupWindows: () => ({
+    items: [],
+    loadGroup: vi.fn().mockResolvedValue(null),
+    loadMoreGroup: vi.fn().mockResolvedValue(undefined),
+    reset: vi.fn(),
+    windows: {}
+  })
+}))
+
 const notesSettingsMocks = vi.hoisted(() => ({
   useNotesSettings: vi.fn(() => ({ notesPath: '/notes' }))
 }))
@@ -415,7 +425,6 @@ import type { Topic } from '@renderer/types/topic'
 import {
   applyOptimisticTopicDisplayMove,
   TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
   TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '@renderer/utils/chat/topicsHelpers'
@@ -432,40 +441,25 @@ import {
 } from '../../../messages/topicImageActionBus'
 import { Topics } from '../Topics'
 
-const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
 
-// The full set of collapsible time groups; the stored cache is a flat list of
-// the ones the user explicitly collapsed (denylist). Empty = everything expanded.
-const ALL_TOPIC_TIME_GROUP_IDS = [
-  TOPIC_PINNED_GROUP_ID,
-  'topic:time:today',
-  'topic:time:yesterday',
-  'topic:time:this-week',
-  'topic:time:earlier'
-]
-
 type TopicGroupCollapseFixture = {
-  time: string[]
   assistant: string[] | null
 }
 
 // Default fixture: nothing collapsed (everything expanded).
 function createExpandedTopicGroupExpansionFixture(): TopicGroupCollapseFixture {
   return {
-    time: [],
     assistant: []
   }
 }
 
 function setTopicGroupExpansionCache(value: TopicGroupCollapseFixture) {
-  cacheHookMocks.values.set(TOPIC_EXPANSION_TIME_KEY, value.time)
   cacheHookMocks.values.set(TOPIC_EXPANSION_ASSISTANT_KEY, value.assistant)
 }
 
 function getTopicGroupExpansionCache() {
   return {
-    time: cacheHookMocks.values.get(TOPIC_EXPANSION_TIME_KEY),
     assistant: cacheHookMocks.values.get(TOPIC_EXPANSION_ASSISTANT_KEY)
   } as TopicGroupCollapseFixture
 }
@@ -553,23 +547,26 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
         }
       : mockUseInfiniteQuery('/topics', { limit: 200 })
   const items = source.pages.flatMap((page) => page.items)
-
-  if (source.hasNext && !source.isLoading && !source.isRefreshing) {
-    source.loadNext()
-  }
+  const byAssistant = Array.from(new Set(items.map((topic) => topic.assistantId ?? null))).map((assistantId) => ({
+    assistantId,
+    count: items.filter((topic) => (topic.assistantId ?? null) === assistantId).length,
+    pinnedCount: 0
+  }))
 
   return {
     error: source.error,
     hasNext: source.hasNext,
-    isFullyLoaded: true,
     isLoading: source.isLoading,
-    isLoadingAll: source.isLoading || source.hasNext,
     isRefreshing: source.isRefreshing,
     loadNext: source.loadNext,
+    loadFirstTopic: vi.fn().mockResolvedValue(null),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    loadTopicSeedCandidates: vi.fn().mockResolvedValue([]),
     mutate: source.mutate,
     pages: source.pages,
     refetch: source.refresh,
-    topics: items
+    topics: items,
+    stats: { total: items.length, pinnedCount: 0, byAssistant }
   } as unknown as AssistantTopicsSource
 }
 
@@ -840,15 +837,15 @@ describe('Topics', () => {
     vi.useRealTimers()
   })
 
-  it('renders pinned and time groups and protects pinned rows from inline delete', () => {
+  it('renders pinned and creation-ordered rows without date buckets and protects pinned rows from inline delete', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { getByText, setActiveTopic } = renderTopicList()
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Yesterday')).toBeInTheDocument()
-    expect(screen.getByText('This week')).toBeInTheDocument()
-    expect(screen.getByText('Earlier')).toBeInTheDocument()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
+    expect(screen.queryByText('This week')).not.toBeInTheDocument()
+    expect(screen.queryByText('Earlier')).not.toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
@@ -862,6 +859,75 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+  })
+
+  it('requests separate pin-order and immutable creation-order streams in time mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+
+    renderTopicList()
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({ query: { pinned: true, sortBy: 'createdAt' }, limit: 50, enabled: true })
+    )
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({ query: { pinned: false, sortBy: 'createdAt' }, limit: 50, enabled: true })
+    )
+  })
+
+  it('keeps a creation-stream retry available before any rows have loaded', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    const retryCreatedTopics = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const pinned = (options as { query?: { pinned?: boolean } }).query?.pinned
+      return {
+        pages: [{ items: [] }],
+        isLoading: false,
+        isRefreshing: false,
+        error: pinned === false ? new Error('creation stream failed') : undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: pinned === false ? retryCreatedTopics : vi.fn(),
+        reset: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+
+    renderTopicList({ assistantTopicsSource: createAssistantTopicsSource([]) })
+
+    const retryButton = screen.getByRole('button', { name: 'Show more conversations' })
+    expect(retryButton).toHaveAttribute('data-error', 'true')
+
+    fireEvent.click(retryButton)
+    await vi.waitFor(() => expect(retryCreatedTopics).toHaveBeenCalledTimes(1))
+  })
+
+  it('retries the pinned stream before any rows have loaded instead of requesting a nonexistent next page', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    const retryPinnedTopics = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const pinned = (options as { query?: { pinned?: boolean } }).query?.pinned
+      return {
+        pages: [{ items: [] }],
+        isLoading: false,
+        isRefreshing: false,
+        error: pinned === true ? new Error('pinned stream failed') : undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: pinned === true ? retryPinnedTopics : vi.fn(),
+        reset: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+
+    renderTopicList({ assistantTopicsSource: createAssistantTopicsSource([]) })
+
+    const retryButton = screen.getByRole('button', { name: 'Show more conversations' })
+    expect(retryButton).toHaveAttribute('data-error', 'true')
+
+    fireEvent.click(retryButton)
+    await vi.waitFor(() => expect(retryPinnedTopics).toHaveBeenCalledTimes(1))
   })
 
   it('shows a new conversation placeholder for empty topic names', () => {
@@ -892,7 +958,6 @@ describe('Topics', () => {
     })
     const { setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
     fireEvent.click(screen.getByTitle('chat.conversation.new'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
@@ -943,7 +1008,7 @@ describe('Topics', () => {
     )
   })
 
-  it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
+  it('requests bounded topic windows without auto-paginating to the end', () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [] }],
@@ -959,8 +1024,8 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 200 }))
-    await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 50 }))
+    expect(loadNext).not.toHaveBeenCalled()
   })
 
   it('shows the empty chat state without a creation action', () => {
@@ -1069,7 +1134,7 @@ describe('Topics', () => {
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
   })
 
-  it('keeps right panel groups fully expanded without collapse controls', () => {
+  it('keeps the right panel flat without date or collapse controls', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: createTopicPageItems(6) }],
       isLoading: false,
@@ -1084,8 +1149,7 @@ describe('Topics', () => {
 
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
     expect(screen.queryByText('Show more conversations')).not.toBeInTheDocument()
     expect(screen.queryByText('Collapse conversations')).not.toBeInTheDocument()
@@ -1093,13 +1157,15 @@ describe('Topics', () => {
     expect(screen.getByText('Topic 6')).toBeInTheDocument()
   })
 
-  it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
+  it('forces the flat time mode in the right panel even when assistant mode is stored', () => {
     // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
-    // switch and must ignore the stored display mode, grouping strictly by time.
+    // switch and must ignore the stored display mode, using the flat creation stream. Assistants are
+    // still fetched as move targets, so the rendered list must prove that assistant grouping is off.
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {
@@ -1995,7 +2061,7 @@ describe('Topics', () => {
     expect(topicStreamStatusMocks.markSeen).toHaveBeenCalledWith('topic-a')
   })
 
-  it('shows fifty topics in left-panel time groups and expands the remaining items', () => {
+  it('shows every loaded topic in the flat creation stream without per-group show-more controls', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -2031,22 +2097,13 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
     expect(screen.getByText('Topic 50')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
-
     expect(screen.getByText('Topic 51')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversations' }))
-
-    expect(screen.getByText('Topic 50')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more conversations' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse conversations' })).not.toBeInTheDocument()
   })
 
-  it('keeps the expanded topic window after selecting a topic revealed by show more', () => {
+  it('keeps a selected topic visible in the flat creation stream', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -2082,7 +2139,6 @@ describe('Topics', () => {
 
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
     fireEvent.click(getTopicRow('Topic 51'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-51' }))
@@ -2090,7 +2146,7 @@ describe('Topics', () => {
     rerenderTopicList(undefined, createRendererTopic({ id: 'topic-51', name: 'Topic 51' }))
 
     expect(screen.getByText('Topic 51')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse conversations' })).not.toBeInTheDocument()
   })
 
   it('shows assistant group bulk actions in the topic options menu', async () => {
@@ -2242,57 +2298,6 @@ describe('Topics', () => {
     }
   })
 
-  it('keeps the pinned group first and lets each group collapse independently', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    setTopicGroupExpansionCache(createExpandedTopicGroupExpansionFixture())
-    const { rerenderTopicList } = renderTopicList()
-
-    const groupButtons = screen.getAllByRole('button', { expanded: true })
-    expect(groupButtons.map((button) => button.textContent)).toEqual([
-      'Pinned',
-      'Today',
-      'Yesterday',
-      'This week',
-      'Earlier'
-    ])
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    rerenderTopicList()
-
-    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-  })
-
-  it('restores and persists collapsed topic groups from cache', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    setTopicGroupExpansionCache({
-      ...createExpandedTopicGroupExpansionFixture(),
-      // Collapse everything except "today".
-      time: ALL_TOPIC_TIME_GROUP_IDS.filter((id) => id !== 'topic:time:today')
-    })
-
-    const { rerenderTopicList } = renderTopicList()
-
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
-    expect(getTopicGroupExpansionCache().time).toContain('topic:time:today')
-    rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    expect(getTopicGroupExpansionCache().time).not.toContain('topic:pinned')
-    rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
-  })
-
   it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
@@ -2323,7 +2328,6 @@ describe('Topics', () => {
   it('only expands the active assistant topic group when switching to assistant display mode from the menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     setTopicGroupExpansionCache({
-      time: ['topic:time:yesterday'],
       assistant: ['topic:assistant:assistant-1']
     })
     mockUseInfiniteQuery.mockReturnValue({
@@ -2361,7 +2365,6 @@ describe('Topics', () => {
         expect.arrayContaining(['topic:assistant:unknown', 'topic:assistant:assistant-2'])
       )
     })
-    expect(getTopicGroupExpansionCache().time).toEqual(['topic:time:yesterday'])
   })
 
   it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {
@@ -2403,13 +2406,8 @@ describe('Topics', () => {
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
-  it('reveals a history-selected topic hidden by show-more', async () => {
+  it('focuses a history-selected topic in the flat creation stream', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    setTopicGroupExpansionCache({
-      ...createExpandedTopicGroupExpansionFixture(),
-      // Collapse everything except "today".
-      time: ALL_TOPIC_TIME_GROUP_IDS.filter((id) => id !== 'topic:time:today')
-    })
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -2428,8 +2426,7 @@ describe('Topics', () => {
 
     const { rerenderTopicList } = renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
+    expect(screen.getByText('Topic 51')).toBeInTheDocument()
 
     rerenderTopicList({ itemId: 'topic-51', requestId: 1, clearFilters: true, clearQuery: true })
 
@@ -2439,7 +2436,6 @@ describe('Topics', () => {
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
     expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
@@ -2464,13 +2460,11 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     renderTopicList()
 
-    for (const groupName of ['Pinned', 'Today', 'Yesterday', 'This week', 'Earlier'] as const) {
-      const header = screen.getByRole('button', { name: groupName }).closest('div')
-      expect(header).toBeInTheDocument()
-      expect(
-        within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
-      ).not.toBeInTheDocument()
-    }
+    const header = screen.getByRole('button', { name: 'Pinned' }).closest('div')
+    expect(header).toBeInTheDocument()
+    expect(
+      within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+    ).not.toBeInTheDocument()
   })
 
   it('uses a generic header create action in time display mode', () => {
@@ -3054,7 +3048,7 @@ describe('Topics', () => {
     })
   })
 
-  it('persists assistant group collapse without affecting time groups', () => {
+  it('persists assistant group collapse independently', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
@@ -3070,10 +3064,9 @@ describe('Topics', () => {
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
-    // Expanding Alpha clears the assistant collapse list; time groups stay untouched.
+    // Expanding Alpha clears only that assistant from the collapse list.
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
-    expect(getTopicGroupExpansionCache().time).toEqual([])
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {

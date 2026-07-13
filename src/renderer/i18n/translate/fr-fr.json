@@ -404,14 +404,10 @@
         "collapse_all": "Réduire tout",
         "conversation": "Conversations",
         "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
         "show_more": "Développer l'affichage",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
-        "unknown_agent": "Agent inconnu",
-        "yesterday": "Hier"
+        "unknown_agent": "Agent inconnu"
       },
       "label_one": "Session",
       "label_other": "Séances",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Réduire l'affichage",
         "collapse_all": "Réduire tout",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "show_more": "Développer l'affichage",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
-        "unknown_assistant": "Assistant non lié",
-        "yesterday": "Hier"
+        "unknown_assistant": "Assistant non lié"
       },
       "list": "Liste des sujets",
       "manage": {

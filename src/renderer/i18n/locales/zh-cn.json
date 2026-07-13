@@ -404,14 +404,10 @@
         "collapse_all": "全部折叠",
         "conversation": "对话",
         "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
-        "earlier": "更早",
         "expand_all": "全部展开",
         "no_workdir": "无工作目录",
         "show_more": "展开显示",
-        "this_week": "本周",
-        "today": "今天",
-        "unknown_agent": "未知智能体",
-        "yesterday": "昨天"
+        "unknown_agent": "未知智能体"
       },
       "label_one": "会话",
       "label_other": "会话",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "折叠显示",
         "collapse_all": "全部折叠",
-        "earlier": "更早",
         "expand_all": "全部展开",
         "show_more": "展开显示",
-        "this_week": "本周",
-        "today": "今天",
-        "unknown_assistant": "未关联助手",
-        "yesterday": "昨天"
+        "unknown_assistant": "未关联助手"
       },
       "list": "对话列表",
       "manage": {

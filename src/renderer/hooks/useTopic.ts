@@ -29,7 +29,14 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { ErrorCode } from '@shared/data/api/errors'
-import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  DeleteTopicsResult,
+  TopicListItem,
+  TopicSortBy,
+  TopicStatsQuery,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -38,7 +45,7 @@ const logger = loggerService.withContext('useTopic')
 
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
-const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
+const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
 const LOAD_ALL_TOPIC_PAGE_SIZE = 200
 
@@ -46,10 +53,9 @@ const LOAD_ALL_TOPIC_PAGE_SIZE = 200
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
  * Message history is not loaded here — use `useTopicMessagesV2` or `getTopicMessages`.
  *
- * Pin state is no longer a topic column; consumers that need "is this pinned?"
- * read the `pin` collection (`useQuery('/pins', { query: { entityType: 'topic' } })`)
- * and check membership. The legacy `pinned` flag on the renderer Topic is
- * always `false` here — consumers reading it directly need to migrate.
+ * Pin state is no longer a topic column. Collection callers overlay the fixed
+ * `TopicListItem` pin projection; by-id callers receive a pure entity, so the
+ * legacy `pinned` flag remains `false` in this adapter.
  *
  * @deprecated Transitional adapter — call sites should migrate to the DataApi
  * `Topic` shape directly (no `messages[]`, no `pinned` flag — use `/pins`).
@@ -207,36 +213,51 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
 /**
  * List topics across all assistants from SQLite via DataApi.
  *
- * Backed by `useInfiniteQuery` cursor pagination — `/topics` returns a
- * server-composed view (pinned topics first via the `pin` table, then
- * unpinned ordered by `topic.orderKey`). Consumers that genuinely need the
- * full list (`loadAll: true`) auto-paginate to the end; consumers that just
- * want progressive loading (sidebar) leave it `undefined` and call
- * `loadNext()` themselves.
+ * Backed by `useInfiniteQuery` cursor pagination. Without `sortBy`, `/topics`
+ * returns the legacy server-composed view (pinned topics first via the `pin`
+ * table, then unpinned ordered by `topic.orderKey`). With `sortBy` (D1 of
+ * #16890) the response is a flat stream — `'createdAt'` for immutable creation
+ * order, `'updatedAt'` for activity order, or `'orderKey'` for manual order.
+ * Pin state selects a band and composes with the same business ordering; the
+ * `assistantId` owner scope (`uuid | 'unlinked'`) also applies. Consumers page
+ * explicitly with `loadNext()`.
  *
- * `q` triggers server-side LIKE search on `topic.name`.
+ * `q` triggers server-side LIKE search on `topic.name` in both modes.
  */
-export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number; enabled?: boolean }) {
-  const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
+export function useTopics(opts?: {
+  q?: string
+  /** @deprecated Transitional compatibility for History; new consumers page explicitly. */
+  loadAll?: boolean
+  sortBy?: TopicSortBy
+  assistantId?: string
+  pinned?: boolean
+  pageSize?: number
+  enabled?: boolean
+  keepPreviousData?: boolean
+}) {
+  const q = opts?.q?.trim()
   const loadAll = opts?.loadAll === true
+  const query = useMemo(() => {
+    const built: { q?: string; sortBy?: TopicSortBy; assistantId?: string; pinned?: boolean } = {}
+    if (q) built.q = q
+    if (opts?.sortBy) built.sortBy = opts.sortBy
+    if (opts?.sortBy && opts?.assistantId) built.assistantId = opts.assistantId
+    if (opts?.sortBy && opts?.pinned !== undefined) built.pinned = opts.pinned
+    return Object.keys(built).length > 0 ? built : undefined
+  }, [q, opts?.sortBy, opts?.assistantId, opts?.pinned])
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts?.enabled
+    enabled: opts?.enabled,
+    resetOnLocalWrite: '/topics',
+    swrOptions: opts?.keepPreviousData === undefined ? undefined : { keepPreviousData: opts.keepPreviousData }
   })
   const topics = useInfiniteFlatItems(pages)
-  const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
-  const isLoadingAll = isLoading || (loadAll && hasNext)
 
-  // Auto-paginate to completion when the caller wants the full list. The
-  // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
-  // position so paging is visible to the user.
   useEffect(() => {
-    if (loadAll && hasNext && !isLoading && !isRefreshing) {
-      loadNext()
-    }
-  }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
+    if (loadAll && hasNext && !isLoading && !isRefreshing) loadNext()
+  }, [hasNext, isLoading, isRefreshing, loadAll, loadNext])
 
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
@@ -244,13 +265,26 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
     hasNext,
     loadNext,
     isLoading,
-    isLoadingAll,
-    isFullyLoaded,
     isRefreshing,
     error,
     refetch: refresh,
     mutate
   }
+}
+
+/**
+ * Factual topic aggregation from `GET /topics/stats` (D3 of #16890): totals,
+ * pinned counts, and a per-assistant breakdown whose `assistantId: null`
+ * entry represents unlinked topics. Local list mutations refetch it through
+ * the ordinary DataApi cache refresh path.
+ */
+export function useTopicStats(opts?: { enabled?: boolean; query?: TopicStatsQuery }) {
+  const { data, isLoading, error, refetch } = useQuery('/topics/stats', {
+    enabled: opts?.enabled,
+    query: opts?.query
+  })
+
+  return { stats: data, isLoading, error, refetch }
 }
 
 /**
@@ -429,10 +463,8 @@ export function useActiveTopic({
   setActiveTopicId,
   passive = false
 }: UseActiveTopicOptions) {
-  // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
-  // without waiting for the full topic history to paginate in. The rail keeps its own
-  // loadAll source; this hook only needs the one active row.
+  // Resolve the active topic by id (like `useActiveSession`) so first-entry restore
+  // paints from `/latest` immediately; this hook only needs the one active row.
   const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
     passive || !activeTopicId ? undefined : activeTopicId
   )

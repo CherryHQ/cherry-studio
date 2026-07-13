@@ -404,14 +404,10 @@
         "collapse_all": "Contraer todo",
         "conversation": "Conversaciones",
         "drag_hint": "Arrastra para reordenar. Arrastra las tareas para ajustar los grupos mostrados y ocultos.",
-        "earlier": "Anterior",
         "expand_all": "Expandir todo",
         "no_workdir": "Sin directorio de trabajo",
         "show_more": "Expandir pantalla",
-        "this_week": "Esta semana",
-        "today": "Hoy",
-        "unknown_agent": "Agente desconocido",
-        "yesterday": "Ayer"
+        "unknown_agent": "Agente desconocido"
       },
       "label_one": "Sesión",
       "label_other": "Sesiones",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Contraer visualización",
         "collapse_all": "Contraer todo",
-        "earlier": "Anterior",
         "expand_all": "Expandir todo",
         "show_more": "Expandir pantalla",
-        "this_week": "Esta semana",
-        "today": "Hoy",
-        "unknown_assistant": "Asistente No Vinculado",
-        "yesterday": "Ayer"
+        "unknown_assistant": "Asistente No Vinculado"
       },
       "list": "Lista de temas",
       "manage": {

@@ -29,7 +29,6 @@ import {
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
@@ -82,14 +81,11 @@ export function AgentResourceList({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
-    isLoading,
-    isLoadingAll,
-    isFullyLoaded,
-    isPinsLoading,
-    error: sessionsError,
-    reload
+    stats: sessionStats,
+    isStatsLoading: isSessionStatsLoading,
+    statsError: sessionsError,
+    refetchStats: reload,
+    loadFirstSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -110,9 +106,12 @@ export function AgentResourceList({
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
+  const sessionCountByAgentId = useMemo(
+    () =>
+      new Map(
+        (sessionStats?.byAgent ?? []).flatMap(({ agentId, count }) => (agentId ? [[agentId, count] as const] : []))
+      ),
+    [sessionStats?.byAgent]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -143,15 +142,11 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
   )
 
-  const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
-    []
-  )
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
+  const loadFirstSessionForAgent = useCallback((agentId: string) => loadFirstSession(agentId), [loadFirstSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       await reorderAgent({ params: { id: agentId }, body: anchor })
@@ -168,13 +163,12 @@ export function AgentResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
+    resourceCountByEntityId: sessionCountByAgentId,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
+    isLoading: isAgentsLoading || isSessionStatsLoading,
     isError: !!(agentsError || sessionsError),
-    sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
+    loadFirstResource: loadFirstSessionForAgent,
     onCreateResource: onCreateSession,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,

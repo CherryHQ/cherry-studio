@@ -19,7 +19,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -31,7 +31,6 @@ import {
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
@@ -91,12 +90,11 @@ export function AssistantResourceList({
     refetch: refreshAssistants
   } = useAssistantsApi()
   const {
-    topics: apiTopics,
-    isLoadingAll: isTopicsLoadingAll,
-    isFullyLoaded: isTopicsFullyLoaded,
-    error: topicsError
+    stats: topicStats,
+    isStatsLoading: isTopicStatsLoading,
+    statsError: topicsError,
+    loadFirstTopic
   } = assistantTopicsSource
-  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
@@ -107,31 +105,27 @@ export function AssistantResourceList({
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
-  const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const topics = useMemo(
-    () =>
-      apiTopics.map((apiTopic) => ({
-        ...mapApiTopicToRendererTopic(apiTopic),
-        pinned: topicPinnedIdSet.has(apiTopic.id)
-      })),
-    [apiTopics, topicPinnedIdSet]
-  )
-  const topicsRef = useRef(topics)
-  useEffect(() => {
-    topicsRef.current = topics
-  }, [topics])
+  const topicCountByAssistantId = useMemo(() => {
+    const assistantIds = new Set(assistants.map((assistant) => assistant.id))
+    const counts = new Map<string, number>()
+    for (const { assistantId, count } of topicStats?.byAssistant ?? []) {
+      const entityId = assistantId && assistantIds.has(assistantId) ? assistantId : DEFAULT_ASSISTANT_ENTITY_ID
+      counts.set(entityId, (counts.get(entityId) ?? 0) + count)
+    }
+    return counts
+  }, [assistants, topicStats?.byAssistant])
 
   const handleCreateTopic = useCallback(
     (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
     [onCreateTopic]
   )
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
-    const hasDefaultAssistantTopics = topics.some((topic) => !topic.assistantId)
+    const hasDefaultAssistantTopics = (topicCountByAssistantId.get(DEFAULT_ASSISTANT_ENTITY_ID) ?? 0) > 0
     const defaultAssistantEntity: ResourceEntityRailItem[] = hasDefaultAssistantTopics
       ? [
           {
@@ -187,13 +181,23 @@ export function AssistantResourceList({
       }),
       ...defaultAssistantEntity
     ]
-  }, [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, handleCreateTopic, t, topics])
+  }, [
+    assistantIconType,
+    assistants,
+    assistantPinnedIdSet,
+    defaultModelId,
+    handleCreateTopic,
+    t,
+    topicCountByAssistantId
+  ])
 
-  const sortTopicsForEntity = useCallback(
-    (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
-    []
+  const loadFirstTopicForEntity = useCallback(
+    async (assistantId: string) => {
+      const topic = await loadFirstTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId)
+      return topic ? { ...mapApiTopicToRendererTopic(topic), pinned: topic.pinned } : null
+    },
+    [loadFirstTopic]
   )
-  const getTopicAssistantId = useCallback((topic: Topic) => topic.assistantId ?? DEFAULT_ASSISTANT_ENTITY_ID, [])
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
@@ -213,13 +217,12 @@ export function AssistantResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: topics,
-    getResourceParentId: getTopicAssistantId,
+    resourceCountByEntityId: topicCountByAssistantId,
     activeEntityId: activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID,
-    isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
+    isLoading: isAssistantsLoading || isTopicStatsLoading,
     isError: !!(assistantsError || topicsError),
-    sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
+    loadFirstResource: loadFirstTopicForEntity,
     onCreateResource: handleCreateTopic,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
@@ -249,8 +252,7 @@ export function AssistantResourceList({
     async (assistantId: string) => {
       if (clearingTopicsAssistantId || deletingAssistantId) return
 
-      const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
-      if (targetTopics.length === 0) return
+      if ((topicCountByAssistantId.get(assistantId) ?? 0) === 0) return
 
       setClearingTopicsAssistantId(assistantId)
       try {
@@ -265,14 +267,6 @@ export function AssistantResourceList({
           }
         })
         if (!confirmed) return
-
-        // Re-validate against the latest topics after the confirm dialog: the list may
-        // have changed while it was open, and TopicService.deleteByAssistantId() has no
-        // at-least-one guard of its own, so bail out if nothing is left to clear.
-        const latestTargetTopicIds = new Set(
-          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
-        )
-        if (latestTargetTopicIds.size === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
@@ -292,7 +286,8 @@ export function AssistantResourceList({
       deletingAssistantId,
       onCreateTopicAfterClear,
       refreshTopics,
-      t
+      t,
+      topicCountByAssistantId
     ]
   )
 

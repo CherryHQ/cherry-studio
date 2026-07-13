@@ -404,14 +404,10 @@
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
         "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
-        "unknown_agent": "Unknown agent",
-        "yesterday": "Yesterday"
+        "unknown_agent": "Unknown agent"
       },
       "label_one": "Session",
       "label_other": "Sessions",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Collapse display",
         "collapse_all": "Collapse all",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
-        "unknown_assistant": "Unlinked Assistant",
-        "yesterday": "Yesterday"
+        "unknown_assistant": "Unlinked Assistant"
       },
       "list": "Conversation List",
       "manage": {

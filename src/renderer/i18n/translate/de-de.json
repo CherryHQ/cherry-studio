@@ -404,14 +404,10 @@
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
         "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
-        "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
-        "this_week": "Diese Woche",
-        "today": "Heute",
-        "unknown_agent": "Unbekannter Agent",
-        "yesterday": "Gestern"
+        "unknown_agent": "Unbekannter Agent"
       },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alles einklappen",
-        "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "show_more": "Anzeige erweitern",
-        "this_week": "Diese Woche",
-        "today": "Heute",
-        "unknown_assistant": "Unverknüpfter Assistent",
-        "yesterday": "Gestern"
+        "unknown_assistant": "Unverknüpfter Assistent"
       },
       "list": "Themenliste",
       "manage": {

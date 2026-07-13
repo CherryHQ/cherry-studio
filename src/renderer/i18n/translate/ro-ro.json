@@ -404,14 +404,10 @@
         "collapse_all": "Restrânge tot",
         "conversation": "Conversații",
         "drag_hint": "Trage pentru a reordona. Trage sarcinile pentru a ajusta grupurile afișate și ascunse.",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
-        "unknown_agent": "Agent necunoscut",
-        "yesterday": "Ieri"
+        "unknown_agent": "Agent necunoscut"
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
@@ -1837,13 +1833,9 @@
       "group": {
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
-        "unknown_assistant": "Asistent Deconectat",
-        "yesterday": "Ieri"
+        "unknown_assistant": "Asistent Deconectat"
       },
       "list": "Listă subiecte",
       "manage": {
