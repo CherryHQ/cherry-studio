@@ -253,9 +253,9 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         {t('settings.provider.vertex_ai.service_account.title')}
       </ProviderSettingsSubtitle>
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-control-accent/20 bg-control-accent/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
-        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <Info className="mt-0.5 size-4 shrink-0 text-control-accent" aria-hidden />
         <span>{t('settings.provider.vertex_ai.service_account.description')}</span>
       </div>
 

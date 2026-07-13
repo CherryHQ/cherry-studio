@@ -796,17 +796,17 @@ describe('ComposerSurface', () => {
       )
       const inputbar = document.querySelector('[data-composer-inputbar]')
 
-      expect(inputbar).toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+      expect(inputbar).toHaveClass('border-control-accent', 'ring-2', 'ring-control-accent/20')
 
       act(() => {
         vi.advanceTimersByTime(900)
       })
 
-      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+      expect(inputbar).not.toHaveClass('border-control-accent', 'ring-2', 'ring-control-accent/20')
 
       rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
 
-      expect(inputbar).not.toHaveClass('border-primary', 'ring-2', 'ring-primary/20')
+      expect(inputbar).not.toHaveClass('border-control-accent', 'ring-2', 'ring-control-accent/20')
     } finally {
       vi.useRealTimers()
     }
@@ -2241,7 +2241,7 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
+    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-link')
     expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()

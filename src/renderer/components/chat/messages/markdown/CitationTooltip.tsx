@@ -100,7 +100,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
           href={citation.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
           aria-label={`Visit ${hostname}`}
           onClick={handleClick}>
           {hostname}

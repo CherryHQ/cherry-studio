@@ -196,7 +196,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               key={String(option.value)}
               className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
                 currentValue === String(option.value)
-                  ? 'border-primary bg-primary text-primary-foreground'
+                  ? 'border-control-accent bg-control-accent text-control-accent-foreground'
                   : 'border-border bg-background hover:bg-accent'
               }`}
               onClick={() => {

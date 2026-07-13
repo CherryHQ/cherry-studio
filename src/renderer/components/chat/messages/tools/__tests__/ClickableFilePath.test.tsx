@@ -216,7 +216,7 @@ describe('ClickableFilePath', () => {
     })
     const span = screen.getByRole('link', { name: '/tmp/test.ts' })
     expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-primary')
+    expect(span).toHaveClass('text-link')
     expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
   })
 

@@ -11,20 +11,21 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
 const treeSelectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-input',
+    'inline-flex items-center justify-between rounded-lg border-1 text-sm transition-colors outline-none font-normal',
+    'bg-transparent',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        default:
+          'border-[color:var(--color-border-fg-muted)] aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
+        error: 'border border-destructive aria-expanded:ring-[1px] aria-expanded:ring-destructive/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
         sm: 'h-8 px-2 text-xs gap-1',
-        default: 'h-9 px-3 gap-2',
+        default: 'h-8 px-2.5 gap-2',
         lg: 'h-10 px-4 gap-2'
       }
     },
@@ -287,7 +288,7 @@ export function TreeSelect({
       <>
         {option.icon && <span className="shrink-0">{option.icon}</span>}
         <span className="min-w-0 flex-1 truncate">{getOptionLabel(option)}</span>
-        {renderState.selected && <Check className="size-4 shrink-0 text-primary" />}
+        {renderState.selected && <Check className="size-4 shrink-0 text-control-accent" />}
       </>
     )
   }
@@ -323,7 +324,7 @@ export function TreeSelect({
               onClick={() => handleSelect(option)}
               className={cn(
                 'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors',
-                selected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60',
+                selected ? 'bg-control-accent/10 text-control-accent' : 'text-foreground hover:bg-accent/60',
                 option.disabled && 'pointer-events-none opacity-50',
                 option.selectable === false && 'text-muted-foreground'
               )}>

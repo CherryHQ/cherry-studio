@@ -75,10 +75,10 @@
     background-color: transparent;
   }
   10% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--color-control-accent) 30%, transparent);
   }
   70% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--color-control-accent) 30%, transparent);
   }
   100% {
     background-color: transparent;
@@ -208,7 +208,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 62%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-control-accent) 62%, transparent);
   content: '';
   pointer-events: none;
   animation: animation-resource-list-reveal-focus 1s ease-out both;

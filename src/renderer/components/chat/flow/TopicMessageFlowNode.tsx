@@ -222,7 +222,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
             'group/topic-message-flow-node relative w-55 rounded-md border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow,opacity]',
             'focus-within:ring-2 focus-within:ring-ring/35',
             roleClassNames[data.role],
-            data.isActive && 'border-primary shadow-sm ring-2 ring-primary/20',
+            data.isActive && 'border-control-accent shadow-sm ring-2 ring-control-accent/20',
             selected && !data.isActive && 'ring-2 ring-ring/25',
             data.isInactiveBranch && 'opacity-55'
           )}

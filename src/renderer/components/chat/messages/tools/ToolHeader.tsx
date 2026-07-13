@@ -632,7 +632,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
         )}
         {autoApproved && (
           <Tooltip content={t('message.tools.autoApproveEnabled')}>
-            <ShieldCheck size={14} color="var(--color-primary)" />
+            <ShieldCheck size={14} color="var(--color-control-accent)" />
           </Tooltip>
         )}
       </ToolName>

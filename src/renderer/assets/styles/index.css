@@ -21,8 +21,19 @@
     }
   }
 
+  /* Icons follow their surrounding text color by default, so they match the
+   * adjacent label / button tone (and the sidebar) everywhere. Spots that want a
+   * quiet icon opt in explicitly via text-icon-muted. */
   .lucide:not(.lucide-custom) {
-    color: var(--color-icon);
+    color: inherit;
+  }
+
+  /* Icons still on the lucide default stroke (2) follow the shared icon-stroke
+   * token so they match the sidebar. Explicit strokeWidth props (filled icons'
+   * 0, checkbox 2.5, brand glyphs) render a different attribute value and are
+   * left untouched. */
+  .lucide[stroke-width='2']:not(.lucide-custom) {
+    stroke-width: var(--icon-stroke);
   }
 }
 

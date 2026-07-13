@@ -465,7 +465,7 @@ describe('MainTextBlock', () => {
         'hover:bg-accent',
         'leading-[inherit]'
       )
-      expect(token).not.toHaveClass('text-primary')
+      expect(token).not.toHaveClass('text-control-accent')
       expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
         'size-4.5',
         'rounded-[5px]',
@@ -553,7 +553,7 @@ describe('MainTextBlock', () => {
 
       const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="skill"]')
       expect(token).toBeInTheDocument()
-      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+      expect(token).toHaveClass('text-control-accent', 'leading-[inherit]')
       expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5')
       expect(token?.querySelector('svg')).toHaveClass('text-current', 'opacity-80')
       expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
@@ -689,11 +689,11 @@ describe('MainTextBlock', () => {
       const textElement = getRenderedPlainText()!
       expect(textElement).toHaveTextContent('web-search Docs')
       expect(textElement.querySelector('[data-composer-token-kind="command"]')).toHaveClass(
-        'text-primary',
+        'text-control-accent',
         'overflow-hidden'
       )
       expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toHaveClass(
-        'text-primary',
+        'text-control-accent',
         'overflow-hidden'
       )
     })
@@ -800,7 +800,7 @@ describe('MainTextBlock', () => {
       renderMainTextBlock({ content: 'Styled mentions test', role: 'assistant', mentions })
 
       const mentionElement = screen.getByText('@Test Model')
-      expect(mentionElement).toHaveClass('text-primary')
+      expect(mentionElement).toHaveClass('text-control-accent')
     })
   })
 

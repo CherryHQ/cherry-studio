@@ -751,7 +751,7 @@ describe('ComposerToken', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-ring')
+    expect(token).toHaveClass('border-control-accent', 'ring-1', 'ring-ring')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -873,7 +873,7 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="skill"]')
     expect(token).toBeInTheDocument()
-    expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+    expect(token).toHaveClass('text-control-accent', 'leading-[inherit]')
     expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5', 'ring-1')
     expect(token?.querySelector('svg')).toHaveClass('text-current', 'opacity-80')
     expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
@@ -988,7 +988,12 @@ describe('ComposerToken', () => {
     rerender(<ComposerToken token={promptVariableToken} selected />)
 
     const selectedToken = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
-    expect(selectedToken).toHaveClass('text-primary', 'underline', 'decoration-primary/40', 'underline-offset-2')
+    expect(selectedToken).toHaveClass(
+      'text-control-accent',
+      'underline',
+      'decoration-control-accent/40',
+      'underline-offset-2'
+    )
     expect(selectedToken).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
   })
 

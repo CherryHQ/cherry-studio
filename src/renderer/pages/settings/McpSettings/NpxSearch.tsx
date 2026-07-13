@@ -176,7 +176,7 @@ const NpxSearch: FC = () => {
                         }
                       }}
                       disabled={isInstalled}>
-                      {isInstalled ? <Check size={14} className="text-primary" /> : <Plus size={14} />}
+                      {isInstalled ? <Check size={14} className="text-control-accent" /> : <Plus size={14} />}
                     </Button>
                   </Flex>
                 </div>
@@ -189,7 +189,7 @@ const NpxSearch: FC = () => {
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable text-link text-sm hover:text-link-hover">
+                    className="selectable !text-info text-sm hover:underline">
                     {record.npmLink}
                   </a>
                 </div>

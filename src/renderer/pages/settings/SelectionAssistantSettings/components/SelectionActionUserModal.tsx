@@ -18,15 +18,16 @@ import {
 } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { resolveDefaultAssistantOption, useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SelectionActionUserModalProps {
@@ -44,9 +45,16 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
+  const { assistant: fallbackDefaultAssistant } = useDefaultAssistant()
+  const defaultAssistant = useMemo(
+    () => resolveDefaultAssistantOption(userPredefinedAssistants, fallbackDefaultAssistant),
+    [fallbackDefaultAssistant, userPredefinedAssistants]
+  )
+  const assistantOptions = useMemo(
+    () => userPredefinedAssistants.filter((assistant) => assistant.id !== defaultAssistant.id),
+    [defaultAssistant.id, userPredefinedAssistants]
+  )
   const { defaultModel } = useDefaultModel()
-  const assistantOptions = userPredefinedAssistants
-  const firstAssistantId = assistantOptions[0]?.id
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
@@ -94,7 +102,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       isBuiltIn: editingAction?.isBuiltIn || false,
       icon: formData.icon,
       prompt: formData.prompt,
-      assistantId: formData.assistantId
+      // The default assistant persists as an empty id (same as the radio "default" path);
+      // storing the "default" sentinel makes ActionGeneral wait on a non-existent assistant lookup.
+      assistantId: formData.assistantId === DEFAULT_ASSISTANT_ID ? '' : formData.assistantId
     }
 
     onOk(actionItem)
@@ -145,7 +155,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     href="https://lucide.dev/icons/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary text-xs">
+                    className="text-link text-xs">
                     {t('selection.settings.user_modal.icon.view_all')}
                   </a>
                   <Tooltip content={t('selection.settings.user_modal.icon.random')}>
@@ -192,7 +202,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <RadioGroup
                 value={formData.assistantId ? 'assistant' : 'default'}
                 onValueChange={(value) =>
-                  handleInputChange('assistantId', value === 'default' ? '' : (firstAssistantId ?? ''))
+                  handleInputChange(
+                    'assistantId',
+                    value === 'default' ? '' : (userPredefinedAssistants[0]?.id ?? defaultAssistant.id)
+                  )
                 }
                 className="flex flex-row gap-4">
                 <label className="flex items-center gap-2 text-sm">
@@ -212,7 +225,13 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
-              <Select value={formData.assistantId} onValueChange={(value) => handleInputChange('assistantId', value)}>
+              <Select
+                value={
+                  formData.assistantId === DEFAULT_ASSISTANT_ID
+                    ? defaultAssistant.id
+                    : formData.assistantId || defaultAssistant.id
+                }
+                onValueChange={(value) => handleInputChange('assistantId', value)}>
                 <SelectTrigger
                   className={cn(
                     'w-full min-w-0 overflow-hidden',
@@ -223,6 +242,17 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="w-(--radix-select-trigger-width) max-w-(--radix-select-trigger-width)">
+                  <SelectItem
+                    key={defaultAssistant.id}
+                    value={defaultAssistant.id}
+                    className="overflow-hidden [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1 [&>span:last-child]:overflow-hidden">
+                    <AssistantItem>
+                      <ModelAvatar model={defaultModel} size={18} className="shrink-0" />
+                      <AssistantName title={defaultAssistant.name}>{defaultAssistant.name}</AssistantName>
+                      <Spacer />
+                      <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
+                    </AssistantItem>
+                  </SelectItem>
                   {assistantOptions.map((a) => (
                     <SelectItem
                       key={a.id}
@@ -231,11 +261,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                       <AssistantItem>
                         <ModelAvatar model={defaultModel} size={18} className="shrink-0" />
                         <AssistantName title={a.name}>{a.name}</AssistantName>
-                        {firstAssistantId === a.id && (
-                          <CurrentTag isCurrent={true}>
-                            {t('selection.settings.user_modal.assistant.default')}
-                          </CurrentTag>
-                        )}
+                        <Spacer />
                       </AssistantItem>
                     </SelectItem>
                   ))}
@@ -331,7 +357,7 @@ const CurrentTag = ({
   <span
     className={cn(
       'shrink-0 rounded px-1 py-0.5 text-xs',
-      isCurrent ? 'text-primary' : 'text-foreground-muted',
+      isCurrent ? 'text-muted-foreground' : 'text-foreground-muted',
       className
     )}
     {...props}
@@ -341,7 +367,7 @@ const CurrentTag = ({
 const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
+      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-control-accent',
       className
     )}
     {...props}

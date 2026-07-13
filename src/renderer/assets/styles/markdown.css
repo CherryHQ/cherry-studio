@@ -176,7 +176,7 @@
   margin: 1.5em 0;
   padding: 1em 1.5em;
   background-color: var(--color-background-soft);
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--color-control-accent);
   border-radius: 0 8px 8px 0;
   font-style: italic;
   position: relative;
@@ -228,7 +228,7 @@
 
 .markdown a,
 .markdown .link {
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -295,7 +295,7 @@
   vertical-align: super;
   line-height: 0;
   margin: 0 2px;
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
 }
 
@@ -319,7 +319,7 @@
 }
 
 .footnotes a {
-  color: var(--color-primary);
+  color: var(--color-link);
 }
 
 .footnotes ol {
@@ -347,7 +347,7 @@
   vertical-align: super;
   line-height: 0;
   margin-left: 5px;
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
 }
 

@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 export const RagFieldLabel = ({ className, label, hint }: { className?: string; label: string; hint?: string }) => {
   return (
     <div className={cn('mb-2 flex items-center gap-1.5', className)}>
-      <span className="font-medium text-foreground text-sm">{label}</span>
+      <span className="font-normal text-foreground text-xs">{label}</span>
       {hint ? (
         <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-[10px] leading-relaxed">
           <Info size={12} className="cursor-help text-muted-foreground" />
@@ -163,7 +163,7 @@ export const RagSliderField = ({
           step={step}
           size="md"
           disabled={disabled}
-          className="w-full **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
+          className="w-full"
         />
 
         <div className="mt-px flex items-center justify-between text-foreground-muted text-xs leading-4">

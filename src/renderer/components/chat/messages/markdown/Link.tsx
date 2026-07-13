@@ -50,7 +50,7 @@ const Link: React.FC<LinkProps> = (props) => {
     return false
   })
   const showFavicon = !!hostname && !isCitation && !containsFaviconChild
-  const linkClassName = cn('text-primary', !props.className && !isCitation && 'hover:underline', props.className)
+  const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
   const linkContent = showFavicon ? (
     <>
       <span

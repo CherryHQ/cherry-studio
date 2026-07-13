@@ -65,7 +65,7 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 
   return (
     <span
-      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-primary leading-[inherit]"
+      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-control-accent leading-[inherit]"
       data-composer-token-kind={token.kind}
       title={title}>
       <Icon className="size-[1em] shrink-0 translate-y-[0.08em] text-current opacity-80" />
@@ -316,7 +316,7 @@ const MainTextBlock: React.FC<Props> = ({
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <span key={createUniqueModelId(m.provider, m.id)} className="text-primary">
+            <span key={createUniqueModelId(m.provider, m.id)} className="text-control-accent">
               {'@' + m.name}
             </span>
           ))}

@@ -53,7 +53,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </div>
       <a
         aria-label="Visit example.com"
-        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
         href="https://example.com/article"
         rel="noopener noreferrer"
         target="_blank"

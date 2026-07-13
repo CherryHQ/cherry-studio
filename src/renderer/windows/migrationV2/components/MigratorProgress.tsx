@@ -25,7 +25,7 @@ const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
       )
     case 'running':
       return (
-        <span className={cn(ICON_WRAP, 'bg-primary-mute text-primary')}>
+        <span className={cn(ICON_WRAP, 'bg-control-accent/30 text-control-accent')}>
           <Loader2 size={12} className="animate-spin" />
         </span>
       )
@@ -47,7 +47,7 @@ const statusTextClass = (status: MigratorStatus): string => {
     case 'completed':
       return 'text-success'
     case 'running':
-      return 'text-primary'
+      return 'text-control-accent'
     default:
       return 'text-foreground-muted'
   }

@@ -1201,7 +1201,7 @@ export default function ComposerSurface({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-link text-xs leading-4 shadow-none hover:text-link/85 focus-visible:border-0 focus-visible:text-link/85 focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
                 onMouseDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -1790,7 +1790,7 @@ export default function ComposerSurface({
       aria-label={t('chat.input.editing_message')}
       data-composer-editing-badge=""
       className="-translate-y-1/2 absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-control-accent" />
       <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
       {editingState.onLocate ? (
         <Tooltip content={t('chat.input.locate_editing_message')}>
@@ -1825,7 +1825,7 @@ export default function ComposerSurface({
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-[0_1px_5px_rgba(15,23,42,0.05)] transition-all duration-200 ease-in-out dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]',
         belowControls ? 'mb-0.5' : 'mb-3',
-        isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
+        isEditingBorderHighlighted && !isDragging && 'border-control-accent ring-2 ring-control-accent/20',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
@@ -1843,7 +1843,7 @@ export default function ComposerSurface({
         onMouseDown={startEditorResize}
         onKeyDown={handleResizeKeyDown}
         className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-        <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+        <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-control-accent/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-control-accent/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
       </div>
       <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
         <span
