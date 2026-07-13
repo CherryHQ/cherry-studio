@@ -102,7 +102,10 @@ vi.mock('@cherrystudio/ui', () => {
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    Input: passthrough('input')
+    Input: passthrough('input'),
+    SettingsPageHeader: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) =>
+      React.createElement('header', null, title, description),
+    Tooltip: childrenOnly
   }
 })
 

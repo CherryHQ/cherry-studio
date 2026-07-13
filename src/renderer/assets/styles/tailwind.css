@@ -9,6 +9,19 @@
 @source '../../../../node_modules/@streamdown/cjk/dist/*.js';
 @source '../../../../node_modules/@streamdown/math/dist/*.js';
 @source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
+/* Exclude test files from candidate scanning: fixture strings like the
+ * "[cite:N]" citation markers in citation.test.ts parse as arbitrary
+ * properties and generate CSS that PostCSS rejects ("Missed semicolon"). */
+@source not '../../**/*.test.{ts,tsx}';
+@source not '../../**/__tests__/**';
+@source not '../../**/__mocks__/**';
+/* citation.ts builds the same "[cite:N]" markers in template literals; same
+ * scanning trap as the test fixtures above. */
+@source not '../../utils/citation.ts';
+/* Mirror the test-fixture exclusion for the explicitly-sourced packages/ui tree
+ * (line 6) so a future bracketed fixture there can't resurface the scanning trap. */
+@source not '../../../../packages/ui/src/**/*.test.{ts,tsx}';
+@source not '../../../../packages/ui/src/**/__tests__/**';
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -28,15 +41,13 @@
 
 /* App shell tokens: light mode */
 :root {
-  --app-icon: #00000099;
+  --app-icon: var(--cs-icon-muted);
 
-  --app-sidebar: oklch(0.9672 0 0);
+  --app-sidebar: var(--cs-sidebar);
   --app-sidebar-accent: oklch(0.97 0 0);
   --app-sidebar-foreground: oklch(0.145 0 0);
-  --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --app-sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --app-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --app-sidebar-glow-line: rgba(16, 185, 129, 0.5);
+  --app-sidebar-active-bg: var(--cs-selected);
+  --app-sidebar-active-border: var(--cs-selected-border);
   --app-sidebar-primary: oklch(0.205 0 0);
   --app-sidebar-primary-foreground: oklch(0.985 0 0);
   --app-sidebar-accent-foreground: oklch(0.205 0 0);
@@ -49,22 +60,20 @@
   --app-secondary-foreground: oklch(0.205 0 0);
   --app-muted-foreground: oklch(0.556 0 0);
   --app-accent-foreground: oklch(0.205 0 0);
-  --app-destructive-foreground: oklch(0.577 0.245 27.325);
+  --app-destructive-foreground: var(--cs-destructive-foreground);
   --app-input: oklch(0.922 0 0);
 
 }
 
 /* App shell tokens: dark mode */
 .dark {
-  --app-icon: #ffffff99;
+  /* --app-icon inherits via the mode-aware --cs-icon-muted; no override needed. */
 
-  --app-sidebar: oklch(0.2393 0 0);
+  --app-sidebar: var(--cs-sidebar);
   --app-sidebar-accent: oklch(0.269 0 0);
   --app-sidebar-foreground: oklch(0.985 0 0);
-  --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --app-sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --app-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --app-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+  --app-sidebar-active-bg: var(--cs-selected);
+  --app-sidebar-active-border: var(--cs-selected-border);
   --app-sidebar-primary: oklch(0.488 0.243 264.376);
   --app-sidebar-primary-foreground: oklch(0.985 0 0);
   --app-sidebar-accent-foreground: oklch(0.985 0 0);
@@ -77,7 +86,7 @@
   --app-secondary-foreground: oklch(0.985 0 0);
   --app-muted-foreground: oklch(0.708 0 0);
   --app-accent-foreground: oklch(0.985 0 0);
-  --app-destructive-foreground: oklch(0.637 0.237 25.331);
+  --app-destructive-foreground: var(--cs-destructive-foreground);
   --app-input: oklch(0.269 0 0);
 
 }
@@ -110,9 +119,13 @@
   --color-sidebar-ring: var(--app-sidebar-ring);
   --color-sidebar-active-bg: var(--app-sidebar-active-bg);
   --color-sidebar-active-border: var(--app-sidebar-active-border);
-  --color-sidebar-glow-bg: var(--app-sidebar-glow-bg);
-  --color-sidebar-glow-line: var(--app-sidebar-glow-line);
 
+}
+
+:root {
+  /* Selected-state inset outline (sidebar / tab-bar / settings active pill) —
+   * geometry centralized here; the color stays in --color-selected-border. */
+  --shadow-selected-outline: inset 0 0 0 0.5px var(--color-selected-border);
 }
 
 @layer base {

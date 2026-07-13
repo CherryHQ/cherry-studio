@@ -1,8 +1,10 @@
 import {
+  Alert,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  InfoTooltip,
   Input,
   Select,
   SelectContent,
@@ -12,6 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
+import { Eye, EyeOff } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -37,6 +40,7 @@ type FieldDef = {
   key: string
   label: string
   placeholder: string
+  hint?: string
   secret?: boolean
   span?: 1 | 2
 }
@@ -67,7 +71,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1">
-      <label className="font-medium text-xs">{t('agent.channels.security.permissionMode')}</label>
+      <label className="font-normal text-xs">{t('agent.channels.security.permissionMode')}</label>
       <Select
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
         onValueChange={(value) =>
@@ -105,6 +109,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
     Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? '']))
   )
   const [chatIds, setChatIds] = useState(((cfg[idsKey] as string[]) ?? []).join(', '))
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     setFieldValues(Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? ''])))
@@ -137,30 +142,54 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       <div className="grid grid-cols-2 gap-3">
         {fields.map((field) => (
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
-            <label className="mb-1 block font-medium text-xs">{field.label}</label>
-            {field.secret ? (
+            <label className="mb-1 flex items-center gap-1 font-normal text-xs">
+              {field.label}
+              {field.hint && (
+                <InfoTooltip
+                  content={field.hint}
+                  iconProps={{ size: 12, className: 'shrink-0 cursor-pointer text-foreground-muted' }}
+                />
+              )}
+            </label>
+            <div className="relative">
               <Input
-                type="password"
+                type={field.secret && !visibleSecrets[field.key] ? 'password' : 'text'}
                 value={fieldValues[field.key] ?? ''}
                 onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
                 placeholder={field.placeholder}
-                className="h-8 text-sm"
+                className={`h-8 text-sm ${field.secret ? 'pr-8' : ''}`}
               />
-            ) : (
-              <Input
-                value={fieldValues[field.key] ?? ''}
-                onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
-                placeholder={field.placeholder}
-                className="h-8 text-sm"
-              />
-            )}
+              {field.secret && (
+                <button
+                  type="button"
+                  className="-translate-y-1/2 absolute top-1/2 right-2 flex items-center text-foreground-muted hover:text-foreground"
+                  aria-label={t(
+                    visibleSecrets[field.key]
+                      ? 'settings.provider.api_key.hide_key'
+                      : 'settings.provider.api_key.show_key'
+                  )}
+                  onClick={() => setVisibleSecrets((prev) => ({ ...prev, [field.key]: !prev[field.key] }))}>
+                  {visibleSecrets[field.key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              )}
+            </div>
           </div>
         ))}
         {extraContent}
         <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
-          <label className="mb-1 block font-medium text-xs">{chatIdsConfig.label}</label>
+          <label className="mb-1 flex items-center gap-1 font-normal text-xs">
+            {chatIdsConfig.label}
+            <InfoTooltip
+              content={
+                <div className="flex flex-col gap-1.5">
+                  <span>{chatIdsConfig.hint}</span>
+                  {idsKey === 'allowed_chat_ids' && <span>{t('agent.channels.chatIdsAutoTrackHint')}</span>}
+                </div>
+              }
+              iconProps={{ size: 12, className: 'shrink-0 cursor-pointer text-foreground-muted' }}
+            />
+          </label>
           <Input
             value={chatIds}
             onChange={(e) => setChatIds(e.target.value)}
@@ -168,12 +197,13 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             placeholder={chatIdsConfig.placeholder}
             className="h-8 text-sm"
           />
-          <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
-          {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
-            <span className="mt-1 block text-orange-400 text-xs">{t('agent.channels.chatIdsAutoTrackHint')}</span>
-          )}
           {chatIdsConfig.extraHint && (
-            <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
+            <Alert
+              type="info"
+              showIcon
+              message={<span className="font-normal">{chatIdsConfig.extraHint}</span>}
+              className="mt-1.5 gap-2 border-[var(--color-info-border)] px-2.5 py-2 text-xs shadow-none [&_svg]:size-3.5"
+            />
           )}
         </div>
       </div>
@@ -194,7 +224,8 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
         {
           key: 'bot_token',
           label: t('agent.channels.telegram.botToken'),
-          placeholder: t('agent.channels.telegram.botTokenPlaceholder'),
+          placeholder: '123456789:xxxxxxxxxxxxxxxxxxxxxxxxxxx',
+          hint: t('agent.channels.telegram.botTokenPlaceholder'),
           secret: true
         }
       ]}
@@ -212,7 +243,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   const cfg = channel.config
   return (
     <div>
-      <label className="mb-1 block font-medium text-xs">{t('agent.channels.feishu.domain')}</label>
+      <label className="mb-1 block font-normal text-xs">{t('agent.channels.feishu.domain')}</label>
       <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
         onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value as FeishuDomain } })}>
@@ -256,21 +287,32 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
   return (
     <div className="flex flex-col gap-3">
       {!hasCredentials && (
-        <div className="flex items-center gap-2">
-          {status === 'pending' && <span className="text-blue-400 text-xs">{t('agent.channels.feishu.qrHint')}</span>}
-          {status === 'expired' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              <span className="text-red-500 text-xs">{t('agent.channels.feishu.qrExpired')}</span>
-            </>
+        <>
+          {status === 'idle' && (
+            <Alert
+              type="info"
+              showIcon
+              message={<span className="font-normal">{t('agent.channels.feishu.loginHint')}</span>}
+              className="gap-2 border-[var(--color-info-border)] px-2.5 py-2 text-xs shadow-none [&_svg]:size-3.5"
+            />
           )}
-          {status === 'idle' && <span className="text-blue-400 text-xs">{t('agent.channels.feishu.loginHint')}</span>}
-        </div>
+          {(status === 'pending' || status === 'expired') && (
+            <div className="flex items-center gap-2">
+              {status === 'pending' && <span className="text-info text-xs">{t('agent.channels.feishu.qrHint')}</span>}
+              {status === 'expired' && (
+                <>
+                  <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                  <span className="text-destructive text-xs">{t('agent.channels.feishu.qrExpired')}</span>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
       {hasCredentials && (
         <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-green-600 text-xs">{t('agent.channels.feishu.connected')}</span>
+          <span className="inline-block h-2 w-2 rounded-full bg-success" />
+          <span className="text-success text-xs">{t('agent.channels.feishu.connected')}</span>
         </div>
       )}
       <ChannelFieldsForm
@@ -285,19 +327,22 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           {
             key: 'app_secret',
             label: t('agent.channels.feishu.appSecret'),
-            placeholder: t('agent.channels.feishu.appSecretPlaceholder'),
+            placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx',
+            hint: t('agent.channels.feishu.appSecretPlaceholder'),
             secret: true
           },
           {
             key: 'encrypt_key',
             label: t('agent.channels.feishu.encryptKey'),
-            placeholder: t('agent.channels.feishu.encryptKeyPlaceholder'),
+            placeholder: 'xxxxxxxxxxxxxxxx',
+            hint: t('agent.channels.feishu.encryptKeyPlaceholder'),
             secret: true
           },
           {
             key: 'verification_token',
             label: t('agent.channels.feishu.verificationToken'),
-            placeholder: t('agent.channels.feishu.verificationTokenPlaceholder'),
+            placeholder: 'xxxxxxxxxxxxxxxx',
+            hint: t('agent.channels.feishu.verificationTokenPlaceholder'),
             secret: true
           }
         ]}
@@ -340,7 +385,8 @@ export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =
         {
           key: 'bot_token',
           label: t('agent.channels.discord.botToken'),
-          placeholder: t('agent.channels.discord.botTokenPlaceholder'),
+          placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+          hint: t('agent.channels.discord.botTokenPlaceholder'),
           secret: true,
           span: 2
         }
@@ -367,12 +413,14 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
         {
           key: 'app_id',
           label: t('agent.channels.qq.appId'),
-          placeholder: t('agent.channels.qq.appIdPlaceholder')
+          placeholder: '123456789',
+          hint: t('agent.channels.qq.appIdPlaceholder')
         },
         {
           key: 'client_secret',
           label: t('agent.channels.qq.clientSecret'),
-          placeholder: t('agent.channels.qq.clientSecretPlaceholder'),
+          placeholder: 'xxxxxxxxxxxxxxxx',
+          hint: t('agent.channels.qq.clientSecretPlaceholder'),
           secret: true
         }
       ]}
@@ -424,23 +472,30 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          {status === 'confirmed' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-green-600 text-xs">{t('agent.channels.wechat.connected')}</span>
-            </>
-          )}
-          {status === 'disconnected' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              <span className="text-red-500 text-xs">{t('agent.channels.wechat.disconnected')}</span>
-            </>
-          )}
-          {(status === 'idle' || status === 'pending') && (
-            <span className="text-blue-400 text-xs">{t('agent.channels.wechat.loginHint')}</span>
-          )}
-        </div>
+        {(status === 'idle' || status === 'pending') && (
+          <Alert
+            type="info"
+            showIcon
+            message={<span className="font-normal">{t('agent.channels.wechat.loginHint')}</span>}
+            className="gap-2 border-[var(--color-info-border)] px-2.5 py-2 text-xs shadow-none [&_svg]:size-3.5"
+          />
+        )}
+        {(status === 'confirmed' || status === 'disconnected') && (
+          <div className="flex items-center gap-2">
+            {status === 'confirmed' && (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-success" />
+                <span className="text-success text-xs">{t('agent.channels.wechat.connected')}</span>
+              </>
+            )}
+            {status === 'disconnected' && (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                <span className="text-destructive text-xs">{t('agent.channels.wechat.disconnected')}</span>
+              </>
+            )}
+          </div>
+        )}
         {loginUserId && status === 'confirmed' && (
           <span className="text-gray-400 text-xs">
             User ID: <code className="select-all rounded bg-gray-100 px-1 dark:bg-gray-800">{loginUserId}</code>

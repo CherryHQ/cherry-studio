@@ -1,7 +1,7 @@
 import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
@@ -37,93 +37,82 @@ const ExportMenuOptions: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.export_menu.title')}</SettingTitle>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.image} onCheckedChange={(checked) => handleToggleOption('image', checked)} />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.markdown}
-          onCheckedChange={(checked) => handleToggleOption('markdown', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.markdown_reason')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.markdown_reason}
-          onCheckedChange={(checked) => handleToggleOption('markdown_reason', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.notes')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.notes} onCheckedChange={(checked) => handleToggleOption('notes', checked)} />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.notion}
-          onCheckedChange={(checked) => handleToggleOption('notion', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.yuque')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.yuque} onCheckedChange={(checked) => handleToggleOption('yuque', checked)} />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.joplin}
-          onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.obsidian}
-          onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.siyuan')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.siyuan}
-          onCheckedChange={(checked) => handleToggleOption('siyuan', checked)}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
-        <Switch
-          checked={exportMenuOptions.plain_text}
-          onCheckedChange={(checked) => handleToggleOption('plain_text', checked)}
-        />
-      </SettingRow>
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.image}
+            onCheckedChange={(checked) => handleToggleOption('image', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.markdown}
+            onCheckedChange={(checked) => handleToggleOption('markdown', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.markdown_reason')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.markdown_reason}
+            onCheckedChange={(checked) => handleToggleOption('markdown_reason', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.notes')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.notes}
+            onCheckedChange={(checked) => handleToggleOption('notes', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.notion}
+            onCheckedChange={(checked) => handleToggleOption('notion', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.yuque')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.yuque}
+            onCheckedChange={(checked) => handleToggleOption('yuque', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.joplin}
+            onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.obsidian}
+            onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.siyuan')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.siyuan}
+            onCheckedChange={(checked) => handleToggleOption('siyuan', checked)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
+          <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
+          <Switch
+            checked={exportMenuOptions.plain_text}
+            onCheckedChange={(checked) => handleToggleOption('plain_text', checked)}
+          />
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }

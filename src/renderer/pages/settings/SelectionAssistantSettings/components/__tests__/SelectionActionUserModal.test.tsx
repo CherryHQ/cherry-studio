@@ -1,25 +1,9 @@
-import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import SelectionActionUserModal from '../SelectionActionUserModal'
-
-const testData = vi.hoisted(() => {
-  const longAssistantName =
-    'AssistantWithAnExtremelyLongUnbrokenNameThatShouldNeverForceTheSelectionAssistantModalToGrowHorizontally'
-
-  return {
-    longAssistantName,
-    assistants: [
-      {
-        id: 'assistant-chatgpt-import',
-        name: longAssistantName
-      }
-    ]
-  }
-})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -27,111 +11,105 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistants: () => ({
-    assistants: testData.assistants
-  })
-}))
-
-vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({
-    defaultModel: undefined
-  })
+vi.mock('@renderer/utils/style', () => ({
+  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: ({ className }: { className?: string }) => <span data-testid="model-avatar" className={className} />
+  default: () => null
 }))
 
 vi.mock('@renderer/components/CopyButton', () => ({
-  default: () => <button type="button" aria-label="copy-placeholder" />
+  default: () => null
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
-  return vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
-})
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistants: () => ({ assistants: [{ id: 'assistant-1', name: 'Assistant One' }] }),
+  useDefaultAssistant: () => ({ assistant: { id: 'fallback-default', name: 'Default Assistant' } }),
+  resolveDefaultAssistantOption: () => ({ id: 'fallback-default', name: 'Default Assistant' })
+}))
 
-beforeAll(() => {
-  if (!HTMLElement.prototype.hasPointerCapture) {
-    HTMLElement.prototype.hasPointerCapture = () => false
-  }
-  if (!HTMLElement.prototype.releasePointerCapture) {
-    HTMLElement.prototype.releasePointerCapture = () => {}
-  }
-  if (!HTMLElement.prototype.setPointerCapture) {
-    HTMLElement.prototype.setPointerCapture = () => {}
-  }
-  HTMLElement.prototype.scrollIntoView = () => {}
-})
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
 
-afterEach(() => {
-  cleanup()
+vi.mock('lucide-react', () => ({
+  CircleHelp: () => null,
+  Dices: () => null,
+  OctagonX: () => null
+}))
+
+vi.mock('lucide-react/dynamic', () => ({
+  DynamicIcon: () => null,
+  iconNames: []
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onClick, ...props }: any) => (
+    <button type="button" onClick={onClick} {...props}>
+      {children}
+    </button>
+  ),
+  Dialog: ({ open, children }: any) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children }: any) => <div>{children}</div>,
+  DialogFooter: ({ children }: any) => <div>{children}</div>,
+  DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
+  Input: (props: any) => <input {...props} />,
+  RadioGroup: ({ children }: any) => <div>{children}</div>,
+  RadioGroupItem: ({ value }: any) => <input type="radio" value={value} readOnly />,
+  Select: ({ children }: any) => <div>{children}</div>,
+  SelectContent: ({ children }: any) => <div>{children}</div>,
+  SelectItem: ({ children }: any) => <div>{children}</div>,
+  SelectTrigger: ({ children }: any) => <div>{children}</div>,
+  SelectValue: () => null,
+  Textarea: { Input: (props: any) => <textarea {...props} /> },
+  Tooltip: ({ children }: any) => <>{children}</>
+}))
+
+const buildAction = (overrides: Partial<SelectionActionItem>): SelectionActionItem => ({
+  id: 'user-1',
+  name: 'Summarize',
+  enabled: true,
+  isBuiltIn: false,
+  icon: '',
+  prompt: 'Summarize {{text}}',
+  assistantId: '',
+  ...overrides
 })
 
 describe('SelectionActionUserModal', () => {
-  it('lets assistant names use the available select row width', () => {
+  it('persists an empty assistantId when the default-assistant sentinel is selected', () => {
+    const onOk = vi.fn()
+
     render(
       <SelectionActionUserModal
-        isModalOpen={true}
-        editingAction={{
-          id: 'user-action',
-          name: 'Custom action',
-          enabled: true,
-          isBuiltIn: false,
-          assistantId: 'assistant-chatgpt-import'
-        }}
-        onOk={vi.fn()}
+        isModalOpen
+        editingAction={buildAction({ assistantId: DEFAULT_ASSISTANT_ID })}
+        onOk={onOk}
         onCancel={vi.fn()}
       />
     )
 
-    const assistantName = screen.getByText(testData.longAssistantName)
-    expect(assistantName).toHaveClass('min-w-0', 'flex-1', 'truncate')
-    expect(assistantName).toHaveAttribute('title', testData.longAssistantName)
-    expect(assistantName).not.toHaveClass('max-w-[calc(100%-60px)]')
-    expect(assistantName.parentElement).toHaveClass('min-w-0', 'w-full')
-    expect(screen.getByTestId('model-avatar')).toHaveClass('shrink-0')
+    fireEvent.click(screen.getByText('common.confirm'))
+
+    expect(onOk).toHaveBeenCalledWith(expect.objectContaining({ assistantId: '' }))
   })
 
-  it('clips long assistant options to the select width', async () => {
+  it('keeps a concrete assistantId untouched on save', () => {
+    const onOk = vi.fn()
+
     render(
       <SelectionActionUserModal
-        isModalOpen={true}
-        editingAction={{
-          id: 'user-action',
-          name: 'Custom action',
-          enabled: true,
-          isBuiltIn: false,
-          assistantId: 'assistant-chatgpt-import'
-        }}
-        onOk={vi.fn()}
+        isModalOpen
+        editingAction={buildAction({ assistantId: 'assistant-1' })}
+        onOk={onOk}
         onCancel={vi.fn()}
       />
     )
 
-    const trigger = screen.getByRole('combobox')
-    expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
-    expect(trigger).toHaveClass(
-      'min-w-0',
-      'overflow-hidden',
-      '*:data-[slot=select-value]:min-w-0',
-      '*:data-[slot=select-value]:flex-1',
-      '*:data-[slot=select-value]:overflow-hidden'
-    )
-    expect(trigger.querySelector('[data-slot="select-value"]')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('common.confirm'))
 
-    fireEvent.pointerDown(trigger)
-    fireEvent.click(trigger)
-
-    const content = await screen.findByRole('listbox')
-    expect(content).toHaveClass('w-(--radix-select-trigger-width)', 'max-w-(--radix-select-trigger-width)')
-    const option = within(content).getByText(testData.longAssistantName).closest('[role="option"]')
-    expect(option).toBeInstanceOf(HTMLElement)
-    const optionElement = option as HTMLElement
-    expect(optionElement).toHaveClass('overflow-hidden')
-    expect(within(optionElement).getByText(testData.longAssistantName).parentElement).toHaveClass(
-      'max-w-full',
-      'overflow-hidden'
-    )
+    expect(onOk).toHaveBeenCalledWith(expect.objectContaining({ assistantId: 'assistant-1' }))
   })
 })

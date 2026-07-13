@@ -30,7 +30,7 @@ import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingCard, SettingContainer, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
@@ -632,58 +632,128 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="flex w-full min-w-0 flex-col gap-5 pb-6"
+            className="flex w-full min-w-0 flex-col gap-6 pb-6"
             id="mcp-settings-form">
             <McpFormSection>
-              <McpFormGrid>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem className="min-w-0">
-                      <FormLabel>{t('settings.mcp.name')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {server.type !== 'inMemory' && (
+              <SettingTitle className="text-[length:var(--font-size-body-xs)]">
+                {t('settings.mcp.basicSettings')}
+              </SettingTitle>
+              <SettingCard>
+                <McpFormGrid className="gap-y-3">
                   <FormField
                     control={form.control}
-                    name="serverType"
+                    name="name"
                     render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.type')}</FormLabel>
+                      <FormItem className="flex min-w-0 flex-row items-center justify-between gap-4 xl:col-span-2">
+                        <FormLabel className="text-[length:var(--font-size-body-xs)] font-normal">
+                          {t('settings.mcp.name')}
+                        </FormLabel>
                         <FormControl>
-                          <Select
-                            value={field.value}
-                            onValueChange={(value) => {
-                              field.onChange(value)
-                              setServerType(value as McpServer['type'])
-                            }}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="stdio">{t('settings.mcp.stdio')}</SelectItem>
-                              <SelectItem value="sse">{t('settings.mcp.sse')}</SelectItem>
-                              <SelectItem value="streamableHttp">{t('settings.mcp.streamableHttp')}</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            placeholder={t('common.name')}
+                            disabled={server.type === 'inMemory'}
+                            className="w-80"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
+                  {server.type !== 'inMemory' && (
+                    <FormField
+                      control={form.control}
+                      name="serverType"
+                      render={({ field }) => (
+                        <FormItem className="flex min-w-0 flex-row items-center justify-between gap-4 xl:col-span-2">
+                          <FormLabel className="text-[length:var(--font-size-body-xs)] font-normal">
+                            {t('settings.mcp.type')}
+                          </FormLabel>
+                          <FormControl>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => {
+                                field.onChange(value)
+                                setServerType(value as McpServer['type'])
+                              }}>
+                              <SelectTrigger className="w-80">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="stdio">{t('settings.mcp.stdio')}</SelectItem>
+                                <SelectItem value="sse">{t('settings.mcp.sse')}</SelectItem>
+                                <SelectItem value="streamableHttp">{t('settings.mcp.streamableHttp')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="longRunning"
+                    render={({ field }) => (
+                      <FormItem className="flex min-w-0 flex-row items-center justify-between gap-4 xl:col-span-2">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-normal">
+                          {t('settings.mcp.longRunning', 'Long Running')}
+                          <InfoTooltip content={t('settings.mcp.longRunningTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <div className="flex h-9 items-center">
+                            <Switch size="sm" checked={!!field.value} onCheckedChange={field.onChange} />
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="timeout"
+                    render={({ field }) => (
+                      <FormItem className="flex min-w-0 flex-row items-center justify-between gap-4 xl:col-span-2">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-normal">
+                          {t('settings.mcp.timeout', 'Timeout')}
+                          <InfoTooltip
+                            content={t(
+                              'settings.mcp.timeoutTooltip',
+                              'Timeout in seconds for requests to this server, default is 60 seconds'
+                            )}
+                          />
+                        </FormLabel>
+                        <FormControl>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={1}
+                              placeholder="60"
+                              value={field.value ?? ''}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                              }
+                              className="w-24"
+                            />
+                            <span className="text-foreground-muted text-xs">s</span>
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              </SettingCard>
+            </McpFormSection>
+
+            <McpFormSection>
+              <McpFormGrid>
                 <FormField
                   control={form.control}
                   name="description"
                   render={({ field }) => (
                     <FormItem className="min-w-0 xl:col-span-2">
-                      <FormLabel>{t('settings.mcp.description')}</FormLabel>
+                      <FormLabel className="text-[length:var(--font-size-body-xs)] font-medium">
+                        {t('settings.mcp.description')}
+                      </FormLabel>
                       <FormControl>
                         <Textarea.Input
                           rows={2}
@@ -692,6 +762,7 @@ const McpSettings: React.FC = () => {
                           {...field}
                         />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -706,7 +777,7 @@ const McpSettings: React.FC = () => {
                     name="baseUrl"
                     render={({ field }) => (
                       <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.url')}
                           <InfoTooltip content={t('settings.mcp.baseUrlTooltip')} />
                         </FormLabel>
@@ -727,7 +798,7 @@ const McpSettings: React.FC = () => {
                     name="headers"
                     render={({ field }) => (
                       <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.headers')}
                           <InfoTooltip content={t('settings.mcp.headersTooltip')} />
                         </FormLabel>
@@ -750,8 +821,10 @@ const McpSettings: React.FC = () => {
                     control={form.control}
                     name="command"
                     render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.command')}</FormLabel>
+                      <FormItem className="min-w-0 xl:col-span-2">
+                        <FormLabel className="text-[length:var(--font-size-body-xs)] font-medium">
+                          {t('settings.mcp.command')}
+                        </FormLabel>
                         <FormControl>
                           <Input
                             placeholder="uvx or npx"
@@ -771,8 +844,8 @@ const McpSettings: React.FC = () => {
                       control={form.control}
                       name="registryUrl"
                       render={({ field }) => (
-                        <FormItem className="min-w-0">
-                          <FormLabel className="flex items-center gap-1">
+                        <FormItem className="min-w-0 xl:col-span-2">
+                          <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                             {t('settings.mcp.registry')}
                             <InfoTooltip content={t('settings.mcp.registryTooltip')} />
                           </FormLabel>
@@ -812,8 +885,8 @@ const McpSettings: React.FC = () => {
                     control={form.control}
                     name="args"
                     render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                      <FormItem className="min-w-0 xl:col-span-2">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.args')}
                           <InfoTooltip content={t('settings.mcp.argsTooltip')} />
                         </FormLabel>
@@ -832,8 +905,8 @@ const McpSettings: React.FC = () => {
                     control={form.control}
                     name="env"
                     render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                      <FormItem className="min-w-0 xl:col-span-2">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.env')}
                           <InfoTooltip content={t('settings.mcp.envTooltip')} />
                         </FormLabel>
@@ -857,7 +930,7 @@ const McpSettings: React.FC = () => {
                     name="args"
                     render={({ field }) => (
                       <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.args')}
                           <InfoTooltip content={t('settings.mcp.argsTooltip')} />
                         </FormLabel>
@@ -877,7 +950,7 @@ const McpSettings: React.FC = () => {
                     name="env"
                     render={({ field }) => (
                       <FormItem className="min-w-0">
-                        <FormLabel className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1 text-[length:var(--font-size-body-xs)] font-medium">
                           {t('settings.mcp.env')}
                           <InfoTooltip content={t('settings.mcp.envTooltip')} />
                         </FormLabel>
@@ -894,56 +967,6 @@ const McpSettings: React.FC = () => {
                   />
                 </McpFormGrid>
               )}
-            </McpFormSection>
-
-            <McpFormSection>
-              <McpFormGrid>
-                <FormField
-                  control={form.control}
-                  name="longRunning"
-                  render={({ field }) => (
-                    <FormItem className={mcpInlineSettingItemClassName}>
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.longRunning', 'Long Running')}
-                        <InfoTooltip content={t('settings.mcp.longRunningTooltip')} />
-                      </FormLabel>
-                      <FormControl>
-                        <Switch size="sm" checked={!!field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="timeout"
-                  render={({ field }) => (
-                    <FormItem className={mcpInlineSettingItemClassName}>
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.timeout', 'Timeout')}
-                        <InfoTooltip
-                          content={t(
-                            'settings.mcp.timeoutTooltip',
-                            'Timeout in seconds for requests to this server, default is 60 seconds'
-                          )}
-                        />
-                      </FormLabel>
-                      <FormControl>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min={1}
-                            placeholder="60"
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-                            className="h-8 w-24 py-0"
-                          />
-                          <span className="text-foreground-muted text-xs">s</span>
-                        </div>
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </McpFormGrid>
             </McpFormSection>
           </form>
         </Form>
@@ -1065,11 +1088,11 @@ const McpSettings: React.FC = () => {
                     checked={server.isActive}
                     key={server.id}
                     loading={loadingServer === server.id}
+                    size="sm"
                     onCheckedChange={onToggleActive}
                   />
                 </Flex>
               </SettingTitle>
-              <SettingDivider className="mb-0" />
               <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                 <SegmentedControl<TabKey>
                   value={activeTabValue}
@@ -1104,7 +1127,7 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
+            <div className="flex min-h-14 shrink-0 items-center px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
@@ -1114,12 +1137,7 @@ const McpSettings: React.FC = () => {
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={onSave}
-                  disabled={loading || !isFormChanged}
-                  className="rounded-full">
+                <Button size="sm" variant="default" onClick={onSave} disabled={loading || !isFormChanged}>
                   <SaveIcon size={14} />
                   {t('common.save')}
                 </Button>
@@ -1148,9 +1166,6 @@ const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'di
   <div className={cn('grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2', className)} {...props} />
 )
 
-const mcpInlineSettingItemClassName =
-  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
-
 const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
 )
@@ -1168,7 +1183,7 @@ const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
+  <span className={cn('wrap-break-word text-(length:--font-size-body-xs) leading-normal', className)} {...props} />
 )
 
 const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
@@ -1185,14 +1200,14 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':
-      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
+      return 'border-error-border bg-error-bg text-error-text'
     case 'warn':
-      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+      return 'border-warning-border bg-warning-bg text-warning-text'
     case 'info':
     case 'stdout':
-      return 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+      return 'border-info-border bg-info-bg text-info-text'
     default:
-      return 'border-border/60 bg-muted text-muted-foreground'
+      return 'border-border-muted bg-muted text-muted-foreground'
   }
 }
 
@@ -1222,9 +1237,9 @@ const McpRuntimeStatusBadge = ({
   className,
   ...props
 }: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
-  <span
+  <Badge
     className={cn(
-      'inline-flex h-4.5 items-center rounded-[9px] px-1.5 font-medium text-[11px] leading-4.5',
+      'text-(length:--font-size-body-xs) h-4.5 px-1.5 py-0 leading-4.5',
       state === 'connected' && 'bg-success/10 text-success',
       state === 'connecting' && 'bg-warning/10 text-warning',
       state === 'error' && 'bg-destructive/10 text-destructive',

@@ -395,6 +395,7 @@ vi.mock('@cherrystudio/ui', () => {
     Textarea: {
       Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
     },
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Tooltip: ({ children, title }: { children?: React.ReactNode; title?: React.ReactNode }) => (
       <div data-testid="tooltip">
         {children}

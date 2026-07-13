@@ -609,6 +609,14 @@ vi.mock('@cherrystudio/ui', () => {
         children
       )
     },
+    ColorPicker: ({ children, defaultValue, value, onChange, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'color-picker' }, children),
+    ColorPickerSelection: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-selection' }),
+    ColorPickerHue: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-hue' }),
+    ColorPickerAlpha: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-alpha' }),
+    ColorPickerEyeDropper: ({ size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'color-picker-eye-dropper' }),
+    ColorPickerFormat: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-format' }),
     Combobox: ({ options = [], value, onChange, onValueChange, placeholder, disabled, ...props }) =>
       React.createElement(
         'select',
