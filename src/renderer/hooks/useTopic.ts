@@ -47,7 +47,6 @@ const logger = loggerService.withContext('useTopic')
 
 const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
-const LOAD_ALL_TOPIC_PAGE_SIZE = 200
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -226,8 +225,6 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  */
 export function useTopics(opts?: {
   q?: string
-  /** @deprecated Transitional compatibility for History; new consumers page explicitly. */
-  loadAll?: boolean
   sortBy?: TopicSortBy
   assistantId?: string
   pinned?: boolean
@@ -236,7 +233,6 @@ export function useTopics(opts?: {
   keepPreviousData?: boolean
 }) {
   const q = opts?.q?.trim()
-  const loadAll = opts?.loadAll === true
   const query = useMemo(() => {
     const built: { q?: string; sortBy?: TopicSortBy; assistantId?: string; pinned?: boolean } = {}
     if (q) built.q = q
@@ -245,7 +241,7 @@ export function useTopics(opts?: {
     if (opts?.sortBy && opts?.pinned !== undefined) built.pinned = opts.pinned
     return Object.keys(built).length > 0 ? built : undefined
   }, [q, opts?.sortBy, opts?.assistantId, opts?.pinned])
-  const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
+  const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
@@ -254,11 +250,6 @@ export function useTopics(opts?: {
     swrOptions: opts?.keepPreviousData === undefined ? undefined : { keepPreviousData: opts.keepPreviousData }
   })
   const topics = useInfiniteFlatItems(pages)
-
-  useEffect(() => {
-    if (loadAll && hasNext && !isLoading && !isRefreshing) loadNext()
-  }, [hasNext, isLoading, isRefreshing, loadAll, loadNext])
-
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
     pages,

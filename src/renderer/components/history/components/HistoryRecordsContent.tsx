@@ -9,17 +9,26 @@ import HistoryTopBar from './HistoryTopBar'
 interface HistoryRecordsContentProps<T> {
   descriptor: HistoryRecordDescriptor<T>
   controller: HistoryRecordsController<T>
+  error?: Error
   isLoading: boolean
+  isLoadingMore?: boolean
   /** Leading navbar slot (the shared sidebar toggle), mirrors ConversationResourceView. */
   toolbarLeading?: ReactNode
+  /** Load the next cursor page when the list nears its bottom. */
+  onEndReached?: () => void
+  onRetry?: () => void
 }
 
 /** ToB list surface: one top bar (toggle · search · filters · bulk actions) above a virtualized table. */
 export function HistoryRecordsContent<T>({
   descriptor,
   controller,
+  error,
   isLoading,
-  toolbarLeading
+  isLoadingMore,
+  toolbarLeading,
+  onEndReached,
+  onRetry
 }: HistoryRecordsContentProps<T>) {
   const { t } = useTranslation()
 
@@ -51,12 +60,16 @@ export function HistoryRecordsContent<T>({
       <HistoryRecordList
         descriptor={descriptor}
         items={controller.visibleItems}
+        error={error}
         isLoading={isLoading}
+        isLoadingMore={isLoadingMore}
         isSelected={controller.isSelected}
         selectAllState={controller.selectAllState}
         selectionDisabled={controller.selectionDisabled}
         onToggleSelection={controller.toggleSelection}
         onToggleSelectAll={controller.toggleSelectAll}
+        onEndReached={onEndReached}
+        onRetry={onRetry}
       />
     </section>
   )

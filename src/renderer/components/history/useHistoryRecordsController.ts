@@ -4,12 +4,30 @@ import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './historyRecordsHelpers'
 import type { HistorySourceStatus } from './historyRecordsTypes'
 
+/**
+ * Filter state owned by the mode wrapper (not this hook) because it drives the
+ * wrapper's server-side query: search and source scope are applied by the
+ * server (D1/D6 of #16890), so the state must exist before the data hook runs.
+ */
+export interface HistoryRecordsFilterState {
+  searchText: string
+  setSearchText: (value: string) => void
+  selectedSourceId: string
+  setSelectedSourceId: (id: string) => void
+  selectedStatus: HistorySourceStatus
+  setSelectedStatus: (status: HistorySourceStatus) => void
+}
+
 interface UseHistoryRecordsControllerParams<T> {
   descriptor: HistoryRecordDescriptor<T>
-  /** Records sorted by recency (used when the source filter is "all" and for post-delete adjacency). */
-  timeSorted: readonly T[]
-  /** Records grouped/sorted by source (used when a specific source is selected). */
-  sourceSorted: readonly T[]
+  /**
+   * The loaded window of server-filtered records. The wrapper selects activity
+   * order for the all-source view and manual order for a concrete source;
+   * runtime status (agent mode) remains renderer-owned because it lives in
+   * SharedCache, not SQLite (D7 of #16890).
+   */
+  items: readonly T[]
+  filters: HistoryRecordsFilterState
   activeRecordId?: string | null
 }
 
@@ -36,52 +54,31 @@ export interface HistoryRecordsController<T> {
 }
 
 /**
- * Owns the state, filtering, selection and batch handlers shared by both history modes. The
- * mode-specific data wiring lives in the descriptor; this hook stays entity-agnostic.
+ * Owns the selection state and batch handlers shared by both history modes.
+ * The mode-specific data wiring lives in the descriptor and the wrapper's
+ * server query; this hook stays entity-agnostic.
  *
- * It reads the descriptor's fields individually (rather than depending on the descriptor object) so
- * that `visibleItems` stays referentially stable as long as the wrapper memoizes the filter
- * predicates + `sources` — keeping the virtualized list from thrashing on unrelated re-renders.
+ * Selection semantics (D7 of #16890): "select all" selects only the rows
+ * displayed at that moment; pages loaded afterwards are not auto-selected;
+ * and changing source, status, or search clears the selection so rows
+ * scrolled out of the new result set cannot be changed accidentally.
  */
 export function useHistoryRecordsController<T>({
   descriptor,
-  timeSorted,
-  sourceSorted,
+  items,
+  filters,
   activeRecordId
 }: UseHistoryRecordsControllerParams<T>): HistoryRecordsController<T> {
-  const {
-    getId,
-    isPinned,
-    getSourceId,
-    statusOf,
-    matchesSearch,
-    sources,
-    onBulkDelete,
-    onActiveRecordChange,
-    onBulkMove
-  } = descriptor
+  const { getId, isPinned, statusOf, sources, onBulkDelete, onActiveRecordChange, onBulkMove } = descriptor
+  const { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus } =
+    filters
 
-  const [searchText, setSearchText] = useState('')
-  const [selectedSourceId, setSelectedSourceId] = useState<string>(ALL_SOURCE_ID)
-  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const visibleItems = useMemo(() => {
-    const base = selectedSourceId === ALL_SOURCE_ID ? timeSorted : sourceSorted
-
-    const afterStatus =
-      statusOf && selectedStatus !== ALL_SOURCE_ID ? base.filter((item) => statusOf(item) === selectedStatus) : base
-
-    const afterSource =
-      selectedSourceId === ALL_SOURCE_ID
-        ? afterStatus
-        : afterStatus.filter((item) => getSourceId(item) === selectedSourceId)
-
-    const keywords = searchText.trim().toLowerCase()
-    if (!keywords) return afterSource
-
-    return afterSource.filter((item) => matchesSearch(item, keywords))
-  }, [getSourceId, matchesSearch, searchText, selectedSourceId, selectedStatus, sourceSorted, statusOf, timeSorted])
+    if (!statusOf || selectedStatus === ALL_SOURCE_ID) return items
+    return items.filter((item) => statusOf(item) === selectedStatus)
+  }, [items, selectedStatus, statusOf])
 
   // Reset the source filter when the selected source disappears (e.g. its assistant was deleted).
   useEffect(() => {
@@ -89,9 +86,14 @@ export function useHistoryRecordsController<T>({
     if (sources.some((source) => source.id === selectedSourceId)) return
 
     setSelectedSourceId(ALL_SOURCE_ID)
-  }, [selectedSourceId, sources])
+  }, [selectedSourceId, setSelectedSourceId, sources])
 
-  // Prune the selection down to currently-visible, non-pinned records.
+  // Filter changes swap the visible result set — clear the selection outright.
+  useEffect(() => {
+    setSelectedIds([])
+  }, [searchText, selectedSourceId, selectedStatus])
+
+  // Prune the selection down to currently-visible, non-pinned records (deletions, pins, refetches).
   useEffect(() => {
     const visibleSelectableIds = new Set(
       visibleItems.filter((item) => !isPinned(getId(item))).map((item) => getId(item))
@@ -148,10 +150,10 @@ export function useHistoryRecordsController<T>({
     setSelectedIds((current) => current.filter((id) => !deletedIdSet.has(id)))
 
     if (activeRecordId && deletedIds.includes(activeRecordId)) {
-      const nextItem = findAdjacentHistoryRecordAfterBulkDelete(timeSorted, deletedIds, activeRecordId, getId)
+      const nextItem = findAdjacentHistoryRecordAfterBulkDelete(items, deletedIds, activeRecordId, getId)
       onActiveRecordChange(nextItem ?? null)
     }
-  }, [activeRecordId, getId, onActiveRecordChange, onBulkDelete, selectedDeletableIds, timeSorted])
+  }, [activeRecordId, getId, items, onActiveRecordChange, onBulkDelete, selectedDeletableIds])
 
   const handleBulkMove = useCallback(
     async (targetId: string) => {
@@ -186,4 +188,17 @@ export function useHistoryRecordsController<T>({
     handleBulkDelete,
     handleBulkMove
   }
+}
+
+/**
+ * Wrapper-owned filter state for a history mode. Split from the controller so
+ * the wrapper can feed `searchText` / `selectedSourceId` into its server-side
+ * query before the controller runs.
+ */
+export function useHistoryRecordsFilters(): HistoryRecordsFilterState {
+  const [searchText, setSearchText] = useState('')
+  const [selectedSourceId, setSelectedSourceId] = useState<string>(ALL_SOURCE_ID)
+  const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
+
+  return { searchText, setSearchText, selectedSourceId, setSelectedSourceId, selectedStatus, setSelectedStatus }
 }

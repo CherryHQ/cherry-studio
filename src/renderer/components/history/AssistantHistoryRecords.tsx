@@ -7,29 +7,31 @@ import type {
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { usePins } from '@renderer/hooks/usePins'
 import {
   finishTopicRenaming,
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
   useTopicMutations,
-  useTopics
+  useTopics,
+  useTopicStats
 } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
-import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
+import type { TopicListItem } from '@shared/data/api/schemas/topics'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
@@ -40,14 +42,16 @@ import {
   ALL_SOURCE_ID,
   buildAssistantSources,
   findAdjacentHistoryRecordAfterBulkDelete,
-  getTopicSourceId
+  toServerOwnerScope
 } from './historyRecordsHelpers'
 import type { HistoryBulkMoveTarget } from './historyRecordsTypes'
-import { useHistoryRecordsController } from './useHistoryRecordsController'
+import { useHistoryRecordsController, useHistoryRecordsFilters } from './useHistoryRecordsController'
+
+const SEARCH_DEBOUNCE_MS = 300
 
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
-type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: boolean }
+type HistoryTopicItem = TopicListItem & { assistantId: string | undefined }
 
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
@@ -63,10 +67,46 @@ const AssistantHistoryRecords = ({
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
-  const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
+  // Search and source scope are server-side query filters (D1/D6 of #16890) —
+  // the wrapper owns the filter state so it can drive the paged query; the
+  // controller below only owns selection.
+  const filters = useHistoryRecordsFilters()
+  const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
+  const ownerScope = toServerOwnerScope(filters.selectedSourceId)
+  const historySortBy = 'updatedAt' as const
+  const {
+    topics: pinnedSourceTopics,
+    error: pinnedTopicsError,
+    hasNext: hasNextPinnedTopics,
+    isLoading: isPinnedTopicsLoading,
+    isRefreshing: isPinnedTopicsRefreshing,
+    loadNext: loadNextPinnedTopics,
+    refetch: refetchPinnedTopics
+  } = useTopics({
+    keepPreviousData: false,
+    sortBy: historySortBy,
+    q: debouncedSearch,
+    assistantId: ownerScope,
+    pinned: true
+  })
+  const {
+    topics: unpinnedSourceTopics,
+    error: unpinnedTopicsError,
+    hasNext: hasNextUnpinnedTopics,
+    isLoading: isUnpinnedTopicsLoading,
+    isRefreshing: isUnpinnedTopicsRefreshing,
+    loadNext: loadNextUnpinnedTopics,
+    refetch: refetchUnpinnedTopics
+  } = useTopics({
+    keepPreviousData: false,
+    sortBy: historySortBy,
+    q: debouncedSearch,
+    assistantId: ownerScope,
+    pinned: false
+  })
+  const { stats: topicStats } = useTopicStats()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -86,20 +126,36 @@ const AssistantHistoryRecords = ({
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
-
-  const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
-  const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
+  const { trigger: pinTopic } = useMutation('POST', '/pins', { refresh: ['/pins', '/topics'] })
+  const { trigger: unpinTopic } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/topics'] })
   const renamingTopicIdSet = useMemo(
     () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
     [renamingTopics]
   )
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
 
-  const topics = useMemo<HistoryTopicItem[]>(
-    () => rawTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
-    [isTopicPinned, rawTopics]
+  const pinnedTopics = useMemo(() => pinnedSourceTopics.filter((topic) => topic.pinned === true), [pinnedSourceTopics])
+  const unpinnedTopics = useMemo(
+    () => unpinnedSourceTopics.filter((topic) => topic.pinned !== true),
+    [unpinnedSourceTopics]
   )
+  // Do not expose the unpinned band until every earlier pin page is known.
+  // Both requests still start together, so the common no-pin path is not serialized.
+  const isPinnedBandComplete = !isPinnedTopicsLoading && !pinnedTopicsError && !hasNextPinnedTopics
+  const topics = useMemo<HistoryTopicItem[]>(
+    () =>
+      [...pinnedTopics, ...(isPinnedBandComplete ? unpinnedTopics : [])].map((topic) => ({
+        ...topic,
+        assistantId: topic.assistantId
+      })),
+    [isPinnedBandComplete, pinnedTopics, unpinnedTopics]
+  )
+  const topicsError = pinnedTopicsError ?? (isPinnedBandComplete ? unpinnedTopicsError : undefined)
+  const isTopicsLoading = isPinnedTopicsLoading || (isPinnedBandComplete && isUnpinnedTopicsLoading)
+  const isTopicsLoadingMore =
+    topics.length > 0 && (isPinnedTopicsRefreshing || (isPinnedBandComplete && isUnpinnedTopicsRefreshing))
+  const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
+  const isTopicPinned = useCallback((topicId: string) => topicById.get(topicId)?.pinned === true, [topicById])
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
@@ -107,21 +163,9 @@ const AssistantHistoryRecords = ({
   )
   const unlinkedAssistantLabel = t('history.records.filter.unlinkedAssistant')
 
-  const timeSortedTopics = useMemo(
-    () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
-    [groupNow, topics]
-  )
-  const assistantSortedTopics = useMemo(
-    () => sortTopicsForDisplayGroups(topics, { assistantRankById, mode: 'assistant', now: groupNow }),
-    [assistantRankById, groupNow, topics]
-  )
-
   const rendererTopicById = useMemo(
-    () =>
-      new Map(
-        topics.map((topic) => [topic.id, { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) }])
-      ),
-    [isTopicPinned, topics]
+    () => new Map(topics.map((topic) => [topic.id, { ...mapApiTopicToRendererTopic(topic), pinned: topic.pinned }])),
+    [topics]
   )
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
@@ -129,9 +173,17 @@ const AssistantHistoryRecords = ({
     [isTopicPinned, rendererTopicById]
   )
 
+  // The unlinked pseudo-source exists when any topic has no live assistant —
+  // a stats fact (byAssistant's null entry), not a scan of loaded pages.
+  const hasUnlinkedAssistant = useMemo(
+    () =>
+      topicStats?.byAssistant.some((entry) => entry.assistantId === null || !assistantById.has(entry.assistantId)) ??
+      false,
+    [assistantById, topicStats]
+  )
   const assistantSources = useMemo(
-    () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
-    [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
+    () => buildAssistantSources(hasUnlinkedAssistant, assistantById, assistantRankById, unlinkedAssistantLabel, t),
+    [assistantById, assistantRankById, hasUnlinkedAssistant, t, unlinkedAssistantLabel]
   )
   const additionalAssistantSourceItems = useMemo(
     () =>
@@ -175,14 +227,19 @@ const AssistantHistoryRecords = ({
   const handlePinTopic = useCallback(
     async (topic: Pick<RendererTopic, 'id'>) => {
       try {
-        await toggleTopicPin(topic.id)
+        const projectedTopic = topicById.get(topic.id)
+        if (projectedTopic?.pinId) {
+          await unpinTopic({ params: { id: projectedTopic.pinId } })
+        } else {
+          await pinTopic({ body: { entityId: topic.id, entityType: 'topic' } })
+        }
         return true
       } catch (err) {
         logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
         return false
       }
     },
-    [toggleTopicPin]
+    [pinTopic, topicById, unpinTopic]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
@@ -200,7 +257,7 @@ const AssistantHistoryRecords = ({
 
       if (topic.id === activeRecordId) {
         const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
-          timeSortedTopics,
+          topics,
           [topic.id],
           topic.id,
           (candidate) => candidate.id
@@ -208,7 +265,7 @@ const AssistantHistoryRecords = ({
         onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, topics]
   )
 
   const handleBulkDeleteTopics = useCallback(
@@ -343,12 +400,6 @@ const AssistantHistoryRecords = ({
   const topicMenuPreset = useTopicMenuPreset<ApiTopic>({ getActionContext: getTopicActionContext })
 
   const getId = useCallback((topic: HistoryTopicItem) => topic.id, [])
-  const getSourceId = useCallback((topic: HistoryTopicItem) => getTopicSourceId(topic, assistantById), [assistantById])
-  const matchesSearch = useCallback(
-    (topic: HistoryTopicItem, keywords: string) =>
-      (topic.name || t('chat.default.topic.name')).toLowerCase().includes(keywords),
-    [t]
-  )
   const onActiveRecordChange = useCallback(
     (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
     [getRendererTopic, onRecordSelect]
@@ -411,8 +462,6 @@ const AssistantHistoryRecords = ({
     mode: 'assistant',
     getId,
     isPinned: isTopicPinned,
-    getSourceId,
-    matchesSearch,
     onBulkDelete: handleBulkDeleteTopics,
     onActiveRecordChange,
     ...rowDescriptor,
@@ -473,17 +522,42 @@ const AssistantHistoryRecords = ({
 
   const controller = useHistoryRecordsController({
     descriptor,
-    timeSorted: timeSortedTopics,
-    sourceSorted: assistantSortedTopics,
+    items: topics,
+    filters,
     activeRecordId
   })
+
+  const handleEndReached = useCallback(() => {
+    if (isTopicsLoading || isTopicsLoadingMore || topicsError) return
+    if (hasNextPinnedTopics) {
+      loadNextPinnedTopics()
+    } else if (isPinnedBandComplete && hasNextUnpinnedTopics) {
+      loadNextUnpinnedTopics()
+    }
+  }, [
+    hasNextPinnedTopics,
+    hasNextUnpinnedTopics,
+    isPinnedBandComplete,
+    isTopicsLoading,
+    isTopicsLoadingMore,
+    loadNextPinnedTopics,
+    loadNextUnpinnedTopics,
+    topicsError
+  ])
+  const handleRetry = useCallback(() => {
+    void Promise.all([refetchPinnedTopics(), refetchUnpinnedTopics()])
+  }, [refetchPinnedTopics, refetchUnpinnedTopics])
 
   return (
     <HistoryRecordsContent
       descriptor={descriptor}
       controller={controller}
+      error={topicsError}
       isLoading={isTopicsLoading}
+      isLoadingMore={isTopicsLoadingMore}
       toolbarLeading={toolbarLeading}
+      onEndReached={handleEndReached}
+      onRetry={handleRetry}
     />
   )
 }

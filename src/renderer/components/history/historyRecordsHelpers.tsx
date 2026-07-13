@@ -1,36 +1,30 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
 import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
-const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
-const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
+export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
+export const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
-export function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
-  if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
-  if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
-
-  return topic.assistantId
-}
-
-export function getSessionAgentSourceId(
-  session: Pick<AgentSessionEntity, 'agentId'>,
-  agentById?: ReadonlyMap<string, AgentEntity>
-) {
-  if (!session.agentId) return UNKNOWN_AGENT_SOURCE_ID
-  if (agentById && !agentById.has(session.agentId)) return UNKNOWN_AGENT_SOURCE_ID
-
-  return session.agentId
+/**
+ * Map a history source-filter selection to the server-side owner scope
+ * (D1 of #16890): the synthetic "unlinked" source ids become the literal
+ * `'unlinked'` scope, `all` means no scope, and concrete ids pass through.
+ */
+export function toServerOwnerScope(selectedSourceId: string): string | undefined {
+  if (selectedSourceId === ALL_SOURCE_ID) return undefined
+  if (selectedSourceId === UNLINKED_ASSISTANT_SOURCE_ID || selectedSourceId === UNKNOWN_AGENT_SOURCE_ID) {
+    return 'unlinked'
+  }
+  return selectedSourceId
 }
 
 export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
@@ -86,16 +80,12 @@ export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
 }
 
 export function buildAssistantSources(
-  topics: readonly ApiTopic[],
+  hasUnlinkedAssistant: boolean,
   assistantById: ReadonlyMap<string, Assistant>,
   assistantRankById: ReadonlyMap<string, number>,
   unlinkedAssistantLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const hasUnlinkedAssistant = topics.some(
-    (topic) => getTopicSourceId(topic, assistantById) === UNLINKED_ASSISTANT_SOURCE_ID
-  )
-
   return [
     {
       id: ALL_SOURCE_ID,
@@ -124,16 +114,12 @@ export function buildAssistantSources(
 }
 
 export function buildAgentSources(
-  sessions: readonly AgentSessionEntity[],
+  hasUnknownAgent: boolean,
   agentById: ReadonlyMap<string, AgentEntity>,
   agentRankById: ReadonlyMap<string, number>,
   unknownAgentLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const hasUnknownAgent = sessions.some(
-    (session) => getSessionAgentSourceId(session, agentById) === UNKNOWN_AGENT_SOURCE_ID
-  )
-
   return [
     {
       id: ALL_SOURCE_ID,

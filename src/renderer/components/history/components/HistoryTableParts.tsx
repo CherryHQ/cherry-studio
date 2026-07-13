@@ -9,7 +9,7 @@ import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { PinIcon, Trash2 } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
@@ -34,12 +34,16 @@ export const historyFixedActionShadowClassName = '[box-shadow:-8px_0_12px_-12px_
 // `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
 export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--color-border-subtle)]'
 
+const END_REACHED_THRESHOLD_PX = 200
+
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode
   estimateSize: (index: number) => number
   header: ReactNode
   items: TItem[]
   onFixedActionShadowChange: (showShadow: boolean) => void
+  /** Invoked when the scroller nears its bottom — drives cursor-paged loading. */
+  onEndReached?: () => void
   renderRow: (item: TItem, index: number) => ReactNode
 }
 
@@ -49,9 +53,19 @@ export function HistoryVirtualTable<TItem>({
   header,
   items,
   onFixedActionShadowChange,
+  onEndReached,
   renderRow
 }: HistoryVirtualTableProps<TItem>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const onEndReachedRef = useRef(onEndReached)
+  const wasNearEndRef = useRef(false)
+  const observedStateRef = useRef<{ enabled: boolean; itemCount: number } | null>(null)
+  const endReachedEnabled = onEndReached !== undefined
+
+  useLayoutEffect(() => {
+    onEndReachedRef.current = onEndReached
+  }, [onEndReached])
+
   const updateFixedActionShadow = useCallback(() => {
     const scroller = scrollerRef.current
     if (!scroller) {
@@ -61,9 +75,27 @@ export function HistoryVirtualTable<TItem>({
 
     const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth
     onFixedActionShadowChange(maxScrollLeft > 1 && scroller.scrollLeft < maxScrollLeft - 1)
+
+    const endReached = onEndReachedRef.current
+    if (!endReached || scroller.clientHeight <= 0 || scroller.scrollHeight <= 0) return
+
+    const isNearEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - END_REACHED_THRESHOLD_PX
+    if (!isNearEnd) {
+      wasNearEndRef.current = false
+      return
+    }
+    if (wasNearEndRef.current) return
+
+    wasNearEndRef.current = true
+    endReached()
   }, [onFixedActionShadowChange])
 
   useEffect(() => {
+    const observedState = observedStateRef.current
+    if (!observedState || observedState.enabled !== endReachedEnabled || observedState.itemCount !== items.length) {
+      wasNearEndRef.current = false
+    }
+    observedStateRef.current = { enabled: endReachedEnabled, itemCount: items.length }
     updateFixedActionShadow()
 
     const scroller = scrollerRef.current
@@ -79,7 +111,7 @@ export function HistoryVirtualTable<TItem>({
     // `header` is intentionally excluded: callers pass a fresh inline element each render, so keeping it
     // here would tear down and rebuild the observer on every render. `items.length` already covers the
     // empty<->non-empty scroller swap, and the observer itself handles size changes.
-  }, [items.length, updateFixedActionShadow])
+  }, [endReachedEnabled, items.length, updateFixedActionShadow])
 
   return (
     <div className="min-h-0 flex-1 px-3 pt-3 pb-2" role="table">

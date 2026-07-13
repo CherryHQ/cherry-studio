@@ -1,5 +1,5 @@
+import type { TopicListItem } from '@shared/data/api/schemas/topics'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic } from '@shared/data/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,19 +23,21 @@ const hookMocks = vi.hoisted(() => ({
   batchUpdateTopics: vi.fn(),
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn(),
+  pinTopic: vi.fn(),
   promptShow: vi.fn(),
+  refetchTopics: vi.fn(),
   saveToKnowledge: vi.fn(),
   startTopicRenaming: vi.fn(),
-  togglePin: vi.fn(),
   updateTopic: vi.fn(),
+  unpinTopic: vi.fn(),
   openConversationTab: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useCache: vi.fn(),
   useMultiplePreferences: vi.fn(),
-  usePins: vi.fn(),
   useSessions: vi.fn(),
+  useTopicStats: vi.fn(),
   useUpdateSession: vi.fn()
 }))
 
@@ -118,6 +120,12 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   useMultiplePreferences: hookMocks.useMultiplePreferences
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useMutation: (method: string, path: string) => ({
+    trigger: method === 'POST' && path === '/pins' ? hookMocks.pinTopic : hookMocks.unpinTopic
+  })
+}))
+
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
@@ -141,14 +149,10 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/usePins', () => ({
-  usePins: hookMocks.usePins
-}))
-
 vi.mock('@renderer/hooks/useTopic', () => ({
   finishTopicRenaming: hookMocks.finishTopicRenaming,
   getTopicMessages: hookMocks.getTopicMessages,
-  mapApiTopicToRendererTopic: (topic: Topic) => ({
+  mapApiTopicToRendererTopic: (topic: TopicListItem) => ({
     id: topic.id,
     assistantId: topic.assistantId,
     name: topic.name ?? '',
@@ -156,10 +160,11 @@ vi.mock('@renderer/hooks/useTopic', () => ({
     updatedAt: topic.updatedAt,
     orderKey: topic.orderKey,
     messages: [],
-    pinned: false,
+    pinned: topic.pinned,
     isNameManuallyEdited: topic.isNameManuallyEdited
   }),
   useTopics: hookMocks.useTopics,
+  useTopicStats: hookMocks.useTopicStats,
   useTopicMutations: () => ({
     batchUpdateTopics: hookMocks.batchUpdateTopics,
     deleteTopic: hookMocks.deleteTopic,
@@ -167,6 +172,10 @@ vi.mock('@renderer/hooks/useTopic', () => ({
     updateTopic: hookMocks.updateTopic
   }),
   startTopicRenaming: hookMocks.startTopicRenaming
+}))
+
+vi.mock('@renderer/hooks/useDebouncedValue', () => ({
+  useDebouncedValue: (value: unknown) => value
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -263,9 +272,12 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.error': 'Error',
+        'common.loading': 'Loading...',
         'common.more': 'More',
         'common.name': 'Name',
         'common.required_field': 'Required field',
+        'common.retry': 'Retry',
         'common.save': 'Save',
         'common.save_failed': 'Save failed',
         'common.saved': 'Saved',
@@ -318,13 +330,15 @@ import { toast } from '@renderer/services/toast'
 
 import HistoryRecordsView from '../HistoryRecordsView'
 
-function createTopic(overrides: Partial<Topic> = {}): Topic {
+function createTopic(overrides: Partial<TopicListItem> = {}): TopicListItem {
   return {
     id: 'topic-alpha',
     name: 'Alpha topic',
     assistantId: 'assistant-alpha',
     isNameManuallyEdited: false,
     orderKey: 'a',
+    pinId: null,
+    pinned: false,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides
@@ -403,23 +417,34 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
+    hookMocks.pinTopic.mockReset()
+    hookMocks.pinTopic.mockResolvedValue(undefined)
     hookMocks.promptShow.mockReset()
+    hookMocks.refetchTopics.mockReset()
+    hookMocks.refetchTopics.mockResolvedValue(undefined)
     hookMocks.saveToKnowledge.mockReset()
     hookMocks.startTopicRenaming.mockReset()
-    hookMocks.togglePin.mockReset()
-    hookMocks.togglePin.mockResolvedValue(undefined)
     hookMocks.updateTopic.mockReset()
     hookMocks.updateTopic.mockResolvedValue(undefined)
-    hookMocks.usePins.mockReset()
-    hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: hookMocks.togglePin })
+    hookMocks.unpinTopic.mockReset()
+    hookMocks.unpinTopic.mockResolvedValue(undefined)
     hookMocks.useSessions.mockReset()
+    hookMocks.useTopicStats.mockReset()
+    hookMocks.useTopicStats.mockReturnValue({
+      stats: { total: 0, pinnedCount: 0, byAssistant: [] },
+      error: undefined,
+      isLoading: false
+    })
     hookMocks.useUpdateSession.mockReset()
   })
 
   it('selects a topic when the history title is clicked', () => {
-    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic({ pinId: 'pin-topic-alpha', pinned: true })],
+      error: undefined,
+      isLoading: false
+    })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
 
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
@@ -433,7 +458,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const pinButton = screen.getByTestId('history-pin-button')
     expect(pinButton).toHaveAccessibleName('Unpin Conversation')
     fireEvent.click(pinButton)
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.unpinTopic).toHaveBeenCalledWith({ params: { id: 'pin-topic-alpha' } })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
@@ -621,14 +646,19 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic(),
-        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({
+          id: 'topic-beta',
+          name: 'Beta topic',
+          orderKey: 'b',
+          pinId: 'pin-topic-beta',
+          pinned: true
+        }),
         createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
       ],
       error: undefined,
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-beta'], togglePin: hookMocks.togglePin })
     hookMocks.deleteTopics.mockResolvedValueOnce({
       deletedIds: ['topic-alpha'],
       deletedCount: 1
@@ -658,12 +688,14 @@ describe('HistoryRecordsView assistant mode', () => {
 
   it('disables bulk delete when only pinned topics are selected', () => {
     hookMocks.useTopics.mockReturnValue({
-      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
+      topics: [
+        createTopic({ pinId: 'pin-topic-alpha', pinned: true }),
+        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })
+      ],
       error: undefined,
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
 
     render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
@@ -678,14 +710,19 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic(),
-        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({
+          id: 'topic-beta',
+          name: 'Beta topic',
+          orderKey: 'b',
+          pinId: 'pin-topic-beta',
+          pinned: true
+        }),
         createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
       ],
       error: undefined,
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-beta'], togglePin: hookMocks.togglePin })
 
     render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
@@ -812,6 +849,43 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'true')
   })
 
+  it('renders topic query errors with a retry action', () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [],
+      error: new Error('History request failed'),
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: false,
+      loadNext: vi.fn(),
+      refetch: hookMocks.refetchTopics
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('History request failed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(hookMocks.refetchTopics).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps loaded topics visible while the next page is loading', () => {
+    hookMocks.useTopics.mockImplementation((options?: { pinned?: boolean }) => ({
+      topics: options?.pinned ? [] : [createTopic()],
+      error: undefined,
+      hasNext: options?.pinned ? false : true,
+      isLoading: false,
+      isRefreshing: options?.pinned ? false : true,
+      loadNext: vi.fn(),
+      refetch: hookMocks.refetchTopics
+    }))
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+  })
+
   it('renders the embedded shell without transition animation', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
@@ -843,15 +917,31 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('matches external assistant source and selected-source order', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [
-        createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
-        createTopic({ id: 'topic-alpha-b', name: 'Alpha B', orderKey: 'b' }),
-        createTopic({ id: 'topic-alpha-a', name: 'Alpha A', orderKey: 'a' })
-      ],
+    const topics = [
+      createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
+      createTopic({ id: 'topic-alpha-b', name: 'Alpha B', orderKey: 'b' }),
+      createTopic({ id: 'topic-alpha-a', name: 'Alpha A', orderKey: 'a' })
+    ]
+    hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean; sortBy?: string }) => ({
+      topics: topics
+        .filter(
+          (topic) =>
+            (!options?.assistantId || topic.assistantId === options.assistantId) &&
+            (options?.pinned === undefined || topic.pinned === options.pinned)
+        )
+        .sort((left, right) => {
+          if (options?.sortBy === 'orderKey') {
+            return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
+          }
+          return Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || left.id.localeCompare(right.id)
+        }),
       error: undefined,
-      isLoading: false
-    })
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: false,
+      loadNext: vi.fn(),
+      refetch: hookMocks.refetchTopics
+    }))
     hookMocks.useAssistants.mockReturnValue({
       assistants: [
         createAssistant(),
@@ -862,6 +952,8 @@ describe('HistoryRecordsView assistant mode', () => {
 
     render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true, sortBy: 'updatedAt' }))
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'updatedAt' }))
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })
     const gammaSource = screen.getByRole('button', { name: /Gamma assistant/ })
@@ -870,6 +962,9 @@ describe('HistoryRecordsView assistant mode', () => {
 
     fireEvent.click(alphaSource)
 
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(
+      expect.objectContaining({ assistantId: 'assistant-alpha', pinned: false, sortBy: 'updatedAt' })
+    )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
@@ -883,17 +978,34 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [
-        createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
-        createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
-        createTopic({
-          id: 'topic-missing',
-          assistantId: 'assistant-missing',
-          name: 'Missing assistant topic',
-          orderKey: 'c'
-        })
-      ],
+    const topics = [
+      createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
+      createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
+      createTopic({ id: 'topic-missing', assistantId: undefined, name: 'Missing assistant topic', orderKey: 'c' })
+    ]
+    hookMocks.useTopics.mockImplementation((options?: { assistantId?: string; pinned?: boolean }) => ({
+      topics: topics.filter(
+        (topic) =>
+          (options?.pinned === undefined || topic.pinned === options.pinned) &&
+          (!options?.assistantId ||
+            (options.assistantId === 'unlinked' ? !topic.assistantId : topic.assistantId === options.assistantId))
+      ),
+      error: undefined,
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: false,
+      loadNext: vi.fn(),
+      refetch: hookMocks.refetchTopics
+    }))
+    hookMocks.useTopicStats.mockReturnValue({
+      stats: {
+        total: topics.length,
+        pinnedCount: 0,
+        byAssistant: [
+          { assistantId: 'assistant-alpha', count: 1, pinnedCount: 0 },
+          { assistantId: null, count: 2, pinnedCount: 0 }
+        ]
+      },
       error: undefined,
       isLoading: false
     })
@@ -973,7 +1085,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.pinTopic).toHaveBeenCalledWith({ body: { entityId: 'topic-alpha', entityType: 'topic' } })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -994,12 +1106,12 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.pinTopic).toHaveBeenCalledWith({ body: { entityId: 'topic-alpha', entityType: 'topic' } })
     await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
   })
 
   it('keeps a selected topic when pinning it from history fails', async () => {
-    hookMocks.togglePin.mockRejectedValueOnce(new Error('pin failed'))
+    hookMocks.pinTopic.mockRejectedValueOnce(new Error('pin failed'))
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -1015,7 +1127,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.pinTopic).toHaveBeenCalledWith({ body: { entityId: 'topic-alpha', entityType: 'topic' } })
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 

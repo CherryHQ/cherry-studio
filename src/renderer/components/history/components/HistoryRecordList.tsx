@@ -1,6 +1,6 @@
-import { EmptyState } from '@cherrystudio/ui'
+import { Button, EmptyState } from '@cherrystudio/ui'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { MessageSquareText } from 'lucide-react'
+import { AlertCircle, LoaderCircle, MessageSquareText, RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,23 +11,32 @@ import { formatHistoryTime, HistoryRecordRow, HistoryTableHeader, HistoryVirtual
 interface HistoryRecordListProps<T> {
   descriptor: HistoryRecordDescriptor<T>
   items: readonly T[]
+  error?: Error
   isLoading: boolean
+  isLoadingMore?: boolean
   isSelected: (id: string) => boolean
   selectAllState: SelectAllState
   selectionDisabled: boolean
   onToggleSelection: (id: string, checked: boolean) => void
   onToggleSelectAll: (checked: boolean) => void
+  /** Load the next cursor page when the scroller nears its bottom. */
+  onEndReached?: () => void
+  onRetry?: () => void
 }
 
 export function HistoryRecordList<T>({
   descriptor,
   items,
+  error,
   isLoading,
+  isLoadingMore = false,
   isSelected,
   selectAllState,
   selectionDisabled,
   onToggleSelection,
-  onToggleSelectAll
+  onToggleSelectAll,
+  onEndReached,
+  onRetry
 }: HistoryRecordListProps<T>) {
   const { t } = useTranslation()
   const list = useMemo(() => Array.from(items), [items])
@@ -62,11 +71,26 @@ export function HistoryRecordList<T>({
     if (!open) setRenameTarget(null)
   }, [])
 
-  const emptyTitle = isLoading ? descriptor.strings.loadingTitle : descriptor.strings.emptyTitle
-  const emptyDescription = isLoading ? descriptor.strings.loadingDescription : descriptor.strings.emptyDescription
+  const emptyTitle = error
+    ? t('common.error')
+    : isLoading
+      ? descriptor.strings.loadingTitle
+      : descriptor.strings.emptyTitle
+  const emptyDescription = error
+    ? error.message
+    : isLoading
+      ? descriptor.strings.loadingDescription
+      : descriptor.strings.emptyDescription
   const emptyContent = (
     <div className="flex min-h-[320px] items-center justify-center px-5 py-8">
-      <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />
+      <EmptyState
+        compact
+        icon={error ? AlertCircle : MessageSquareText}
+        title={emptyTitle}
+        description={emptyDescription}
+        actionLabel={error && onRetry ? t('common.retry') : undefined}
+        onAction={error ? onRetry : undefined}
+      />
     </div>
   )
 
@@ -152,8 +176,34 @@ export function HistoryRecordList<T>({
         header={header}
         items={list}
         onFixedActionShadowChange={setShowFixedActionShadow}
+        onEndReached={onEndReached}
         renderRow={renderRow}
       />
+      {list.length > 0 && (error || isLoadingMore) ? (
+        <div
+          className="flex h-9 shrink-0 items-center justify-center gap-2 border-border-subtle border-t px-3 text-foreground-muted text-xs"
+          role={error ? 'alert' : 'status'}>
+          {error ? (
+            <>
+              <AlertCircle size={14} className="shrink-0 text-destructive" />
+              <span className="max-w-md truncate" title={error.message}>
+                {error.message}
+              </span>
+              {onRetry ? (
+                <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={onRetry}>
+                  <RefreshCw size={13} />
+                  <span>{t('common.retry')}</span>
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <LoaderCircle size={14} className="animate-spin" />
+              <span>{t('common.loading')}</span>
+            </>
+          )}
+        </div>
+      ) : null}
       <EditNameDialog
         open={!!renameTarget}
         title={descriptor.strings.renameDialogTitle}

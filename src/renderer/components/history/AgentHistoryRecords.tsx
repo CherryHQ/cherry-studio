@@ -3,15 +3,21 @@ import type { SessionActionContext } from '@renderer/components/chat/actions/ses
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useAgentSessionHistoryStatusIds } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
+import {
+  useAgentSessionsByIds,
+  useAgentSessionStats,
+  useSessions,
+  useUpdateSession
+} from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
+import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
@@ -23,10 +29,12 @@ import {
   buildAgentSources,
   buildAgentStatusItems,
   findAdjacentHistoryRecordAfterBulkDelete,
-  getAgentHistoryStatus,
-  getSessionAgentSourceId
+  toServerOwnerScope
 } from './historyRecordsHelpers'
-import { useHistoryRecordsController } from './useHistoryRecordsController'
+import { useHistoryRecordsController, useHistoryRecordsFilters } from './useHistoryRecordsController'
+
+const SEARCH_DEBOUNCE_MS = 300
+const HISTORY_PAGE_SIZE = 50
 
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
@@ -37,45 +45,193 @@ interface AgentHistoryRecordsProps {
 
 const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarLeading }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
-  const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('agents')
 
+  const filters = useHistoryRecordsFilters()
+  const debouncedSearch = useDebouncedValue(filters.searchText, SEARCH_DEBOUNCE_MS)
+  const { activeIds, failedIds } = useAgentSessionHistoryStatusIds()
+  const runtimeStatusIds = useMemo(() => {
+    if (filters.selectedStatus === 'running') return [...activeIds]
+    if (filters.selectedStatus === 'failed') return [...failedIds]
+    return []
+  }, [activeIds, failedIds, filters.selectedStatus])
+  const usesRuntimeStatusIds = filters.selectedStatus === 'running' || filters.selectedStatus === 'failed'
+  const ownerScope = toServerOwnerScope(filters.selectedSourceId)
+  const historySortBy = 'updatedAt' as const
+
   const {
-    sessions,
-    pinIdBySessionId,
-    isLoading: isSessionsLoading,
+    sessions: pinnedSourceSessions,
+    pages: pinnedSessionPages,
+    error: pinnedSessionsError,
+    hasMore: hasMorePinnedSessions,
+    isLoading: isPinnedSessionsLoading,
+    isLoadingMore: isPinnedSessionsLoadingMore,
+    loadMore: loadMorePinnedSessions,
+    reload: reloadPinnedSessions
+  } = useSessions(ownerScope, {
+    enabled: !usesRuntimeStatusIds,
+    keepPreviousData: false,
+    pageSize: HISTORY_PAGE_SIZE,
+    q: debouncedSearch,
+    searchScope: 'full',
+    sortBy: historySortBy,
+    pinned: true
+  })
+  const {
+    sessions: unpinnedSourceSessions,
+    pages: unpinnedSessionPages,
     deleteSession,
     deleteSessions,
+    error: unpinnedSessionsError,
+    hasMore: hasMoreUnpinnedSessions,
+    isLoading: isUnpinnedSessionsLoading,
+    isLoadingMore: isUnpinnedSessionsLoadingMore,
+    loadMore: loadMoreUnpinnedSessions,
+    reload: reloadUnpinnedSessions,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 50 })
+  } = useSessions(ownerScope, {
+    enabled: !usesRuntimeStatusIds,
+    keepPreviousData: false,
+    pageSize: HISTORY_PAGE_SIZE,
+    q: debouncedSearch,
+    searchScope: 'full',
+    sortBy: historySortBy,
+    pinned: false
+  })
+  const {
+    sessions: runtimePinnedSessions,
+    error: runtimePinnedSessionsError,
+    isLoading: isRuntimePinnedSessionsLoading,
+    refetch: refetchRuntimePinnedSessions
+  } = useAgentSessionsByIds(runtimeStatusIds, {
+    agentId: ownerScope,
+    enabled: usesRuntimeStatusIds,
+    pinned: true,
+    q: debouncedSearch,
+    searchScope: 'full'
+  })
+  const {
+    sessions: runtimeUnpinnedSessions,
+    error: runtimeUnpinnedSessionsError,
+    isLoading: isRuntimeUnpinnedSessionsLoading,
+    refetch: refetchRuntimeUnpinnedSessions
+  } = useAgentSessionsByIds(runtimeStatusIds, {
+    agentId: ownerScope,
+    enabled: usesRuntimeStatusIds,
+    pinned: false,
+    q: debouncedSearch,
+    searchScope: 'full'
+  })
   const { agents } = useAgents()
+  const { stats: sessionStats } = useAgentSessionStats()
   const { updateSession } = useUpdateSession()
 
-  const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
-    [isSessionPinned, sessions]
+  const pinnedSessions = useMemo(
+    () => pinnedSourceSessions.filter((session) => session.pinned === true),
+    [pinnedSourceSessions]
   )
+  const unpinnedSessions = useMemo(
+    () => unpinnedSourceSessions.filter((session) => session.pinned !== true),
+    [unpinnedSourceSessions]
+  )
+  const isPinnedBandComplete = !isPinnedSessionsLoading && !pinnedSessionsError && !hasMorePinnedSessions
+  const baseSessions = useMemo(
+    () => [...pinnedSessions, ...(isPinnedBandComplete ? unpinnedSessions : [])],
+    [isPinnedBandComplete, pinnedSessions, unpinnedSessions]
+  )
+  const orderedRuntimeSessions = useMemo(
+    () => [
+      ...runtimePinnedSessions.filter((session) => session.pinned === true),
+      ...runtimeUnpinnedSessions.filter((session) => session.pinned !== true)
+    ],
+    [runtimePinnedSessions, runtimeUnpinnedSessions]
+  )
+  const sessions = useMemo(() => {
+    const queried = usesRuntimeStatusIds ? orderedRuntimeSessions : baseSessions
+    if (filters.selectedStatus !== 'completed') return queried
+    return queried.filter((session) => !activeIds.has(session.id) && !failedIds.has(session.id))
+  }, [activeIds, baseSessions, failedIds, filters.selectedStatus, orderedRuntimeSessions, usesRuntimeStatusIds])
+  const sessionError = usesRuntimeStatusIds
+    ? (runtimePinnedSessionsError ?? runtimeUnpinnedSessionsError)
+    : (pinnedSessionsError ?? (isPinnedBandComplete ? unpinnedSessionsError : undefined))
+  const isSessionsLoading = usesRuntimeStatusIds
+    ? isRuntimePinnedSessionsLoading || isRuntimeUnpinnedSessionsLoading
+    : isPinnedSessionsLoading || (isPinnedBandComplete && isUnpinnedSessionsLoading)
+  const isSessionsLoadingMore =
+    !usesRuntimeStatusIds && (isPinnedSessionsLoadingMore || (isPinnedBandComplete && isUnpinnedSessionsLoadingMore))
+  const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
+  const isSessionPinned = useCallback((sessionId: string) => sessionById.get(sessionId)?.pinned === true, [sessionById])
+  const sessionItems = useMemo<SessionListItem[]>(() => [...sessions], [sessions])
+  const hasMoreSessions =
+    !usesRuntimeStatusIds && (hasMorePinnedSessions || (isPinnedBandComplete && hasMoreUnpinnedSessions))
+  const loadMoreSessions = useCallback(() => {
+    if (usesRuntimeStatusIds || isSessionsLoading || isSessionsLoadingMore || sessionError) return
+    if (hasMorePinnedSessions) {
+      loadMorePinnedSessions()
+    } else if (isPinnedBandComplete && hasMoreUnpinnedSessions) {
+      loadMoreUnpinnedSessions()
+    }
+  }, [
+    hasMorePinnedSessions,
+    hasMoreUnpinnedSessions,
+    isPinnedBandComplete,
+    isSessionsLoading,
+    isSessionsLoadingMore,
+    loadMorePinnedSessions,
+    loadMoreUnpinnedSessions,
+    sessionError,
+    usesRuntimeStatusIds
+  ])
+
+  const [completedTargetCount, setCompletedTargetCount] = useState(HISTORY_PAGE_SIZE)
+  const completedOverfetchAttemptRef = useRef<string | null>(null)
+  useEffect(() => {
+    setCompletedTargetCount(HISTORY_PAGE_SIZE)
+    completedOverfetchAttemptRef.current = null
+  }, [debouncedSearch, filters.selectedSourceId, filters.selectedStatus])
+
+  const basePageCount = (pinnedSessionPages?.length ?? 0) + (unpinnedSessionPages?.length ?? 0)
+  useEffect(() => {
+    if (
+      usesRuntimeStatusIds ||
+      filters.selectedStatus !== 'completed' ||
+      sessionItems.length >= completedTargetCount ||
+      !hasMoreSessions ||
+      isSessionsLoading ||
+      isSessionsLoadingMore ||
+      sessionError
+    ) {
+      return
+    }
+
+    const attemptKey = `${completedTargetCount}:${basePageCount}`
+    if (completedOverfetchAttemptRef.current === attemptKey) return
+    completedOverfetchAttemptRef.current = attemptKey
+    loadMoreSessions()
+  }, [
+    basePageCount,
+    completedTargetCount,
+    filters.selectedStatus,
+    hasMoreSessions,
+    isSessionsLoading,
+    isSessionsLoadingMore,
+    loadMoreSessions,
+    sessionError,
+    sessionItems.length,
+    usesRuntimeStatusIds
+  ])
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
 
-  const timeSortedSessions = useMemo(
-    () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
-    [groupNow, sessionItems]
-  )
-  const agentSortedSessions = useMemo(
-    () => sortSessionsForDisplayGroups(sessionItems, { agentRankById, mode: 'agent', now: groupNow }),
-    [agentRankById, groupNow, sessionItems]
-  )
-
-  const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
-  const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
-
   const unknownAgentLabel = t('agent.session.group.unknown_agent')
   const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
+  const hasUnknownAgent = useMemo(
+    () => sessionStats?.byAgent.some((entry) => entry.agentId === null || !agentById.has(entry.agentId)) ?? false,
+    [agentById, sessionStats]
+  )
   const agentSources = useMemo(
-    () => buildAgentSources(sessionItems, agentById, agentRankById, unknownAgentLabel, t),
-    [agentById, agentRankById, sessionItems, t, unknownAgentLabel]
+    () => buildAgentSources(hasUnknownAgent, agentById, agentRankById, unknownAgentLabel, t),
+    [agentById, agentRankById, hasUnknownAgent, t, unknownAgentLabel]
   )
   const additionalAgentSourceItems = useMemo(
     () =>
@@ -107,16 +263,11 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
       const success = await deleteSession(id)
       if (success && activeRecordId === id) {
-        const nextSession = findAdjacentHistoryRecordAfterBulkDelete(
-          timeSortedSessions,
-          [id],
-          id,
-          (session) => session.id
-        )
+        const nextSession = findAdjacentHistoryRecordAfterBulkDelete(sessionItems, [id], id, (session) => session.id)
         onRecordSelect?.(nextSession?.id ?? null)
       }
     },
-    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, timeSortedSessions]
+    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, sessionItems]
   )
 
   const handleBulkDeleteSessions = useCallback(
@@ -144,7 +295,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     [sessions, t, updateSession]
   )
 
-  const handleToggleSessionPin = useCallback((sessionId: string) => togglePin(sessionId), [togglePin])
+  const handleToggleSessionPin = useCallback(
+    (sessionId: string) => togglePin(sessionId, sessionById.get(sessionId)?.pinId),
+    [sessionById, togglePin]
+  )
 
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
@@ -166,21 +320,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
 
   const getId = useCallback((session: SessionListItem) => session.id, [])
-  const getSourceId = useCallback(
-    (session: SessionListItem) => getSessionAgentSourceId(session, agentById),
-    [agentById]
-  )
-  const statusOf = useCallback(
-    (session: SessionListItem) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)),
-    [streamStatusBySessionId]
-  )
-  const matchesSearch = useCallback(
-    (session: SessionListItem, keywords: string) => {
-      const agent = session.agentId ? agentById.get(session.agentId) : undefined
-      return [session.name, session.description, agent?.name].some((value) => value?.toLowerCase().includes(keywords))
-    },
-    [agentById]
-  )
   const onActiveRecordChange = useCallback(
     (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
     [onRecordSelect]
@@ -230,9 +369,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     mode: 'agent',
     getId,
     isPinned: isSessionPinned,
-    getSourceId,
-    statusOf,
-    matchesSearch,
     onBulkDelete: handleBulkDeleteSessions,
     onActiveRecordChange,
     ...rowDescriptor,
@@ -292,17 +428,54 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
   const controller = useHistoryRecordsController({
     descriptor,
-    timeSorted: timeSortedSessions,
-    sourceSorted: agentSortedSessions,
+    items: sessionItems,
+    filters,
     activeRecordId
   })
+
+  const handleEndReached = useCallback(() => {
+    if (usesRuntimeStatusIds || !hasMoreSessions || isSessionsLoading || isSessionsLoadingMore || sessionError) return
+    if (filters.selectedStatus === 'completed') {
+      if (sessionItems.length < completedTargetCount) return
+      setCompletedTargetCount((current) => Math.max(current, sessionItems.length) + HISTORY_PAGE_SIZE)
+      return
+    }
+    loadMoreSessions()
+  }, [
+    completedTargetCount,
+    filters.selectedStatus,
+    hasMoreSessions,
+    isSessionsLoading,
+    isSessionsLoadingMore,
+    loadMoreSessions,
+    sessionError,
+    sessionItems.length,
+    usesRuntimeStatusIds
+  ])
+  const handleRetry = useCallback(() => {
+    if (usesRuntimeStatusIds) {
+      void Promise.all([refetchRuntimePinnedSessions(), refetchRuntimeUnpinnedSessions()])
+      return
+    }
+    void Promise.all([reloadPinnedSessions(), reloadUnpinnedSessions()])
+  }, [
+    refetchRuntimePinnedSessions,
+    refetchRuntimeUnpinnedSessions,
+    reloadPinnedSessions,
+    reloadUnpinnedSessions,
+    usesRuntimeStatusIds
+  ])
 
   return (
     <HistoryRecordsContent
       descriptor={descriptor}
       controller={controller}
+      error={sessionError}
       isLoading={isSessionsLoading}
+      isLoadingMore={isSessionsLoadingMore}
       toolbarLeading={toolbarLeading}
+      onEndReached={handleEndReached}
+      onRetry={handleRetry}
     />
   )
 }

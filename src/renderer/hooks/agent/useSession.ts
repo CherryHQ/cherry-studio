@@ -46,8 +46,6 @@ const EMPTY_AGENT_SESSIONS: readonly AgentSessionListItem[] = Object.freeze([])
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
-  /** @deprecated Transitional compatibility for History; new consumers page explicitly. */
-  loadAll?: boolean
   enabled?: boolean
   /** Flat sort profile (D1 of #16890). Required for q/searchScope and the 'unlinked' owner scope. */
   sortBy?: AgentSessionSortBy
@@ -280,7 +278,6 @@ export const useSessions = (
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
-  const loadAll = typeof options === 'number' ? false : options.loadAll === true
   const enabled = typeof options === 'number' ? undefined : options.enabled
   const sortBy = typeof options === 'number' ? undefined : options.sortBy
   const q = typeof options === 'number' ? undefined : options.q?.trim() || undefined
@@ -329,10 +326,6 @@ export const useSessions = (
   const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
-
-  useEffect(() => {
-    if (loadAll && hasMore && !isLoading && !isRefreshing) loadNext()
-  }, [hasMore, isLoading, isRefreshing, loadAll, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
 
