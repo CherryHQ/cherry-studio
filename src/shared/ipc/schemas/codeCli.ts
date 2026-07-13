@@ -32,9 +32,10 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
     providerId: z.string().min(1),
     model: z.string().min(1),
     // Gateway launch: the CLI runs against the local API gateway, which addresses
-    // models as `providerId:modelId`. Only gemini-cli consumes this (it passes the
-    // model on the command line because it ignores the model in its settings file);
-    // the other tools carry gateway addressing in their own config and ignore it.
+    // models as `providerId:modelId`. Only gemini-cli consumes this flag — it passes the
+    // gateway address on the command line, where `--model` outranks settings.model.name and
+    // rides past gemini-cli's flash-name normalization; the other tools carry gateway
+    // addressing in their own config and ignore it.
     gateway: z.boolean().optional()
   }),
   // Claude-only `/login` flow (ClaudeCodeSettings).

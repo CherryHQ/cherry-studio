@@ -838,6 +838,24 @@ describe('writeCliConfigDraft', () => {
           'GOOGLE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com\n'
       )
     })
+
+    it("preserves a user's own GOOGLE_GENAI_API_VERSION on a direct (non-gateway) write", async () => {
+      // GOOGLE_GENAI_API_VERSION is deliberately NOT a managed key (only gateway mode forces it to
+      // v1beta), so a direct provider write must neither overwrite nor delete the user's own value.
+      existing['/resolved~/.gemini/.env'] = 'GOOGLE_GENAI_API_VERSION=v1\nGEMINI_API_KEY=old\n'
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      expect(findWrite('.env').content).toContain('GOOGLE_GENAI_API_VERSION=v1\n')
+    })
   })
 
   describe('qwen-code (~/.qwen/settings.json)', () => {
@@ -1082,6 +1100,8 @@ describe('writeCliConfigDraft', () => {
       expect(env).toContain(`GOOGLE_GEMINI_BASE_URL=${GATEWAY_BASE_URL}`)
       expect(env).not.toContain(`${GATEWAY_BASE_URL}/v1`)
       expect(env).toContain('GEMINI_API_KEY=cs-sk-gateway')
+      // The gateway serves only /v1beta; force the SDK's API version so a stale v1 can't redirect it.
+      expect(env).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
 
       const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
       // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel

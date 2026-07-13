@@ -234,9 +234,10 @@ describe('CodeCliService', () => {
     })
   })
 
-  // gemini-cli ignores the model in ~/.gemini/settings.json (google-gemini/gemini-cli#5373), so the
-  // model must be passed on the command line at launch — and in gateway mode it must carry the
-  // providerId prefix the gateway addresses by, or the gateway rejects it with "Invalid model format".
+  // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
+  // model, so the intended model is passed on the command line at launch — `--model` outranks settings
+  // and is honored verbatim — and in gateway mode it must carry the providerId prefix the gateway
+  // addresses by plus the @cherry sentinel, or the gateway can't route it.
   describe('run (gemini-cli passes the model via --model)', () => {
     const originalPlatform = process.platform
 
@@ -279,6 +280,11 @@ describe('CodeCliService', () => {
       // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
       // any name satisfying endsWith("flash") to a default Gemini model.
       expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
+      // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
+      // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
+      // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
+      expect(script).toContain('export GOOGLE_GENAI_API_VERSION=')
+      expect(script).toContain('v1beta')
     })
 
     it('passes the bare model id in direct (non-gateway) mode', async () => {
@@ -291,6 +297,9 @@ describe('CodeCliService', () => {
       })
       expect(script).toContain('--model gemini-2.5-pro')
       expect(script).not.toContain('gemini:gemini-2.5-pro')
+      // Direct launch must not force the gateway-only API version — a user who set
+      // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
+      expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
     })
   })
 

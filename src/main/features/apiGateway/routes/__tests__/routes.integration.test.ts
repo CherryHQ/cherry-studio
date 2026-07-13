@@ -267,6 +267,18 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {
+      // The sentinel is reserved: the route strips exactly one trailing `@cherry`, so a model that
+      // STILL ends in it (a real id ending in the reserved marker, or a doubled sentinel) is
+      // ambiguous and never advertised by GET /models — reject rather than route to the wrong id.
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/weird:model@cherry@cherry:generateContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
     it('countTokens: returns a local estimate without calling processMessage', async () => {
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', geminiBody)

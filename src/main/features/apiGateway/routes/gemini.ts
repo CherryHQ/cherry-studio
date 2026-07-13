@@ -1,5 +1,5 @@
 import { bearer } from '@elysia/bearer'
-import { stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
+import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
@@ -109,6 +109,13 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
         return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
       }
       const { model, method } = parsed
+
+      // The sentinel suffix is reserved: `parseModelMethod` strips one trailing `@cherry`, so a
+      // model that STILL ends in it addresses a real id ending in the reserved suffix — which is
+      // ambiguous with the sentinel and never advertised by `GET /models`. Reject rather than route.
+      if (isReservedGeminiGatewayModelId(model)) {
+        return status(400, invalidArgument(`Model id "${model}" is reserved and not routable through the gateway.`))
+      }
 
       if (method === 'countTokens') {
         // The estimate counts text only. Gemini CLI calls remote countTokens precisely
