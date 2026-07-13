@@ -103,7 +103,7 @@ const message = {
   status: 'success',
   siblingsGroupId: 0,
   modelId: 'openai:gpt-5-codex',
-  modelSnapshot: null,
+  messageSnapshot: null,
   traceId: null,
   stats: null,
   createdAt: '2026-01-01T00:01:00.000Z',
