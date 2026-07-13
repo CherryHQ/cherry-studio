@@ -4,7 +4,7 @@ import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lif
 import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
-import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   PreferenceDefaultScopeType,
@@ -16,7 +16,7 @@ import type {
 import {
   BOOT_CONFIG_PREFIX,
   isBootConfigKey,
-  isPreferenceKey,
+  isPublicBootConfigKey,
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -172,6 +172,15 @@ class PreferenceNotifier {
 }
 
 const DefaultScope = 'default'
+
+/**
+ * A unified preference key classified to its backing store, with the
+ * 'BootConfig.' prefix already stripped for boot config keys. Produced by
+ * {@link PreferenceService.resolveKey}, which also rejects inaccessible keys.
+ */
+type ResolvedPreferenceKey =
+  | { readonly store: 'preference'; readonly key: PreferenceKeyType }
+  | { readonly store: 'bootConfig'; readonly key: BootConfigKey }
 /**
  * PreferenceService manages preference data storage and synchronization across multiple windows
  *
@@ -282,22 +291,43 @@ export class PreferenceService extends BaseService {
   }
 
   /**
+   * Classify a unified preference key to its backing store, stripping the
+   * 'BootConfig.' prefix and rejecting boot config keys that are not public —
+   * internal `temp.*` transient state or unknown junk keys.
+   *
+   * This is the single gate for the unified API: get/set/setMultiple/subscribe
+   * all route through it, so untrusted renderer input (a raw runtime string
+   * arriving via the IPC handlers) is validated and dispatched in one step,
+   * before any read or write, instead of an assert-then-branch per method.
+   */
+  private resolveKey(key: string): ResolvedPreferenceKey {
+    if (!isBootConfigKey(key)) {
+      return { store: 'preference', key: key as PreferenceKeyType }
+    }
+    if (!isPublicBootConfigKey(key)) {
+      throw new Error(`Preference key "${key}" is not accessible via the unified preference API`)
+    }
+    return { store: 'bootConfig', key: toBootConfigKey(key) }
+  }
+
+  /**
    * Get a single preference value from memory cache
    * Fast synchronous access - no database queries after initialization
    * @param key The preference key to retrieve
    * @returns The preference value with defaults applied
    */
   public get<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] {
-    if (!isPreferenceKey(key)) {
-      return bootConfigService.get(toBootConfigKey(key)) as UnifiedPreferenceType[K]
+    const route = this.resolveKey(key)
+    if (route.store === 'bootConfig') {
+      return bootConfigService.get(route.key) as UnifiedPreferenceType[K]
     }
 
     if (!this.isReady) {
       logger.warn(`Preference cache not initialized, returning default for ${key}`)
-      return DefaultPreferences.default[key] as UnifiedPreferenceType[K]
+      return DefaultPreferences.default[route.key] as UnifiedPreferenceType[K]
     }
 
-    return (this.cache[key] ?? DefaultPreferences.default[key]) as UnifiedPreferenceType[K]
+    return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
   }
 
   /**
@@ -309,24 +339,26 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when update completes
    */
   public async set<K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> {
-    if (!isPreferenceKey(key)) {
-      const configKey = toBootConfigKey(key)
-      const oldValue = bootConfigService.get(configKey) as UnifiedPreferenceType[K]
+    const route = this.resolveKey(key)
+
+    if (route.store === 'bootConfig') {
+      const oldValue = bootConfigService.get(route.key) as UnifiedPreferenceType[K]
       if (isEqual(oldValue, value)) {
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
-      bootConfigService.set(configKey, value as any)
+      bootConfigService.set(route.key, value as any)
       await this.notifyChange(key, value, oldValue)
       return
     }
 
     try {
-      if (!(key in this.cache)) {
-        throw new Error(`Preference ${key} not found in cache`)
+      const cacheKey = route.key
+      if (!(cacheKey in this.cache)) {
+        throw new Error(`Preference ${cacheKey} not found in cache`)
       }
 
-      const oldValue = this.cache[key]
+      const oldValue = this.cache[cacheKey]
 
       // Performance optimization: skip update if value hasn't changed
       if (isEqual(oldValue, value)) {
@@ -340,11 +372,11 @@ export class PreferenceService extends BaseService {
         .set({
           value: value as any
         })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
         .run()
 
-      // Update memory cache immediately — safe after type guard + cache key check
-      ;(this.cache as Record<string, unknown>)[key] = value
+      // Update memory cache immediately — safe after resolveKey + cache key check
+      ;(this.cache as Record<string, unknown>)[cacheKey] = value
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
@@ -409,25 +441,24 @@ export class PreferenceService extends BaseService {
    */
   public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     try {
-      // Separate BootConfig updates from preference updates
-      const entries = Object.entries(updates)
-      const bootConfigUpdates = Object.fromEntries(
-        entries.filter(([key]) => isBootConfigKey(key))
-      ) as Partial<BootConfigPreferenceKeys>
-      const preferenceUpdates = Object.fromEntries(
-        entries.filter(([key]) => !isBootConfigKey(key))
-      ) as Partial<PreferenceDefaultScopeType>
+      // Resolve every key first: this routes each key to its backing store and
+      // rejects inaccessible keys before any write, so a mixed batch with an
+      // internal/unknown key is rejected atomically — the BootConfig writes and
+      // the preference transaction below are not a single atomic unit.
+      const items = Object.entries(updates).map(([key, value]) => ({ key, value, route: this.resolveKey(key) }))
 
       // Collect all changes for unified notification at the end
       const allChanges: Array<[string, unknown, unknown]> = []
 
       // Handle BootConfig updates
-      for (const [key, value] of Object.entries(bootConfigUpdates)) {
-        const configKey = toBootConfigKey(key)
-        const oldValue = bootConfigService.get(configKey)
+      let bootConfigKeyCount = 0
+      for (const { key, value, route } of items) {
+        if (route.store !== 'bootConfig') continue
+        bootConfigKeyCount++
+        const oldValue = bootConfigService.get(route.key)
         if (!isEqual(oldValue, value)) {
           // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
-          bootConfigService.set(configKey, value as any)
+          bootConfigService.set(route.key, value as any)
           allChanges.push([key, value, oldValue])
         }
       }
@@ -437,17 +468,19 @@ export class PreferenceService extends BaseService {
       const oldValues: Record<string, any> = {}
       let skippedCount = 0
 
-      for (const [key, value] of Object.entries(preferenceUpdates)) {
-        if (!(key in this.cache) || value === undefined || value === null) {
-          throw new Error(`Preference ${key} not found in cache or value is undefined or null`)
+      for (const { value, route } of items) {
+        if (route.store !== 'preference') continue
+        const cacheKey = route.key
+        if (!(cacheKey in this.cache) || value === undefined || value === null) {
+          throw new Error(`Preference ${cacheKey} not found in cache or value is undefined or null`)
         }
 
-        const oldValue = this.cache[key as PreferenceKeyType]
+        const oldValue = this.cache[cacheKey]
 
         // Only include keys that actually changed
         if (!isEqual(oldValue, value)) {
-          actualUpdates[key] = value
-          oldValues[key] = oldValue
+          actualUpdates[cacheKey] = value
+          oldValues[cacheKey] = oldValue
         } else {
           skippedCount++
         }
@@ -484,7 +517,7 @@ export class PreferenceService extends BaseService {
         await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
       }
 
-      if (Object.keys(actualUpdates).length === 0 && Object.keys(bootConfigUpdates).length === 0) {
+      if (Object.keys(actualUpdates).length === 0 && bootConfigKeyCount === 0) {
         logger.debug(`All ${Object.keys(updates).length} preference values unchanged, skipping batch update`)
       } else {
         logger.debug(
@@ -503,6 +536,14 @@ export class PreferenceService extends BaseService {
    * @param keys Array of preference keys to subscribe to
    */
   public subscribeForWindow(windowId: number, keys: string[]): void {
+    // Reject the whole subscription if any key is inaccessible: resolveKey throws
+    // for internal/unknown BootConfig keys, so a renderer cannot register interest
+    // in (or probe the existence of) them. The resolved value is unused here —
+    // only its validation side effect matters.
+    for (const key of keys) {
+      this.resolveKey(key)
+    }
+
     if (!this.windowSubscriptions.has(windowId)) {
       this.windowSubscriptions.set(windowId, new Set())
     }
@@ -777,9 +818,12 @@ export class PreferenceService extends BaseService {
       logger.warn('Preference cache not initialized, returning defaults')
     }
 
-    // Merge preferences with BootConfig values
+    // Merge preferences with BootConfig values, excluding internal (temp.*)
+    // keys — they must never leak to the renderer or cross-window sync.
     const bootConfigAll = bootConfigService.getAll()
-    const bootConfigEntries = Object.entries(bootConfigAll).map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
+    const bootConfigEntries = Object.entries(bootConfigAll)
+      .map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
+      .filter(([prefixedKey]) => isPublicBootConfigKey(prefixedKey))
 
     return { ...cachedValues, ...Object.fromEntries(bootConfigEntries) } as UnifiedPreferenceType
   }

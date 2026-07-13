@@ -38,7 +38,7 @@ Typical examples: disabling hardware acceleration, setting user data directory p
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig is the **only** data system available at stage 1 — before the lifecycle system takes over. The `BeforeReady` phase and `app.whenReady()` run **in parallel** (via `Promise.all`); once both complete, `WhenReady` services start. From the `BeforeReady` phase onward, boot config values are also accessible through PreferenceService via the `BootConfig.*` prefix.
+BootConfig is the **only** data system available at stage 1 — before the lifecycle system takes over. The `BeforeReady` phase and `app.whenReady()` run **in parallel** (via `Promise.all`); once both complete, `WhenReady` services start. From the `BeforeReady` phase onward, **public** boot config values are also accessible through PreferenceService via the `BootConfig.*` prefix. Internal `temp.*` keys are the exception — they are never exposed through PreferenceService (see [Internal `temp.*` namespace](#internal-temp-namespace)).
 
 ## Key Characteristics
 
@@ -111,15 +111,25 @@ BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.j
 
 ## Access Convention
 
-| Context                       | API                                               | Note                                             |
-| ----------------------------- | ------------------------------------------------- | ------------------------------------------------ |
-| Early boot (before lifecycle) | `bootConfigService.get(key)` / `.set(key, value)` | Only option — DB and lifecycle not yet available |
-| Lifecycle services (Main)     | `preferenceService.get('BootConfig.*')`           | Standardized; enables cross-window sync          |
-| Renderer (React components)   | `usePreference('BootConfig.*')`                   | Same as regular preference usage                 |
+| Context                            | API                                               | Note                                             |
+| ---------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| Early boot (before lifecycle)      | `bootConfigService.get(key)` / `.set(key, value)` | Only option — DB and lifecycle not yet available |
+| Lifecycle services (Main)          | `preferenceService.get('BootConfig.*')`           | Standardized; enables cross-window sync          |
+| Renderer (React components)        | `usePreference('BootConfig.*')`                   | Same as regular preference usage                 |
+| Internal `temp.*` keys (any phase) | `bootConfigService.get/set` / `.onChange()`       | Never exposed via PreferenceService — see below  |
 
-**Rule:** Once the lifecycle is running, **always** access boot config values through PreferenceService. Direct `bootConfigService` usage is reserved exclusively for early boot code.
+**Rule:** Once the lifecycle is running, **always** access **public** boot config values through PreferenceService. Direct `bootConfigService` usage is reserved for two cases: early boot code, and the internal `temp.*` namespace (below).
 
 For detailed usage of `usePreference` and `preferenceService`, see [Preference Usage Guide](./preference-usage.md).
+
+### Internal `temp.*` namespace
+
+Boot config keys under the `temp.*` prefix are **main-process-internal transient state** — single in-flight operations meant to be cleared once consumed (e.g. `temp.user_data_relocation`). They are deliberately **excluded** from the unified preference API:
+
+- Not present in `UnifiedPreferenceType`; not reachable via preload or `usePreference`.
+- Rejected at the PreferenceService IPC boundary (`get` / `set` / `getMultipleRaw` / `setMultiple` / `subscribe`), and filtered out of `getAll()`.
+
+Restoring a stale `temp.*` entry (via backup, sync, or a different machine) can cause silent data corruption, so these keys are never backed up or synced. Owning main-process modules **must** use `bootConfigService` directly — at any phase, not only early boot — and `bootConfigService.onChange()` for in-process change notification.
 
 ## BootConfig vs Preference
 
@@ -137,17 +147,18 @@ For detailed usage of `usePreference` and `preferenceService`, see [Preference U
 Boot config keys are accessible through PreferenceService using the `BootConfig.` prefix:
 
 - `preferenceService.get('BootConfig.app.disable_hardware_acceleration')` routes to `bootConfigService.get('app.disable_hardware_acceleration')`
-- The `BootConfigPreferenceKeys` mapped type automatically adds the `BootConfig.` prefix to all boot config keys
-- The `UnifiedPreferenceType` merges both preference and boot config type spaces, providing full type safety
+- The `BootConfigPreferenceKeys` mapped type automatically adds the `BootConfig.` prefix to all **public** boot config keys — internal `temp.*` keys (`InternalBootConfigKey`) are excluded
+- The `UnifiedPreferenceType` merges preference and **public** boot config type spaces, providing full type safety
 - Changes made through PreferenceService are broadcast to all windows
 
 Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 
-| Function               | Purpose                                                         |
-| ---------------------- | --------------------------------------------------------------- |
-| `isBootConfigKey(key)` | Check if a key has the `BootConfig.` prefix                     |
-| `toBootConfigKey(key)` | Strip `BootConfig.` prefix to get the underlying key            |
-| `getDefaultValue(key)` | Unified default lookup for both preference and boot config keys |
+| Function                     | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `isBootConfigKey(key)`       | Check if a key has the `BootConfig.` prefix                                       |
+| `isPublicBootConfigKey(key)` | Whitelist guard — true only for a `BootConfig.` key that is public (not internal) |
+| `toBootConfigKey(key)`       | Strip `BootConfig.` prefix to get the underlying key                             |
+| `getDefaultValue(key)`       | Unified default lookup for both preference and boot config keys                  |
 
 ## File Storage
 
@@ -174,8 +185,8 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 | `src/main/data/bootConfig/BootConfigService.ts`        | Core service — sync load, debounced save, change notifications |
 | `src/main/data/bootConfig/types.ts`                    | `BootConfigLoadError` type definition                          |
 | `src/shared/data/bootConfig/bootConfigSchemas.ts` | `BootConfigSchema` interface and `DefaultBootConfig`           |
-| `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `BootConfigPreferenceKeys` mapped type        |
-| `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing utilities                        |
+| `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `Public`/`InternalBootConfigKey`, `BootConfigPreferenceKeys` mapped type |
+| `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing + `isPublicBootConfigKey` whitelist guard |
 | `src/main/data/PreferenceService.ts`                   | Routes `BootConfig.*` keys to `bootConfigService`              |
 | `src/main/main.ts`                                     | Early boot usage (first import, hardware acceleration check)   |
 
