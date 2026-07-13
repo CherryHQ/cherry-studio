@@ -838,7 +838,7 @@ describe('OpenClawService gateway status state machine', () => {
             cost: { input: 2, output: 8 }
           }
         ]
-      } as any
+      }
 
       await service.syncProviderConfig(provider, legacyModel)
 
