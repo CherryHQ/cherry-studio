@@ -879,7 +879,7 @@ function AgentRightPaneWorkspaceOpener() {
   const shellState = useShellState()
   const hasFiles = meta.filesEnabled !== false
   const workspacePath = state.workspacePath
-  const showWorkspaceOpener = hasFiles && workspacePath && !shellState.open && !shellState.maximized
+  const showWorkspaceOpener = hasFiles && workspacePath && !shellState.maximized
 
   if (!showWorkspaceOpener) return null
 

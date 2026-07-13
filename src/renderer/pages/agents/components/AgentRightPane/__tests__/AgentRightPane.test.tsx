@@ -252,7 +252,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(statusShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.queryByRole('button', { name: 'Open external' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open external' })).toHaveAttribute('data-workdir', '/workspace')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
     expect(document.querySelector('button[data-state="open"]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
