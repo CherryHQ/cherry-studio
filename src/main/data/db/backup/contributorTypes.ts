@@ -202,9 +202,21 @@ export interface BeforeArchiveContext extends BackupContextBase {
  * skip the row. Returned rows are written by the importer (global coordinator), so
  * the allowedTables boundary does not apply here.
  */
-export interface RowTransformContext extends BackupContextBase {
+export interface RowTransformContext {
   readonly row: Readonly<Record<string, unknown>>
   readonly table: DbTableName
+  /**
+   * Per-file staging metadata supplied by the restore coordinator. Contributors
+   * consume only records they own; the merge engine does not interpret it.
+   */
+  readonly fileEntryRewrites: ReadonlyMap<string, FileEntryRewrite>
+}
+
+/** Portable representation for an archived external file that has a staged blob. */
+export interface FileEntryRewrite {
+  readonly origin: 'internal'
+  readonly externalPath: null
+  readonly size: number
 }
 
 /**
@@ -243,6 +255,8 @@ export interface RestoreResourceResult {
  * orchestrator (`application.getPath`).
  */
 export interface RestoreResourceContext extends BackupContextBase {
+  /** Absolute path to the admitted archive extraction root; read-only for contributors. */
+  readonly archiveRoot: string
   readonly backupRoot: string
   readonly liveFileRoot: string
   readonly filesAffected: ReadonlySet<string>

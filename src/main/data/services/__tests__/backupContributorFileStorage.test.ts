@@ -1,11 +1,16 @@
 // Unit tests for the FILE_STORAGE contributor — pure declaration assertions (no DB).
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { contributorManager } from '@main/services/backup/contributors/ContributorManager'
 import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { collectFileEntryIds, FILE_STORAGE_CONTRIBUTOR } from '../backupContributorFileStorage'
+import { collectFileEntryIds, FILE_STORAGE_CONTRIBUTOR, restoreFileResources } from '../backupContributorFileStorage'
 
 describe('FILE_STORAGE contributor', () => {
   it('owns file_entry only (post-#16532 file_ref split moved junctions to source domains)', () => {
@@ -40,7 +45,96 @@ describe('FILE_STORAGE contributor', () => {
   })
 })
 
-// DB-backed tests for collectFileResources — the first contributor hook with live-DB access.
+describe('FILE_STORAGE restoreResources', () => {
+  it('writes only below backupRoot and skips absolute, traversal, and symlink-escape payload ids', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cs-file-resource-hook-'))
+    const archiveRoot = join(root, 'archive')
+    const backupRoot = join(root, 'restore', 'resources')
+    const liveFileRoot = join(root, 'Data', 'Files')
+    const outside = join(root, 'outside')
+    mkdirSync(join(archiveRoot, 'files'), { recursive: true })
+    mkdirSync(outside)
+    writeFileSync(join(archiveRoot, 'files', 'good-file'), 'good')
+    writeFileSync(join(outside, 'escaped-file'), 'escaped')
+    symlinkSync(join(outside, 'escaped-file'), join(archiveRoot, 'files', 'symlink-file'))
+
+    try {
+      const result = await restoreFileResources({
+        registry: contributorManager.getRegistry(),
+        restoreId: 'restore-1',
+        domains: ['FILE_STORAGE'],
+        strategy: 'SKIP',
+        archiveRoot,
+        backupRoot,
+        liveFileRoot,
+        filesAffected: new Set(['good-file', '../traversal', '/absolute', 'symlink-file'])
+      })
+
+      expect(result.restoredFileIds).toEqual(new Set(['good-file']))
+      expect(result.skippedFileIds).toEqual(new Set(['../traversal', '/absolute', 'symlink-file']))
+      expect(existsSync(join(backupRoot, 'files', 'good-file'))).toBe(true)
+      expect(existsSync(join(liveFileRoot, 'good-file'))).toBe(false)
+      expect(existsSync(join(root, 'traversal'))).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates destination seal failures instead of degrading them to skipped ids', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cs-file-resource-seal-failure-'))
+    const archiveRoot = join(root, 'archive')
+    const backupRoot = join(root, 'restore-target')
+    mkdirSync(join(archiveRoot, 'files'), { recursive: true })
+    writeFileSync(join(archiveRoot, 'files', 'file-seal-failure'), 'payload')
+    writeFileSync(backupRoot, 'destination is not a directory')
+
+    try {
+      await expect(
+        restoreFileResources({
+          registry: contributorManager.getRegistry(),
+          restoreId: 'restore-seal-failure',
+          domains: ['FILE_STORAGE'],
+          strategy: 'SKIP',
+          archiveRoot,
+          backupRoot,
+          liveFileRoot: join(root, 'Data', 'Files'),
+          filesAffected: new Set(['file-seal-failure'])
+        })
+      ).rejects.toThrow()
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('stages a large payload through bounded-memory source-file copying', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cs-file-resource-large-'))
+    const archiveRoot = join(root, 'archive')
+    const backupRoot = join(root, 'restore', 'resources')
+    const sourcePath = join(archiveRoot, 'files', 'large-file')
+    const stagedPath = join(backupRoot, 'files', 'large-file')
+    mkdirSync(join(archiveRoot, 'files'), { recursive: true })
+    writeFileSync(sourcePath, Buffer.alloc(8 * 1024 * 1024, 0x5a))
+
+    try {
+      const result = await restoreFileResources({
+        registry: contributorManager.getRegistry(),
+        restoreId: 'restore-large',
+        domains: ['FILE_STORAGE'],
+        strategy: 'SKIP',
+        archiveRoot,
+        backupRoot,
+        liveFileRoot: join(root, 'Data', 'Files'),
+        filesAffected: new Set(['large-file'])
+      })
+
+      expect(result).toEqual({ restoredFileIds: new Set(['large-file']), skippedFileIds: new Set() })
+      expect(statSync(stagedPath).size).toBe(statSync(sourcePath).size)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('FILE_STORAGE collectFileResources (collectFileEntryIds)', () => {
   const dbh = setupTestDatabase()
 

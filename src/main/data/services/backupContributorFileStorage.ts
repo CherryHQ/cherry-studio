@@ -12,16 +12,23 @@
 // (→ PAINTINGS, by sourceId→painting). Those junctions belong to their SOURCE
 // domains, NOT FILE_STORAGE — so this contributor owns file_entry only.
 //
-// The file BLOB itself (externalPath/size) is a file resource: a schema-only
-// restore re-creates the row but not the blob, so restoreResources must run before
-// DB import (C/D track TODO, like MCP_SERVERS dxtPath).
+// The file BLOB itself (externalPath/size) is a file resource. Restore staging
+// restores it below backupRoot before its owning DB row is imported.
 //
 // Preset: full only (lite-excluded — files are large blobs).
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
-import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
+import type {
+  BackupContributor,
+  RestoreResourceContext,
+  RestoreResourceResult
+} from '@main/data/db/backup/contributorTypes'
 import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { sealRestoreResourceFromPath } from '@main/data/db/backup/restoreResourceSeal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isNull } from 'drizzle-orm'
 
@@ -35,6 +42,51 @@ import { isNull } from 'drizzle-orm'
 export async function collectFileEntryIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
   const rows = await liveDb.select().from(fileEntryTable).where(isNull(fileEntryTable.deletedAt))
   return new Set(rows.map((r) => r.id))
+}
+
+/** Stage selected archive blobs below backupRoot without ever writing a live path. */
+export async function restoreFileResources(ctx: RestoreResourceContext): Promise<RestoreResourceResult> {
+  const restoredFileIds = new Set<string>()
+  const skippedFileIds = new Set<string>()
+
+  for (const id of ctx.filesAffected) {
+    const payloadPath = safePayloadPath(ctx.archiveRoot, id)
+    if (!payloadPath) {
+      skippedFileIds.add(id)
+      continue
+    }
+    const stagedPath = path.join(ctx.backupRoot, 'files', id)
+    sealRestoreResourceFromPath(ctx.backupRoot, stagedPath, payloadPath)
+    restoredFileIds.add(id)
+  }
+
+  return { restoredFileIds, skippedFileIds }
+}
+
+/** Resolve an archive payload only when its flat id remains inside files/ after realpath. */
+export function safePayloadPath(archiveRoot: string, id: string): string | undefined {
+  if (!isSafeFileId(id)) return undefined
+  const filesRoot = path.resolve(archiveRoot, 'files')
+  const candidate = path.resolve(filesRoot, id)
+  if (!isContained(filesRoot, candidate) || !fs.existsSync(candidate)) return undefined
+  try {
+    const realRoot = fs.realpathSync(filesRoot)
+    const realCandidate = fs.realpathSync(candidate)
+    if (!isContained(realRoot, realCandidate) || !fs.statSync(realCandidate).isFile()) return undefined
+    return realCandidate
+  } catch {
+    return undefined
+  }
+}
+
+/** Archive file resource identifiers are flat filenames, never paths. */
+function isSafeFileId(id: string): boolean {
+  return /^[A-Za-z0-9_-]{1,128}$/.test(id)
+}
+
+/** Check lexical or resolved path containment without prefix collisions. */
+function isContained(root: string, target: string): boolean {
+  return target === root || target.startsWith(`${root}${path.sep}`)
 }
 
 /**
@@ -52,30 +104,25 @@ export const FILE_STORAGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
     jsonSoftReferences: []
   },
   backupPolicy: {},
-  // TODO(C/D track) — restoreResources + externalPath/content dedup. Two restore-track
-  // concerns (neither is a finalize concern):
-  //  1. Blob restore: restoreResources (externalPath/size) runs before DB import and
-  //     returns skippedFileEntryIds for entries whose blob is unavailable; without it a
-  //     schema-only restore re-creates the row but not the blob → broken file on a new
-  //     machine (like MCP_SERVERS dxtPath).
-  //  2. UNIQUE-on-externalPath dedup (codex review): file_entry carries a
-  //     `lower(externalPath)` expression unique index that codegen CANNOT reflect (so
-  //     DB_UNIQUE_KEYS.file_entry is empty and finalize #13 exempts it — correct at the
-  //     declaration level). But SQLite still enforces it at restore time: as a
-  //     uuid-entity (conflictDefault SKIP by id), two rows sharing the same
-  //     lower(externalPath) but different ids are NOT detected as an aggregate conflict,
-  //     so a full restore into a profile that already has that path under a different id
-  //     UNIQUE-violates at insert/commit and rolls back the whole restore. The importer
-  //     MUST pre-scan/dedup file_entry by lower(externalPath) (external files) and by
-  //     content_hash (internal files, #15445) before import — skip/map duplicates rather
-  //     than relying on id-level SKIP. Add a collision test (same lower(externalPath),
-  //     different ids) when wiring restore.
-  //  The temp_session/chat_message/painting FileRefSourceType coverage (#11) lands with
-  //  their source domains (TOPICS/PAINTINGS) + a temp_session runtime-owner, not here.
   operations: {
     // Export blob set = non-deleted file_entry ids (internal + external). Staging
     // resolves each id to its source path and copies the blob into files/<id>;
     // a missing external source is skipped, not fatal.
-    collectFileResources: (ctx) => collectFileEntryIds(ctx.liveDb)
+    collectFileResources: (ctx) => collectFileEntryIds(ctx.liveDb),
+    // Resources are written only into the per-restore staging subtree. The coordinator
+    // validates manifest/live-target policy around the contributor's byte staging result.
+    restoreResources: (ctx) => restoreFileResources(ctx),
+    // An archived external path is not portable. The keyed staging metadata proves
+    // a managed blob exists, so convert only that row into the internal invariant.
+    transformRow: ({ row, fileEntryRewrites }) => {
+      const rewrite = fileEntryRewrites.get(String(row.id))
+      if (!rewrite) return row
+      return {
+        ...row,
+        origin: rewrite.origin,
+        external_path: rewrite.externalPath,
+        size: rewrite.size
+      }
+    }
   }
 })
