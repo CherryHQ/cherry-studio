@@ -9,6 +9,7 @@ import {
   SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type {
   ModelHealthCheckGenerationOutput,
@@ -17,7 +18,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -36,6 +37,17 @@ interface HealthCheckDrawerProps {
   onClose: () => void
   onResetRun: () => void
   onStart: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
+}
+
+function HealthCheckModelAvatar({ model }: { model: ModelWithStatus['model'] }) {
+  const Icon = useIcon(getModelLogoRef(model))
+  return Icon ? (
+    <Icon.Avatar size={22} />
+  ) : (
+    <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
+      <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
+    </Avatar>
+  )
 }
 
 export default function HealthCheckDrawer({
@@ -230,7 +242,6 @@ export default function HealthCheckDrawer({
             <ul className="divide-y divide-border-muted pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row
-                const Icon = getModelLogo(model)
                 const pending = !checking && status === HealthStatus.NOT_CHECKED
 
                 let statusCell: ReactNode
@@ -313,13 +324,7 @@ export default function HealthCheckDrawer({
                       status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
-                    {Icon ? (
-                      <Icon.Avatar size={22} />
-                    ) : (
-                      <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
-                        <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    )}
+                    <HealthCheckModelAvatar model={model} />
                     <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground/85">
                       {model.name}
                     </span>

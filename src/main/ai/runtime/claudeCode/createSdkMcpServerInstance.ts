@@ -63,6 +63,19 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  * The returned instance is designed for use with the Claude Agent SDK's
  * in-memory (`type: 'sdk'`) transport, keeping all communication
  * within the Electron main process.
+ *
+ * Tool-list consistency model: the SDK snapshots this bridge's tools ONCE per session
+ * (standard MCP — `tools/list` at connect, then only on `tools/list_changed`), so the
+ * bridge must never gamble on the cache being warm at that single read. Instead:
+ * - ListTools reads the shared cache only and never blocks on a server connect, so a
+ *   dead/slow server can't stall session start (issue #16242). A cold cache returns `[]`
+ *   and `listTools` itself kicks a non-blocking refresh.
+ * - Every content change to that cache fires `McpCatalogService.onToolsCacheUpdated`;
+ *   the bridge relays it as a `tools/list_changed` notification, and the SDK re-lists
+ *   (verified against SDK 0.3.185: the CLI re-lists on the notification, debounced
+ *   300ms, keeping the previous tool set if the re-list fails). One notification
+ *   round-trip heals a session that started on a cold cache — including servers whose
+ *   connect outlives the session-build warm — with zero blocking anywhere.
  */
 export function createSdkMcpServerInstance(mcpId: string): McpServer {
   const serverConfig = mcpServerService.findByIdOrName(mcpId)
@@ -72,7 +85,10 @@ export function createSdkMcpServerInstance(mcpId: string): McpServer {
 
   const sdkServer = new McpServer(
     { name: serverConfig.name, version: '0.1.0' },
-    { capabilities: { tools: {}, resources: {}, prompts: {} } }
+    // `listChanged: true` is load-bearing twice over: the SDK client only attaches its
+    // re-list handler for servers that declared it, and the local `sendToolListChanged`
+    // below throws a capability error without it.
+    { capabilities: { tools: { listChanged: true }, resources: {}, prompts: {} } }
   )
 
   // Use the low-level Server to set raw request handlers because this bridge
@@ -80,6 +96,38 @@ export function createSdkMcpServerInstance(mcpId: string): McpServer {
   // known at construction time. The high-level McpServer.tool() API requires
   // Zod schemas to be declared upfront, which is not feasible for a proxy.
   const rawServer = sdkServer.server
+
+  // Relay cache updates for this server as `tools/list_changed` (see consistency model
+  // above). Subscribe on `oninitialized` rather than at construction: a bridge that is
+  // built but whose query never starts would otherwise leak the subscription forever,
+  // and nothing is missed by subscribing late — the SDK's first tools/list happens after
+  // `initialized` and reads the then-current cache. Unsubscribe when the SDK closes the
+  // in-memory transport (driver close() → query.close() → transport.close()).
+  let toolsCacheSubscription: { dispose: () => void } | undefined
+  const previousOnInitialized = rawServer.oninitialized
+  rawServer.oninitialized = () => {
+    previousOnInitialized?.()
+    toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
+      if (serverId !== serverConfig.id) return
+      rawServer.sendToolListChanged().catch((error) => {
+        // "Not connected" is the expected race between an emitter dispatch and transport
+        // teardown — the session is going away, nothing to heal. Anything else means a live
+        // session missed an invalidation (it re-syncs only if the cache changes again), so
+        // keep it visible at warn.
+        if (error instanceof Error && error.message.includes('Not connected')) {
+          logger.debug('SDK bridge: tools/list_changed raced transport teardown', { mcpId })
+        } else {
+          logger.warn('SDK bridge: failed to send tools/list_changed', { mcpId, error })
+        }
+      })
+    })
+  }
+  const previousOnClose = rawServer.onclose
+  rawServer.onclose = () => {
+    previousOnClose?.()
+    toolsCacheSubscription?.dispose()
+    toolsCacheSubscription = undefined
+  }
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {

@@ -40,6 +40,7 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -646,10 +647,10 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
 
     return () => {
-      void window.api.window.resetMinimumSize()
+      void ipcApi.request('window.main.reset_minimum_size')
     }
   }, [])
 
