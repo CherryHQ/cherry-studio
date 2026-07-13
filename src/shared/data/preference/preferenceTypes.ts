@@ -371,6 +371,13 @@ export type ManagedBinary = {
   version?: string
 }
 
+/** Durable user intent for a BinaryManager-managed tool. */
+export type BinaryManifestEntry = {
+  name: string
+  tool: string
+  requestedVersion?: string
+}
+
 export interface ToolInstallState {
   tool: string
   version: string

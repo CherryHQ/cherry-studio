@@ -1,7 +1,8 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
+import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import type { BinaryResolution } from '@shared/types/binary'
-import { CLI_BINARY_NAMES, CodeCli } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { gt as semverGt, valid as semverValid } from 'semver'
 

@@ -5,7 +5,8 @@ import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { CLI_BINARY_NAMES, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
+import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

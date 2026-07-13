@@ -39,8 +39,8 @@ import {
   PRESETS_BINARY_TOOLS,
   validateManagedBinary
 } from '@shared/data/presets/binaryTools'
+import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import type { BinaryResolutions, BinaryToolInventoryEntry } from '@shared/types/binary'
-import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,

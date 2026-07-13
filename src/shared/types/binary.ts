@@ -1,3 +1,5 @@
+import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
+
 /**
  * Live install activity for a tool, owned by the main process so every window
  * (and a window opened mid-install) renders the same installing/failed state.
@@ -20,3 +22,30 @@ export type BinaryResolution =
   | { source: 'none' }
 
 export type BinaryResolutions = Record<string, BinaryResolution>
+
+/** An install command separates durable user intent from a one-shot version target. */
+export type BinaryInstallRequest = {
+  intent: BinaryManifestEntry
+  targetVersion?: string
+}
+
+/** Runtime availability independently observed by BinaryManager. */
+export type BinaryAvailability =
+  | { source: 'mise'; tool: string; path: string; version?: string }
+  | { source: 'bundled'; path: string; version?: string }
+  | { source: 'system'; path: string }
+  | { source: 'none' }
+
+/** Transient operation status, held outside the durable manifest. */
+export type BinaryOperation =
+  | { status: 'installing' }
+  | { status: 'removing' }
+  | { status: 'failed'; action: 'install' | 'remove'; error: string; intent?: BinaryManifestEntry }
+
+/** Main-computed runtime facts for one binary. */
+export type BinaryToolSnapshot = {
+  name: string
+  intent?: BinaryManifestEntry
+  availability: BinaryAvailability
+  operation?: BinaryOperation
+}

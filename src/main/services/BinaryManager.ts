@@ -22,13 +22,13 @@ import {
   TOOL_NAME_RE,
   validateManagedBinary
 } from '@shared/data/presets/binaryTools'
+import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import type {
   BinaryInstallState,
   BinaryResolution,
   BinaryResolutions,
   BinaryToolInventoryEntry
 } from '@shared/types/binary'
-import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 

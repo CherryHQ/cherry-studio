@@ -1,6 +1,13 @@
-import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { BinaryManifestEntry, ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
-import type { BinaryResolution, BinaryToolInventoryEntry } from '@shared/types/binary'
+import type {
+  BinaryAvailability,
+  BinaryInstallRequest,
+  BinaryOperation,
+  BinaryResolution,
+  BinaryToolInventoryEntry,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -47,6 +54,45 @@ const binaryToolInventoryEntrySchema: z.ZodType<BinaryToolInventoryEntry> = z.di
   z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(true) }),
   z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(false) })
 ])
+
+/** Durable management intent. Not registered as a Preference schema until Phase 2. */
+export const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
+  name: z.string(),
+  tool: z.string(),
+  requestedVersion: z.string().optional()
+})
+
+/** Future install route input; intentionally standalone until the route migrates. */
+export const binaryInstallRequestSchema: z.ZodType<BinaryInstallRequest> = z.object({
+  intent: binaryManifestEntrySchema,
+  targetVersion: z.string().optional()
+})
+
+export const binaryAvailabilitySchema: z.ZodType<BinaryAvailability> = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('mise'), tool: z.string(), path: z.string(), version: z.string().optional() }),
+  z.object({ source: z.literal('bundled'), path: z.string(), version: z.string().optional() }),
+  z.object({ source: z.literal('system'), path: z.string() }),
+  z.object({ source: z.literal('none') })
+])
+
+export const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('installing') }),
+  z.object({ status: z.literal('removing') }),
+  z.object({
+    status: z.literal('failed'),
+    action: z.enum(['install', 'remove']),
+    error: z.string(),
+    intent: binaryManifestEntrySchema.optional()
+  })
+])
+
+/** Future snapshot route output; intentionally standalone until the route is added. */
+export const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
+  name: z.string(),
+  intent: binaryManifestEntrySchema.optional(),
+  availability: binaryAvailabilitySchema,
+  operation: binaryOperationSchema.optional()
+})
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const binaryRequestSchemas = {
