@@ -97,7 +97,6 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
-    'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),

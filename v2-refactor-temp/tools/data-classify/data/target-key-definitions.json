@@ -275,10 +275,10 @@
     },
     {
       "targetKey": "feature.binary.tools",
-      "type": "PreferenceTypes.ManagedBinary[]",
-      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "type": "PreferenceTypes.BinaryManifestEntry[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.BinaryManifestEntry[]",
       "status": "classified",
-      "description": "List of tools to install via BinaryManager"
+      "description": "BinaryManager manifest: each entry expresses user intent and Cherry ownership; requestedVersion is an optional durable pin"
     },
     {
       "targetKey": "shortcut.app.fullscreen.exit",

@@ -35,9 +35,11 @@ export function useBinaryActions() {
         const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
         if (cliPreset) {
           await ipcApi.request('binary.install_tool', {
-            name: CLI_BINARY_NAMES[toolId],
-            tool: cliPreset.miseTool,
-            ...(version ? { version } : {})
+            intent: {
+              name: CLI_BINARY_NAMES[toolId],
+              tool: cliPreset.miseTool
+            },
+            ...(version ? { targetVersion: version } : {})
           })
           toast.success(t(messages.successKey))
         }

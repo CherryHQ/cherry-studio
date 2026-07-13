@@ -1,4 +1,4 @@
-import type { BinaryManifestEntry, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
 import type {
   BinaryAvailability,
@@ -23,16 +23,9 @@ import { defineRoute } from '../define'
  * SECURITY: install_tool can install arbitrary npm:/pipx: packages (postinstall =
  * code execution), so reaching these routes must stay gated by IpcApi's
  * source-trust check (validateSender). The deep grammar/length validation of the
- * install spec lives in `BinaryManager.installTool` (validateManagedBinary); the
+ * install spec lives in `BinaryManager.installTool` (validateBinaryManifestEntry); the
  * schema only guards the wire shape, per the schema guide.
  */
-
-/** Structural shape of {@link ManagedBinary}; deep validation is the service's job. */
-const managedBinarySchema: z.ZodType<ManagedBinary> = z.object({
-  name: z.string(),
-  tool: z.string(),
-  version: z.string().optional()
-})
 
 /**
  * A tool name used purely to address an existing entry (remove / open dir). The
@@ -51,18 +44,24 @@ const binaryResolutionSchema: z.ZodType<BinaryResolution> = z.discriminatedUnion
 const registryEntrySchema = z.object({ name: z.string(), tool: z.string() })
 
 const binaryToolInventoryEntrySchema: z.ZodType<BinaryToolInventoryEntry> = z.discriminatedUnion('managed', [
-  z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(true) }),
+  z.object({
+    name: z.string(),
+    tool: z.string(),
+    version: z.string(),
+    requestedVersion: z.string().optional(),
+    managed: z.literal(true)
+  }),
   z.object({ name: z.string(), tool: z.string(), version: z.string(), managed: z.literal(false) })
 ])
 
-/** Durable management intent. Not registered as a Preference schema until Phase 2. */
+/** Durable management intent stored in the BinaryManager-owned Preference manifest. */
 export const binaryManifestEntrySchema: z.ZodType<BinaryManifestEntry> = z.object({
   name: z.string(),
   tool: z.string(),
   requestedVersion: z.string().optional()
 })
 
-/** Future install route input; intentionally standalone until the route migrates. */
+/** Install route input: durable intent plus an optional one-shot target. */
 export const binaryInstallRequestSchema: z.ZodType<BinaryInstallRequest> = z.object({
   intent: binaryManifestEntrySchema,
   targetVersion: z.string().optional()
@@ -96,7 +95,7 @@ export const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object(
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const binaryRequestSchemas = {
-  'binary.install_tool': defineRoute({ input: managedBinarySchema, output: z.object({ version: z.string() }) }),
+  'binary.install_tool': defineRoute({ input: binaryInstallRequestSchema, output: z.object({ version: z.string() }) }),
   'binary.remove_tool': defineRoute({ input: toolNameSchema, output: z.void() }),
   'binary.resolve_tools': defineRoute({
     input: z.array(toolNameSchema),
@@ -105,7 +104,7 @@ export const binaryRequestSchemas = {
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) }),
-  // State-file entries are manageable; only unrecorded node/python runtimes from
+  // Manifest entries are manageable; only unrecorded node/python runtimes from
   // live `mise ls` are included as display-only entries.
   'binary.list_tools': defineRoute({ input: z.void(), output: z.array(binaryToolInventoryEntrySchema) }),
   // Whether a CLI tool binary is resolvable (bundled or on PATH). Legacy App_IsBinaryExist.

@@ -379,7 +379,7 @@ export class CodeCliService extends BaseService {
     if (resolution.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await binaryManager.installTool(spec)
+        await binaryManager.installTool({ intent: spec })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)

@@ -20,7 +20,7 @@ import {
   SelectDropdown
 } from '@cherrystudio/ui'
 import { useSharedCache } from '@data/hooks/useCache'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
@@ -32,12 +32,12 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import {
   type BinaryToolPreset,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
-  validateManagedBinary
+  validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
 import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import type { BinaryResolutions, BinaryToolInventoryEntry } from '@shared/types/binary'
@@ -105,6 +105,12 @@ type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 // management surface (the Code CLI page) — keep them out of this inventory.
 const CODE_CLI_BINARIES = new Set<string>(Object.values(CLI_BINARY_NAMES))
 
+const toManifestIntent = (tool: BinaryToolInventoryEntry): BinaryManifestEntry => ({
+  name: tool.name,
+  tool: tool.tool,
+  ...(tool.managed && tool.requestedVersion ? { requestedVersion: tool.requestedVersion } : {})
+})
+
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -112,13 +118,11 @@ interface EnvironmentDependenciesProps {
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [resolutions, setResolutions] = useState<BinaryResolutions>({})
   const [resolutionsReady, setResolutionsReady] = useState(false)
-  // Everything recorded in BinaryManager's state file (minus code CLIs) — the
-  // page shows the actual install inventory, not just what it can install.
+  // BinaryManager owns the manifest; this page renders its temporary inventory adapter.
   const [inventoryTools, setInventoryTools] = useState<BinaryToolInventoryEntry[]>([])
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installStates] = useSharedCache('feature.binary.install_states', {})
-  const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean } | null>(null)
@@ -144,11 +148,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     try {
       const inventory = (await ipcApi.request('binary.list_tools')).filter((tool) => !CODE_CLI_BINARIES.has(tool.name))
       const names = [
-        ...new Set([
-          ...PRESETS_BINARY_TOOLS.map((tool) => tool.name),
-          ...customTools.map((tool) => tool.name),
-          ...inventory.map((tool) => tool.name)
-        ])
+        ...new Set([...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...inventory.map((tool) => tool.name)])
       ]
       const resolved = await ipcApi.request('binary.resolve_tools', names)
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
@@ -158,7 +158,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
     }
-  }, [customTools])
+  }, [])
 
   const fetchLatestVersions = useCallback(
     async (force = false): Promise<Record<string, string> | null> => {
@@ -205,22 +205,25 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   // alive across navigation. Failed cards open the detail dialog on demand;
   // only the add-tool flow surfaces it immediately (the tool is not persisted
   // on failure, so there is no card to carry the error).
-  const installTool = async (tool: ManagedBinary, { surfaceErrorDialog = false } = {}): Promise<boolean> => {
+  const installTool = async (
+    intent: BinaryManifestEntry,
+    { surfaceErrorDialog = false, targetVersion }: { surfaceErrorDialog?: boolean; targetVersion?: string } = {}
+  ): Promise<boolean> => {
     try {
-      await ipcApi.request('binary.install_tool', tool)
+      await ipcApi.request('binary.install_tool', { intent, ...(targetVersion ? { targetVersion } : {}) })
       return true
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      if (surfaceErrorDialog) setInstallError({ name: tool.name, message: formatErrorMessage(error) })
+      if (surfaceErrorDialog) setInstallError({ name: intent.name, message: formatErrorMessage(error) })
       return false
     } finally {
       await refreshState()
     }
   }
 
-  const handleAddCustomTool = async (tool: ManagedBinary) => {
+  const handleAddCustomTool = async (tool: BinaryManifestEntry) => {
     try {
-      validateManagedBinary(tool)
+      validateBinaryManifestEntry(tool)
     } catch {
       toast.error(t('settings.dependencies.invalidTool'))
       throw new Error('invalid')
@@ -228,7 +231,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
     const allNames = [
       ...PRESETS_BINARY_TOOLS.map((p) => p.name),
-      ...customTools.map((c) => c.name),
       ...inventoryTools.filter((tool) => tool.managed).map((tool) => tool.name),
       ...CODE_CLI_BINARIES
     ]
@@ -240,20 +242,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     const discoveredRuntime = inventoryTools.find(
       (entry) => !entry.managed && entry.name === tool.name && isRuntimeDependency(entry.tool)
     )
-    const claimedVersion = tool.version || discoveredRuntime?.version
-    const claimedTool = claimedVersion ? { ...tool, version: claimedVersion } : tool
+    const requestedVersion = tool.requestedVersion || discoveredRuntime?.version
+    const claimedTool = requestedVersion ? { ...tool, requestedVersion } : tool
     if (!(await installTool(claimedTool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
-    await setCustomTools([...customTools, claimedTool])
   }
 
-  // Uninstalls the mise-managed binary for both preset and custom tools; only custom tools
-  // also drop from the persisted list (presets revert to bundled/not-installed on re-probe).
+  // BinaryManager removes the physical binary and its manifest ownership together.
   const handleRemoveTool = async (toolName: string) => {
     try {
       await ipcApi.request('binary.remove_tool', toolName)
-      if (customTools.some((t) => t.name === toolName)) {
-        await setCustomTools(customTools.filter((t) => t.name !== toolName))
-      }
       await refreshState()
       setDeleteTarget(null)
     } catch (error) {
@@ -268,15 +265,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   // One unified inventory: presets first, then everything else BinaryManager
-  // knows about — user-added custom tools plus state-file entries installed by
-  // other features (code CLIs excluded; they are managed on the Code CLI page).
+  // knows about — custom tools and feature-owned entries (Code CLIs stay on
+  // their dedicated page).
   const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-  const extraTools: Array<ManagedBinary | BinaryToolInventoryEntry> = [
-    ...customTools.filter((tool) => !CODE_CLI_BINARIES.has(tool.name)),
-    ...inventoryTools.filter(
-      (tool) => !presetNames.has(tool.name) && !customTools.some((custom) => custom.name === tool.name)
-    )
-  ]
+  const extraTools = inventoryTools.filter((tool) => !presetNames.has(tool.name))
   const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
 
   if (mini) {
@@ -345,7 +337,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
           const installedVersion =
             resolution.source === 'managed' || resolution.source === 'bundled' ? resolution.version : undefined
-          const managed = inventoryTools.some((entry) => entry.name === tool.name && entry.managed)
+          const inventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
+          const managed = inventoryEntry?.managed === true
+          const managedIntent = inventoryEntry?.managed ? toManifestIntent(inventoryEntry) : undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
           const installState = installStates[tool.name]
@@ -361,8 +355,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installing={installState?.status === 'installing'}
               installError={installState?.status === 'failed' ? installState.error : undefined}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
-              onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onInstall={() =>
+                installTool(
+                  managedIntent ?? { name: tool.name, tool: tool.tool, requestedVersion: tool.requestedVersion }
+                )
+              }
+              onUpdate={() => managedIntent && installTool(managedIntent, { targetVersion: latestVersion ?? 'latest' })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
               onRemove={() => setDeleteTarget({ name: tool.name, runtime: false })}
             />
@@ -371,7 +369,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {extraTools.map((tool) => {
           const resolution = resolutions[tool.name] ?? { source: 'none' as const }
           const runtime = isRuntimeDependency(tool.tool)
-          // Ownership comes only from BinaryManager inventory/state. A custom
+          // Ownership comes only from BinaryManager inventory. A custom
           // preference or live mise resolution alone must not make a tool manageable.
           const inventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
           const readOnly = inventoryEntry?.managed === false
@@ -402,8 +400,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installing={installState?.status === 'installing'}
               installError={installState?.status === 'failed' ? installState.error : undefined}
               onShowError={(message) => setInstallError({ name: tool.name, message })}
-              onInstall={() => installTool(tool)}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onInstall={() => installTool(toManifestIntent(tool))}
+              onUpdate={() => installTool(toManifestIntent(tool), { targetVersion: latestVersion ?? 'latest' })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
               onRemove={() => setDeleteTarget({ name: tool.name, runtime })}
             />
@@ -615,7 +613,7 @@ const BinaryToolPresetCard: FC<{
 }
 
 const CustomToolCard: FC<{
-  tool: ManagedBinary
+  tool: BinaryToolInventoryEntry
   managed: boolean
   available: boolean
   runtime?: boolean
@@ -773,7 +771,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: ManagedBinary) => Promise<void>
+  onAdd: (tool: BinaryManifestEntry) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -834,7 +832,11 @@ function AddToolDialog({
     if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
     try {
-      await onAdd({ name: selectedName.trim(), tool: selectedTool.trim(), version: version.trim() || undefined })
+      await onAdd({
+        name: selectedName.trim(),
+        tool: selectedTool.trim(),
+        requestedVersion: version.trim() || undefined
+      })
       reset()
       onOpenChange(false)
     } catch {

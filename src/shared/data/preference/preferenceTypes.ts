@@ -365,24 +365,9 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export type ManagedBinary = {
-  name: string
-  tool: string
-  version?: string
-}
-
-/** Durable user intent for a BinaryManager-managed tool. */
+/** Durable user intent and Cherry ownership for a BinaryManager-managed tool. */
 export type BinaryManifestEntry = {
   name: string
   tool: string
   requestedVersion?: string
-}
-
-export interface ToolInstallState {
-  tool: string
-  version: string
-}
-
-export interface BinaryState {
-  tools: Record<string, ToolInstallState>
 }

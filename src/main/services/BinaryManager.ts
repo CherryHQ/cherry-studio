@@ -14,16 +14,17 @@ import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/b
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
+import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import {
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
   TOOL_KEY_RE,
   TOOL_NAME_RE,
-  validateManagedBinary
+  validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
-import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type {
+  BinaryInstallRequest,
   BinaryInstallState,
   BinaryResolution,
   BinaryResolutions,
@@ -35,13 +36,6 @@ import { valid as semverValid } from 'semver'
 const logger = loggerService.withContext('BinaryManager')
 
 const execFileAsync = promisify(execFile)
-
-interface ReconcileResult {
-  installed: string[]
-  failed: Array<{ name: string; error: string }>
-  skipped: string[]
-  stateSaveError?: string
-}
 
 // Env vars forwarded from the user shell into the mise subprocess. Deliberately
 // excludes auth-token vars (GITHUB_TOKEN, GH_TOKEN, NPM_TOKEN, …) — the README
@@ -79,17 +73,6 @@ const BINARY_INSTALL_PREFERENCE_KEYS = {
   pipIndexUrl: 'feature.binary.install.pip_index_url',
   verifySignatures: 'feature.binary.install.verify_signatures'
 } as const
-
-// True for any pin that does not pick a single concrete version — floating pins
-// like "latest" / "stable" / "lts" / "1" / "1.2" that mise accepts but that don't
-// resolve to one version we can persist and compare. semver.valid() returns null
-// for all of them. A leading-"v" form like "v1.2.3" IS concrete; the pin is
-// compared normalized (via semverValid — see the reconcile skip check), so it
-// round-trips against mise's bare resolved version instead of reinstalling or
-// skipping an upgrade every boot.
-function isFloatingVersion(v?: string): boolean {
-  return !v || semverValid(v) === null
-}
 
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
@@ -141,16 +124,15 @@ const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: stri
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
 
-// Re-exported from the shared module so existing main-process call sites and
-// tests keep importing it from here.
-export { validateManagedBinary }
+// Re-exported for main-process callers and tests.
+export { validateBinaryManifestEntry }
 
 @Injectable('BinaryManager')
 @ServicePhase(Phase.Background)
 export class BinaryManager extends BaseService {
   private miseBin: string | null = null
   // Built lazily on first mise invocation, never in onInit(): the isolated env is
-  // only ever consumed by runMise() (install/reconcile/remove/search), none of
+  // only ever consumed by runMise() (install/remove/search/query), none of
   // which run during init. buildIsolatedEnv() blocks on a region lookup
   // (regionService.isInChina, for China mirror selection) whose cache is cold on
   // every launch, so building it eagerly put a network round-trip on the
@@ -161,10 +143,13 @@ export class BinaryManager extends BaseService {
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
-  // Serializes state read-modify-write across reconcile/install/remove so
-  // concurrent callers can't clobber state.json or each other's mise mutations.
-  private readonly stateMutex = new Mutex()
-  private readonly inFlightInstalls = new Map<string, { tool: ManagedBinary; promise: Promise<{ version: string }> }>()
+  // Serializes manifest read-modify-write with filesystem mutations so concurrent
+  // requests cannot lose ownership entries or interleave mise global changes.
+  private readonly mutationMutex = new Mutex()
+  private readonly inFlightInstalls = new Map<
+    string,
+    { request: BinaryInstallRequest; promise: Promise<{ version: string }> }
+  >()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
   protected async onInit() {
@@ -200,22 +185,6 @@ export class BinaryManager extends BaseService {
         }
       )
     )
-
-    const reservedNames = new Set([
-      ...PRESETS_BINARY_TOOLS.map((tool) => tool.name),
-      ...Object.values(CLI_BINARY_NAMES)
-    ])
-    const tools = prefService.get('feature.binary.tools')
-    const cleaned = tools.filter((tool) => !reservedNames.has(tool.name))
-    if (cleaned.length < tools.length) {
-      void prefService.set('feature.binary.tools', cleaned)
-      logger.info('Cleaned reserved tools from custom tools preference', {
-        removed: tools.filter((tool) => reservedNames.has(tool.name)).map((tool) => tool.name)
-      })
-    }
-    if (cleaned.length > 0) {
-      this.reconcile(cleaned).catch((err) => logger.error('Initial reconcile failed', err))
-    }
   }
 
   /**
@@ -268,12 +237,14 @@ export class BinaryManager extends BaseService {
   public async resolveTools(names: string[]): Promise<BinaryResolutions> {
     const uniqueNames = [...new Set(names)]
     if (uniqueNames.length === 0) return {}
-    const state = this.loadState()
+    const manifest = this.getManifest()
+    const intentsByName = new Map(manifest.map((intent) => [intent.name, intent]))
+    const managedVersions = await this.getInstalledVersions(manifest)
     const bundled = this.probeBundled()
     const runtimePaths = Object.fromEntries(
       await Promise.all(
         uniqueNames
-          .filter((name) => !state.tools[name] && isRuntimeDependency(name))
+          .filter((name) => !intentsByName.has(name) && isRuntimeDependency(name))
           .map(async (name): Promise<[string, string] | null> => {
             const runtimePath = await this.resolveManagedBinaryPath(name)
             return runtimePath ? [name, runtimePath] : null
@@ -281,15 +252,17 @@ export class BinaryManager extends BaseService {
       ).then((entries) => entries.filter((entry): entry is [string, string] => entry !== null))
     )
     const system = await this.probeSystem(
-      uniqueNames.filter((name) => !state.tools[name] && !(name in bundled) && !runtimePaths[name])
+      uniqueNames.filter((name) => !intentsByName.has(name) && !(name in bundled) && !runtimePaths[name])
     )
 
     const entries = await Promise.all(
       uniqueNames.map(async (name): Promise<[string, BinaryResolution]> => {
-        const managed = state.tools[name]
-        if (managed) {
+        const intent = intentsByName.get(name)
+        if (intent) {
           const managedPath = await this.resolveManagedBinaryPath(name)
-          if (managedPath) return [name, { source: 'managed', path: managedPath, version: managed.version }]
+          if (managedPath) {
+            return [name, { source: 'managed', path: managedPath, version: managedVersions[intent.name] ?? '' }]
+          }
         }
         if (runtimePaths[name]) return [name, { source: 'managed', path: runtimePaths[name], version: '' }]
 
@@ -302,7 +275,7 @@ export class BinaryManager extends BaseService {
           ]
         }
 
-        const systemPath = system[name] ?? (managed ? (await this.probeSystem([name]))[name] : undefined)
+        const systemPath = system[name] ?? (intent ? (await this.probeSystem([name]))[name] : undefined)
         return [name, systemPath ? { source: 'system', path: systemPath } : { source: 'none' }]
       })
     )
@@ -569,190 +542,155 @@ export class BinaryManager extends BaseService {
     return (await this.resolveManagedBinaryPath(toolName)) !== null
   }
 
-  private async installWithMise(tool: ManagedBinary, state = this.loadState()): Promise<string> {
-    const requested = tool.version || 'latest'
-    const backend = tool.tool.split(':')[0]
+  private async installWithMise(
+    intent: BinaryManifestEntry,
+    targetVersion: string | undefined,
+    manifest: BinaryManifestEntry[]
+  ): Promise<string> {
+    const requested = targetVersion ?? intent.requestedVersion ?? 'latest'
+    const backend = intent.tool.split(':')[0]
     const defaultRuntime = RUNTIME_DEPS[backend]
     const runtimeName = defaultRuntime?.split('@')[0]
     const ownedRuntime = runtimeName
-      ? Object.values(state.tools).find((entry) => {
+      ? manifest.find((entry) => {
           const runtimeTool = entry.tool.startsWith('core:') ? entry.tool.slice('core:'.length) : entry.tool
           return isRuntimeDependency(entry.tool) && runtimeTool.split('@')[0] === runtimeName
         })
       : undefined
-    // Package backends need a runtime, but must not silently replace one the user
-    // explicitly manages. Reassert the recorded concrete version; use the default
-    // only for an unowned runtime (which remains auto-discovered/read-only).
-    const runtime = ownedRuntime
-      ? ownedRuntime.version
-        ? `${ownedRuntime.tool}@${ownedRuntime.version}`
-        : undefined
-      : defaultRuntime
-    const toolSpec = `${tool.tool}@${requested}`
-    const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
+    let runtime = defaultRuntime
+    if (ownedRuntime) {
+      const runtimeTool = ownedRuntime.tool.replace(/@[^@]+$/, '')
+      const runtimeVersion = ownedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
+      runtime = `${runtimeTool}@${runtimeVersion}`
+    }
+    const toolSpec = `${intent.tool}@${requested}`
 
-    await this.runMise(args, { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+    await this.runMise(['use', '-g', ...(runtime ? [runtime] : []), toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
     await this.runMise(['reshim'])
-
-    try {
-      const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool])
-      const lsData = JSON.parse(lsOut) as Record<string, Array<{ version?: string }>>
-      const entries = Object.values(lsData).flat()
-      const requestedVersion = tool.version ? semverValid(tool.version) : null
-      if (requestedVersion) {
-        const requestedEntry = entries.find((entry) => semverValid(entry.version) === requestedVersion)
-        if (requestedEntry?.version) {
-          return semverValid(requestedEntry.version) ?? requestedEntry.version
-        }
-      }
-      if (entries.length > 0 && entries[0].version) {
-        return entries[0].version
-      }
-    } catch {
-      logger.warn('Failed to query installed version via mise ls', { tool: tool.tool })
-    }
-    // Persist the normalized concrete version (semverValid strips a leading "v"
-    // so it round-trips against mise's bare resolved version). Floating sentinels
-    // (latest, stable, lts, prefix queries like "1" or "1.2") normalize to null
-    // and are stored as "" (unpinned), which reconcile treats as floating via
-    // isFloatingVersion() — never surfacing as `vlatest` / `vlts` in the UI.
-    return tool.version ? (semverValid(tool.version) ?? '') : ''
+    return this.getInstalledVersion(intent.tool, requested)
   }
 
-  private loadState(): BinaryState {
-    const statePath = application.getPath('feature.binary.state_file')
-    let data: string
-    try {
-      data = fs.readFileSync(statePath, 'utf-8')
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { tools: {} }
-      }
-      // A read error (EACCES, EIO, …) leaves nothing to recover. Throwing here
-      // would brick every boot; start empty instead and let reconcile() rebuild.
-      logger.error('Failed to read binary state, starting empty', err as Error)
-      return { tools: {} }
+  private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
+    const { stdout } = await this.runMise(['ls', '--json', tool])
+    const entries = Object.values(
+      JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
+    ).flat()
+    const requestedVersion = requested ? semverValid(requested) : null
+    const matching = requestedVersion
+      ? entries.find((entry) => semverValid(entry.version) === requestedVersion)
+      : (entries.find((entry) => entry.active) ?? (entries.length === 1 ? entries[0] : undefined))
+    if (!matching?.version) {
+      throw new Error(`mise did not report an installed version for ${tool}${requested ? `@${requested}` : ''}`)
     }
+    return matching.version
+  }
+
+  private async getInstalledVersions(intents: BinaryManifestEntry[]): Promise<Record<string, string>> {
+    if (!this.miseBin || intents.length === 0) return {}
 
     try {
-      const parsed = JSON.parse(data)
-      if (!parsed || typeof parsed !== 'object' || typeof parsed.tools !== 'object' || parsed.tools === null) {
-        throw new Error('binary state has unexpected shape')
-      }
-      const validTools: Record<string, ToolInstallState> = {}
-      for (const [key, entry] of Object.entries(parsed.tools)) {
-        const e = entry as Record<string, unknown>
-        if (
-          e &&
-          typeof e === 'object' &&
-          typeof e.tool === 'string' &&
-          typeof e.version === 'string' &&
-          TOOL_KEY_RE.test(e.tool)
-        ) {
-          validTools[key] = e as unknown as ToolInstallState
-        } else {
-          logger.warn('Discarding malformed tool entry from state', { key })
-        }
-      }
-      return { tools: validTools }
+      const { stdout } = await this.runMise(['ls', '--json'])
+      const installed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
+      return this.getInstalledVersionsFromOutput(intents, installed)
     } catch (err) {
-      // Corrupt JSON or wrong shape: back up the bad file before the next
-      // saveState() overwrites it, so the failure stays diagnosable.
-      logger.error('Binary state file is corrupt, backing up and resetting', err as Error)
-      try {
-        fs.writeFileSync(statePath + '.corrupt', data)
-      } catch (backupErr) {
-        logger.warn('Failed to back up corrupt binary state', backupErr as Error)
-      }
-      return { tools: {} }
+      logger.warn('Failed to query installed versions via mise ls', {
+        error: err instanceof Error ? err.message : String(err)
+      })
+      return {}
     }
   }
 
-  private saveState(state: BinaryState) {
-    const statePath = application.getPath('feature.binary.state_file')
-    const dir = path.dirname(statePath)
-    fs.mkdirSync(dir, { recursive: true })
-    const tmp = statePath + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
-    fs.renameSync(tmp, statePath)
+  private getInstalledVersionsFromOutput(
+    intents: BinaryManifestEntry[],
+    installed: Record<string, Array<{ version?: string; active?: boolean }>>
+  ): Record<string, string> {
+    const versions: Record<string, string> = {}
+    const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
+    for (const intent of intents) {
+      const normalized = normalize(intent.tool)
+      const runtimeName = isRuntimeDependency(intent.tool) ? normalized.split('@')[0] : undefined
+      const entries =
+        installed[normalized] ??
+        (runtimeName
+          ? Object.entries(installed).find(([spec]) => normalize(spec).split('@')[0] === runtimeName)?.[1]
+          : undefined)
+      versions[intent.name] = entries?.find((entry) => entry.active)?.version ?? entries?.at(-1)?.version ?? ''
+    }
+    return versions
+  }
+
+  private async isMiseToolAbsent(tool: string): Promise<boolean> {
+    const { stdout } = await this.runMise(['ls', '--json', tool])
+    const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
+    return entries.length === 0
+  }
+
+  private getManifest(): BinaryManifestEntry[] {
+    return application.get('PreferenceService').get('feature.binary.tools')
+  }
+
+  private async upsertManifest(intent: BinaryManifestEntry): Promise<void> {
+    const manifest = this.getManifest()
+    await application
+      .get('PreferenceService')
+      .set('feature.binary.tools', [...manifest.filter((entry) => entry.name !== intent.name), intent])
+    this.invalidateManifestViews()
+  }
+
+  private async removeManifest(toolName: string): Promise<void> {
+    const manifest = this.getManifest()
+    await application.get('PreferenceService').set(
+      'feature.binary.tools',
+      manifest.filter((entry) => entry.name !== toolName)
+    )
+    this.invalidateManifestViews()
+  }
+
+  private manifestFingerprint(manifest = this.getManifest()): string {
+    return manifest
+      .map((entry) => `${entry.name}\u0000${entry.tool}\u0000${entry.requestedVersion ?? ''}`)
+      .sort()
+      .join('\u0001')
+  }
+
+  private invalidateManifestViews() {
     application.get('CacheService').deleteShared('feature.binary.latest_versions')
     application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
   }
 
-  async reconcile(tools: ManagedBinary[]): Promise<ReconcileResult> {
-    if (!this.miseBin) {
-      return { installed: [], failed: [{ name: '*', error: 'mise binary not available' }], skipped: [] }
+  private validateInstallRequest(request: BinaryInstallRequest) {
+    validateBinaryManifestEntry(request.intent)
+    if (request.targetVersion && !TOOL_KEY_RE.test(request.targetVersion)) {
+      throw new Error(`Invalid tool version: ${request.targetVersion}`)
+    }
+    const canonicalTools = new Map([
+      ...PRESETS_BINARY_TOOLS.map((tool) => [tool.name, tool.tool] as const),
+      ...CODE_CLI_TOOL_PRESETS.map((tool) => [tool.executable, tool.miseTool] as const)
+    ])
+    const canonicalTool = canonicalTools.get(request.intent.name)
+    if (canonicalTool && canonicalTool !== request.intent.tool) {
+      throw new Error(`Tool ${request.intent.name} must use its canonical specification`)
     }
 
-    return this.stateMutex.runExclusive(async () => {
-      const state = this.loadState()
-      const result: ReconcileResult = { installed: [], failed: [], skipped: [] }
-
-      for (const tool of tools) {
-        try {
-          validateManagedBinary(tool)
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          logger.warn('Skipping invalid tool from preferences', { name: tool.name, error: msg })
-          result.failed.push({ name: tool.name, error: msg })
-          continue
-        }
-
-        const existing = state.tools[tool.name]
-        if (existing && existing.tool === tool.tool && (await this.isManagedBinaryReady(tool.name))) {
-          // Skip when the pin is floating (latest, stable, lts, prefix queries
-          // like "1" or "1.2") — comparing those literally against the stored
-          // resolved version would always mismatch and trigger reinstall every
-          // boot. For concrete semvers we compare normalized, so a "v1.2.3" pin
-          // matches a stored "1.2.3" (no reinstall) yet still upgrades off "1.2.2".
-          if (isFloatingVersion(tool.version) || semverValid(existing.version) === semverValid(tool.version)) {
-            result.skipped.push(tool.name)
-            continue
-          }
-        }
-
-        try {
-          logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
-          const installedVersion = await this.installWithMise(tool, state)
-          // Symmetric with the skip path above: only record the install once the
-          // binary is actually runnable, otherwise it falls through to `failed`.
-          if (!(await this.isManagedBinaryReady(tool.name))) {
-            throw new Error('installed but not runnable')
-          }
-          state.tools[tool.name] = {
-            tool: tool.tool,
-            version: installedVersion
-          }
-          result.installed.push(tool.name)
-          logger.info('Tool installed', { name: tool.name, version: installedVersion })
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          logger.error('Tool install failed', { name: tool.name, error: msg })
-          result.failed.push({ name: tool.name, error: msg })
-        }
-      }
-
-      try {
-        this.saveState(state)
-      } catch (err) {
-        logger.error('Failed to persist reconcile state', err as Error)
-        result.stateSaveError = err instanceof Error ? err.message : String(err)
-      }
-      this.broadcastReconcileFailures(result.failed)
-
-      return result
-    })
+    const runtimeTool = request.intent.tool.replace(/^core:/, '').split('@')[0]
+    const usesRuntimeBackend = isRuntimeDependency(request.intent.tool)
+    const hasRuntimeName = request.intent.name === 'node' || request.intent.name === 'python'
+    if ((usesRuntimeBackend && request.intent.name !== runtimeTool) || (hasRuntimeName && !usesRuntimeBackend)) {
+      throw new Error(`Runtime ${request.intent.name} must use its canonical runtime specification`)
+    }
   }
 
   /**
-   * Inventory ownership follows state.json. Live mise data may supplement it
-   * only with node/python runtimes installed as package-backend dependencies.
+   * Inventory ownership follows the durable Preference manifest. Live mise data
+   * may supplement it only with node/python runtime dependencies.
    */
   async listTools(): Promise<BinaryToolInventoryEntry[]> {
-    const tools: BinaryToolInventoryEntry[] = Object.entries(this.loadState().tools).map(([name, entry]) => ({
-      name,
-      tool: entry.tool,
-      version: entry.version,
+    const manifest = this.getManifest()
+    const tools: BinaryToolInventoryEntry[] = manifest.map((intent) => ({
+      name: intent.name,
+      tool: intent.tool,
+      version: '',
+      ...(intent.requestedVersion ? { requestedVersion: intent.requestedVersion } : {}),
       managed: true
     }))
     if (!this.miseBin) return tools
@@ -760,9 +698,10 @@ export class BinaryManager extends BaseService {
     try {
       const { stdout } = await this.runMise(['ls', '--json'])
       const installed = JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-      // mise ls keys core-backend tools bare ('node'), while state entries may
-      // pin the backend ('core:node') — compare with the prefix stripped.
       const normalize = (spec: string) => (spec.startsWith('core:') ? spec.slice('core:'.length) : spec)
+      const managedVersions = this.getInstalledVersionsFromOutput(manifest, installed)
+      for (const tool of tools) tool.version = managedVersions[tool.name] ?? ''
+
       const recorded = new Set(tools.map((tool) => normalize(tool.tool)))
       for (const [spec, versions] of Object.entries(installed)) {
         if (recorded.has(normalize(spec))) continue
@@ -795,64 +734,89 @@ export class BinaryManager extends BaseService {
     cacheService.setShared('feature.binary.install_states', states)
   }
 
-  installTool(tool: ManagedBinary): Promise<{ version: string }> {
+  installTool(request: BinaryInstallRequest): Promise<{ version: string }> {
     try {
-      validateManagedBinary(tool)
+      this.validateInstallRequest(request)
     } catch (err) {
       return Promise.reject(err)
     }
+    const { intent } = request
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.setInstallState(tool.name, { status: 'failed', error: error.message })
+      this.setInstallState(intent.name, { status: 'failed', error: error.message })
       return Promise.reject(error)
     }
 
-    const inFlight = this.inFlightInstalls.get(tool.name)
+    const inFlight = this.inFlightInstalls.get(intent.name)
     if (inFlight) {
-      if (inFlight.tool.tool === tool.tool && inFlight.tool.version === tool.version) return inFlight.promise
-      return Promise.reject(new Error(`Tool ${tool.name} is already installing with a different specification`))
+      if (
+        inFlight.request.intent.tool === intent.tool &&
+        inFlight.request.intent.requestedVersion === intent.requestedVersion &&
+        inFlight.request.targetVersion === request.targetVersion
+      ) {
+        return inFlight.promise
+      }
+      return Promise.reject(new Error(`Tool ${intent.name} is already installing with a different specification`))
     }
 
-    const promise = this.installToolImpl(tool)
-    this.inFlightInstalls.set(tool.name, { tool, promise })
+    const promise = this.installToolImpl(request)
+    this.inFlightInstalls.set(intent.name, { request, promise })
     void promise.then(
       () => {
-        if (this.inFlightInstalls.get(tool.name)?.promise === promise) this.inFlightInstalls.delete(tool.name)
+        if (this.inFlightInstalls.get(intent.name)?.promise === promise) this.inFlightInstalls.delete(intent.name)
       },
       () => {
-        if (this.inFlightInstalls.get(tool.name)?.promise === promise) this.inFlightInstalls.delete(tool.name)
+        if (this.inFlightInstalls.get(intent.name)?.promise === promise) this.inFlightInstalls.delete(intent.name)
       }
     )
     return promise
   }
 
-  private async installToolImpl(tool: ManagedBinary): Promise<{ version: string }> {
-    // Marked before the mutex so an install queued behind another already
-    // renders as installing instead of idling until its turn.
-    this.setInstallState(tool.name, { status: 'installing' })
+  private async installToolImpl(request: BinaryInstallRequest): Promise<{ version: string }> {
+    const { intent, targetVersion } = request
+    this.setInstallState(intent.name, { status: 'installing' })
     try {
-      const result = await this.stateMutex.runExclusive(async () => {
-        const state = this.loadState()
-        const version = await this.installWithMise(tool, state)
-        // mise can report success while leaving the binary unrunnable (missing
-        // file, AV stripped the exec bit). Verify before persisting so we never
-        // record a phantom install — callers (CodeCliService, renderer toast)
-        // get the failure instead of a false success.
-        if (!(await this.isManagedBinaryReady(tool.name))) {
-          throw new Error(`Tool installed but not runnable: ${tool.name}`)
+      const result = await this.mutationMutex.runExclusive(async () => {
+        const manifest = this.getManifest()
+        const existing = manifest.find((entry) => entry.name === intent.name)
+        if (existing && (existing.tool !== intent.tool || existing.requestedVersion !== intent.requestedVersion)) {
+          throw new Error(`Tool ${intent.name} is already owned with a different specification`)
         }
-        state.tools[tool.name] = {
-          tool: tool.tool,
-          version
-        }
-        this.saveState(state)
 
+        let persistedIntent = intent
+        let version: string
+        const isRuntime = isRuntimeDependency(intent.tool)
+        const runtimeReady = isRuntime && (await this.isManagedBinaryReady(intent.name))
+        const currentRuntimeVersion = runtimeReady ? await this.getInstalledVersion(intent.tool) : undefined
+        const desiredRuntimeVersion = targetVersion ?? intent.requestedVersion
+        const normalizedDesiredRuntimeVersion = desiredRuntimeVersion ? semverValid(desiredRuntimeVersion) : null
+        const canClaimRuntime =
+          currentRuntimeVersion !== undefined &&
+          (!desiredRuntimeVersion ||
+            (normalizedDesiredRuntimeVersion !== null &&
+              semverValid(currentRuntimeVersion) === normalizedDesiredRuntimeVersion))
+
+        if (canClaimRuntime) {
+          version = currentRuntimeVersion
+          persistedIntent = intent.requestedVersion ? intent : { ...intent, requestedVersion: version }
+        } else {
+          version = await this.installWithMise(intent, targetVersion, manifest)
+          if (!(await this.isManagedBinaryReady(intent.name))) {
+            throw new Error(`Tool installed but not runnable: ${intent.name}`)
+          }
+          if (isRuntime && !intent.requestedVersion) {
+            if (!version) throw new Error(`Runtime installed but its version could not be determined: ${intent.name}`)
+            persistedIntent = { ...intent, requestedVersion: version }
+          }
+        }
+
+        await this.upsertManifest(persistedIntent)
         return { version }
       })
-      this.setInstallState(tool.name, null)
+      this.setInstallState(intent.name, null)
       return result
     } catch (err) {
-      this.setInstallState(tool.name, {
+      this.setInstallState(intent.name, {
         status: 'failed',
         error: err instanceof Error ? err.message : String(err)
       })
@@ -898,7 +862,7 @@ export class BinaryManager extends BaseService {
 
   /**
    * Latest available registry version for each mise-managed tool (name → version).
-   * On demand only — never during boot or reconcile — because `mise latest` for
+   * On demand only — never during boot — because `mise latest` for
    * github: backends hits the rate-limited GitHub releases API. Runs with a
    * small worker pool; tools whose lookup fails are omitted.
    *
@@ -921,21 +885,15 @@ export class BinaryManager extends BaseService {
   }
 
   private async fetchLatestVersions(): Promise<Record<string, string>> {
-    const state = this.loadState()
+    const manifest = this.getManifest()
     const result: Record<string, string> = {}
-    if (!this.miseBin) {
-      return result
-    }
+    if (!this.miseBin) return result
 
-    // Drop the result if the managed set drifted mid-batch.
-    const snapshot = Object.entries(state.tools)
-      .map(([name, { tool }]) => `${name}@${tool}`)
-      .join('|')
+    const fingerprint = this.manifestFingerprint(manifest)
     let cursor = 0
-    const entries = Object.entries(state.tools)
-    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, entries.length) }, async () => {
-      while (cursor < entries.length) {
-        const [name, { tool }] = entries[cursor++]
+    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, manifest.length) }, async () => {
+      while (cursor < manifest.length) {
+        const { name, tool } = manifest[cursor++]
         try {
           const { stdout } = await this.runMise(['latest', tool])
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
@@ -951,64 +909,43 @@ export class BinaryManager extends BaseService {
     })
     await Promise.all(workers)
 
-    // Every lookup failed (offline, rate-limited, …) — surface the failure so the
-    // caller can distinguish "nothing newer" from "couldn't check at all".
-    if (entries.length > 0 && Object.keys(result).length === 0) {
+    if (manifest.length > 0 && Object.keys(result).length === 0) {
       throw new Error('Failed to query latest versions for all managed tools')
     }
 
-    return this.stateMutex.runExclusive(async () => {
-      const current = Object.entries(this.loadState().tools)
-        .map(([name, { tool }]) => `${name}@${tool}`)
-        .join('|')
-      if (current !== snapshot) {
-        return {}
-      }
+    return this.mutationMutex.runExclusive(async () => {
+      if (this.manifestFingerprint() !== fingerprint) return {}
       application.get('CacheService').setShared('feature.binary.latest_versions', result)
       return result
     })
   }
 
-  private broadcastReconcileFailures(failed: ReconcileResult['failed']) {
-    if (failed.length === 0 || (failed.length === 1 && failed[0].name === '*')) return
-    const names = failed.map((f) => f.name).join(', ')
-    application.get('IpcApiService').broadcast('binary.reconcile_failed', names)
-  }
-
   async removeTool(toolName: string): Promise<void> {
-    // Removing a tool retires any lingering failed-install banner for it.
-    const installStates = application.get('CacheService').getShared('feature.binary.install_states')
-    if (installStates?.[toolName]?.status === 'failed') {
-      this.setInstallState(toolName, null)
-    }
-    return this.stateMutex.runExclusive(async () => {
-      const state = this.loadState()
-      const existing = state.tools[toolName]
-      if (!existing) return
-      const runtime = isRuntimeDependency(existing.tool)
-      if (this.miseBin) {
-        try {
-          await this.runMise(['unuse', '-g', existing.tool])
-          // `unuse` only drops the global config entry; the installed versions
-          // linger under the isolated data dir (installs/cache/downloads) and
-          // accumulate across install/remove cycles. Uninstall them too.
-          await this.runMise(['uninstall', '--all', existing.tool])
-          await this.runMise(['reshim'])
-        } catch (err) {
-          logger.warn('Failed to remove mise tool', {
-            name: toolName,
-            error: err instanceof Error ? err.message : String(err)
-          })
-          // Explicit runtime removal is destructive and carries a dedicated UI
-          // warning. Do not report success or drop its ownership record unless
-          // mise actually completes the removal; otherwise the user loses the
-          // only safe retry path while dependent tools remain in an unknown state.
-          if (runtime) throw err
-        }
-      }
+    return this.mutationMutex.runExclusive(async () => {
+      const intent = this.getManifest().find((entry) => entry.name === toolName)
+      if (!intent) return
+      try {
+        if (!this.miseBin) throw new Error('Binary backend not available')
 
-      delete state.tools[toolName]
-      this.saveState(state)
+        const wasAbsent = await this.isMiseToolAbsent(intent.tool)
+        if (!wasAbsent) {
+          await this.runMise(['unuse', '-g', intent.tool])
+          await this.runMise(['uninstall', '--all', intent.tool])
+        }
+        // Run even for an already-absent tool: a prior uninstall may have
+        // succeeded before reshim failed, leaving a stale shim to clean up.
+        await this.runMise(['reshim'])
+        if (!wasAbsent && !(await this.isMiseToolAbsent(intent.tool))) {
+          throw new Error(`Tool is still installed after removal: ${toolName}`)
+        }
+        await this.removeManifest(toolName)
+        this.setInstallState(toolName, null)
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err))
+        logger.warn('Failed to remove mise tool', { name: toolName, error: error.message })
+        this.setInstallState(toolName, { status: 'failed', error: error.message })
+        throw error
+      }
     })
   }
 }

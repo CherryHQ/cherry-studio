@@ -1,7 +1,7 @@
-import type { ManagedBinary } from '../preference/preferenceTypes'
+import type { BinaryManifestEntry } from '../preference/preferenceTypes'
 
 // Tool identity validators, shared so the renderer can reject malformed custom
-// tools before persisting to the `feature.binary.tools` preference — not just
+// tools before sending the install request — not just
 // the main-process install path.
 export const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
@@ -19,19 +19,19 @@ export function isRuntimeDependency(toolSpec: string): boolean {
   return base === 'node' || base === 'python'
 }
 
-export function validateManagedBinary(tool: ManagedBinary): void {
+export function validateBinaryManifestEntry(tool: BinaryManifestEntry): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
   }
   if (!tool.tool || !TOOL_KEY_RE.test(tool.tool)) {
     throw new Error(`Invalid tool key: ${tool.tool}`)
   }
-  if (tool.version && !TOOL_KEY_RE.test(tool.version)) {
-    throw new Error(`Invalid tool version: ${tool.version}`)
+  if (tool.requestedVersion && !TOOL_KEY_RE.test(tool.requestedVersion)) {
+    throw new Error(`Invalid tool version: ${tool.requestedVersion}`)
   }
 }
 
-export interface BinaryToolPreset extends ManagedBinary {
+export interface BinaryToolPreset extends BinaryManifestEntry {
   displayName: string
   icon?: string
   repoUrl: string

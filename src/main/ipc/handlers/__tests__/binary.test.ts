@@ -27,8 +27,9 @@ const ctx = { senderId: 'w1' }
 describe('binaryHandlers', () => {
   it('install_tool forwards the tool spec and returns the install result', async () => {
     binaryManager.installTool.mockResolvedValue({ version: '1.2.3' })
-    const result = await binaryHandlers['binary.install_tool']({ name: 'fd', tool: 'github:sharkdp/fd' }, ctx)
-    expect(binaryManager.installTool).toHaveBeenCalledWith({ name: 'fd', tool: 'github:sharkdp/fd' })
+    const request = { intent: { name: 'fd', tool: 'github:sharkdp/fd' } }
+    const result = await binaryHandlers['binary.install_tool'](request, ctx)
+    expect(binaryManager.installTool).toHaveBeenCalledWith(request)
     expect(result).toEqual({ version: '1.2.3' })
   })
 

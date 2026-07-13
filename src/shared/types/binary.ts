@@ -12,7 +12,7 @@ export type BinaryInstallStates = Record<string, BinaryInstallState>
 
 /** A BinaryManager inventory entry: persisted installs are manageable; auto-discovered runtimes are display-only. */
 export type BinaryToolInventoryEntry =
-  | { name: string; tool: string; version: string; managed: true }
+  | { name: string; tool: string; version: string; requestedVersion?: string; managed: true }
   | { name: string; tool: string; version: string; managed: false }
 
 export type BinaryResolution =

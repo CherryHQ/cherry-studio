@@ -5,8 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import EnvironmentDependencies from '../EnvironmentDependencies'
 
-const customToolsRef = vi.hoisted(() => ({ value: [] as Array<{ name: string; tool: string; version?: string }> }))
-const setCustomToolsMock = vi.hoisted(() => vi.fn())
 const installSettingsRef = vi.hoisted(() => ({
   value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
 }))
@@ -14,9 +12,6 @@ const setInstallSettingsMock = vi.hoisted(() => vi.fn())
 
 const ipcMocks = vi.hoisted(() => ({
   resolveTools: vi.fn(),
-  getState: vi.fn(),
-  probeBundled: vi.fn(),
-  probeSystem: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
@@ -72,8 +67,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  useMultiplePreferences: () => [installSettingsRef.value, setInstallSettingsMock],
-  usePreference: () => [customToolsRef.value, setCustomToolsMock]
+  useMultiplePreferences: () => [installSettingsRef.value, setInstallSettingsMock]
 }))
 
 vi.mock('semver', () => ({
@@ -161,7 +155,6 @@ describe('EnvironmentDependencies', () => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
     ipcEventHandlers.clear()
-    customToolsRef.value = []
     installSettingsRef.value = {
       githubMirror: '',
       githubToken: '',
@@ -169,30 +162,20 @@ describe('EnvironmentDependencies', () => {
       pipIndexUrl: '',
       verifySignatures: true
     }
-    ipcMocks.getState.mockResolvedValue({ tools: {} })
-    ipcMocks.probeBundled.mockResolvedValue({})
-    ipcMocks.probeSystem.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.listTools.mockResolvedValue([])
     ipcMocks.searchRegistry.mockResolvedValue([])
     ipcMocks.resolveTools.mockImplementation(async (names: string[]) => {
-      const [state, bundled, system] = await Promise.all([
-        ipcMocks.getState(),
-        ipcMocks.probeBundled(),
-        ipcMocks.probeSystem(names)
-      ])
+      const inventory = await ipcMocks.listTools()
       return Object.fromEntries(
         names.map((name) => {
-          const managed = state.tools[name]
-          if (managed) return [name, { source: 'managed', path: `/managed/${name}`, version: managed.version }]
-          if (name in bundled) {
-            const version = bundled[name] ?? undefined
-            return [name, { source: 'bundled', path: `/bundled/${name}`, ...(version ? { version } : {}) }]
-          }
-          if (system[name]) return [name, { source: 'system', path: system[name] }]
-          return [name, { source: 'none' }]
+          const tool = inventory.find((entry: { name: string }) => entry.name === name)
+          return [
+            name,
+            tool ? { source: 'managed', path: `/managed/${name}`, version: tool.version } : { source: 'none' }
+          ]
         })
       )
     })
@@ -201,7 +184,7 @@ describe('EnvironmentDependencies', () => {
 
   it('writes advanced install settings to independent preferences', async () => {
     render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
     fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
@@ -238,7 +221,7 @@ describe('EnvironmentDependencies', () => {
       verifySignatures: true
     }
     render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
     // First default item belongs to the GitHub mirror field (fields render in order).
@@ -250,7 +233,7 @@ describe('EnvironmentDependencies', () => {
 
   it('does not persist invalid install URLs', async () => {
     render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
     fireEvent.change(screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder'), {
@@ -263,7 +246,7 @@ describe('EnvironmentDependencies', () => {
 
   it('masks the token again when the settings dialog is reopened', async () => {
     render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     fireEvent.click(screen.getByTitle('settings.dependencies.installSettings.title'))
     const token = screen.getByPlaceholderText('settings.dependencies.installSettings.githubToken.placeholder')
@@ -280,14 +263,14 @@ describe('EnvironmentDependencies', () => {
   it('renders all preset tools in the unified grid', async () => {
     render(<EnvironmentDependencies />)
 
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
     // Preset displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
   })
 
   it('marks a system-PATH preset as available and shows its resolved path on the source badge', async () => {
-    ipcMocks.probeSystem.mockResolvedValue({ fd: '/usr/local/bin/fd' })
+    ipcMocks.resolveTools.mockResolvedValue({ fd: { source: 'system', path: '/usr/local/bin/fd' } })
     render(<EnvironmentDependencies />)
 
     const fdCard = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
@@ -296,17 +279,16 @@ describe('EnvironmentDependencies', () => {
     expect(fdCard).not.toHaveTextContent('settings.mcp.install')
   })
 
-  it('renders a persisted custom tool alongside the presets', async () => {
-    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+  it('renders a manifest-owned custom tool alongside the presets', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'mytool', tool: 'npm:mytool', version: '', managed: true }])
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
     expect(screen.getByText('Bun')).toBeInTheDocument()
   })
 
-  it('shows state-file inventory tools that are neither presets nor custom tools', async () => {
+  it('shows manifest inventory tools that are neither presets nor custom tools', async () => {
     ipcMocks.listTools.mockResolvedValue([{ name: 'some-agent', tool: 'npm:some-agent', version: '1.2.3' }])
-    ipcMocks.getState.mockResolvedValue({ tools: { 'some-agent': { version: '1.2.3' } } })
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('some-agent')).closest('[role="listitem"]') as HTMLElement
@@ -351,23 +333,20 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('does not infer runtime ownership from a custom preference or live resolution', async () => {
-    customToolsRef.value = [{ name: 'node', tool: 'core:node' }]
+  it('does not infer runtime ownership from live resolution alone', async () => {
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
     ipcMocks.resolveTools.mockResolvedValue({
       node: { source: 'managed', path: '/managed/node', version: '22.23.1' }
     })
     render(<EnvironmentDependencies />)
 
-    const card = (await screen.findByText('core:node')).closest('[role="listitem"]') as HTMLElement
+    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
     expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('keeps a managed runtime from the custom inventory actionable and warns before removal', async () => {
-    customToolsRef.value = [{ name: 'node', tool: 'core:node' }]
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: true }])
-    ipcMocks.getState.mockResolvedValue({ tools: { node: { version: '22.23.1' } } })
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -392,16 +371,12 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() =>
       expect(ipcMocks.installTool).toHaveBeenCalledWith({
-        name: 'node',
-        tool: 'core:node',
-        version: '22.23.1'
+        intent: { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
       })
     )
-    expect(setCustomToolsMock).toHaveBeenCalledWith([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
   })
 
   it('shows a retry instead of a false installed state when an owned tool is unavailable', async () => {
-    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
     ipcMocks.listTools.mockResolvedValue([{ name: 'mytool', tool: 'npm:mytool', version: '1.2.3', managed: true }])
     ipcMocks.resolveTools.mockResolvedValue({ mytool: { source: 'none' } })
     render(<EnvironmentDependencies />)
@@ -457,9 +432,9 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('openclaw')).not.toBeInTheDocument()
   })
 
-  it('marks a custom system tool as available without offering installation', async () => {
-    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
-    ipcMocks.probeSystem.mockResolvedValue({ mytool: '/usr/local/bin/mytool' })
+  it('marks a manifest-owned system tool as available without offering installation', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'mytool', tool: 'npm:mytool', version: '', managed: true }])
+    ipcMocks.resolveTools.mockResolvedValue({ mytool: { source: 'system', path: '/usr/local/bin/mytool' } })
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
@@ -469,52 +444,64 @@ describe('EnvironmentDependencies', () => {
 
   it('shows an uninstall action for a mise-managed preset tool', async () => {
     // uv is mise-managed (source 'managed') → preset card exposes the uninstall button.
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     render(<EnvironmentDependencies />)
 
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
     await waitFor(() => expect(screen.getAllByLabelText('settings.dependencies.remove').length).toBeGreaterThan(0))
   })
 
-  it('keeps recovery and removal available for an owned preset whose binary is missing', async () => {
-    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
-    ipcMocks.resolveTools.mockImplementation(async (names: string[]) =>
-      Object.fromEntries(names.map((name) => [name, { source: 'none' }]))
-    )
+  it('keeps pinned recovery and removal available for an owned preset whose binary is missing', async () => {
+    ipcMocks.listTools.mockResolvedValue([
+      { name: 'uv', tool: 'uv', version: '', requestedVersion: '0.9.0', managed: true }
+    ])
+    ipcMocks.resolveTools.mockResolvedValue({ uv: { source: 'none' } })
     render(<EnvironmentDependencies />)
 
     const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
     expect(uvCard).toHaveTextContent('settings.mcp.install')
     expect(within(uvCard).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
     expect(within(uvCard).queryByLabelText('settings.dependencies.openBinariesDir')).not.toBeInTheDocument()
+
+    fireEvent.click(within(uvCard).getByText('settings.mcp.install'))
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        intent: { name: 'uv', tool: 'uv', requestedVersion: '0.9.0' }
+      })
+    )
   })
 
   it('hides the uninstall action for a bundled-only preset tool', async () => {
     // uv present only as bundled (source 'bundled') → not uninstallable, no remove button.
-    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0' })
+    ipcMocks.resolveTools.mockResolvedValue({ uv: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } })
     render(<EnvironmentDependencies />)
 
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
     const uvCard = screen.getByText('uv').closest('[role="listitem"]') as HTMLElement
     expect(uvCard).not.toHaveTextContent('settings.dependencies.install')
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {
-    ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
+    ipcMocks.resolveTools.mockResolvedValue({
+      uv: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' },
+      bun: { source: 'bundled', path: '/bundled/bun', version: '1.0.0' }
+    })
     const { container } = render(<EnvironmentDependencies mini />)
 
     expect(container).toBeEmptyDOMElement()
-    await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.resolveTools).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
   })
 
   it('renders nothing in mini mode when core dependencies are system-installed', async () => {
-    ipcMocks.probeSystem.mockResolvedValue({ uv: '/usr/local/bin/uv', bun: '/usr/local/bin/bun' })
+    ipcMocks.resolveTools.mockResolvedValue({
+      uv: { source: 'system', path: '/usr/local/bin/uv' },
+      bun: { source: 'system', path: '/usr/local/bin/bun' }
+    })
     const { container } = render(<EnvironmentDependencies mini />)
 
-    await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.resolveTools).toHaveBeenCalled())
     expect(container).toBeEmptyDOMElement()
   })
 
@@ -529,12 +516,11 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies mini />)
 
     // Mini mode mounts without rendering update-version UI, so the fetch must be skipped.
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
   it('shows update available badge when latest version is newer', async () => {
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
@@ -547,8 +533,7 @@ describe('EnvironmentDependencies', () => {
     // Override the semver mock: gt returns false (versions equal or older)
     const { gt } = await import('semver')
     vi.mocked(gt).mockReturnValue(false)
-
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
     render(<EnvironmentDependencies />)
 
@@ -562,8 +547,6 @@ describe('EnvironmentDependencies', () => {
     vi.mocked(gt).mockImplementation(() => {
       throw new TypeError('Invalid Version')
     })
-
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
 
     expect(() => render(<EnvironmentDependencies />)).not.toThrow()
@@ -574,8 +557,6 @@ describe('EnvironmentDependencies', () => {
   it('clears latest versions when binary state changes', async () => {
     const { gt } = await import('semver')
     vi.mocked(gt).mockReturnValue(true)
-
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
@@ -589,11 +570,9 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(screen.queryByText('v2.0.0')).not.toBeInTheDocument())
   })
 
-  it('updates a managed tool without forcing a full latest-version refresh', async () => {
+  it('updates a managed tool with the latest version as a one-shot target', async () => {
     const { gt } = await import('semver')
     vi.mocked(gt).mockImplementation((latest) => latest === '2.0.0')
-
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
 
@@ -603,13 +582,15 @@ describe('EnvironmentDependencies', () => {
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
     fireEvent.click(updateButtons[0])
 
-    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({ intent: { name: 'uv', tool: 'uv' }, targetVersion: '1.0.0' })
+    )
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
   it('renders a persistent failure row from the shared install-state map and opens details on demand', async () => {
     const { rerender } = render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     // The mock useSharedCache is not reactive — update the store, then rerender
     // to pick it up (production reactivity is covered by useCache's own tests).
@@ -632,7 +613,7 @@ describe('EnvironmentDependencies', () => {
 
   it('shows installing state and the duration hint from the shared install-state map', async () => {
     const { rerender } = render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
 
     MockUseCacheUtils.setSharedCacheValue('feature.binary.install_states', { uv: { status: 'installing' } })
     rerender(<EnvironmentDependencies />)
@@ -650,7 +631,6 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('continues installing latest when update versions are not comparable semver', async () => {
-    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: 'nightly' } } })
     ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: 'nightly', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
 
@@ -660,7 +640,12 @@ describe('EnvironmentDependencies', () => {
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
     fireEvent.click(updateButtons[0])
 
-    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        intent: { name: 'uv', tool: 'uv' },
+        targetVersion: 'nightly'
+      })
+    )
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
@@ -672,10 +657,10 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('keeps the mini warning hidden when dependency checks fail', async () => {
-    ipcMocks.getState.mockRejectedValue(new Error('not ready'))
+    ipcMocks.listTools.mockRejectedValue(new Error('not ready'))
     const { container } = render(<EnvironmentDependencies mini />)
 
-    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    await waitFor(() => expect(ipcMocks.listTools).toHaveBeenCalled())
     expect(container).toBeEmptyDOMElement()
   })
 })

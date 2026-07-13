@@ -39,8 +39,7 @@ describe('useBinaryActions', () => {
     })
 
     expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
-      name: 'claude',
-      tool: 'claude'
+      intent: { name: 'claude', tool: 'claude' }
     })
     expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
@@ -53,9 +52,8 @@ describe('useBinaryActions', () => {
     })
 
     expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
-      name: 'claude',
-      tool: 'claude',
-      version: '1.2.3'
+      intent: { name: 'claude', tool: 'claude' },
+      targetVersion: '1.2.3'
     })
     expect(toast.success).toHaveBeenCalledWith('code.upgrade_success')
     await waitFor(() => expect(result.current.upgradingTools.has(CodeCli.CLAUDE_CODE)).toBe(false))
