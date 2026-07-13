@@ -44,7 +44,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       ref,
       value,
       onChange,
-      placeholder
+      placeholder,
+      autoFocus
     }: ComponentProps<'textarea'> & {
       ref?: Ref<{ focus: () => void }>
       value: string
@@ -60,6 +61,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           <div className="cm-content">
             <textarea
               ref={textareaRef}
+              autoFocus={autoFocus}
               aria-label="Prompt editor"
               placeholder={placeholder}
               value={value}

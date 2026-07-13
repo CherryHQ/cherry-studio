@@ -533,8 +533,7 @@ export function TextInputField({
   label,
   description,
   placeholder,
-  required = false,
-  autoFocus = false
+  required = false
 }: {
   form: UseFormReturn<any>
   name: 'name' | 'description'
@@ -542,7 +541,6 @@ export function TextInputField({
   description?: string
   placeholder?: string
   required?: boolean
-  autoFocus?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -564,7 +562,7 @@ export function TextInputField({
                 className="min-h-16"
               />
             ) : (
-              <Input {...field} placeholder={placeholder} autoFocus={autoFocus} />
+              <Input {...field} placeholder={placeholder} />
             )}
           </FormControl>
           {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}

@@ -65,16 +65,6 @@ export function PromptEditorField({
     setShowPreview(false)
   }, [resetPreviewKey])
 
-  useEffect(() => {
-    if (!autoFocus || effectiveShowPreview) return
-
-    const frame = window.requestAnimationFrame(() => {
-      codeEditorRef.current?.focus?.()
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [autoFocus, effectiveShowPreview])
-
   const handleChange = (nextValue: string) => {
     onChange(nextValue)
   }
@@ -131,6 +121,7 @@ export function PromptEditorField({
               theme={activeCmTheme}
               fontSize={fontSize - 1}
               value={value}
+              autoFocus={autoFocus}
               language="markdown"
               onChange={handleChange}
               expanded={false}

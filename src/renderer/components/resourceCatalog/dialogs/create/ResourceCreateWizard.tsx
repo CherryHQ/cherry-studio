@@ -39,15 +39,12 @@ function getDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(
-  kind: ResourceCreateWizardKind,
-  modelId: UniqueModelId | null = null
-): ResourceCreateWizardFormValues {
+function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardFormValues {
   return {
     avatar: getDefaultAvatar(kind),
     name: '',
     description: '',
-    modelId,
+    modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
     skillIds: []
