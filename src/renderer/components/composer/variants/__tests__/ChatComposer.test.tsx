@@ -1309,10 +1309,18 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
-  it('keeps an edited queued draft after leaving an active history preview', async () => {
-    seedInputHistory(['history entry'])
+  it('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
+    seedInputHistory(['queued draft'])
     mocks.topicPending = true
     const queuedFile = { fileTokenSourceId: 'queued-source', name: 'queued.pdf', path: '/tmp/queued.pdf' } as any
+    const queuedQuote = {
+      id: 'quote:queued',
+      kind: 'quote' as const,
+      label: 'Queued quote',
+      promptText: 'quoted context',
+      index: 0,
+      textOffset: 0
+    }
     mocks.files = [queuedFile]
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
@@ -1325,12 +1333,13 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({
         text: 'queued draft',
         tokens: [
+          queuedQuote,
           {
             id: 'file:queued-source',
             kind: 'file',
             label: 'queued.pdf',
             payload: queuedFile,
-            index: 0,
+            index: 1,
             textOffset: 0
           }
         ]
@@ -1340,7 +1349,7 @@ describe('ChatComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued draft'))
 
     const queueContent = mocks.surfaceProps?.queueContent as any
     const itemId = queueContent.props.items[0].id
@@ -1348,6 +1357,10 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued draft'))
     await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
     expect(mocks.files).toEqual([queuedFile])
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith({
+      text: 'queued draft',
+      tokens: [queuedQuote, expect.objectContaining({ id: 'file:queued-source', kind: 'file' })]
+    })
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
@@ -1357,7 +1370,7 @@ describe('ChatComposer', () => {
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued draft'))
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
@@ -1841,6 +1854,35 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
     await waitFor(() => expect(mocks.mentionedModels).toEqual([model, modelB]))
+  })
+
+  it('keeps a mentioned-model selection made while previewing history', async () => {
+    seedInputHistory(['history entry'])
+    mocks.mentionedModels = [model]
+    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    expect(cacheService.setCasual).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    expect(mocks.mentionedModels).toEqual([model, modelB])
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'inputbar-draft',
+      { text: 'history entry', tokens: [], files: [] },
+      expect.any(Number)
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.mentionedModels).toEqual([model, modelB])
   })
 
   it('does NOT save input history when editing a previous message via forkAndResend', async () => {
@@ -2409,6 +2451,70 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(mocks.surfaceProps?.text).toBe('original draft')
+  })
+
+  it('restores the real live draft after editing from an active history preview', async () => {
+    seedInputHistory(['history entry'])
+    const liveQuote = {
+      id: 'quote:live',
+      kind: 'quote' as const,
+      label: 'Live quote',
+      promptText: 'live quoted context',
+      index: 0,
+      textOffset: 0
+    }
+    const liveDraft = { text: 'live draft', tokens: [liveQuote] }
+    const liveFile = { fileTokenSourceId: 'live-file', name: 'live.pdf', path: '/tmp/live.pdf' } as any
+    const liveKnowledgeBase = { id: 'kb-live', name: 'Live KB', documentCount: 1 } as KnowledgeBase
+    mocks.files = [liveFile]
+    mocks.mentionedModels = [model, modelB]
+    mocks.selectedKnowledgeBases = [liveKnowledgeBase]
+    mocks.knowledgeBases = [liveKnowledgeBase]
+    mocks.getDraft.mockReturnValue(liveDraft)
+    const message = {
+      id: 'message-history-edit',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'edited message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'edited message', tokens: [] })
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith(liveDraft)
+    expect(mocks.files).toEqual([liveFile])
+    expect(mocks.mentionedModels).toEqual([model, modelB])
+    expect(mocks.selectedKnowledgeBases).toEqual([liveKnowledgeBase])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith(liveDraft)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith(liveDraft)
   })
 
   it('restores the edited message draft only once per editing session', async () => {

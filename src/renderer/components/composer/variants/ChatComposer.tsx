@@ -114,6 +114,7 @@ interface SavedComposerDraft {
   text: string
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
+  mentionedModels: Model[]
   selectedKnowledgeBases: KnowledgeBase[]
 }
 
@@ -637,7 +638,7 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     ]
   )
-  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+  const { navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
   const handleInputHistoryNavigate = useCallback(
@@ -677,9 +678,9 @@ const ChatComposerInner = ({
   const {
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
-    handleMentionedModelsSelect,
-    handleMentionedModelMultiSelectModeChange,
-    handleMentionedModelSelectorRestore
+    handleMentionedModelsSelect: selectMentionedModels,
+    handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
+    handleMentionedModelSelectorRestore: restoreMentionedModelSelector
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -690,6 +691,37 @@ const ChatComposerInner = ({
     setMentionedModels,
     onModelSelect: handleModelSelect
   })
+  const exitInputHistoryPreview = useCallback(() => {
+    const draft = takeDraftBeforeHistory()
+    const tools = inputHistoryToolsRef.current
+    inputHistoryToolsRef.current = null
+    skipDraftCacheWriteForHistoryPreviewRef.current = false
+    return { draft, tools }
+  }, [takeDraftBeforeHistory])
+  const exitInputHistoryPreviewForModelChange = useCallback(() => {
+    const historyPreview = exitInputHistoryPreview()
+    if (!historyPreview.draft) return
+
+    const visibleDraft = actionsRef.current.getDraft()
+    writeChatDraftCache(visibleDraft.text, visibleDraft.tokens, filesRef.current)
+  }, [actionsRef, exitInputHistoryPreview, filesRef])
+  const handleMentionedModelsSelect = useCallback(
+    (nextModels: Model[]) => {
+      exitInputHistoryPreviewForModelChange()
+      selectMentionedModels(nextModels)
+    },
+    [exitInputHistoryPreviewForModelChange, selectMentionedModels]
+  )
+  const handleMentionedModelMultiSelectModeChange = useCallback(
+    (enabled: boolean) => {
+      changeMentionedModelMultiSelectMode(enabled)
+    },
+    [changeMentionedModelMultiSelectMode]
+  )
+  const handleMentionedModelSelectorRestore = useCallback(() => {
+    exitInputHistoryPreviewForModelChange()
+    restoreMentionedModelSelector()
+  }, [exitInputHistoryPreviewForModelChange, restoreMentionedModelSelector])
 
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
@@ -765,11 +797,14 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
+    exitInputHistoryPreview()
+    actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
+    setMentionedModels(savedDraft.mentionedModels)
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
-  }, [setFiles, setSelectedKnowledgeBases])
+  }, [actionsRef, exitInputHistoryPreview, setFiles, setMentionedModels, setSelectedKnowledgeBases])
 
   const handleCancelEditing = useCallback(() => {
     restoreSavedDraft()
@@ -792,6 +827,7 @@ const ChatComposerInner = ({
       if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
     })
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
+    actionsRef.current.replaceDraft({ text: editableDraft.text, tokens: editableDraft.draftTokens })
     setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
@@ -808,18 +844,30 @@ const ChatComposerInner = ({
     restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
 
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
-      const currentDraft = actionsRef.current.getDraft()
+      const historyPreview = exitInputHistoryPreview()
+      const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
+      const currentTools = historyPreview.tools
       savedDraftBeforeEditingRef.current = {
         text: currentDraft.text,
         draftTokens: currentDraft.tokens,
-        files: filesRef.current,
-        selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+        files: currentTools?.files ?? filesRef.current,
+        mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
+        selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current
       }
+    } else {
+      exitInputHistoryPreview()
     }
 
     restoreEditableMessageDraft(editingMessageForCurrentTopic)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
-  }, [actionsRef, editingMessageForCurrentTopic, filesRef, selectedKnowledgeBasesRef])
+  }, [
+    actionsRef,
+    editingMessageForCurrentTopic,
+    exitInputHistoryPreview,
+    filesRef,
+    mentionedModelsRef,
+    selectedKnowledgeBasesRef
+  ])
 
   useEffect(() => {
     if (!staleEditingMessage) return
@@ -1004,19 +1052,20 @@ const ChatComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = restore the whole draft (text + tokens + files + knowledge bases) into the
-  // live composer, then drop it from the queue. Mirrors `restoreEditableMessageDraft`.
+  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
+  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
+      actionsRef.current.replaceDraft(item.draft)
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => item.payload.knowledgeBaseIds?.includes(base.id)))
     },
-    [allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
   )
 
   const buildEditedMessageParts = useCallback(
