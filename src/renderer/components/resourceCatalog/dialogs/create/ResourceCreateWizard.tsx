@@ -9,7 +9,8 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { Model } from '@shared/data/types/model'
+import { usePreference } from '@data/hooks/usePreference'
+import { isUniqueModelId, type Model } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -138,6 +139,8 @@ export function ResourceCreateWizard({
   isSubmitting = false
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
+  const [globalDefaultModelId] = usePreference('chat.default_model_id')
+  const defaultModelId = isUniqueModelId(globalDefaultModelId) ? globalDefaultModelId : null
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -166,6 +169,13 @@ export function ResourceCreateWizard({
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
+
+  // Preference hydration may finish after the dialog opens. Seed only an empty
+  // model field so the async value never replaces a model the user selected.
+  useEffect(() => {
+    if (!open || !defaultModelId || form.getValues('modelId')) return
+    form.setValue('modelId', defaultModelId)
+  }, [defaultModelId, form, kind, open])
 
   const isLast = stepIndex === steps.length - 1
 

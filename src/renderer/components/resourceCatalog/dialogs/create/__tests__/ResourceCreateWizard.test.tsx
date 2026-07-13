@@ -6,19 +6,28 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => ['provider::default-model', vi.fn()]
+}))
+
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; PersonaStep fills the prompt.
 vi.mock('../steps/BasicInfoStep', () => ({
   BasicInfoStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button
-      type="button"
-      onClick={() => {
-        form.setValue('name', 'My Resource')
-        form.setValue('modelId', 'provider::model')
-      }}>
-      fill basic
-    </button>
+    <>
+      <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
+        fill name
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill basic
+      </button>
+    </>
   )
 }))
 vi.mock('../steps/PersonaStep', () => ({
@@ -44,6 +53,29 @@ const CANCEL = 'common.cancel'
 afterEach(cleanup)
 
 describe('ResourceCreateWizard', () => {
+  it('uses the global default model for a newly created resource', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      avatar: '💬',
+      name: 'My Resource',
+      modelId: 'provider::default-model',
+      description: '',
+      prompt: '',
+      knowledgeBaseIds: [],
+      skillIds: []
+    })
+  })
+
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
