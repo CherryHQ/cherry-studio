@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
@@ -33,13 +34,15 @@ export function ShellTabBarActions() {
       <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
         <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
           <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               aria-label={t('globalSearch.open')}
               onClick={handleSearchClick}
               className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
               <Search size={16} strokeWidth={1.8} />
-            </button>
+            </Button>
           </CommandTooltip>
         </div>
       </div>
@@ -61,25 +64,28 @@ export function SidebarShellActions({
   if (layout === 'icon') {
     return (
       <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label={t('settings.title')}
           onClick={onSettingsClick}
           className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
           <Settings size={18} strokeWidth={1.6} />
-        </button>
+        </Button>
       </CommandTooltip>
     )
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       aria-label={t('settings.title')}
       onClick={onSettingsClick}
       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
       <Settings size={16} strokeWidth={1.6} />
       <span>{t('settings.title')}</span>
-    </button>
+    </Button>
   )
 }

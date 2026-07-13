@@ -21,6 +21,17 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    variant: _variant,
+    size: _size,
+    type = 'button',
+    ...props
+  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => (
+    <button data-slot="button" type={type} {...props}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
   Kbd: ({ children }: { children?: React.ReactNode }) => children
 }))
@@ -78,6 +89,7 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -92,7 +104,7 @@ describe('ShellTabBarActions', () => {
     render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -109,6 +121,7 @@ describe('ShellTabBarActions', () => {
     render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })
