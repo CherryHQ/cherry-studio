@@ -256,6 +256,36 @@
       "ownedBy": "alibaba"
     },
     {
+      "capabilities": ["rerank"],
+      "contextWindow": 32768,
+      "family": "qwen",
+      "id": "qwen3-reranker-0-6b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Qwen3 Reranker 0.6B",
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 32768,
+      "family": "qwen",
+      "id": "qwen3-reranker-4b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Qwen3 Reranker 4B",
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["rerank"],
+      "contextWindow": 32768,
+      "family": "qwen",
+      "id": "qwen3-reranker-8b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Qwen3 Reranker 8B",
+      "ownedBy": "alibaba"
+    },
+    {
       "capabilities": ["function-call"],
       "contextWindow": 4096,
       "family": "qwen",
@@ -17612,5 +17642,5 @@
       }
     }
   ],
-  "version": "2639e11bec5f5503"
+  "version": "26463070f57c2c15"
 }

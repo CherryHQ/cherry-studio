@@ -20409,6 +20409,106 @@
       "providerId": "vertexai"
     },
     {
+      "modelId": "rerank-1",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-5",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-5-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-lite-1",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-5",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-5-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-large",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-large",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-nano",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-code-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-code-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-finance-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-large-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-large-2-instruct",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-law-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multilingual-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multimodal-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multimodal-3-5",
+      "providerId": "voyageai"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -20483,5 +20583,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e4429a55168176e0"
+  "version": "2a41dbda229c02f7"
 }
