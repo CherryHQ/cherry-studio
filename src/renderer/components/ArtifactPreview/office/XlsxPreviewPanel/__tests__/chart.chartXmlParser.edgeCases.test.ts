@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX } from '../gridLayout'
 import type { SheetDataAccessor, SheetLayoutAccessor } from '../worker/chartXmlParser'
-import { parseCharts } from '../worker/chartXmlParser'
+import { MAX_CHART_SERIES, parseCharts } from '../worker/chartXmlParser'
 
 /**
  * Edge-case coverage using a minimal hand-assembled xlsx package (xlsx = zip of XML parts).
@@ -236,6 +236,35 @@ describe('parseCharts — hostile cache declarations are bounded', () => {
 
     expect(warnings.some((w) => w.includes('out-of-range ptCount'))).toBe(true)
     expect(charts[0].series[0].values).toEqual([10, 20])
+  })
+
+  it('does not allocate a declared cache when it contains no actual points', async () => {
+    const zip = buildHostileZip('<c:ptCount val="10000"/>')
+
+    const { charts } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, twoCellDataAccessor)
+
+    expect(charts[0].series[0].values).toEqual([10, 20])
+  })
+
+  it('caps untrusted chart series before parsing their declared caches', async () => {
+    const seriesXml = `<c:ser>
+      <c:cat><c:strRef><c:strCache><c:ptCount val="10000"/></c:strCache></c:strRef></c:cat>
+      <c:val><c:numRef><c:numCache><c:ptCount val="10000"/></c:numCache></c:numRef></c:val>
+    </c:ser>`
+    const declaredSeries = MAX_CHART_SERIES + 10
+    const chartXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <c:chartSpace ${CHART_NS}>
+        <c:chart><c:plotArea><c:lineChart>${seriesXml.repeat(declaredSeries)}</c:lineChart></c:plotArea></c:chart>
+      </c:chartSpace>`
+    const zip = buildBaseZip()
+    zip.file('xl/drawings/drawing1.xml', wrapDrawing(twoCellAnchorXml('rId1')))
+    zip.file('xl/drawings/_rels/drawing1.xml.rels', drawingRelsXml([{ id: 'rId1', target: '../charts/chart1.xml' }]))
+    zip.file('xl/charts/chart1.xml', chartXml)
+
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, emptyDataAccessor)
+
+    expect(charts[0].series).toHaveLength(MAX_CHART_SERIES)
+    expect(warnings).toContain(`chart series truncated: kept ${MAX_CHART_SERIES} of ${declaredSeries}`)
   })
 })
 

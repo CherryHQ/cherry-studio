@@ -136,24 +136,29 @@ const readZipText = async (zip: JSZip, path: string): Promise<string | null> => 
   return file.async('string')
 }
 
-/** Resolve sheet name -> worksheet part path through workbook.xml and workbook.xml.rels. */
-const resolveSheetPartPath = async (zip: JSZip, sheetName: string): Promise<string | null> => {
-  const workbookXml = await readZipText(zip, 'xl/workbook.xml')
-  if (!workbookXml) return null
+/**
+ * Parse workbook relationships once and index sheet name -> worksheet part path. The map is shared across all sheets
+ * so workbooks with many worksheets do not repeatedly read and parse the same growing workbook.xml parts.
+ */
+export const createChartSheetPartPathMap = async (zip: JSZip): Promise<ReadonlyMap<string, string>> => {
+  const [workbookXml, relsXml] = await Promise.all([
+    readZipText(zip, 'xl/workbook.xml'),
+    readZipText(zip, 'xl/_rels/workbook.xml.rels')
+  ])
+  if (!workbookXml || !relsXml) return new Map()
+
   const doc = xmlParser.parse(workbookXml)
   const workbook = findChild(doc, 'workbook')
   const sheets = findChildren(findChild(workbook, 'sheets'), 'sheet')
-  const sheetEntry = sheets.find((s) => getAttr(s, 'name') === sheetName)
-  if (!sheetEntry) return null
-  const rId = getAttr(sheetEntry, 'id') // r:id → localName 'id'
-  if (!rId) return null
-
-  const relsXml = await readZipText(zip, 'xl/_rels/workbook.xml.rels')
-  if (!relsXml) return null
-  const rels = parseRelationships(relsXml)
-  const rel = rels.find((r) => r.id === rId)
-  if (!rel) return null
-  return resolveTarget('xl', rel.target)
+  const relById = new Map(parseRelationships(relsXml).map((rel) => [rel.id, rel]))
+  const result = new Map<string, string>()
+  for (const sheet of sheets) {
+    const name = getAttr(sheet, 'name')
+    const rId = getAttr(sheet, 'id') // r:id → localName 'id'
+    const rel = rId ? relById.get(rId) : undefined
+    if (name && rel) result.set(name, resolveTarget('xl', rel.target))
+  }
+  return result
 }
 
 /** Resolve worksheet part path -> drawing part path through sheetN.xml.rels. */
@@ -306,6 +311,8 @@ const parseTitle = (chartNode: unknown): string | undefined => {
 
 /** Chart cache point limit. ptCount/pt idx come from untrusted XML; out-of-range values discard cache and fall back. */
 const MAX_CHART_CACHE_POINTS = 10_000
+/** Excel supports at most 255 data series; cap untrusted XML before allocating per-series cache arrays. */
+export const MAX_CHART_SERIES = 255
 
 /** numCache/strCache -> array filled by idx to ptCount length. Missing idx -> null; invalid declarations return null. */
 const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (string | number | null)[] | null => {
@@ -317,7 +324,8 @@ const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (str
     return null
   }
   const pts = findChildren(cache, 'pt')
-  if (pts.length === 0 && ptCount === 0) return null
+  // A declared ptCount with no actual points carries no usable cache data. Do not allocate attacker-sized empty arrays.
+  if (pts.length === 0) return null
 
   const result: (string | number | null)[] = new Array(ptCount).fill(null)
   for (const pt of pts) {
@@ -481,7 +489,14 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
   }
 
   const serNodes = findChildren(node, 'ser')
-  const series = serNodes.map((ser) => parseSeries(ser, data, warnings))
+  if (serNodes.length > MAX_CHART_SERIES) {
+    warnings.push(`chart series truncated: kept ${MAX_CHART_SERIES} of ${serNodes.length}`)
+  }
+  const series: ChartSeries[] = []
+  const seriesCount = Math.min(serNodes.length, MAX_CHART_SERIES)
+  for (let index = 0; index < seriesCount; index++) {
+    series.push(parseSeries(serNodes[index], data, warnings))
+  }
 
   const result: Omit<ChartModel, 'rect'> = { type, title, series }
 
@@ -507,13 +522,15 @@ export async function parseCharts(
   sheetName: string,
   layout: SheetLayoutAccessor,
   data: SheetDataAccessor,
-  maxCharts: number = MAX_FLOATING_OBJECTS
+  maxCharts: number = MAX_FLOATING_OBJECTS,
+  sheetPartPaths?: ReadonlyMap<string, string>
 ): Promise<ParsedCharts> {
   const warnings: string[] = []
   const charts: ChartModel[] = []
 
   try {
-    const sheetPartPath = await resolveSheetPartPath(zip, sheetName)
+    const resolvedSheetPartPaths = sheetPartPaths ?? (await createChartSheetPartPathMap(zip))
+    const sheetPartPath = resolvedSheetPartPaths.get(sheetName)
     if (!sheetPartPath) return { charts, warnings }
 
     const drawingPartPath = await resolveDrawingPartPath(zip, sheetPartPath)

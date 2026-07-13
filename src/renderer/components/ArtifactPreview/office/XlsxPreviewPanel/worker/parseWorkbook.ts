@@ -8,6 +8,7 @@ import {
   DEFAULT_ROW_HEIGHT_PX,
   MAX_COLS,
   MAX_FLOATING_OBJECTS,
+  MAX_MERGED_RANGES,
   MAX_ROWS,
   ptToPx
 } from '../gridLayout'
@@ -16,17 +17,44 @@ import type {
   CellRenderModel,
   CellStyle,
   FloatingObjectModel,
-  FormulaState,
   MergeRange,
   SheetRenderModel,
   WorkbookRenderModel
 } from '../renderModel'
-import { parseCharts, type SheetDataAccessor, type SheetLayoutAccessor } from './chartXmlParser'
+import {
+  createChartSheetPartPathMap,
+  parseCharts,
+  type SheetDataAccessor,
+  type SheetLayoutAccessor
+} from './chartXmlParser'
 import { createFormulaEvaluator, type EvalContext, type FormulaCellRef } from './formulaEvaluator'
 import { dateToExcelSerial, formatCellValue } from './numberFormat'
 import { type ExcelColorRef, parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
 
 const FORMULA_BUDGET_MS = 5000
+const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
+const BORDER_STYLE_KEYS = ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'] as const
+const SUPPORTED_BORDER_STYLES: ReadonlySet<BorderEdge['style']> = new Set([
+  'thin',
+  'medium',
+  'thick',
+  'dashed',
+  'dotted',
+  'double',
+  'hair'
+])
+const HORIZONTAL_ALIGNMENT_MAP: Record<string, CellStyle['hAlign']> = {
+  left: 'left',
+  center: 'center',
+  centerContinuous: 'center',
+  right: 'right',
+  justify: 'justify'
+}
+const VERTICAL_ALIGNMENT_MAP: Record<string, CellStyle['vAlign']> = {
+  top: 'top',
+  middle: 'middle',
+  bottom: 'bottom'
+}
 
 /** Internal formula cell collected during the first parsing pass for later evaluation. */
 interface PendingFormulaCell {
@@ -334,27 +362,16 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
 
   const border = cell.border
   if (border) {
-    const sides = ['top', 'right', 'bottom', 'left'] as const
-    const styleKeys = ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'] as const
-    const supportedBorderStyles = new Set<BorderEdge['style']>([
-      'thin',
-      'medium',
-      'thick',
-      'dashed',
-      'dotted',
-      'double',
-      'hair'
-    ])
-    sides.forEach((side, i) => {
+    BORDER_SIDES.forEach((side, i) => {
       const edge = border[side]
-      if (edge?.style && supportedBorderStyles.has(edge.style as BorderEdge['style'])) {
+      if (edge?.style && SUPPORTED_BORDER_STYLES.has(edge.style as BorderEdge['style'])) {
         const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
-        style[styleKeys[i]] = { style: edge.style as BorderEdge['style'], color }
+        style[BORDER_STYLE_KEYS[i]] = { style: edge.style as BorderEdge['style'], color }
         hasAny = true
       } else if (edge?.style) {
         warnings.add('border-style-unsupported-approximated-as-thin')
         const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
-        style[styleKeys[i]] = { style: 'thin', color }
+        style[BORDER_STYLE_KEYS[i]] = { style: 'thin', color }
         hasAny = true
       }
     })
@@ -363,22 +380,14 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   const alignment = cell.alignment
   if (alignment) {
     if (alignment.horizontal) {
-      const hMap: Record<string, CellStyle['hAlign']> = {
-        left: 'left',
-        center: 'center',
-        centerContinuous: 'center',
-        right: 'right',
-        justify: 'justify'
-      }
-      const mapped = hMap[alignment.horizontal]
+      const mapped = HORIZONTAL_ALIGNMENT_MAP[alignment.horizontal]
       if (mapped) {
         style.hAlign = mapped
         hasAny = true
       }
     }
     if (alignment.vertical) {
-      const vMap: Record<string, CellStyle['vAlign']> = { top: 'top', middle: 'middle', bottom: 'bottom' }
-      const mapped = vMap[alignment.vertical]
+      const mapped = VERTICAL_ALIGNMENT_MAP[alignment.vertical]
       if (mapped) {
         style.vAlign = mapped
         hasAny = true
@@ -461,12 +470,20 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
   let zip: JSZip
   let dataForExcelJs = data
+  const warnings = new Set<string>()
   try {
     zip = await JSZip.loadAsync(data)
     dataForExcelJs = await normalizeDrawingsForExcelJs(zip, data)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
+  const hasDrawingParts = zip.file(/^xl\/drawings\/[a-zA-Z0-9]+\.xml$/).length > 0
+  const chartSheetPartPathsPromise = hasDrawingParts
+    ? createChartSheetPartPathMap(zip).catch((err) => {
+        warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
+        return new Map<string, string>()
+      })
+    : Promise.resolve<ReadonlyMap<string, string>>(new Map())
 
   const workbook = new ExcelJS.Workbook()
   try {
@@ -479,7 +496,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   const theme = parseTheme(themeXml)
 
   const date1904 = workbook.properties?.date1904 ?? false
-  const warnings = new Set<string>()
   const styleTable = new StyleTable()
   const images: Record<number, { mime: string; data: ArrayBuffer }> = {}
   const imageIdCache = new Map<number, number>() // ExcelJS imageId -> WorkbookRenderModel imageId
@@ -545,7 +561,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
                   : (value.result as string | number | boolean)
             cellModel.raw = rawResult
             cellModel.formula = formulaText || undefined
-            cellModel.formulaState = 'cached' as FormulaState
+            cellModel.formulaState = 'cached'
             cellModel.text = formatCellValue(dateResult ?? rawResult, cell.numFmt, date1904)
             // Store a numeric serial (not the ISO raw) so downstream formulas referencing this cell keep date math.
             rawValueTable.set(
@@ -556,7 +572,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             // Formula text without a cached value enters the second-pass evaluator.
             cellModel.formula = formulaText
             cellModel.text = `=${formulaText}`
-            cellModel.formulaState = 'unevaluated' as FormulaState
+            cellModel.formulaState = 'unevaluated'
             pendingFormulas.push({
               sheetName: worksheet.name,
               row: rowNumber,
@@ -567,7 +583,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
           } else {
             // Shared-formula dependent without a cached value. v1 does not translate refs, so mark unevaluated.
-            cellModel.formulaState = 'unevaluated' as FormulaState
+            cellModel.formulaState = 'unevaluated'
             cellModel.text = ''
             warnings.add('shared-formula-without-cache-unevaluated')
             rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
@@ -624,7 +640,10 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     // Merged ranges.
     const merges: MergeRange[] = []
-    for (const ref of worksheet.model.merges ?? []) {
+    const mergeRefs = worksheet.model.merges ?? []
+    const mergeCount = Math.min(mergeRefs.length, MAX_MERGED_RANGES)
+    for (let index = 0; index < mergeCount; index++) {
+      const ref = mergeRefs[index]
       const range = parseMergeRef(ref)
       if (range) {
         merges.push(range)
@@ -632,6 +651,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         maxCol = Math.max(maxCol, range.right)
       }
     }
+    if (mergeRefs.length > MAX_MERGED_RANGES) warnings.add('merged-ranges-truncated')
 
     // Per-sheet custom default row height/column width from sheetFormatPr. Fall back when ExcelJS gives 0/missing.
     const sheetProps = worksheet.properties
@@ -647,14 +667,15 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const colWidthsPx: Record<number, number> = {}
     const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & WorksheetModelWithLayout
 
-    for (const row of (worksheet as unknown as WorksheetWithInternalRows)._rows ?? []) {
-      if (!row) continue
+    const internalRows = (worksheet as unknown as WorksheetWithInternalRows)._rows
+    internalRows?.forEach((row) => {
+      if (!row) return
       if (row.hidden) {
         rowHeightsPx[row.number] = 0
       } else if (row.height !== undefined) {
         rowHeightsPx[row.number] = ptToPx(row.height)
       }
-    }
+    })
 
     for (const colModel of worksheetModel.cols ?? []) {
       const min = colModel.min ?? 0
@@ -812,6 +833,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   }
 
   // Charts must parse after formula evaluation so reference backfill can use evaluated cell values.
+  const chartSheetPartPaths = await chartSheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
     if (!sheetModel) continue
@@ -838,7 +860,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         worksheet.name,
         layout,
         dataAccessor,
-        MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length
+        MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length,
+        chartSheetPartPaths
       )
       sheetModel.charts = charts
       for (const chart of charts) {

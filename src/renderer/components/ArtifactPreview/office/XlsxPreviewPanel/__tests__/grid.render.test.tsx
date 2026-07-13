@@ -286,6 +286,21 @@ describe('XlsxGrid — merged cells', () => {
     expect(overlay.closest('[role="row"]')).toBeNull()
   })
 
+  it('does not paint internal default grid lines in covered merge placeholders', () => {
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    const row = container.querySelector('[role="row"][aria-rowindex="1"]')!
+    const coveredCells = row.querySelectorAll<HTMLElement>('[aria-hidden="true"]')
+    expect(coveredCells).toHaveLength(3)
+    for (const coveredCell of coveredCells) {
+      const visual = coveredCell.firstElementChild as HTMLElement
+      expect(visual.style.borderRight).toBe('')
+      expect(visual.style.borderBottom).toBe('')
+    }
+  })
+
   it('keeps the merge layer visible when the master row has scrolled out of the virtual row range', () => {
     // Only row index 5 (row 6, "Total") is in the virtual range — row 0 (the merge's master row) is not.
     setRangeFromCounts(

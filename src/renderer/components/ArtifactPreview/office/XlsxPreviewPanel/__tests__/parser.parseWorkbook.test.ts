@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createZipBytes } from '../../__tests__/zipTestBytes'
 import { OFFICE_ZIP_LIMITS } from '../../zipPreflight'
-import { MAX_COLS, MAX_ROWS } from '../gridLayout'
+import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
@@ -210,6 +210,33 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
 
   it('hidden column width is 0', () => {
     expect(model.sheets[0].colWidthsPx[5]).toBe(0)
+  })
+})
+
+describe('parseWorkbook — hostile merge count is bounded', () => {
+  it('keeps only the configured number of merge ranges', async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    ws.getCell('A1').value = 'value'
+
+    const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
+    const sheetPath = 'xl/worksheets/sheet1.xml'
+    const sheetXml = await zip.file(sheetPath)!.async('string')
+    const declaredMerges = MAX_MERGED_RANGES + 1
+    const mergeCells = Array.from(
+      { length: declaredMerges },
+      (_, index) => `<mergeCell ref="A${index + 1}:B${index + 1}"/>`
+    ).join('')
+    const mergeBlock = `<mergeCells count="${declaredMerges}">${mergeCells}</mergeCells>`
+    const sheetWithMerges = sheetXml.includes('<pageMargins')
+      ? sheetXml.replace('<pageMargins', `${mergeBlock}<pageMargins`)
+      : sheetXml.replace('</worksheet>', `${mergeBlock}</worksheet>`)
+    zip.file(sheetPath, sheetWithMerges)
+
+    const parsed = await parseWorkbook(await zip.generateAsync({ type: 'arraybuffer' }), 'hostile-merges.xlsx')
+
+    expect(parsed.sheets[0].merges).toHaveLength(MAX_MERGED_RANGES)
+    expect(parsed.warnings).toContain('merged-ranges-truncated')
   })
 })
 

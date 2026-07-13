@@ -1,3 +1,4 @@
+import type { FunctionArg } from 'fast-formula-parser'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -6,6 +7,7 @@ import {
   type FormulaCellRef,
   type FormulaEvaluator
 } from '../worker/formulaEvaluator'
+import { CUSTOM_FORMULA_FUNCTIONS } from '../worker/formulaFunctions'
 
 type StubCellValue = string | number | boolean | null
 interface StubCell {
@@ -210,6 +212,14 @@ describe('createFormulaEvaluator — custom aggregate functions (library stubs)'
   it('MAX over an all-empty range returns 0', () => {
     const { evaluator } = setup(statSheet)
     expect(evaluator.evaluate('MAX(Z1:Z5)', at(23))).toEqual({ state: 'evaluated', value: 0 })
+  })
+
+  it('MAX/MIN scan large combined inputs without spreading them into function arguments', () => {
+    const values = Array.from({ length: 200_000 }, (_, index) => index - 100_000)
+    const arg: FunctionArg = { value: [values], isArray: true }
+
+    expect(CUSTOM_FORMULA_FUNCTIONS.MAX(arg)).toBe(99_999)
+    expect(CUSTOM_FORMULA_FUNCTIONS.MIN(arg)).toBe(-100_000)
   })
 
   it('evaluates population variance and standard deviation', () => {

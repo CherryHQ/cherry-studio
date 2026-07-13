@@ -77,6 +77,48 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
   const visiting = new Set<string>()
   /** Keys detected as part of a cycle in this round. Forced to unevaluated when their owning frame exits. */
   const cyclicKeys = new Set<string>()
+  /**
+   * Parser instances are reused by recursion depth. A single shared parser is not re-entrant: recursive formula
+   * references overwrite its mutable position/input state. A depth pool keeps forward-reference evaluation correct
+   * while reducing construction from O(formula cells) to O(max active dependency depth).
+   */
+  const parsers: FormulaParser[] = []
+
+  function parserAtDepth(depth: number): FormulaParser {
+    const existing = parsers[depth]
+    if (existing) return existing
+
+    const parser = new FormulaParser({
+      // Fill high-frequency aggregate functions that the library registers as empty stubs; see formulaFunctions.ts.
+      functions: CUSTOM_FORMULA_FUNCTIONS,
+      onCell: (ref: ParserCellRef) => {
+        return ctx.getCellValue({ sheet: ref.sheet, row: ref.row, col: ref.col })
+      },
+      onRange: (ref: ParserRangeRef) => {
+        // Throw on area limit or timeout. The outer catch converts to unevaluated and never materializes huge ranges.
+        const rangeRows = ref.to.row - ref.from.row + 1
+        const rangeCols = ref.to.col - ref.from.col + 1
+        if (rangeRows * rangeCols > MAX_RANGE_CELLS) {
+          throw new Error(`range exceeds ${MAX_RANGE_CELLS} cells`)
+        }
+        let visited = 0
+        const rows: unknown[][] = []
+        for (let row = ref.from.row; row <= ref.to.row; row++) {
+          const cols: unknown[] = []
+          for (let col = ref.from.col; col <= ref.to.col; col++) {
+            if (++visited % RANGE_DEADLINE_CHECK_INTERVAL === 0 && Date.now() >= deadline) {
+              throw new Error('formula budget exhausted while reading range')
+            }
+            cols.push(ctx.getCellValue({ sheet: ref.sheet, row, col }))
+          }
+          rows.push(cols)
+        }
+        return rows
+      }
+    })
+    parsers[depth] = parser
+    return parser
+  }
 
   function markCycle(key: string): void {
     const stack = [...visiting]
@@ -121,37 +163,11 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
       return outcome
     }
 
+    const depth = visiting.size
     visiting.add(key)
     let outcome: EvalOutcome
     try {
-      const parser = new FormulaParser({
-        // Fill high-frequency aggregate functions that the library registers as empty stubs; see formulaFunctions.ts.
-        functions: CUSTOM_FORMULA_FUNCTIONS,
-        onCell: (ref: ParserCellRef) => {
-          return ctx.getCellValue({ sheet: ref.sheet, row: ref.row, col: ref.col })
-        },
-        onRange: (ref: ParserRangeRef) => {
-          // Throw on area limit or timeout. The outer catch converts to unevaluated and never materializes huge ranges.
-          const rangeRows = ref.to.row - ref.from.row + 1
-          const rangeCols = ref.to.col - ref.from.col + 1
-          if (rangeRows * rangeCols > MAX_RANGE_CELLS) {
-            throw new Error(`range exceeds ${MAX_RANGE_CELLS} cells`)
-          }
-          let visited = 0
-          const rows: unknown[][] = []
-          for (let row = ref.from.row; row <= ref.to.row; row++) {
-            const cols: unknown[] = []
-            for (let col = ref.from.col; col <= ref.to.col; col++) {
-              if (++visited % RANGE_DEADLINE_CHECK_INTERVAL === 0 && Date.now() >= deadline) {
-                throw new Error('formula budget exhausted while reading range')
-              }
-              cols.push(ctx.getCellValue({ sheet: ref.sheet, row, col }))
-            }
-            rows.push(cols)
-          }
-          return rows
-        }
-      })
+      const parser = parserAtDepth(depth)
       const result = parser.parse(formula, { sheet: pos.sheet, row: pos.row, col: pos.col })
       outcome = classifyParseResult(result)
     } catch {

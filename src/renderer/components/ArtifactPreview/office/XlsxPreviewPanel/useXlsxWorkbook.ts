@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { useEffect, useRef, useState } from 'react'
 
+import { toUint8Array } from '../../toUint8Array'
 import type { WorkbookRenderModel, XlsxParseRequest, XlsxParseResponse } from './renderModel'
 
 const logger = loggerService.withContext('XlsxPreviewPanel')
@@ -18,16 +19,6 @@ export type XlsxWorkbookState =
 type XlsxWorker = Pick<Worker, 'postMessage' | 'terminate'> & {
   onmessage: ((event: MessageEvent<XlsxParseResponse>) => void) | null
   onerror: ((event: ErrorEvent) => void) | null
-}
-
-/** Normalize window.api.fs.read output to a real ArrayBuffer after IPC structured cloning. Needed for postMessage transfer. */
-const toArrayBuffer = (data: unknown): ArrayBuffer => {
-  if (data instanceof ArrayBuffer) return data
-  if (ArrayBuffer.isView(data)) {
-    const view = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-    return view.slice().buffer
-  }
-  return data as ArrayBuffer
 }
 
 /**
@@ -61,7 +52,7 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
       try {
         const raw = await window.api.fs.read(filePath)
         if (cancelled || requestId !== requestIdRef.current) return
-        bytes = toArrayBuffer(raw)
+        bytes = toUint8Array(raw).slice().buffer
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -77,7 +68,7 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
 
       let worker: XlsxWorker
       try {
-        worker = (await createXlsxWorker()) as unknown as XlsxWorker
+        worker = await createXlsxWorker()
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -132,7 +123,7 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
   return state
 }
 
-async function createXlsxWorker(): Promise<Worker> {
+async function createXlsxWorker(): Promise<XlsxWorker> {
   const WorkerModule = await import('./worker/xlsxParser.worker?worker')
   return new WorkerModule.default()
 }

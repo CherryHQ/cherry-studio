@@ -1,10 +1,11 @@
-import { Button, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ZoomControls } from '../../DocumentPreviewToolbar'
 import type { ChartRenderer } from './charts/ChartRenderer'
 import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './renderModel'
 import { useXlsxWorkbook } from './useXlsxWorkbook'
@@ -218,35 +219,14 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
         </div>
 
         <div className="flex shrink-0 items-center" role="toolbar" aria-label={t('agent.preview_pane.preview')}>
-          <Tooltip content={t('preview.zoom_out')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('preview.zoom_out')}
-              disabled={zoomIndex <= 0}
-              onClick={zoomOut}>
-              <ZoomOut size={14} />
-            </Button>
-          </Tooltip>
-          <span
-            className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums"
-            data-testid="xlsx-preview-zoom-value">
-            {formatZoomLabel(zoom)}
-          </span>
-          <Tooltip content={t('preview.zoom_in')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('preview.zoom_in')}
-              disabled={zoomIndex < 0 || zoomIndex >= ZOOM_LEVELS.length - 1}
-              onClick={zoomIn}>
-              <ZoomIn size={14} />
-            </Button>
-          </Tooltip>
+          <ZoomControls
+            zoomLabel={formatZoomLabel(zoom)}
+            zoomIndicatorTestId="xlsx-preview-zoom-value"
+            canZoomOut={zoomIndex > 0}
+            canZoomIn={zoomIndex >= 0 && zoomIndex < ZOOM_LEVELS.length - 1}
+            onZoomOut={zoomOut}
+            onZoomIn={zoomIn}
+          />
         </div>
       </div>
     </div>

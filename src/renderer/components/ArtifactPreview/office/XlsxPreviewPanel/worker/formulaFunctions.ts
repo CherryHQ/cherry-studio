@@ -17,6 +17,8 @@ import FormulaParser from 'fast-formula-parser'
 const H = FormulaParser.FormulaHelpers
 const { NUMBER } = FormulaParser.Types
 const FormulaError = FormulaParser.FormulaError
+const IS_GREATER = (value: number, current: number): boolean => value > current
+const IS_LESS = (value: number, current: number): boolean => value < current
 
 /** Flatten all arguments and collect numeric scalars only. Text, empty cells, and booleans follow Excel aggregate semantics. */
 function collectNumbers(params: FunctionArg[]): number[] {
@@ -25,6 +27,20 @@ function collectNumbers(params: FunctionArg[]): number[] {
     if (typeof item === 'number' && !Number.isNaN(item)) nums.push(item)
   })
   return nums
+}
+
+/** MAX/MIN: scan flattened numeric inputs once without allocating an intermediate array or spreading function args. */
+function findExtremum(params: FunctionArg[], isBetter: (value: number, current: number) => boolean): number {
+  let found = false
+  let result = 0
+  H.flattenParams(params, NUMBER, true, (item) => {
+    if (typeof item !== 'number' || Number.isNaN(item)) return
+    if (!found || isBetter(item, result)) {
+      result = item
+      found = true
+    }
+  })
+  return found ? result : 0
 }
 
 /** Sum of squared deviations, reused by variance and standard deviation. */
@@ -42,14 +58,8 @@ function nthOrdered(params: FunctionArg[], k: FunctionArg, compare: (a: number, 
 }
 
 export const CUSTOM_FORMULA_FUNCTIONS: Record<string, ParserFunction> = {
-  MAX: (...params) => {
-    const nums = collectNumbers(params)
-    return nums.length ? Math.max(...nums) : 0
-  },
-  MIN: (...params) => {
-    const nums = collectNumbers(params)
-    return nums.length ? Math.min(...nums) : 0
-  },
+  MAX: (...params) => findExtremum(params, IS_GREATER),
+  MIN: (...params) => findExtremum(params, IS_LESS),
   MEDIAN: (...params) => {
     const nums = collectNumbers(params).sort((a, b) => a - b)
     if (nums.length === 0) throw FormulaError.NUM

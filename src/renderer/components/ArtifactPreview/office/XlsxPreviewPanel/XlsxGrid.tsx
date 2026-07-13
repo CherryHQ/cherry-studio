@@ -124,6 +124,8 @@ const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
 interface CellViewProps {
   cell: CellRenderModel | undefined
   style: CellStyle | undefined
+  /** Covered merge placeholders must not paint default grid lines beneath the transparent merged-cell layer. */
+  covered?: boolean
   /** Draw top/left grid lines for the first row/column to avoid doubled borders between adjacent cells. */
   isFirstRow: boolean
   isFirstCol: boolean
@@ -155,6 +157,7 @@ const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): R
 const CellView = memo(function CellView({
   cell,
   style,
+  covered = false,
   isFirstRow,
   isFirstCol,
   top,
@@ -179,10 +182,10 @@ const CellView = memo(function CellView({
     overflow: 'hidden',
     whiteSpace: css.whiteSpace ?? 'nowrap',
     boxSizing: 'border-box',
-    borderRight: css.borderRight ?? DEFAULT_GRID_LINE,
-    borderBottom: css.borderBottom ?? DEFAULT_GRID_LINE,
-    borderTop: isFirstRow ? (css.borderTop ?? DEFAULT_GRID_LINE) : css.borderTop,
-    borderLeft: isFirstCol ? (css.borderLeft ?? DEFAULT_GRID_LINE) : css.borderLeft
+    borderRight: covered ? undefined : (css.borderRight ?? DEFAULT_GRID_LINE),
+    borderBottom: covered ? undefined : (css.borderBottom ?? DEFAULT_GRID_LINE),
+    borderTop: covered ? undefined : isFirstRow ? (css.borderTop ?? DEFAULT_GRID_LINE) : css.borderTop,
+    borderLeft: covered ? undefined : isFirstCol ? (css.borderLeft ?? DEFAULT_GRID_LINE) : css.borderLeft
   }
 
   return (
@@ -320,6 +323,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const virtualCols = colVirtualizer.getVirtualItems()
 
   const readViewport = useCallback(
     (el: HTMLDivElement): ViewportRect => ({
@@ -368,6 +373,32 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [sheet.merges, contentViewport, rowLayout, colLayout]
   )
 
+  // Index only the virtualized viewport intersection. Expanding every merge across the full sheet could itself be
+  // unbounded, while this map stays O(visible cells) and makes the render loop's lookup O(1).
+  const mergeKeyStride = colCount + 1
+  const visibleMergeByCell = useMemo(() => {
+    const index = new Map<number, SheetRenderModel['merges'][number]>()
+    const firstRow = (virtualRows[0]?.index ?? 0) + 1
+    const lastRow = (virtualRows[virtualRows.length - 1]?.index ?? -1) + 1
+    const firstCol = (virtualCols[0]?.index ?? 0) + 1
+    const lastCol = (virtualCols[virtualCols.length - 1]?.index ?? -1) + 1
+    if (lastRow < firstRow || lastCol < firstCol) return index
+
+    for (const { merge } of mergesVisible) {
+      const top = Math.max(merge.top, firstRow)
+      const bottom = Math.min(merge.bottom, lastRow)
+      const left = Math.max(merge.left, firstCol)
+      const right = Math.min(merge.right, lastCol)
+      for (let row = top; row <= bottom; row++) {
+        const rowKey = row * mergeKeyStride
+        for (let col = left; col <= right; col++) {
+          index.set(rowKey + col, merge)
+        }
+      }
+    }
+    return index
+  }, [mergeKeyStride, mergesVisible, virtualCols, virtualRows])
+
   const getCell = useCallback((row: number, col: number) => sheet.cells[`${row}:${col}`], [sheet.cells])
   const getStyle = useCallback(
     (cell: CellRenderModel | undefined) => (cell?.styleId !== undefined ? styles[cell.styleId] : undefined),
@@ -376,9 +407,16 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
 
   /** Returns the merged range containing (row, col), if any. */
   const findMerge = useCallback(
-    (row: number, col: number) =>
-      sheet.merges.find((m) => row >= m.top && row <= m.bottom && col >= m.left && col <= m.right),
-    [sheet.merges]
+    (row: number, col: number) => {
+      const visible = visibleMergeByCell.get(row * mergeKeyStride + col)
+      if (visible) return visible
+      // Non-render interactions may target a cell just outside the current virtual window. This path runs only on
+      // keyboard/selection events, not per rendered cell, and merge parsing is capped upstream.
+      return sheet.merges.find(
+        (merge) => row >= merge.top && row <= merge.bottom && col >= merge.left && col <= merge.right
+      )
+    },
+    [mergeKeyStride, sheet.merges, visibleMergeByCell]
   )
 
   const selectCell = useCallback(
@@ -476,9 +514,6 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const totalWidth = colLayout.totalSize * zoom + scaledHeaderWidth
   const totalHeight = rowLayout.totalSize * zoom + scaledHeaderHeight
 
-  const virtualRows = rowVirtualizer.getVirtualItems()
-  const virtualCols = colVirtualizer.getVirtualItems()
-
   return (
     <div
       ref={scrollElCallback}
@@ -548,7 +583,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                 <div key={vr.key} role="row" aria-rowindex={row}>
                   {virtualCols.map((vc) => {
                     const col = vc.index + 1
-                    const merge = findMerge(row, col)
+                    const merge = visibleMergeByCell.get(row * mergeKeyStride + col)
                     const isMaster = merge !== undefined && merge.top === row && merge.left === col
                     const isCovered = merge !== undefined && !isMaster
                     const cell = merge ? undefined : getCell(row, col)
@@ -568,6 +603,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                         <CellView
                           cell={cell}
                           style={style}
+                          covered={isCovered}
                           isFirstRow={row === 1}
                           isFirstCol={col === 1}
                           top={axisOffset(rowLayout, vr.index)}

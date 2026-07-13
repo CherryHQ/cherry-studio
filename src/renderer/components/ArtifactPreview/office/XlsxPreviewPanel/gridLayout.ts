@@ -15,6 +15,8 @@ export const MAX_COLS = 500
  * every object becomes a DOM node or an ECharts instance, so excess anchors are dropped and recorded as a warning.
  */
 export const MAX_FLOATING_OBJECTS = 64
+/** Merge definitions are untrusted and otherwise make viewport intersection work scale without a bound. */
+export const MAX_MERGED_RANGES = 4096
 
 /** Excel character width -> px (Calibri 11, MDW=7). */
 export const charWidthToPx = (width: number): number => Math.round(width * 7) + 5
