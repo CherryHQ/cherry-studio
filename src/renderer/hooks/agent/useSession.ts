@@ -16,6 +16,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
@@ -406,20 +407,14 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `IpcChannel.AgentSession_AutoRenamed` and invalidates the
+ * Listens for `ai.agent_session_auto_renamed` and invalidates the
  * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useEffect(() => {
-    const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
-    if (!onAutoRenamed) return
-    const unsubscribe = onAutoRenamed(({ sessionId }) => {
-      void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [invalidate])
+  useIpcOn(
+    'ai.agent_session_auto_renamed',
+    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+  )
 }

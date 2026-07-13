@@ -2,6 +2,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -231,7 +233,7 @@ describe('MiniAppMigrator', () => {
         await migrator.execute(ctx)
 
         const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'bilibili'))
-        expect(row.logo).toBe('https://b.cdn/logo.ico')
+        expect(row.logoKey).toBe('https://b.cdn/logo.ico')
       } finally {
         await fs.rm(tmpUserData, { recursive: true, force: true })
       }
@@ -426,6 +428,104 @@ describe('MiniAppMigrator', () => {
 
       expect(result.success).toBe(false)
       expect(result.processedCount).toBe(0)
+    })
+
+    it('promotes a v1 base64 custom mini-app logo into a WebP file_entry + ref row', async () => {
+      const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
+      const filesDir = path.join(tmpUserData, 'Data', 'Files')
+      await fs.mkdir(filesDir, { recursive: true })
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      await fs.writeFile(
+        path.join(filesDir, 'custom-minapps.json'),
+        JSON.stringify([
+          { id: 'app1', name: 'App 1', url: 'https://1.com', logo: `data:image/png;base64,${PNG_1X1}`, type: 'Custom' }
+        ])
+      )
+      try {
+        const ctx = createTestContext(
+          { minapps: { enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com', type: 'Custom' }] } },
+          dbh.db
+        ) as any
+        ctx.paths = {
+          userData: tmpUserData,
+          customMiniAppsFile: path.join(filesDir, 'custom-minapps.json'),
+          filesDataDir: filesDir
+        }
+
+        await migrator.prepare(ctx)
+        const result = await migrator.execute(ctx)
+        expect(result.success).toBe(true)
+
+        // Base64 logo becomes an on-disk WebP file_entry; logoKey is nulled.
+        const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app1'))
+        expect(row.logoKey).toBeNull()
+
+        // The file id lives ONLY in the ref row (single source of truth). Both its
+        // FKs (file_entry_id → file_entry, source_id → mini_app) resolving proves
+        // the file_entry → owner → ref insert ordering.
+        const refs = await dbh.db
+          .select()
+          .from(miniAppLogoFileRefTable)
+          .where(eq(miniAppLogoFileRefTable.sourceId, 'app1'))
+        expect(refs).toHaveLength(1)
+        const logoFileId = refs[0].fileEntryId
+
+        const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
+        expect(entry?.origin).toBe('internal')
+        expect(entry?.ext).toBe('webp')
+
+        const webps = (await fs.readdir(filesDir)).filter((name) => name.endsWith('.webp'))
+        expect(webps).toContain(`${logoFileId}.webp`)
+      } finally {
+        await fs.rm(tmpUserData, { recursive: true, force: true })
+      }
+    })
+
+    it('unlinks the prepared logo WebP when the insert transaction fails', async () => {
+      const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
+      const filesDir = path.join(tmpUserData, 'Data', 'Files')
+      await fs.mkdir(filesDir, { recursive: true })
+      // A real 1×1 PNG data URL → transcodes to a WebP written into filesDataDir.
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      await fs.writeFile(
+        path.join(filesDir, 'custom-minapps.json'),
+        JSON.stringify([
+          { id: 'app1', name: 'App 1', url: 'https://1.com', logo: `data:image/png;base64,${PNG_1X1}`, type: 'Custom' }
+        ])
+      )
+      try {
+        const ctx = createTestContext(
+          { minapps: { enabled: [{ id: 'app1', name: 'App 1', url: 'https://1.com', type: 'Custom' }] } },
+          dbh.db
+        ) as any
+        ctx.paths = {
+          userData: tmpUserData,
+          customMiniAppsFile: path.join(filesDir, 'custom-minapps.json'),
+          filesDataDir: filesDir
+        }
+
+        await migrator.prepare(ctx)
+
+        // Pre-insert a duplicate appId so the insert transaction fails AFTER the
+        // logo WebP has already been written to disk.
+        await dbh.db.insert(miniAppTable).values({
+          appId: 'app1',
+          presetMiniAppId: null,
+          name: 'Existing',
+          url: 'https://existing.com',
+          status: 'enabled',
+          orderKey: 'a0'
+        })
+
+        const result = await migrator.execute(ctx)
+        expect(result.success).toBe(false)
+
+        // The prepared WebP must be unlinked on the failure path — no disk orphan.
+        const leftoverWebp = (await fs.readdir(filesDir)).filter((name) => name.endsWith('.webp'))
+        expect(leftoverWebp).toEqual([])
+      } finally {
+        await fs.rm(tmpUserData, { recursive: true, force: true })
+      }
     })
   })
 

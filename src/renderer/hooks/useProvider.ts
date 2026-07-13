@@ -155,6 +155,8 @@ export function useProviderMutations(providerId: string) {
     }
   }, [deleteTrigger, providerId])
 
+  const enableProvider = useCallback(() => updateProvider({ isEnabled: true }), [updateProvider])
+
   const updateAuthConfig = useCallback(
     async (authConfig: AuthConfig) => {
       try {
@@ -222,6 +224,7 @@ export function useProviderMutations(providerId: string) {
     deleteProvider,
     isDeleting,
     deleteError,
+    enableProvider,
     updateAuthConfig,
     addApiKey,
     isAddingApiKey,

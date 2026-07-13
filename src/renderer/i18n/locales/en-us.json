@@ -3599,6 +3599,7 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
+      "avatar_image_too_large": "Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
@@ -3620,6 +3621,7 @@
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "image_process_failed": "Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Invalid API Host",
@@ -6802,6 +6804,7 @@
           "confirm": "Are you sure you want to add all models to the list?",
           "label": "Add all models"
         },
+        "add_success_enable_failed": "Models were added, but the provider could not be enabled.",
         "add_whole_group": "Add the whole group",
         "clean_stale_models": "Clean stale models",
         "clean_stale_success": "Cleaned {{count}} stale model(s)",
@@ -7213,6 +7216,7 @@
         "fill_after_create": "Authentication fields can be filled after create",
         "menu_label": "Add instance"
       },
+      "enable_failed_after_connection": "Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Agent Supported",
         "all": "All Providers",

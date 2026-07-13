@@ -10,6 +10,9 @@ const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
 
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -123,7 +126,9 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('Model drawers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).api.getAppInfo = vi.fn().mockResolvedValue({})
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'app.get_info' ? Promise.resolve({}) : Promise.resolve(undefined)
+    )
 
     useModelsMock.mockReturnValue({ models: [] })
   })
