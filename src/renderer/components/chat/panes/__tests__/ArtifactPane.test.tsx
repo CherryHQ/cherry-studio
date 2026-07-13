@@ -743,12 +743,25 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
-    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument())
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).toHaveClass('h-10', 'pl-3', 'pr-2')
+    expect(overlay.firstElementChild).not.toHaveClass('px-3')
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Overlay'))
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
+    const openButton = within(overlay).getByRole('button', { name: 'Open in Finder' })
+    const refreshButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })
+    const closeButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })
+    expect(refreshButton).toBeInTheDocument()
+    expect(closeButton).toBeInTheDocument()
+    expect(openButton.compareDocumentPosition(refreshButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(refreshButton.compareDocumentPosition(closeButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(openButton)
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+
+    fireEvent.click(within(overlay).getByRole('button', { name: 'agent.preview_pane.close' }))
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
@@ -766,11 +779,14 @@ describe('ArtifactPane', () => {
       />
     )
 
-    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument())
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('记忆商人.md')
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay).toHaveTextContent('记忆商人.md')
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/Users/suyao/Desktop/记忆商人.md'))
     expect(screen.getByTestId('markdown')).toHaveTextContent('# External')
     expect(mocks.treeCreate).not.toHaveBeenCalled()
+
+    fireEvent.click(within(overlay).getByRole('button', { name: 'Open in Finder' }))
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/Users/suyao/Desktop/记忆商人.md'))
   })
 
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
@@ -851,7 +867,11 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Old'))
     expect(mocks.fsReadText).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
 
     await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
     expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
@@ -928,7 +948,11 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-src/old.md'))
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Old'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
     await waitFor(() => expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(2))
 
     expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
@@ -1167,7 +1191,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('code-viewer').parentElement).toHaveClass('overflow-auto')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
@@ -1372,7 +1397,11 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
     expect(screen.queryByTestId('image-preview')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
 
     await waitFor(() =>
       expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
@@ -1540,7 +1569,11 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('office-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
 
     await waitFor(() => expect(screen.getByTestId('office-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
     expect(mocks.officePreviewPanelProps.at(-1)).toMatchObject({
@@ -1602,7 +1635,11 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
     await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
 
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()

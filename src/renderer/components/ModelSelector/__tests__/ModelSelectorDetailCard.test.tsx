@@ -19,7 +19,10 @@ const {
     className?: string
     side?: string
     align?: string
+    collisionBoundary?: Element
     collisionPadding?: number
+    avoidCollisions?: boolean
+    portalContainer?: DocumentFragment | Element | null
   }>,
   mockHoverCardProps: [] as Array<{
     openDelay?: number
@@ -82,15 +85,29 @@ vi.mock('@cherrystudio/ui', () => ({
     className,
     side,
     align,
-    collisionPadding
+    collisionBoundary,
+    collisionPadding,
+    avoidCollisions,
+    portalContainer
   }: {
     children: ReactNode
     className?: string
     side?: string
     align?: string
+    collisionBoundary?: Element
     collisionPadding?: number
+    avoidCollisions?: boolean
+    portalContainer?: DocumentFragment | Element | null
   }) => {
-    mockHoverCardContentProps.push({ className, side, align, collisionPadding })
+    mockHoverCardContentProps.push({
+      className,
+      side,
+      align,
+      collisionBoundary,
+      collisionPadding,
+      avoidCollisions,
+      portalContainer
+    })
     return <div className={className}>{children}</div>
   },
   HoverCardTrigger: ({ children, ref }: { children: ReactNode; ref?: Ref<HTMLSpanElement> }) => (
@@ -177,6 +194,7 @@ describe('ModelSelectorDetailCard', () => {
       align: 'start',
       collisionPadding: 12
     })
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
     expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
     expect(mockHoverCardProps.at(-1)).toMatchObject({
       openDelay: 1500,
@@ -213,6 +231,73 @@ describe('ModelSelectorDetailCard', () => {
       side: 'left',
       align: 'start'
     })
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
+  })
+
+  it('keeps a narrow portal container for ownership without using it as the collision boundary', () => {
+    const model = makeModel()
+    const portalContainer = document.createElement('div')
+    portalContainer.dataset.testPortal = 'true'
+
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1200)
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(700)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement): DOMRect {
+      if (this.dataset.testPortal === 'true') {
+        return {
+          x: 180,
+          y: 120,
+          width: 280,
+          height: 420,
+          top: 120,
+          right: 460,
+          bottom: 540,
+          left: 180,
+          toJSON: () => {}
+        } as DOMRect
+      }
+
+      return {
+        x: 320,
+        y: 180,
+        width: 120,
+        height: 36,
+        top: 180,
+        right: 440,
+        bottom: 216,
+        left: 320,
+        toJSON: () => {}
+      } as DOMRect
+    })
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    act(() => mockHoverCardOpenChange.current?.(true))
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
+      side: 'right',
+      align: 'start',
+      portalContainer
+    })
+    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
+    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
+  })
+
+  it('does not use a document fragment as the collision boundary', () => {
+    const model = makeModel()
+    const portalContainer = document.createDocumentFragment()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({ portalContainer })
+    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
   })
 
   it('renders reasoning options from getModelSupportedReasoningEffortOptions', () => {
