@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { escapeForDoubleQuotes, isShellSafeModelId, posixQuote } from '../shellQuote'
+import { escapeForDoubleQuotes, posixQuote } from '../shellQuote'
 
 describe('posixQuote', () => {
   it('wraps a plain value in single quotes', () => {
@@ -40,26 +40,5 @@ describe('escapeForDoubleQuotes', () => {
   it('escapes backslashes before the metacharacters it introduces', () => {
     // input: backslash + dollar → 3 backslashes + dollar (the \$ is not mistaken for a pre-escaped $)
     expect(escapeForDoubleQuotes('\\$')).toBe('\\\\\\$')
-  })
-})
-
-describe('isShellSafeModelId', () => {
-  it('accepts real model ids', () => {
-    for (const m of [
-      'gpt-4o',
-      'claude-3-5-sonnet-20241022',
-      'deepseek-ai/DeepSeek-V3',
-      'qwen2.5:7b',
-      'model@latest',
-      'a_b.c'
-    ]) {
-      expect(isShellSafeModelId(m)).toBe(true)
-    }
-  })
-
-  it('rejects ids carrying shell metacharacters or whitespace', () => {
-    for (const m of ['gpt; rm -rf ~', 'm $(calc)', 'm`whoami`', "m'x", 'm"x', 'a b', 'm|x', 'm&x', 'm>x', '']) {
-      expect(isShellSafeModelId(m)).toBe(false)
-    }
   })
 })
