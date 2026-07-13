@@ -263,7 +263,7 @@ describe('ClaudeConfigFields', () => {
     renderFields({ onSettingsNavigate })
 
     const settingsButtons = screen.getAllByRole('button', { name: 'open role model settings' })
-    expect(settingsButtons).toHaveLength(4)
+    expect(settingsButtons).toHaveLength(5)
 
     fireEvent.click(settingsButtons[0])
 
