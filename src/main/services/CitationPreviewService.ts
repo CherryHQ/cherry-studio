@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
+import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Readability } from '@mozilla/readability'
-import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import PQueue from 'p-queue'
 
@@ -31,68 +31,6 @@ function formatPreview(text: string): string {
   return cleaned.length > MAX_PREVIEW_LENGTH ? `${cleaned.slice(0, MAX_PREVIEW_LENGTH)}...` : cleaned
 }
 
-function getMediaType(response: Response): string | undefined {
-  return response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
-}
-
-function isAcceptedMediaType(mediaType: string | undefined): mediaType is string {
-  return Boolean(mediaType && (mediaType.startsWith('text/') || mediaType === 'application/xhtml+xml'))
-}
-
-function hasOversizedContentLength(response: Response): boolean {
-  const contentLength = response.headers.get('content-length')
-  if (!contentLength || !/^\d+$/.test(contentLength)) {
-    return false
-  }
-
-  return BigInt(contentLength) > BigInt(MAX_RESPONSE_BYTES)
-}
-
-async function cancelResponseBody(response: Response): Promise<void> {
-  try {
-    await response.body?.cancel()
-  } catch {
-    // Cancellation is best-effort and must not change the empty-preview fallback.
-  }
-}
-
-async function readLimitedText(response: Response): Promise<string | undefined> {
-  if (!response.body) {
-    return ''
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let byteLength = 0
-  let text = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        return text + decoder.decode()
-      }
-      if (!value) {
-        continue
-      }
-
-      byteLength += value.byteLength
-      if (byteLength > MAX_RESPONSE_BYTES) {
-        try {
-          await reader.cancel()
-        } catch {
-          // The response is already rejected for size; cancellation is best-effort cleanup.
-        }
-        return undefined
-      }
-
-      text += decoder.decode(value, { stream: true })
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 function extractHtmlText(html: string): string {
   const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
 
@@ -101,6 +39,10 @@ function extractHtmlText(html: string): string {
   } finally {
     dom.window.close()
   }
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /<\s*(?:!doctype|html|head|body|article|main|section|div|p|h[1-6])\b/i.test(text)
 }
 
 function createErrorLogContext(safeUrl: string, error: unknown): { origin: string; errorName: string } {
@@ -112,30 +54,13 @@ function createErrorLogContext(safeUrl: string, error: unknown): { origin: strin
 
 async function fetchQueuedPreview(safeUrl: string): Promise<string> {
   try {
-    const response = await net.fetch(safeUrl, {
+    const responseText = await fetchRemoteText(safeUrl, {
       headers: { 'User-Agent': USER_AGENT },
-      redirect: 'error',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      timeoutMs: FETCH_TIMEOUT_MS,
+      maxBytes: MAX_RESPONSE_BYTES
     })
 
-    if (!response.ok) {
-      await cancelResponseBody(response)
-      throw new Error(`HTTP error: ${response.status}`)
-    }
-
-    const mediaType = getMediaType(response)
-    if (!isAcceptedMediaType(mediaType) || hasOversizedContentLength(response)) {
-      await cancelResponseBody(response)
-      return ''
-    }
-
-    const responseText = await readLimitedText(response)
-    if (responseText === undefined) {
-      return ''
-    }
-
-    const content =
-      mediaType === 'text/html' || mediaType === 'application/xhtml+xml' ? extractHtmlText(responseText) : responseText
+    const content = looksLikeHtml(responseText) ? extractHtmlText(responseText) : responseText
 
     return formatPreview(content)
   } catch (error) {
