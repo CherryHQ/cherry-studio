@@ -201,6 +201,41 @@ describe('ErrorDiagnosisService', () => {
 
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('billing_hard_limit_reached')
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route insufficient permissions to quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'insufficient permissions' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route an unqualified MCP mention to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'something mcp related' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('MCP (Model Context Protocol) server error')
+    })
+
+    it('routes a qualified MCP error to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'mcp', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'MCP server timeout' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('MCP (Model Context Protocol) server error')
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
     })
 
     it('forwards finishReason to the AI for safety-blocked responses', async () => {

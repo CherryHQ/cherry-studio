@@ -109,6 +109,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('quota')
   })
 
+  it('does not classify insufficient permissions as quota', () => {
+    const result = classifyError(makeError({ message: 'insufficient permissions' }))
+    expect(result.category).not.toBe('quota')
+  })
+
   it('prefers quota over rate_limit when both keywords appear', () => {
     const result = classifyError(makeError({ statusCode: 429, message: 'rate limit: insufficient_balance' }))
     expect(result.category).toBe('quota')

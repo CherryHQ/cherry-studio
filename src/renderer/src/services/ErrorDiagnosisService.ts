@@ -3,6 +3,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import type { Model } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
+import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 
 import { fetchGenerate, fetchModels } from './ApiService'
 
@@ -101,17 +102,9 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
-  // Quota / balance exhausted — check first so a 429 with "insufficient" routes here, not to rate_limit.
+  // Quota / balance exhausted — check first so a 429 with an explicit billing marker routes here, not to rate_limit.
   // HTTP 402 Payment Required is the canonical billing-failure status.
-  if (
-    status === 402 ||
-    msg.includes('quota') ||
-    msg.includes('insufficient') ||
-    msg.includes('billing') ||
-    msg.includes('payment') ||
-    msg.includes('balance') ||
-    msg.includes('credit')
-  ) {
+  if (status === 402 || isQuotaErrorMessage(msg)) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying — this is not a transient issue.\n`
   }
@@ -143,7 +136,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
   }
 
   // MCP — check BEFORE network so "MCP timeout" routes here
-  if (msg.includes('mcp')) {
+  if (isMcpErrorMessage(msg)) {
     return `## Context\nMCP (Model Context Protocol) server error. Users manage MCP servers in MCP settings. Common issues: server not started, wrong configuration, connection timeout.\n`
   }
 

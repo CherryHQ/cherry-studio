@@ -24,6 +24,36 @@ export interface ErrorClassification {
   navTarget: string | null
 }
 
+export function isQuotaErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+
+  return (
+    msg.includes('quota') ||
+    msg.includes('insufficient_balance') ||
+    msg.includes('insufficient balance') ||
+    msg.includes('insufficient_credit') ||
+    msg.includes('insufficient credit') ||
+    msg.includes('billing') ||
+    msg.includes('payment')
+  )
+}
+
+export function isMcpErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+
+  return (
+    msg.includes('mcp server') ||
+    msg.includes('mcp connection') ||
+    msg.includes('mcp error') ||
+    msg.includes('mcp timeout') ||
+    msg.includes('mcp transport') ||
+    msg.includes('mcp client') ||
+    msg.startsWith('mcp:') ||
+    msg.startsWith('[mcp]') ||
+    msg.includes('mcp_')
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -99,15 +129,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Quota / balance exhausted — check first so "429 + insufficient_balance" routes here, not to rate_limit.
   // HTTP 402 Payment Required is the canonical billing-failure status (used by several providers and gateways).
-  if (
-    numStatus === 402 ||
-    msg.includes('quota') ||
-    msg.includes('insufficient_balance') ||
-    msg.includes('insufficient_quota') ||
-    msg.includes('insufficient_credit') ||
-    msg.includes('billing') ||
-    msg.includes('payment')
-  ) {
+  if (numStatus === 402 || isQuotaErrorMessage(msg)) {
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
   }
 
@@ -160,17 +182,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   // MCP errors — must run BEFORE network so "MCP timeout" / "MCP connection reset" route here
-  if (
-    msg.includes('mcp server') ||
-    msg.includes('mcp connection') ||
-    msg.includes('mcp error') ||
-    msg.includes('mcp timeout') ||
-    msg.includes('mcp transport') ||
-    msg.includes('mcp client') ||
-    msg.startsWith('mcp:') ||
-    msg.startsWith('[mcp]') ||
-    msg.includes('mcp_')
-  ) {
+  if (isMcpErrorMessage(msg)) {
     return { category: 'mcp', i18nKey: 'error.diagnosis.mcp', navTarget: '/settings/mcp/servers' }
   }
 
