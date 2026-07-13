@@ -1190,6 +1190,7 @@
           "official": "https://cloud.tencent.com/product/tokenhub"
         }
       },
+      "modelListSource": "registry",
       "name": "TokenHub"
     },
     {
@@ -1454,5 +1455,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "f96e45d2273ff92e"
+  "version": "88fadfc88b8f4da7"
 }
