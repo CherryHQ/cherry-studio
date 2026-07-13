@@ -745,12 +745,18 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     expect(overlay).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).toHaveClass('h-10', 'pl-3', 'pr-2')
+    expect(overlay.firstElementChild).not.toHaveClass('px-3')
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Overlay'))
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
 
     const openButton = within(overlay).getByRole('button', { name: 'Open in Finder' })
-    expect(within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
-    expect(within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })).toBeInTheDocument()
+    const refreshButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })
+    const closeButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })
+    expect(refreshButton).toBeInTheDocument()
+    expect(closeButton).toBeInTheDocument()
+    expect(openButton.compareDocumentPosition(refreshButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(refreshButton.compareDocumentPosition(closeButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(openButton)
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/README.md'))
@@ -1185,7 +1191,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
+    expect(screen.getByTestId('code-viewer').parentElement).toHaveClass('overflow-auto')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
