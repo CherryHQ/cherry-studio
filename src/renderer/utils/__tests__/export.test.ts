@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Import Message, MessageBlock, and necessary enums
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'

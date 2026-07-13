@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -72,42 +72,6 @@ vi.mock('@data/hooks/useCache', async () => {
   return MockUseCache
 })
 
-// Mock PreferenceService globally for renderer tests
-vi.mock('@data/PreferenceService', async () => {
-  const { MockPreferenceService } = await import('./__mocks__/renderer/PreferenceService')
-  return MockPreferenceService
-})
-
-// Mock DataApiService globally for renderer tests
-vi.mock('@data/DataApiService', async () => {
-  const { MockDataApiService } = await import('./__mocks__/renderer/DataApiService')
-  return MockDataApiService
-})
-
-// Mock CacheService globally for renderer tests
-vi.mock('@data/CacheService', async () => {
-  const { MockCacheService } = await import('./__mocks__/renderer/CacheService')
-  return MockCacheService
-})
-
-// Mock useDataApi hooks globally for renderer tests
-vi.mock('@data/hooks/useDataApi', async () => {
-  const { MockUseDataApi } = await import('./__mocks__/renderer/useDataApi')
-  return MockUseDataApi
-})
-
-// Mock usePreference hooks globally for renderer tests
-vi.mock('@data/hooks/usePreference', async () => {
-  const { MockUsePreference } = await import('./__mocks__/renderer/usePreference')
-  return MockUsePreference
-})
-
-// Mock useCache hooks globally for renderer tests
-vi.mock('@data/hooks/useCache', async () => {
-  const { MockUseCache } = await import('./__mocks__/renderer/useCache')
-  return MockUseCache
-})
-
 // Mock the toast notification surface globally for renderer tests
 vi.mock('@renderer/services/toast', async () => {
   const { MockToast } = await import('./__mocks__/renderer/toast')
