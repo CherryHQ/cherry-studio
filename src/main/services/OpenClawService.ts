@@ -539,7 +539,9 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private async resolveSyncConfig(uniqueModelId: unknown): Promise<{ provider: Provider; primaryModel: Model }> {
+  private async resolveSyncConfig(
+    uniqueModelId: unknown
+  ): Promise<{ provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel }> {
     const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
     if (!parsed.success) {
       throw new Error('Invalid OpenClaw model selection')
@@ -586,7 +588,7 @@ export class OpenClawService extends BaseService {
           .map((model) => this.toOpenClawModel(model)),
         presetProviderId: provider.presetProviderId,
         headers: provider.settings?.extraHeaders
-      } as OpenClawSyncProvider,
+      },
       primaryModel: this.toOpenClawModel(primaryModel)
     }
   }
