@@ -14,6 +14,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('agentSessionExport')
@@ -44,8 +45,14 @@ function agentSessionMessageToExportView(
   agentId: string | null | undefined,
   modelFallback?: ModelSnapshot
 ): MessageExportView {
-  // Model comes from the frozen author snapshot; snapshot-less assistant rows fall back to the live agent model.
-  const modelSnapshot = row.messageSnapshot?.model ?? (row.role === 'assistant' ? modelFallback : undefined)
+  // Model priority: the frozen author snapshot → the row's own frozen `modelId` → (assistant only) the
+  // live agent model. The stored id wins over the fallback so a row keeps the model that produced it.
+  let modelSnapshot = row.messageSnapshot?.model
+  if (!modelSnapshot && row.modelId && isUniqueModelId(row.modelId)) {
+    const { providerId, modelId } = parseUniqueModelId(row.modelId)
+    modelSnapshot = { id: modelId, name: modelId, provider: providerId }
+  }
+  if (!modelSnapshot && row.role === 'assistant') modelSnapshot = modelFallback
 
   return {
     id: row.id,

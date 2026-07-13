@@ -28,6 +28,14 @@ without one fall back to their stored model id.
 
 ## Notes for release manager
 
-Purely presentational + per-message metadata; no data loss. v1-imported and
-pre-change v2 messages have no author snapshot and degrade gracefully to the
-stored model id (no live-entity fallback for agent sessions).
+Purely presentational + per-message metadata; no data loss.
+
+v1-imported chat messages **do** get an author snapshot when the topic's assistant
+and the message's model resolve during migration; only rows where that can't be
+resolved stay snapshot-less.
+
+Snapshot-less rows resolve their model in priority order — the row's own stored
+`modelId` first, then a live model only as a last resort (for chat, the current
+topic model; for agent sessions, the current agent model). Because assistant/agent
+rows always carry their own `modelId`, the live fallback is effectively only hit
+by rows that have neither snapshot nor `modelId`.

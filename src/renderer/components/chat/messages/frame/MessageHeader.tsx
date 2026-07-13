@@ -54,9 +54,11 @@ const MessageHeader: FC<Props> = memo(
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
+    // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
+    // so editing/deleting the live entity never changes a past message's name or avatar.
     const authorSnapshot = message.messageSnapshot
-    const authorName = authorSnapshot?.name || assistantProfile?.name
-    const authorAvatar = authorSnapshot?.emoji || assistantProfile?.avatar
+    const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
+    const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
     const modelName = getMessageListItemModelName(message)
 
     const getUserName = useCallback(() => {

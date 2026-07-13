@@ -177,6 +177,7 @@ describe('AgentChatContextProvider', () => {
           messageSnapshot: {
             id: 'agent-1',
             name: 'My Agent',
+            emoji: '🤖',
             model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
           }
         })
@@ -195,6 +196,7 @@ describe('AgentChatContextProvider', () => {
       messageSnapshot: {
         id: 'agent-1',
         name: 'My Agent',
+        emoji: '🤖',
         model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
       }
     })
@@ -222,6 +224,7 @@ describe('AgentChatContextProvider', () => {
         messageSnapshot: {
           id: 'agent-1',
           name: 'My Agent',
+          emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         }
       }
@@ -252,6 +255,7 @@ describe('AgentChatContextProvider', () => {
         messageSnapshot: {
           id: 'agent-1',
           name: 'My Agent',
+          emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         }
       }

@@ -60,9 +60,16 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
   const messageSnapshot = metadata.messageSnapshot
-  // The snapshot IS the producing author (model nested); for snapshot-less rows fall back to the topic model.
+  // The snapshot IS the producing author (model nested). Model priority: the frozen author's model →
+  // the row's own frozen `modelId` → (assistant only) the live topic model. Resolving the stored id
+  // before the live fallback keeps snapshot-less rows on the model that produced them when the default changes.
   const author = messageSnapshot
-  const model = author?.model ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
+  let model = author?.model
+  if (!model && metadata.modelId && isUniqueModelId(metadata.modelId)) {
+    const { providerId, modelId } = parseUniqueModelId(metadata.modelId)
+    model = { id: modelId, name: modelId, provider: providerId }
+  }
+  if (!model && message.role === 'assistant') model = ctx.modelFallback
   const modelId =
     metadata.modelId ??
     (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)
