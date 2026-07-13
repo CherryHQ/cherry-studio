@@ -53,7 +53,9 @@ export const AgentConfigurationSchema = z
     scheduler_one_time_delay: z.number().optional(),
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
-    heartbeat_interval: z.number().optional()
+    heartbeat_interval: z.number().optional(),
+    /** Remote Stella identity only; endpoint/PAT are main-process connection state. */
+    stella_remote_agent_id: z.string().min(1).optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -130,7 +132,7 @@ export const AGENT_MUTABLE_FIELDS = {
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  type: z.enum(['claude-code', 'pi']),
+  type: z.enum(['claude-code', 'pi', 'stella']),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */

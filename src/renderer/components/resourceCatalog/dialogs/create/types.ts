@@ -19,6 +19,10 @@ export type ResourceCreateWizardFormValues = {
   /** Agent runtime driver. Ignored for the assistant kind. */
   agentType: AgentType
   modelId: UniqueModelId | null
+  /** Renderer-only connection entry; PAT is sent once through IpcApi and never persisted here. */
+  stellaEndpoint: string
+  stellaPat: string
+  stellaRemoteAgentId: string
   prompt: string
   // assistant step 3
   knowledgeBaseIds: string[]
@@ -28,14 +32,15 @@ export type ResourceCreateWizardFormValues = {
 
 /**
  * Validated submit payload handed to the caller's `onSubmit`. `modelId` is
- * guaranteed non-null (basic-step validation gates submission).
+ * present for local runtimes; Stella stores a remote-agent reference instead.
  */
 export type ResourceCreateWizardValues = {
   avatar: string
   name: string
   /** Agent runtime driver (agent kind only; assistant callers ignore it). */
   agentType: AgentType
-  modelId: UniqueModelId
+  modelId: UniqueModelId | null
+  stellaRemoteAgentId?: string
   description: string
   prompt: string
   knowledgeBaseIds: string[]

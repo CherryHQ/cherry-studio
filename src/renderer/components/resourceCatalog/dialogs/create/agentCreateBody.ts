@@ -10,26 +10,21 @@ import type { ResourceCreateWizardValues } from './types'
  * permission mode since pi tool calls run at host privilege with no sandbox.
  */
 export function buildAgentCreateBody(values: ResourceCreateWizardValues): CreateAgentDto {
-  const base: CreateAgentDto = {
+  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+  if (caps.requiresModel && !values.modelId) throw new Error('A model is required for this runtime')
+
+  return {
     type: values.agentType,
     name: values.name,
     model: values.modelId,
     description: values.description,
-    instructions: values.prompt,
-    configuration: {
-      avatar: values.avatar
-    }
-  }
-
-  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
-
-  return {
-    ...base,
+    instructions: caps.prompt ? values.prompt : '',
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
-    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
+    ...(caps.modelTiers && values.modelId ? { planModel: values.modelId, smallModel: values.modelId } : {}),
     configuration: {
-      ...base.configuration,
-      permission_mode: caps.createDefaults.permissionMode
+      avatar: values.avatar,
+      ...(caps.permissions ? { permission_mode: caps.createDefaults.permissionMode } : {}),
+      ...(caps.remoteAgentSelection ? { stella_remote_agent_id: values.stellaRemoteAgentId ?? '' } : {})
     }
   }
 }

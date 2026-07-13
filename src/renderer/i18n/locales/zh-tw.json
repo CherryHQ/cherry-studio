@@ -3133,13 +3133,21 @@
             "label": "執行環境",
             "option": {
               "claude_code": "Claude Code",
-              "pi": "pi"
+              "pi": "pi",
+              "stella": "Stella"
             },
-            "pi_hint": "pi 智能體支援內建工具、技能、MCP 伺服器與 Soul 模式，暫不支援計劃模式。"
+            "pi_hint": "pi 智能體支援內建工具、技能、MCP 伺服器與 Soul 模式，暫不支援計劃模式。",
+            "stella_hint": "Stella 管理此智能體的模型、提示詞、工具、工作區、記憶與權限。"
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"
+          },
+          "stella": {
+            "connect": "連線並列出智能體",
+            "endpoint": "Stella 端點",
+            "pat": "個人存取權杖",
+            "remote_agent": "遠端智能體"
           }
         },
         "model_config": "模型配置",

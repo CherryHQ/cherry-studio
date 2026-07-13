@@ -10,6 +10,7 @@ function values(overrides: Partial<ResourceCreateWizardValues> = {}): ResourceCr
     name: 'Agent',
     agentType: 'claude-code',
     modelId: 'openai::gpt-4o' as UniqueModelId,
+    stellaRemoteAgentId: '',
     description: 'desc',
     prompt: 'be helpful',
     knowledgeBaseIds: [],
@@ -26,6 +27,21 @@ describe('buildAgentCreateBody', () => {
     expect(body.planModel).toBe('openai::gpt-4o')
     expect(body.smallModel).toBe('openai::gpt-4o')
     expect(body.configuration?.permission_mode).toBe('bypassPermissions')
+  })
+
+  it('builds a model-free remote reference for Stella', () => {
+    const body = buildAgentCreateBody(
+      values({
+        agentType: 'stella',
+        modelId: null,
+        stellaRemoteAgentId: 'remote-1'
+      })
+    )
+
+    expect(body.model).toBeNull()
+    expect(body.configuration?.stella_remote_agent_id).toBe('remote-1')
+    expect(body.configuration?.permission_mode).toBeUndefined()
+    expect(body.instructions).toBe('')
   })
 
   it('omits Claude-only defaults for pi, keeps skills, and starts gated (D8)', () => {

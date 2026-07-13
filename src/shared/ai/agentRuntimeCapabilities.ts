@@ -18,8 +18,16 @@ export interface AgentRuntimeCapabilities {
   /** i18n key for capability-limit hint under the selector; null = none. */
   hintKey: string | null
   permissionModes: readonly AgentPermissionMode[]
+  /** Whether this runtime is configured against a Cherry local model. */
+  requiresModel: boolean
   /** plan/small model fields. */
   modelTiers: boolean
+  /** Stella-like runtimes choose an already-configured remote agent during create. */
+  remoteAgentSelection: boolean
+  /** Whether Cherry owns an editable local prompt/persona. */
+  prompt: boolean
+  /** Whether Cherry owns permission policy controls. */
+  permissions: boolean
   /** Heartbeat orchestration. */
   heartbeat: boolean
   mcp: boolean
@@ -72,7 +80,11 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     labelFallback: 'Claude Code',
     hintKey: null,
     permissionModes: ALL_PERMISSION_MODES,
+    requiresModel: true,
     modelTiers: true,
+    remoteAgentSelection: false,
+    prompt: true,
+    permissions: true,
     heartbeat: true,
     mcp: true,
     skills: true,
@@ -96,7 +108,11 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     labelFallback: 'pi',
     hintKey: 'library.config.agent.field.runtime.pi_hint',
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
+    requiresModel: true,
     modelTiers: false,
+    remoteAgentSelection: false,
+    prompt: true,
+    permissions: true,
     heartbeat: true,
     // Selected MCP servers are bridged as approval-gated pi custom tools.
     mcp: true,
@@ -118,5 +134,25 @@ export const AGENT_RUNTIME_CAPABILITIES = {
         i18nKeyBase: `agent.tools.builtin.${tool.name}`,
         category: tool.category
       }))
+  },
+  stella: {
+    labelKey: 'library.config.agent.field.runtime.option.stella',
+    labelFallback: 'Stella',
+    hintKey: 'library.config.agent.field.runtime.stella_hint',
+    permissionModes: [],
+    requiresModel: false,
+    modelTiers: false,
+    remoteAgentSelection: true,
+    prompt: false,
+    permissions: false,
+    heartbeat: false,
+    mcp: false,
+    skills: false,
+    claudeRegistryTools: false,
+    slashCommands: [],
+    createDefaults: { permissionMode: 'default' },
+    isModelCompatible: null,
+    transport: 'stella-agent',
+    builtinTools: () => []
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>

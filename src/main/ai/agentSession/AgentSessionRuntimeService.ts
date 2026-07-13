@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { getAgentRuntimeExecutionId, requiresLocalModel } from '@main/ai/runtime/agentRuntimeIdentity'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -303,7 +304,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
+      if (!agent) return
+      const executionId = getAgentRuntimeExecutionId(agent)
+      if (!executionId) return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -325,7 +328,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.model,
+        modelId: executionId,
         status: 'idle',
         pendingTurns: []
       }
@@ -1040,7 +1043,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
-    if (!agentService.getAgent(entry.agentId)?.model) {
+    const currentAgent = agentService.getAgent(entry.agentId)
+    if (!currentAgent || (requiresLocalModel(entry.agentType) && !currentAgent.model)) {
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -1062,7 +1066,7 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId
+          modelId: persistedModelId(entry)
         }
       })
     } catch (error) {
@@ -1160,7 +1164,7 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId
+          modelId: persistedModelId(entry)
         }
       })
     } catch (error) {
@@ -1293,7 +1297,7 @@ export class AgentSessionRuntimeService extends BaseService {
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId,
-        modelId,
+        modelId: requiresLocalModel(entry.agentType) ? modelId : undefined,
         runtimeResumeToken: () => entry.lastResumeToken,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
@@ -1388,6 +1392,10 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
   }
+}
+
+function persistedModelId(entry: AgentSessionRuntimeEntry): UniqueModelId | undefined {
+  return requiresLocalModel(entry.agentType) ? entry.modelId : undefined
 }
 
 function isAbortError(error: unknown): boolean {

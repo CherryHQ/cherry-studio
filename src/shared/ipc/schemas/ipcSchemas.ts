@@ -24,6 +24,7 @@ import { providerRequestSchemas } from './provider'
 import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { skillRequestSchemas } from './skill'
+import { stellaRequestSchemas } from './stella'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { translateRequestSchemas } from './translate'
@@ -64,6 +65,7 @@ export const ipcRequestSchemas = {
   ...quickAssistantRequestSchemas,
   ...selectionRequestSchemas,
   ...skillRequestSchemas,
+  ...stellaRequestSchemas,
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,

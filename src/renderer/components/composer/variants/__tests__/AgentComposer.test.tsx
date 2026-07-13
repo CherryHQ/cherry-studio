@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
+  agentType: 'claude-code',
+  agentModel: 'anthropic::claude-sonnet-4-5' as UniqueModelId | null,
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
@@ -271,8 +273,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
     agent: {
       id: 'agent-1',
       name: 'Agent',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet-4-5',
+      type: mocks.agentType,
+      model: mocks.agentModel,
       modelName: 'Claude Sonnet 4.5',
       instructions: 'Follow instructions',
       configuration: {}
@@ -335,9 +337,9 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (id: UniqueModelId) => {
-    mocks.modelLookupId = id
-    return { model }
+  useModelById: (id: UniqueModelId | null | undefined) => {
+    mocks.modelLookupId = id ?? undefined
+    return { model: id ? model : undefined }
   }
 }))
 
@@ -479,6 +481,8 @@ describe('AgentComposer', () => {
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
     mocks.files = []
+    mocks.agentType = 'claude-code'
+    mocks.agentModel = 'anthropic::claude-sonnet-4-5'
     mocks.modelLookupId = undefined
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
@@ -588,6 +592,26 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('does not show or require a Cherry model for a remote-authoritative runtime', async () => {
+    mocks.agentType = 'stella'
+    mocks.agentModel = null
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.queryByTestId('agent-model-selector')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'send' }))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
   })
 
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
