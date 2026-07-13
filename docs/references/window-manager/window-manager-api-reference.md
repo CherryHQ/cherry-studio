@@ -53,6 +53,7 @@ Naming convention: methods with `Info` in the name return serializable `WindowIn
 |--------|-----------|-------------|
 | `getWindow` | `(windowId: string) => BrowserWindow \| undefined` | Get BrowserWindow instance by ID. |
 | `getWindowInfo` | `(windowId: string) => WindowInfo \| undefined` | Get serializable window metadata. |
+| `getWindowType` | `(windowId: string) => WindowType \| undefined` | Get a window's registered type by ID (O(1); undefined if unknown/closed). |
 | `getWindowsByType` | `(type: WindowType) => BrowserWindow[]` | Get all live window instances of a specific type (skips destroyed). |
 | `getWindowInfosByType` | `(type: WindowType) => WindowInfo[]` | Get serializable metadata for all windows of a specific type. |
 | `getWindowId` | `(window: BrowserWindow) => string \| undefined` | Resolve window ID from BrowserWindow. |

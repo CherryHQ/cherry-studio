@@ -37,6 +37,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import {
   type AgentSessionExportOptions,
   agentSessionToMarkdown,
@@ -843,7 +844,10 @@ const Sessions = ({
     async (session: AgentSessionEntity) => {
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
-      await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
+      await ipcApi.request('export.word.from_markdown', {
+        markdown,
+        fileName: removeSpecialCharactersForFileName(title)
+      })
     },
     [getSessionExportOptions]
   )
@@ -1915,13 +1919,9 @@ function SessionListBody({
         </ResourceList.ErrorState>
       }
       emptyFallback={
-        <ResourceList.EmptyState
-          compact
-          preset="no-session"
-          className="min-h-60 px-5 py-10"
-          title={t('agent.session.empty.title')}
-          description={t('agent.session.empty.description')}
-        />
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+          {t('agent.session.empty.title')}
+        </div>
       }
       renderItem={renderItem}
     />

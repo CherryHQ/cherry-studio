@@ -54,11 +54,13 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
     if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
-    if (currentTab.title === displayName && currentTab.icon === app.logo) return
+    // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+    const tabIcon = app.logoSrc ?? app.logo
+    if (currentTab.title === displayName && currentTab.icon === tabIcon) return
 
     updateTab(currentTabId, {
       title: displayName,
-      icon: app.logo
+      icon: tabIcon
     })
   }, [app, currentTab, currentTabId, displayName, updateTab])
 
@@ -221,7 +223,7 @@ const MiniAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <MiniAppLogoAvatar logo={app.logo} size={60} />
+          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </div>
       )}

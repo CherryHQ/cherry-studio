@@ -1,6 +1,7 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
@@ -9,9 +10,7 @@ import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { FilePath } from '@shared/types/file'
-import type { McpProgressEvent } from '@shared/types/mcp'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -150,14 +149,11 @@ export function useMessageLeafCapabilities({
 
   const subscribeToolProgress = useCallback<NonNullable<MessageListActions['subscribeToolProgress']>>(
     (toolId, onProgress) => {
-      const removeListener = window.electron.ipcRenderer.on(
-        IpcChannel.Mcp_Progress,
-        (_event: Electron.IpcRendererEvent, data: McpProgressEvent) => {
-          if (data.callId === toolId) {
-            onProgress(data.progress)
-          }
+      const removeListener = ipcApi.on('mcp.tool.call_progress', (data) => {
+        if (data.callId === toolId) {
+          onProgress(data.progress)
         }
-      )
+      })
 
       return removeListener
     },

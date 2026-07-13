@@ -39,8 +39,7 @@ import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
@@ -189,7 +188,6 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
-    this.registerIpcHandlers()
   }
 
   protected async onStop(): Promise<void> {
@@ -200,29 +198,6 @@ export class McpRuntimeService extends BaseService {
     this.pendingClients.clear()
     this.clients.clear()
     this.serverLogs.clear()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, serverId: string) => this.removeServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, serverId: string) => this.restartServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, serverId: string) => this.stopServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
-      await application.get('McpCatalogService').refreshTools(serverId)
-    })
-    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId) => this.listPrompts(NonEmptyStringSchema.parse(serverId)))
-    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId) =>
-      this.listResources(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId) =>
-      this.checkMcpConnectivity(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(NonEmptyStringSchema.parse(callId)))
-    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId) =>
-      this.getServerVersion(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId) =>
-      this.getServerLogs(NonEmptyStringSchema.parse(serverId))
-    )
   }
 
   private getServerById(serverId: string): McpServer {
@@ -301,8 +276,8 @@ export class McpRuntimeService extends BaseService {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
     application
-      .get('WindowManager')
-      .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
+      .get('IpcApiService')
+      .broadcastToType(WindowType.Main, 'mcp.server.log', { ...entry, serverId: server.id })
   }
 
   public async getServerLogs(serverId: string): Promise<McpServerLogEntry[]> {
@@ -1058,10 +1033,10 @@ export class McpRuntimeService extends BaseService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_Progress, {
+            application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
-            } as McpProgressEvent)
+            })
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
