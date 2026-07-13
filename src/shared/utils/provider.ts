@@ -27,6 +27,13 @@ export function isOllamaProvider(provider: Provider): boolean {
   )
 }
 
+/**
+ * Ollama's local server does not validate credentials, but the SDKs backing
+ * Claude Code and OpenCode still require a non-empty auth token string — used
+ * as a stand-in wherever an Ollama provider has no configured API key.
+ */
+export const OLLAMA_PLACEHOLDER_AUTH_TOKEN = 'ollama'
+
 // `&& !iam-gcp` excludes Vertex, which the seeder gives the same
 // google-generate-content endpoint as Gemini.
 export function isGeminiProvider(provider: Provider): boolean {
@@ -217,4 +224,14 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
     provider.id === 'openrouter' ||
     isAzureOpenAIProvider(provider)
   )
+}
+
+/**
+ * Sanitize a provider display name for use in config file keys / launch args.
+ * Shared by the renderer (writes CLI config files) and main (assembles the
+ * matching launch command) — they must agree on the exact same output.
+ */
+export function sanitizeProviderName(name: string, fallback: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+  return sanitized || fallback
 }

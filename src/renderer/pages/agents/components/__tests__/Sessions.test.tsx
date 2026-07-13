@@ -577,7 +577,12 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { SESSION_AGENT_SECTION_ID, SESSION_PINNED_SECTION_ID, SESSION_WORKDIR_SECTION_ID } from '../sessionListHelpers'
+import {
+  SESSION_AGENT_SECTION_ID,
+  SESSION_PINNED_SECTION_ID,
+  SESSION_WORKDIR_SECTION_ID
+} from '@renderer/utils/chat/sessionListHelpers'
+
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()

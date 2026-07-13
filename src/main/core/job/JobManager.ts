@@ -819,6 +819,11 @@ export class JobManager extends BaseService {
    * enqueues directly using `jobInputTemplate` and writes `markFired`
    * synchronously to keep `lastRun` consistent with the cron path.
    *
+   * Exception to the "natural fire calendar" clause: manually firing an
+   * overdue never-fired `once` schedule writes `lastRun >= trigger.at`, which
+   * the spent-once guard in `armSchedule` treats as the one-shot's fire —
+   * startup recovery will not re-arm it for a make-up run.
+   *
    * @param id - Schedule row id
    * @returns `true` if fired; `false` if no schedule exists for `id`
    */
@@ -1472,12 +1477,32 @@ export class JobManager extends BaseService {
    * "always overdue → catch-up enqueue → fails again" loop after restart.
    * The error log keeps `{ code, stack }` so Sentry can bucket distinct
    * failure modes instead of flattening to one opaque string.
+   *
+   * A spent `once` schedule (its natural fire already happened) is never
+   * re-armed — see the guard below.
    */
   private armSchedule(schedule: JobScheduleSnapshot): void {
     if (!schedule.enabled) return
+    // Dispose any prior registration BEFORE the spent-once guard below: an
+    // update that turns an armed one-shot spent (e.g. rescheduling it onto a
+    // moment already covered by a manual fire) must cancel the pending timer,
+    // or it would later fire with its stale closure snapshot.
     if (this.scheduleDisposables.has(schedule.id)) {
       this.scheduleDisposables.get(schedule.id)?.dispose()
       this.scheduleDisposables.delete(schedule.id)
+    }
+    // A once trigger whose natural fire already happened is spent — re-arming
+    // it (startup recovery, re-enable, no-op update) would replay the job on
+    // every restart, since scheduleOnce fires a past `at` immediately. Compare
+    // against trigger.at rather than mere lastRun presence: a manual trigger
+    // also writes lastRun but must not swallow a still-pending natural fire.
+    if (
+      schedule.trigger.kind === 'once' &&
+      schedule.lastRun !== null &&
+      Date.parse(schedule.lastRun) >= schedule.trigger.at
+    ) {
+      logger.debug('Skipping spent once schedule', { scheduleId: schedule.id })
+      return
     }
 
     const scheduler = application.get('SchedulerService')
@@ -1501,7 +1526,13 @@ export class JobManager extends BaseService {
       } finally {
         try {
           const nextRun = scheduler.getNextRun(scheduleKey)
-          jobScheduleService.markFired(schedule.id, firedAt, nextRun?.getTime() ?? null)
+          // Persist a once fire at no earlier than its `at`: the once timer
+          // elapses on the monotonic clock while `firedAt` reads the wall
+          // clock, so a natural fire can observe firedAt === at - 1 (see
+          // promoteDueAtFire). Unclamped, the spent-once guard above would
+          // see lastRun < at and replay the one-shot on the next startup.
+          const persistedFiredAt = trigger.kind === 'once' ? Math.max(firedAt, trigger.at) : firedAt
+          jobScheduleService.markFired(schedule.id, persistedFiredAt, nextRun?.getTime() ?? null)
         } catch (markErr) {
           logger.warn('markFired failed — nextRun may be stale', {
             scheduleId: schedule.id,

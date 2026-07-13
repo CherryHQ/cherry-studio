@@ -1,0 +1,172 @@
+import { ipcApi } from '@renderer/ipc'
+import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
+import type { CodeCli } from '@shared/types/codeCli'
+import type { ComponentProps } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { resolveCliConfigApplyContext } from '../cliConfig'
+import type { LaunchDialog } from '../components/LaunchDialog'
+import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { useAvailableTerminals } from './useAvailableTerminals'
+
+const logger = loggerService.withContext('useLaunchDialogController')
+
+interface UseLaunchDialogControllerOptions {
+  selectedCliTool: CodeCli
+  toolName: string
+  directory?: string
+  enabledProvider?: Provider
+  isOwnLoginSelected: boolean
+  currentProviderConfig?: CliProviderConfig | null
+  selectedTerminal?: string
+  upsertProviderConfig: (
+    providerId: string,
+    partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
+  ) => Promise<string>
+  setCurrentProvider: (providerId: string | null) => Promise<void>
+  setTerminal: (terminal: string) => Promise<void>
+  selectFolder: () => Promise<string | null>
+}
+
+interface LaunchDialogController {
+  launchDialogProps: ComponentProps<typeof LaunchDialog>
+  launching: boolean
+  openLaunchDialog: () => void
+}
+
+export function useLaunchDialogController({
+  selectedCliTool,
+  toolName,
+  directory,
+  enabledProvider,
+  isOwnLoginSelected,
+  currentProviderConfig,
+  selectedTerminal,
+  upsertProviderConfig,
+  setCurrentProvider,
+  setTerminal,
+  selectFolder
+}: UseLaunchDialogControllerOptions): LaunchDialogController {
+  const { t } = useTranslation()
+  const availableTerminals = useAvailableTerminals()
+  const [launchOpen, setLaunchOpen] = useState(false)
+  const [launching, setLaunching] = useState(false)
+
+  // The picker displays a fallback terminal before the user has ever chosen one
+  // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
+  // launch payload matches what's on screen instead of sending `undefined`.
+  const effectiveTerminal = selectedTerminal ?? availableTerminals[0]?.id
+
+  const handleSelectFolder = useCallback(async () => {
+    try {
+      await selectFolder()
+    } catch (err) {
+      logger.error('Failed to select folder:', err as Error)
+    }
+  }, [selectFolder])
+
+  // The CLI config file is written at "enable" time, not here — launch only
+  // opens a terminal running the CLI in the provider's directory. Provider-less
+  // tools (qoder / copilot) launch with a directory only.
+  const handleLaunch = useCallback(async () => {
+    // Provider-less tools (qoder/copilot) and the virtual "own login" option both
+    // launch with a directory only — no Cherry provider/model is injected.
+    const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
+    if (!directory || (!runWithoutProvider && !enabledProvider)) {
+      toast.error(t('code.folder_placeholder'))
+      return
+    }
+    if (runWithoutProvider) {
+      try {
+        setLaunching(true)
+        const runResult = await ipcApi.request('code_cli.run', {
+          mode: 'own-login',
+          cliTool: selectedCliTool,
+          directory,
+          terminal: effectiveTerminal
+        })
+        if (!runResult.success) {
+          toast.error(runResult.message)
+          return
+        }
+        setLaunchOpen(false)
+      } catch (err) {
+        logger.error('Failed to launch CLI tool:', err as Error)
+        toast.error(t('code.launch.error'))
+      } finally {
+        setLaunching(false)
+      }
+      return
+    }
+
+    const cliConfigContext = enabledProvider
+      ? resolveCliConfigApplyContext(selectedCliTool, enabledProvider.id, currentProviderConfig ?? undefined)
+      : null
+    if (!cliConfigContext) {
+      logger.error('Invalid CLI model id configured for launch', {
+        modelId: currentProviderConfig?.modelId,
+        toolId: selectedCliTool,
+        providerId: enabledProvider?.id
+      })
+      if (enabledProvider) {
+        await upsertProviderConfig(enabledProvider.id, { modelId: null })
+      }
+      await setCurrentProvider(null)
+      toast.error(t('code.launch.validation_error'))
+      return
+    }
+
+    try {
+      setLaunching(true)
+      const runResult = await ipcApi.request('code_cli.run', {
+        mode: 'normal',
+        cliTool: selectedCliTool,
+        model: cliConfigContext.rawModelId,
+        providerId: cliConfigContext.providerId,
+        directory,
+        terminal: effectiveTerminal
+      })
+      if (!runResult.success) {
+        toast.error(runResult.message)
+      } else {
+        setLaunchOpen(false)
+      }
+    } catch (err) {
+      logger.error('Failed to launch CLI tool:', err as Error)
+      toast.error(t('code.launch.error'))
+    } finally {
+      setLaunching(false)
+    }
+  }, [
+    currentProviderConfig,
+    directory,
+    enabledProvider,
+    isOwnLoginSelected,
+    upsertProviderConfig,
+    selectedCliTool,
+    effectiveTerminal,
+    setCurrentProvider,
+    t
+  ])
+
+  return {
+    launchDialogProps: {
+      open: launchOpen,
+      onClose: () => setLaunchOpen(false),
+      toolName,
+      directory,
+      terminals: availableTerminals,
+      selectedTerminal: effectiveTerminal,
+      onSelectFolder: () => void handleSelectFolder(),
+      onSelectTerminal: (terminal) => void setTerminal(terminal),
+      onLaunch: () => void handleLaunch(),
+      launching
+    },
+    launching,
+    openLaunchDialog: () => setLaunchOpen(true)
+  }
+}

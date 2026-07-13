@@ -5,8 +5,8 @@ import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
-import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -182,9 +182,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (activeTab?.url === path) return
 
       const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon: app.logo })
+        openTab(path, { forceNew: true, title, icon })
         return
       }
 
@@ -192,7 +194,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon: app.logo,
+          icon,
           metadata: clearTabInstanceMetadata(activeTab.metadata)
         })
         return
@@ -201,7 +203,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       openTab(path, {
         forceNew: true,
         title,
-        icon: app.logo
+        icon
       })
     },
     [activeTab, openableMiniAppById, openTab, t, updateTab]

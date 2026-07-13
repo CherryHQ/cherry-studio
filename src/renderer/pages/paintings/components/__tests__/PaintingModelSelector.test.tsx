@@ -35,7 +35,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveIcon: () => undefined
+  resolveIconRef: () => undefined,
+  useIcon: () => undefined
 }))
 
 vi.mock('react-i18next', () => ({

@@ -35,6 +35,7 @@ export type AssistantSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactElement
+  additionalItems?: readonly AssistantSelectorItem[]
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
@@ -82,6 +83,7 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const {
     trigger,
+    additionalItems,
     open,
     onOpenChange,
     onDialogCloseAutoFocus,
@@ -124,15 +126,17 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AssistantSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((a) => ({
+    () => [
+      ...(data?.items ?? []).map((a) => ({
         id: a.id,
         name: a.name,
         emoji: a.emoji,
         description: a.description,
         tag: a.tags?.[0]?.name
       })),
-    [data]
+      ...(additionalItems ?? [])
+    ],
+    [additionalItems, data]
   )
 
   const tags = useMemo<ResourceSelectorShellTag[]>(() => {

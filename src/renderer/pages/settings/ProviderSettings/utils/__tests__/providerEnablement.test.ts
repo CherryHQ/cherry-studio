@@ -14,53 +14,48 @@ describe('enableProviderWhenModelsAvailable', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
   })
 
-  it('enables a disabled provider when at least one model is available', async () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+  it('enables a disabled provider with pin-to-top when at least one model is available', async () => {
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const enabled = await enableProviderWhenModelsAvailable(disabledProvider, updateProvider, 2, 'test')
+    await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')
 
-    expect(enabled).toBe(true)
-    expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })
+    expect(enableProvider).toHaveBeenCalledTimes(1)
   })
 
-  it('no-ops when the provider is already enabled', async () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+  it('skips when the provider is already enabled', async () => {
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const enabled = await enableProviderWhenModelsAvailable(enabledProvider, updateProvider, 2, 'test')
+    await enableProviderWhenModelsAvailable(enabledProvider, enableProvider, 2, 'test')
 
-    expect(enabled).toBe(false)
-    expect(updateProvider).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
-  it('no-ops when no models are available', async () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+  it('skips when no models are available', async () => {
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const enabled = await enableProviderWhenModelsAvailable(disabledProvider, updateProvider, 0, 'test')
+    await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 0, 'test')
 
-    expect(enabled).toBe(false)
-    expect(updateProvider).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the provider has not resolved yet', async () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+  it('skips when the provider has not resolved yet', async () => {
+    const enableProvider = vi.fn().mockResolvedValue(undefined)
 
-    const enabled = await enableProviderWhenModelsAvailable(undefined, updateProvider, 2, 'test')
+    await enableProviderWhenModelsAvailable(undefined, enableProvider, 2, 'test')
 
-    expect(enabled).toBe(false)
-    expect(updateProvider).not.toHaveBeenCalled()
+    expect(enableProvider).not.toHaveBeenCalled()
   })
 
-  it('returns false and logs without throwing when the update fails', async () => {
-    const updateError = new Error('patch failed')
-    const updateProvider = vi.fn().mockRejectedValue(updateError)
+  it('throws and logs when the atomic enable-and-pin action rejects', async () => {
+    const enableError = new Error('enable and pin failed')
+    const enableProvider = vi.fn().mockRejectedValue(enableError)
 
-    const enabled = await enableProviderWhenModelsAvailable(disabledProvider, updateProvider, 2, 'test')
-
-    expect(enabled).toBe(false)
-    expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })
+    await expect(enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')).rejects.toBe(
+      enableError
+    )
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      'Failed to enable provider when models are available',
-      expect.objectContaining({ providerId: 'cherryin', modelCount: 2, source: 'test', error: updateError })
+      'Failed to enable provider with pin-to-top when models are available',
+      expect.objectContaining({ providerId: 'cherryin', modelCount: 2, source: 'test', error: enableError })
     )
   })
 })

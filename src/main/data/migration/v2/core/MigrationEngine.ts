@@ -18,7 +18,12 @@ import {
   assistantMcpServerTable
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  chatMessageFileRefTable,
+  miniAppLogoFileRefTable,
+  paintingFileRefTable,
+  providerLogoFileRefTable
+} from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -360,6 +365,8 @@ export class MigrationEngine {
       // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
       { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
       { table: paintingFileRefTable, name: 'painting_file_ref' },
+      { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
+      { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }
     ]
 

@@ -12,7 +12,6 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
-import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -40,24 +39,6 @@ interface OvmsConfig {
 @Conditional(onPlatform('win32'), onCpuVendor('intel'))
 export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
-
-  protected async onInit() {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(
-      IpcChannel.Ovms_AddModel,
-      (_, modelName: string, modelId: string, modelSource: string, task: string) =>
-        this.addModel(modelName, modelId, modelSource, task)
-    )
-    this.ipcHandle(IpcChannel.Ovms_StopAddModel, () => this.stopAddModel())
-    this.ipcHandle(IpcChannel.Ovms_GetModels, () => this.getModels())
-    this.ipcHandle(IpcChannel.Ovms_IsRunning, () => this.initializeOvms())
-    this.ipcHandle(IpcChannel.Ovms_GetStatus, () => this.getOvmsStatus())
-    this.ipcHandle(IpcChannel.Ovms_RunOVMS, () => this.runOvms())
-    this.ipcHandle(IpcChannel.Ovms_StopOVMS, () => this.stopOvms())
-  }
 
   protected async onStop() {
     await this.stopOvms()
