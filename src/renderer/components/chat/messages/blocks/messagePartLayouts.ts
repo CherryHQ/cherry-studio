@@ -48,7 +48,7 @@ const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
 
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
 
-function isHiddenPart(part: CherryMessagePart): boolean {
+export function isHiddenPart(part: CherryMessagePart): boolean {
   return HIDDEN_PART_TYPES.has(part.type as string)
 }
 
@@ -120,7 +120,7 @@ function isReportToolPart(part: CherryMessagePart): boolean {
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   if ((part.type as string) !== 'reasoning') return false
   const reasoningPart = part as ReasoningUIPart
-  return reasoningPart.state === 'streaming' || !!reasoningPart.text?.trim()
+  return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
 }
 
 function isFoldableToolPart(part: CherryMessagePart, standaloneToolCallIds?: ReadonlySet<string>): boolean {
@@ -220,7 +220,7 @@ export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | n
   return null
 }
 
-function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
+export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
   if (partType === 'data-compaction-anchor') return true
@@ -230,6 +230,14 @@ function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
 
 function isAssociatedResultPart(part: CherryMessagePart): boolean {
   return ASSOCIATED_RESULT_PART_TYPES.has(part.type as string)
+}
+
+export function isReasoningMessagePart(part: CherryMessagePart): boolean {
+  return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
+}
+
+export function isResultPart(part: CherryMessagePart): boolean {
+  return isSubstantiveAnswerPart(part) || isAssociatedResultPart(part)
 }
 
 /**

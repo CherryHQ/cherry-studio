@@ -50,6 +50,10 @@ import LiveProcessToolList from './LiveProcessToolList'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
   findOpenTextTailIndex,
+  isHiddenPart,
+  isReasoningMessagePart,
+  isResultPart,
+  isSubstantiveAnswerPart,
   type LiveMessagePartLayoutItem,
   type PartEntry,
   projectCompletedMessageParts,
@@ -226,32 +230,6 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   }, [])
 }
 
-function isSummaryMessagePart(part: CherryMessagePart): boolean {
-  const partType = part.type as string
-  if (partType === 'text') {
-    return !!(part as { text?: string }).text?.trim()
-  }
-  if (partType === 'data-code') {
-    return !!(part as { data?: { content?: string } }).data?.content?.trim()
-  }
-  if (partType === 'data-compact' || partType === 'data-translation') {
-    return !!(part as { data?: { content?: string } }).data?.content?.trim()
-  }
-  if (partType === 'data-compaction-anchor') {
-    return true
-  }
-  return false
-}
-
-function isReasoningMessagePart(part: CherryMessagePart): boolean {
-  return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
-}
-
-function isResultPart(part: CherryMessagePart): boolean {
-  const partType = part.type as string
-  return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
-}
-
 interface VisibleComposerFileToken {
   sourceId?: string
   names: Set<string>
@@ -389,15 +367,7 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
   const { part } = entry
   const partType = part.type as string
 
-  if (
-    partType === 'source-url' ||
-    partType === 'source-document' ||
-    partType === 'step-start' ||
-    partType === 'data-citation' ||
-    partType === 'data-agent-task-event'
-  ) {
-    return false
-  }
+  if (isHiddenPart(part)) return false
   if (partType === 'reasoning') return isReasoningMessagePart(part)
   if (
     partType === 'text' ||
@@ -405,7 +375,7 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     partType === 'data-compact' ||
     partType === 'data-translation'
   ) {
-    return isSummaryMessagePart(part)
+    return isSubstantiveAnswerPart(part)
   }
   if (isToolUIPart(part)) {
     const toolResponse = getCachedToolProjection(part, `${messageId}-part-${entry.index}`).toolResponse
@@ -842,17 +812,8 @@ function hasVisibleReasoning(entries: readonly PartEntry[]): boolean {
 function hasReasoningTail(entries: readonly PartEntry[]): boolean {
   for (let index = entries.length - 1; index >= 0; index--) {
     const part = entries[index].part
-    const partType = part.type as string
-    if (
-      partType === 'step-start' ||
-      partType === 'source-url' ||
-      partType === 'source-document' ||
-      partType === 'data-citation' ||
-      partType === 'data-agent-task-event'
-    ) {
-      continue
-    }
-    return partType === 'reasoning'
+    if (isHiddenPart(part)) continue
+    return (part.type as string) === 'reasoning'
   }
   return false
 }
