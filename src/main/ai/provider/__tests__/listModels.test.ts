@@ -1,5 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -316,6 +316,163 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
   })
 })
 
+describe('listModels — ppioFetcher capability mapping', () => {
+  it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
+    const provider = makeProvider({
+      id: 'ppio',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.ppio.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/models?model_type=embedding')) {
+        return Promise.resolve({ value: { data: [{ id: 'ppio-embedding' }] } })
+      }
+      if (url.endsWith('/models?model_type=reranker')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              {
+                id: 'ppio-reranker',
+                owned_by: 'ppio-rerank',
+                name: 'PPIO Rerank Pro',
+                description: 'Reranker endpoint metadata',
+                group: 'rerankers'
+              }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'ppio-chat' }, { id: 'ppio-reranker' }] } })
+    })
+
+    const models = await listModels(provider)
+    const chatModel = models.find((model) => model.apiModelId === 'ppio-chat')
+    const rerankerModel = models.find((model) => model.apiModelId === 'ppio-reranker')
+
+    expect(chatModel?.capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(rerankerModel?.ownedBy).toBeUndefined()
+    expect(rerankerModel?.name).toBe('ppio-reranker')
+    expect(rerankerModel?.description).toBeUndefined()
+    expect(rerankerModel?.group).toBe('ppio')
+  })
+})
+
+describe('listModels — copied preset provider routing', () => {
+  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
+    const provider = makeProvider({
+      id: '550e8400-e29b-41d4-a716-446655440001',
+      presetProviderId: 'github'
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'https://models.github.ai/catalog/models'
+    })
+    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
+  })
+
+  // anthropic is intentionally absent: it now has a dedicated fetcher (see the anthropicFetcher
+  // suite) rather than being unsupported — it still never hits the OpenAI-compatible fallback.
+  it.each(['aws-bedrock'] as const)(
+    'does not use the OpenAI-compatible fallback for a copied %s provider',
+    async (presetProviderId) => {
+      const provider = makeProvider({
+        id: `copied-${presetProviderId}`,
+        presetProviderId,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+        }
+      })
+
+      await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow(
+        `Provider does not support model listing: copied-${presetProviderId}`
+      )
+      expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+    }
+  )
+})
+
+describe('listModels — newApiFetcher endpoint types', () => {
+  it('maps supported_endpoint_types from NewAPI model responses', async () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://newapi.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'agent/deepseek-v3.2',
+            object: 'model',
+            created: 1626777600,
+            owned_by: 'custom',
+            supported_endpoint_types: [
+              'openai',
+              'openai-response',
+              'openai-response-compact',
+              'anthropic',
+              'gemini',
+              'jina-rerank',
+              'image-generation',
+              'image-edit'
+            ]
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'agent/deepseek-v3.2',
+      ownedBy: 'custom',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.JINA_RERANK,
+        ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      ]
+    })
+  })
+
+  it('routes aionly through the NewAPI-compatible model parser', async () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aionly.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'deepseek-v3.2',
+            supported_endpoint_types: ['anthropic']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+})
+
 describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
   function makeGatewayProvider() {
     return makeProvider({
@@ -381,6 +538,77 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://custom.example.com/api/v1/models')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
+  })
+})
+
+describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
+  function makeNewApiProvider() {
+    return makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' }
+      }
+    })
+  }
+
+  it('marks normalized primary jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-model-id',
+            owned_by: 'new-api',
+            supported_endpoint_types: [' JINA-RERANK ', 'openai', 'unknown-endpoint']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('does not mark jina-rerank when a chat endpoint has higher priority', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'multi-endpoint-chat-model',
+            supported_endpoint_types: ['openai', 'jina-rerank']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
+    expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+  })
+
+  it('derives the capability for other capability-exclusive primary endpoints (image)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-image-model',
+            supported_endpoint_types: ['image-generation', 'openai']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
   })
 })
 

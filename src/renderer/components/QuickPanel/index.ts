@@ -1,5 +1,4 @@
 export { defaultFilterFn, defaultSortFn } from './defaultStrategies'
-export { useOptionalQuickPanel, useQuickPanel } from './hook'
 export {
   firstQuickPanelSelectableIndex,
   moveQuickPanelSelectableIndex,
@@ -25,3 +24,4 @@ export type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
+export { useOptionalQuickPanel, useQuickPanel } from './useQuickPanel'

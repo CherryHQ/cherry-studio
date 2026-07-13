@@ -455,7 +455,7 @@ describe('MainTextBlock', () => {
       expect(token).toBeInTheDocument()
       expect(token).toHaveClass(
         'h-6',
-        'max-w-52',
+        'max-w-[calc(100%_-_0.25rem)]',
         'my-0.5',
         'items-center',
         'rounded-md',
@@ -498,7 +498,7 @@ describe('MainTextBlock', () => {
 
       const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
       const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
       expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
     })
 
@@ -526,7 +526,7 @@ describe('MainTextBlock', () => {
 
       const chip = getRenderedMarkdown()!.querySelector('[data-composer-token-kind="file"]')
       const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
       expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
     })
 

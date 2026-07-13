@@ -172,6 +172,65 @@ describe('composer draft serialization', () => {
     })
   })
 
+  it('serializes and restores folder tokens with path prompt text', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`Open ${folderPath} today`)
+    expect(createComposerMessageSnapshot(draft)).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'folder-1',
+          kind: 'folder',
+          label: 'Project Notes',
+          description: folderPath,
+          index: 0,
+          textOffset: 5,
+          promptText: folderPath
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(`Open ${folderPath} today`, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+  })
+
   it('does not persist non-file composer token payload objects', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
@@ -377,6 +436,51 @@ describe('composer draft serialization', () => {
             composer: {
               version: 1,
               tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 0, textOffset: 5 }]
+            }
+          }
+        }
+      }
+    ])
+  })
+
+  it('builds only a text part for folder tokens', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Read ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              promptText: folderPath
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(createComposerUserMessageParts(draft)).toEqual([
+      {
+        type: 'text',
+        text: `Read ${folderPath}`,
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'folder-1',
+                  kind: 'folder',
+                  label: 'Project Notes',
+                  index: 0,
+                  textOffset: 5,
+                  promptText: folderPath
+                }
+              ]
             }
           }
         }

@@ -33,9 +33,7 @@ export const useCreateTask = () => {
         toast.success({ key: 'create-task', title: t('common.create_success') })
         return result as unknown as ScheduledTaskEntity
       } catch (error) {
-        toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.createFailed', 'Failed to create task'))
-        )
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.createFailed', 'Failed to create task')))
         return undefined
       }
     },
@@ -56,9 +54,7 @@ export const useUpdateTask = () => {
         toast.success({ key: 'update-task', title: t('common.update_success') })
         return result as unknown as ScheduledTaskEntity
       } catch (error) {
-        toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.updateFailed', 'Failed to update task'))
-        )
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task')))
         return undefined
       }
     },
@@ -73,12 +69,10 @@ export const useRunTask = () => {
     async (taskId: string): Promise<boolean> => {
       try {
         await ipcApi.request('ai.run_agent_task', taskId)
-        toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
+        toast.success({ key: 'run-task', title: t('agent.tasks.runTriggered') })
         return true
       } catch (error) {
-        toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.runFailed', 'Failed to run task'))
-        )
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.runFailed', 'Failed to run task')))
         return false
       }
     },
@@ -99,9 +93,7 @@ export const useDeleteTask = () => {
         toast.success({ key: 'delete-task', title: t('common.delete_success') })
         return true
       } catch (error) {
-        toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.deleteFailed', 'Failed to delete task'))
-        )
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.deleteFailed', 'Failed to delete task')))
         return false
       }
     },

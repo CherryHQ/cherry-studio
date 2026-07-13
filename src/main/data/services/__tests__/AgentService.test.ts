@@ -49,11 +49,6 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-// Mock workspace seeding — filesystem ops not needed in unit tests
-vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
-  seedWorkspaceTemplates: vi.fn()
-}))
-
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
   const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/

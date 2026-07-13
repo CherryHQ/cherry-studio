@@ -6,6 +6,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import type { TopicExportMenuOptions } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
@@ -29,7 +30,8 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
+import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -49,6 +51,22 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import {
+  applyOptimisticTopicDisplayMove,
+  buildAssistantGroupDropAnchor,
+  buildTopicDropAnchor,
+  createTopicDisplayGroupResolver,
+  getAssistantIdFromTopicGroupId,
+  getTopicAssistantDisplayGroupId,
+  moveAssistantGroupAfterDrop,
+  normalizeTopicDropPayload,
+  sortTopicsForDisplayGroups,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  type TopicDisplayMode
+} from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
@@ -67,30 +85,12 @@ import {
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
-import type { AddNewTopicPayload } from '../../types'
+import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../../types'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
-import type { TopicExportMenuOptions } from './topicContextMenuActions'
-import {
-  applyOptimisticTopicDisplayMove,
-  buildAssistantGroupDropAnchor,
-  buildTopicDropAnchor,
-  createTopicDisplayGroupResolver,
-  getAssistantIdFromTopicGroupId,
-  getTopicAssistantDisplayGroupId,
-  moveAssistantGroupAfterDrop,
-  normalizeTopicDropPayload,
-  sortTopicsForDisplayGroups,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-  type TopicDisplayMode
-} from './topicsHelpers'
-import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 // Let the context menu close before mounting the heavier offscreen message list.
@@ -104,11 +104,13 @@ const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFI
 
 interface Props {
   activeTopic?: Topic
+  assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
+  historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -233,7 +235,9 @@ function AssistantGroupMoreMenu({
 
 export function Topics({
   activeTopic,
+  assistantTopicsSource,
   assistantIdFilter,
+  historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
@@ -319,7 +323,7 @@ export function Topics({
   } = usePins('assistant', { enabled: isAssistantDisplayMode })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAssistantTopicsSource()
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = assistantTopicsSource
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -512,23 +516,20 @@ export function Topics({
 
       if (topic.id !== activeTopic?.id) return
 
-      // The classic-layout right panel is scoped to a single assistant, so select that assistant's
-      // neighbouring topic instead of the global next one (which could belong to another assistant).
-      const selectionList = isRightPanel
-        ? topics.filter((candidate) => matchesAssistantFilter(candidate, assistantIdFilter))
-        : topics
-      const next = pickNeighbourAfterRemoval(selectionList, topic.id)
+      // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
+      // we never jump to an unrelated conversation. When that assistant has no other topic left, open
+      // a fresh empty one for it instead of leaving the view stranded.
+      const assistantTopics = topics.filter((candidate) => candidate.assistantId === topic.assistantId)
+      const next = pickNeighbourAfterRemoval(assistantTopics, topic.id)
       if (next) {
         setActiveTopic(next)
         return
       }
 
-      // No neighbour left: only the classic panel auto-creates a fresh topic for the scoped assistant.
-      if (isRightPanel && selectionList.length <= 1) {
-        await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
-      }
+      // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
+      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
     },
-    [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -548,14 +549,8 @@ export function Topics({
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
-      if (topics.length <= 1) {
-        if (deleteTimerRef.current) {
-          clearTimeout(deleteTimerRef.current)
-          deleteTimerRef.current = null
-        }
-        setDeletingTopicId(null)
-        return
-      }
+      // Deleting the last remaining topic is allowed: handleDeleteTopicFromMenu opens a fresh empty
+      // one for the assistant afterwards, so we never strand the view on an empty list.
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -563,7 +558,7 @@ export function Topics({
       setDeletingTopicId(null)
       await handleDeleteTopicFromMenu(topic)
     },
-    [handleDeleteTopicFromMenu, topics.length]
+    [handleDeleteTopicFromMenu]
   )
 
   useEffect(
@@ -693,11 +688,11 @@ export function Topics({
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && topic.id !== activeTopic?.id) {
+      if (topic && (historyRecordsActive || topic.id !== activeTopic?.id)) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic?.id, filteredTopics, setActiveTopic]
+    [activeTopic?.id, filteredTopics, historyRecordsActive, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -716,6 +711,7 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
@@ -1186,7 +1182,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
+        selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
@@ -1234,6 +1230,7 @@ export function Topics({
                 actions={
                   <>
                     <TopicListOptionsMenu
+                      historyRecordsActive={historyRecordsActive}
                       manageAssistantsActive={manageAssistantsMenuItem?.active}
                       mode={displayMode}
                       onChange={handleTopicDisplayModeChange}
@@ -1247,6 +1244,7 @@ export function Topics({
             </>
           ) : (
             <TopicListOptionsMenu
+              historyRecordsActive={historyRecordsActive}
               manageAssistantsActive={manageAssistantsMenuItem?.active}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}
@@ -1487,13 +1485,9 @@ function TopicListBody(props: TopicListBodyProps) {
       virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
-        <ResourceList.EmptyState
-          compact
-          preset="no-topic"
-          className="min-h-60 px-5 py-10"
-          title={t('chat.topics.empty.title')}
-          description={t('chat.topics.empty.description')}
-        />
+        <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
+          {t('chat.topics.empty.title')}
+        </div>
       }
       renderItem={renderItem}
     />
@@ -1549,7 +1543,7 @@ function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
-  const canDeleteTopic = topicsLength > 1 && !topic.pinned
+  const canDeleteTopic = !topic.pinned
   const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
   const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
   const showDeleteOrStreamAction = showInlineStreamIndicator || canDeleteTopic

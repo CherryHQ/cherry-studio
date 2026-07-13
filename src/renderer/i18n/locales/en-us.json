@@ -31,262 +31,113 @@
       "submit": "Submit",
       "title": "Questions from Agent"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "Add",
-        "bindAgent": "Bind Agent",
-        "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
-        "comingSoon": "Coming soon",
+    "channels": {
+      "add": "Add",
+      "bindAgent": "Bind Agent",
+      "chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
+      "comingSoon": "Coming soon",
+      "connected": "Connected",
+      "connecting": "Connecting",
+      "createError": "Failed to create channel",
+      "deleteConfirm": "Delete channel \"{{name}}\"?",
+      "deleteError": "Failed to delete channel",
+      "description": "Connect your agent to messaging platforms.",
+      "disconnected": "Disconnected",
+      "discord": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "Enter your Discord bot token",
+        "channelIds": "Allowed Channel IDs",
+        "channelIdsHint": "Format: channel:id or dm:id. Leave empty to allow all.",
+        "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+        "description": "Receive and respond to messages via a Discord bot using WebSocket gateway.",
+        "title": "Discord",
+        "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
+      },
+      "error": "Error",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Enter your Feishu app ID",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "Enter your Feishu app secret",
+        "chatIds": "Allowed Chat IDs",
+        "chatIdsHint": "Comma-separated chat IDs. Leave empty to allow all chats.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "Connected",
-        "connecting": "Connecting",
-        "createError": "Failed to create channel",
-        "deleteConfirm": "Delete channel \"{{name}}\"?",
-        "deleteError": "Failed to delete channel",
-        "description": "Connect your agent to messaging platforms.",
-        "disconnected": "Disconnected",
-        "discord": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "Enter your Discord bot token",
-          "channelIds": "Allowed Channel IDs",
-          "channelIdsHint": "Format: channel:id or dm:id. Leave empty to allow all.",
-          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "Receive and respond to messages via a Discord bot using WebSocket gateway.",
-          "title": "Discord",
-          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your channel ID in the correct format."
-        },
-        "error": "Error",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Enter your Feishu app ID",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "Enter your Feishu app secret",
-          "chatIds": "Allowed Chat IDs",
-          "chatIdsHint": "Comma-separated chat IDs. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "Connected",
-          "description": "Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-          "domain": "Domain",
-          "domainFeishu": "Feishu (China)",
-          "domainLark": "Lark (International)",
-          "encryptKey": "Encrypt Key",
-          "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
-          "loginHint": "No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
-          "qrExpired": "QR code expired. Please retry by toggling the channel.",
-          "qrHint": "Waiting for QR code scan...",
-          "qrScanHint": "Open Feishu on your phone and scan the QR code to create a bot app.",
-          "qrTitle": "Feishu QR Registration",
-          "title": "Feishu",
-          "verificationToken": "Verification Token",
-          "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
-        },
-        "logs": "Logs",
-        "noInstances": "No {{type}} channels configured. Click \"+ Add\" to create one.",
-        "noLogs": "No logs yet",
-        "notifyReceiver": "Receive task notifications",
-        "notifyReceiverHint": "Send scheduler task results to this channel.",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "Enter your QQ Bot App ID",
-          "chatIds": "Allowed Chat IDs",
-          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "Enter your QQ Bot client secret",
-          "description": "Receive and respond to messages via QQ Bot official API.",
-          "title": "QQ",
-          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
-        },
-        "security": {
-          "inheritFromAgent": "Inherit from agent",
-          "permissionMode": "Channel Permission Mode",
-          "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
-        },
-        "selectAgent": "Select an agent to bind",
-        "slack": {
-          "appToken": "App-Level Token",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "Allowed Channel IDs",
-          "channelIdsHint": "Slack channel IDs. Leave empty to allow all.",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "Receive and respond to messages via a Slack bot using Socket Mode.",
-          "title": "Slack",
-          "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
-        },
-        "soulModeRequired": "This agent does not have Autonomous Mode enabled. Channel features will not work. Please enable it in agent settings.",
-        "tab": "Channels",
-        "telegram": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "Enter your Telegram bot token",
-          "chatIds": "Allowed Chat IDs",
-          "chatIdsHint": "Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "Telegram"
-        },
-        "title": "Channels",
-        "updateError": "Failed to update channel",
-        "wechat": {
-          "addAccount": "Add WeChat Account",
-          "chatIds": "Allowed User IDs",
-          "chatIdsHint": "Comma-separated. Leave empty to allow all users.",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "Logged in",
-          "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
-          "disconnected": "Not logged in",
-          "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
-          "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
-          "qrTitle": "WeChat QR Login",
-          "title": "WeChat",
-          "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
-        }
+        "description": "Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
+        "domain": "Domain",
+        "domainFeishu": "Feishu (China)",
+        "domainLark": "Lark (International)",
+        "encryptKey": "Encrypt Key",
+        "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
+        "loginHint": "No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+        "qrExpired": "QR code expired. Please retry by toggling the channel.",
+        "qrHint": "Waiting for QR code scan...",
+        "qrScanHint": "Open Feishu on your phone and scan the QR code to create a bot app.",
+        "qrTitle": "Feishu QR Registration",
+        "title": "Feishu",
+        "verificationToken": "Verification Token",
+        "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
       },
-      "heartbeat": {
-        "enabled": "Enable Heartbeat",
-        "enabledHelper": "When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "Interval (minutes)",
-        "intervalHelper": "How often the heartbeat runs, in minutes."
+      "logs": "Logs",
+      "noInstances": "No {{type}} channels configured. Click \"+ Add\" to create one.",
+      "noLogs": "No logs yet",
+      "notifyReceiver": "Receive task notifications",
+      "notifyReceiverHint": "Send scheduler task results to this channel.",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "Enter your QQ Bot App ID",
+        "chatIds": "Allowed Chat IDs",
+        "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Enter your QQ Bot client secret",
+        "description": "Receive and respond to messages via QQ Bot official API.",
+        "title": "QQ",
+        "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },
-      "sandbox": {
-        "description": "Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "Restrict filesystem and command access to the workspace path.",
-        "label": "Sandbox Mode"
+      "security": {
+        "inheritFromAgent": "Inherit from agent",
+        "permissionMode": "Channel Permission Mode",
+        "permissionModeHint": "Override the agent's permission mode for messages from this channel. \"Inherit\" uses the agent's default."
       },
-      "scheduler": {
-        "cron": {
-          "helper": "Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "Cron Expression",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "Enable Scheduler",
-        "enabledHelper": "When enabled, the agent will run automatically based on the configured schedule.",
-        "errors": {
-          "invalidCron": "Invalid cron expression",
-          "invalidDelay": "Delay must be a positive number",
-          "invalidInterval": "Interval must be a positive number"
-        },
-        "interval": {
-          "helper": "How often the agent should run, in seconds.",
-          "label": "Interval (seconds)"
-        },
-        "lastRun": "Last Run",
-        "never": "Never",
-        "nextRun": "Next Run",
-        "oneTime": {
-          "helper": "One-time delay in seconds before the agent runs.",
-          "label": "Delay (seconds)"
-        },
-        "status": {
-          "running": "Running",
-          "stopped": "Stopped",
-          "tickInProgress": "Tick in progress"
-        },
-        "tab": "Scheduler",
-        "title": "Scheduler Configuration",
-        "type": {
-          "cron": "Cron Expression",
-          "interval": "Fixed Interval",
-          "label": "Schedule Type",
-          "one-time": "One-Time Delay"
-        }
+      "selectAgent": "Select an agent to bind",
+      "slack": {
+        "appToken": "App-Level Token",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "Allowed Channel IDs",
+        "channelIdsHint": "Slack channel IDs. Leave empty to allow all.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Receive and respond to messages via a Slack bot using Socket Mode.",
+        "title": "Slack",
+        "whoamiTip": "💡 Tip: Send /whoami to the bot to get the channel ID."
       },
-      "soul": {
-        "description": "The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "Enable Soul",
-        "enabledHelper": "When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "soul.md",
-        "preview": "Soul Preview",
-        "tab": "Soul",
-        "title": "Soul Configuration"
+      "tab": "Channels",
+      "telegram": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "Enter your Telegram bot token",
+        "chatIds": "Allowed Chat IDs",
+        "chatIdsHint": "Comma-separated. Leave empty to allow all chats.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Receive and respond to messages via a Telegram bot using long polling.",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "Add Task",
-        "cancel": "Cancel",
-        "channels": {
-          "label": "Send to Channels",
-          "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
-          "placeholder": "Select channels to receive results"
-        },
-        "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
-        "delete": {
-          "confirm": "Are you sure you want to delete this task?",
-          "label": "Delete"
-        },
-        "edit": "Edit",
-        "empty": "No scheduled tasks. Add one to get started.",
-        "error": {
-          "createFailed": "Failed to create task",
-          "deleteFailed": "Failed to delete task",
-          "loadFailed": "Failed to load tasks",
-          "runFailed": "Failed to run task",
-          "updateFailed": "Failed to update task"
-        },
-        "frequency": {
-          "everyPrefix": "Every",
-          "everySuffix": "minutes",
-          "label": "Execution Frequency"
-        },
-        "intervalPlaceholder": "At least 1",
-        "intervalUnit": "minutes",
-        "lastRun": "Last Run",
-        "logs": {
-          "cancelled": "Cancelled",
-          "completed": "Completed",
-          "duration": "Duration",
-          "empty": "No run history yet.",
-          "failed": "Failed",
-          "justNow": "just now",
-          "label": "Run History",
-          "loadError": "Failed to load run history",
-          "result": "Result",
-          "runAt": "Run At",
-          "running": "Running...",
-          "search": "Search logs...",
-          "status": "Status",
-          "viewSession": "View session"
-        },
-        "name": {
-          "label": "Name",
-          "placeholder": "e.g. Daily code review"
-        },
-        "nextRun": "Next Run",
-        "oncePlaceholder": "Select date and time",
-        "pause": "Pause",
-        "prompt": {
-          "expand": "Expand editor",
-          "label": "Prompt",
-          "placeholder": "What should the agent do when this task runs?"
-        },
-        "resume": "Resume",
-        "run": "Run",
-        "runTriggered": "Task triggered",
-        "save": "Save",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "Interval",
-          "once": "Once"
-        },
-        "status": {
-          "active": "Active",
-          "completed": "Completed",
-          "paused": "Paused"
-        },
-        "tab": "Tasks",
-        "time": {
-          "hoursAgo": "{{count}}h ago",
-          "minutesAgo": "{{count}}m ago"
-        },
-        "timeout": {
-          "label": "Maximum Execution Time",
-          "placeholder": "No limit"
-        },
-        "title": "Scheduled Tasks"
-      },
-      "warning": {
-        "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+      "title": "Channels",
+      "updateError": "Failed to update channel",
+      "wechat": {
+        "addAccount": "Add WeChat Account",
+        "chatIds": "Allowed User IDs",
+        "chatIdsHint": "Comma-separated. Leave empty to allow all users.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Logged in",
+        "description": "Receive and respond to messages via WeChat using the iLink Bot API.",
+        "disconnected": "Not logged in",
+        "loginHint": "First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+        "qrHint": "Open WeChat on your phone, scan the QR code to log in.",
+        "qrTitle": "WeChat QR Login",
+        "title": "WeChat",
+        "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
       }
     },
     "delete": {
@@ -343,8 +194,7 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
-      "soul_placeholder": "Help me connect to Telegram"
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
     },
     "list": {
       "error": {
@@ -530,7 +380,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -719,12 +569,6 @@
         "tab": "Skills",
         "title": "Installed Skills"
       },
-      "soulMode": {
-        "description": "When enabled, the agent uses a custom system prompt from workspace soul files, injects autonomous task management tools, and disables interactive tools not suited for autonomous operation.",
-        "disabledBadge": "Disabled by Autonomous Mode",
-        "disabledTooltip": "This tool is automatically disabled when Autonomous Mode is active",
-        "title": "Autonomous Mode"
-      },
       "tooling": {
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
@@ -795,6 +639,89 @@
       "manage": {
         "title": "Manage skills"
       }
+    },
+    "tasks": {
+      "add": "Add Task",
+      "cancel": "Cancel",
+      "channels": {
+        "label": "Send to Channels",
+        "noActiveChatIds": "The selected channels have no available recipients (Chat ID). Task results may not be delivered. Please send a message to the Bot on the platform first.",
+        "placeholder": "Select channels to receive results"
+      },
+      "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
+      "delete": {
+        "confirm": "Are you sure you want to delete this task?",
+        "label": "Delete"
+      },
+      "edit": "Edit",
+      "empty": "No scheduled tasks. Add one to get started.",
+      "error": {
+        "createFailed": "Failed to create task",
+        "deleteFailed": "Failed to delete task",
+        "loadFailed": "Failed to load tasks",
+        "runFailed": "Failed to run task",
+        "updateFailed": "Failed to update task"
+      },
+      "frequency": {
+        "everyPrefix": "Every",
+        "everySuffix": "minutes",
+        "label": "Execution Frequency"
+      },
+      "intervalPlaceholder": "At least 1",
+      "intervalUnit": "minutes",
+      "lastRun": "Last Run",
+      "logs": {
+        "cancelled": "Cancelled",
+        "completed": "Completed",
+        "duration": "Duration",
+        "empty": "No run history yet.",
+        "failed": "Failed",
+        "justNow": "just now",
+        "label": "Run History",
+        "loadError": "Failed to load run history",
+        "result": "Result",
+        "runAt": "Run At",
+        "running": "Running...",
+        "search": "Search logs...",
+        "status": "Status",
+        "viewSession": "View session"
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "e.g. Daily code review"
+      },
+      "nextRun": "Next Run",
+      "oncePlaceholder": "Select date and time",
+      "pause": "Pause",
+      "prompt": {
+        "expand": "Expand editor",
+        "label": "Prompt",
+        "placeholder": "What should the agent do when this task runs?"
+      },
+      "resume": "Resume",
+      "run": "Run",
+      "runTriggered": "Task triggered",
+      "save": "Save",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "Interval",
+        "once": "Once"
+      },
+      "status": {
+        "active": "Active",
+        "completed": "Completed",
+        "paused": "Paused"
+      },
+      "tab": "Tasks",
+      "time": {
+        "hoursAgo": "{{count}}h ago",
+        "minutesAgo": "{{count}}m ago"
+      },
+      "timeout": {
+        "label": "Maximum Execution Time",
+        "placeholder": "No limit"
+      },
+      "title": "Scheduled Tasks"
     },
     "todo": {
       "mock": {
@@ -947,6 +874,14 @@
           "description": "Executes shell commands in your environment",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "Inspects and manages this agent configuration and channels",
+          "label": "Agent Config"
+        },
+        "CherryCron": {
+          "description": "Manages the in-app scheduler",
+          "label": "Scheduler"
+        },
         "CherryKbManage": {
           "description": "Adds, deletes, or refreshes documents in your knowledge bases",
           "label": "Manage Knowledge"
@@ -955,6 +890,10 @@
           "description": "Searches your knowledge bases",
           "label": "Knowledge Search"
         },
+        "CherryNotify": {
+          "description": "Sends a notification through a connected channel",
+          "label": "Notify"
+        },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",
           "label": "Web Fetch"
@@ -962,10 +901,6 @@
         "CherryWebSearch": {
           "description": "Searches the web via your configured provider",
           "label": "Web Search"
-        },
-        "ClawCron": {
-          "description": "Manages the in-app scheduler",
-          "label": "Scheduler"
         },
         "Edit": {
           "description": "Makes targeted edits to specific files",
@@ -1408,8 +1343,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "name": "Default Assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1819,7 +1754,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
@@ -1935,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Add provider in Settings → Model Service",
+    "add_provider_hint_anthropic_messages": "Configure an Anthropic Messages endpoint in Settings → Model Service",
+    "add_provider_hint_gemini": "Configure a Gemini endpoint in Settings → Model Service",
+    "add_provider_hint_openai_responses": "Configure an OpenAI Responses endpoint in Settings → Model Service",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Disable 1M Context",
+        "disable_attribution_header": "Disable Attribution Header",
+        "disable_auto_upgrade": "Disable Auto Upgrade",
+        "disable_bundled_skills": "Disable Bundled Skills",
+        "disable_compact": "Disable Compaction",
+        "disable_extra_usage_command": "Disable Extra Usage Command",
+        "disable_nonessential_traffic": "Disable Non-Essential Traffic",
+        "disable_terminal_title": "Disable Terminal Title",
+        "effort_level_hint": "Effort Level",
+        "enable_teammates": "Enable Teammates",
+        "enable_tool_search": "Enable Tool Search",
+        "fable_model": "Fable",
+        "haiku_model": "Haiku",
+        "hide_attribution": "Hide AI Attribution",
+        "max_context_tokens_hint": "Max Context Tokens",
+        "max_output_tokens_hint": "Max Output Tokens",
+        "model_column": "Request Model",
+        "model_roles": "Model Role Mapping",
+        "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
+        "options": "Quick Options",
+        "opus_model": "Opus",
+        "permissions_allow": "Allow (comma-separated)",
+        "permissions_deny": "Deny (comma-separated)",
+        "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
+        "role_column": "Role",
+        "sonnet_model": "Sonnet"
+      },
+      "codex": {
+        "disable_response_storage": "Disable Response Storage",
+        "goal_mode": "Enable Goal Mode",
+        "remote_compaction": "Enable Remote Compaction"
+      },
+      "gemini": {
+        "checkpointing": "Enable Checkpointing",
+        "disable_usage_stats": "Disable Usage Statistics",
+        "hide_banner": "Hide Startup Banner",
+        "vim_mode": "Enable Vim Mode"
+      },
+      "kimi": {
+        "disable_telemetry": "Disable Telemetry",
+        "keep_background_tasks": "Keep Background Tasks On Exit",
+        "micro_compaction": "Enable Micro Compaction",
+        "plan_mode": "Default Plan Mode",
+        "thinking": "Enable Thinking"
+      },
+      "opencode": {
+        "auto_compact": "Auto Compact",
+        "enable_reasoning": "Enable Reasoning"
+      },
+      "permission_mode": "Permission Approval",
+      "permission_modes": {
+        "accept_edits": "Accept Edits",
+        "ask": "Ask",
+        "auto": "Auto",
+        "auto_edit": "Auto Edit",
+        "bypass_high_risk": "Bypass Permissions (High Risk)",
+        "default": "Default",
+        "default_allow_all": "Default (Allow All)",
+        "deny": "Deny",
+        "full_access_high_risk": "Full Access (High Risk)",
+        "manual": "Manual",
+        "plan": "Plan",
+        "read_only": "Read Only",
+        "workspace": "Workspace",
+        "yolo_high_risk": "YOLO (High Risk)"
+      },
+      "qwen": {
+        "classify_all_shell": "Classify All Shell Commands",
+        "disable_auto_update": "Disable Auto Update",
+        "disable_usage_stats": "Disable Usage Statistics",
+        "hide_banner": "Hide Startup Banner",
+        "vim_mode": "Enable Vim Mode"
+      },
+      "reasoning_effort": "Reasoning Effort",
+      "reasoning_efforts": {
+        "default": "Default",
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
+        "xhigh": "Extra High"
+      },
+      "select_placeholder": "Select…"
+    },
+    "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
+    "can_upgrade": "Upgrade available",
+    "clear_config_failed": "Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
+    "cli_config": {
+      "format_failed": "Format failed. Check the file syntax.",
+      "hint": "This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
+      "title": "CLI Config File",
+      "unknown_model": "Unknown model",
+      "unknown_provider": "Unknown Provider"
+    },
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "Collapse",
+    "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
+    "configure": "Configure",
+    "configuring_provider": "Configure {{provider}}",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
+    "current_config": "Current",
+    "current_config_settings": "Current Config",
     "custom_path": "Custom path",
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "disable": "Disable",
+    "edit_config": "Edit Config",
+    "enable": "Enable",
+    "enabled": "Enabled",
+    "endpoint_default": "Using provider default",
+    "endpoint_hint": "Endpoint / Key in Model Service",
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
+    "format_json": "Format",
     "hero_tagline": "Pick a CLI tool to configure",
+    "install": "Install",
     "install_bun": "Install Bun",
+    "install_error": "Installation failed",
+    "install_success": "Installation successful",
+    "install_tool_first": "Install {{toolName}} first to select a provider",
+    "installing": "Installing…",
     "installing_bun": "Installing...",
+    "latest": "Latest",
     "launch": {
       "bun_required": "Please install Bun environment first before launching CLI tools",
       "error": "Launch failed, please try again",
       "label": "Launch",
       "launched": "Launched",
       "success": "Launch successful",
+      "title": "Launch {{tool}}",
       "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Launching...",
     "model": "Model",
     "model_hint": "Choose which AI model the CLI tool should use",
+    "model_hint_config": "Select the model to use",
+    "model_mode": {
+      "common": "General",
+      "detailed": "Detailed"
+    },
     "model_placeholder": "Select the model to use",
+    "model_providers": "Model Providers",
     "model_required": "Please select a model",
+    "model_selection": "Model Selection",
+    "more": "More",
+    "no_matching_providers": "No matching providers",
+    "no_model_for_provider": "No model available for this provider",
+    "no_providers_description": "Enable a supported provider in Settings → Model Service",
+    "no_providers_title": "No enabled providers",
+    "no_tools": "No tools available",
+    "not_installed": "Not installed",
+    "open_provider_settings": "Open provider settings",
+    "own_login": {
+      "title": "{{toolName}} Official"
+    },
+    "providerless_hint": "This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
+    "providers": "Providers",
+    "raw_config": "Raw Config (JSON)",
+    "search_provider_placeholder": "Search providers…",
     "select_folder": "Select Folder",
+    "select_provider_before_launch": "Select a provider before launching {{toolName}}",
+    "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
-    "title": "Code Tools",
-    "tool_description": {
-      "claude_code": "Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "Google's official Gemini command-line assistant",
-      "github_copilot_cli": "GitHub's official Copilot command-line companion",
-      "kimi_cli": "Moonshot's Kimi command-line assistant",
-      "openai_codex": "OpenAI's official code generation CLI",
-      "opencode": "Open-source multi-model coding agent",
-      "qoder_cli": "Alibaba Qoder's agentic command-line coding tool",
-      "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
-    },
+    "title": "Code Switch",
+    "tool_parameters": "Parameter Settings",
+    "up_to_date": "Up to date",
     "update_options": "Update Options",
+    "upgrade": "Upgrade",
+    "upgrade_error": "Upgrade failed",
+    "upgrade_success": "Upgrade successful",
     "working_directory": "Working Directory",
     "working_directory_hint": "The working directory that the CLI tool launches in"
   },
@@ -2193,6 +2279,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Image Edit (OpenAI)",
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -2500,9 +2587,7 @@
       "message": "Locate the message"
     },
     "records": {
-      "agentSubtitle": "{{count}} tasks",
       "agentTitle": "Agent History",
-      "assistantSubtitle": "{{count}} conversations",
       "bulkDelete": "Batch Delete",
       "bulkDeleteSessions": {
         "description": "Delete {{count}} selected task(s)?",
@@ -2524,11 +2609,19 @@
         "target": "Target assistant",
         "title": "Move selected conversations"
       },
+      "clearSearch": "Clear search",
       "empty": {
         "description": "No conversations for the current filters.",
         "sessionsDescription": "No tasks for the current filters.",
         "sessionsTitle": "No tasks",
         "title": "No conversations"
+      },
+      "filter": {
+        "selectAgent": "Select an agent",
+        "selectAssistant": "Select an assistant",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Select status",
+        "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
         "description": "Loading conversation list.",
@@ -2536,15 +2629,9 @@
         "sessionsTitle": "Loading tasks",
         "title": "Loading conversations"
       },
-      "resultCount": "{{count}} results",
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "shortTitle": "History",
-      "sidebar": {
-        "searchAssistant": "Search assistants...",
-        "status": "Status",
-        "unknownAssistant": "Unlinked assistant"
-      },
       "status": {
         "completed": "Completed",
         "failed": "Failed",
@@ -2552,11 +2639,10 @@
       },
       "table": {
         "actions": "Actions",
+        "conversation": "Conversation",
         "emptyValue": "—",
-        "messages": "Messages",
         "session": "Task",
-        "time": "Time",
-        "title": "Title"
+        "time": "Time"
       },
       "title": "Conversation History"
     },
@@ -2803,6 +2889,8 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Top K",
+      "download_local_embedding": "Download Local Model",
+      "download_local_embedding_failed": "Failed to download the local embedding model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2829,7 +2917,8 @@
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Use Local Model"
     },
     "recall": {
       "collapse": "Collapse Chunk",
@@ -3000,11 +3089,10 @@
             "placeholder": "Give the agent a name"
           },
           "permission_mode": {
-            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "Permission mode",
             "option": {
               "acceptEdits": "Accept edits",
-              "bypassPermissions": "Bypass permissions (Soul)",
+              "bypassPermissions": "Bypass permissions",
               "default": "Default",
               "plan": "Plan mode"
             }
@@ -3016,10 +3104,6 @@
           "small_model": {
             "hint": "Lightweight checks and formatting",
             "label": "Small model"
-          },
-          "soul_enabled": {
-            "help": "When enabled, automatically grants bypassPermissions",
-            "label": "Soul mode"
           }
         },
         "model_config": "Model configuration",
@@ -3510,6 +3594,7 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
+      "avatar_image_too_large": "Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
@@ -3531,6 +3616,7 @@
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "image_process_failed": "Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Invalid API Host",
@@ -3950,6 +4036,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },
@@ -4230,6 +4317,7 @@
       "select_provider_model": "Please select a provider and model first"
     },
     "gateway": {
+      "open_dashboard": "Open OpenClaw",
       "port": "Port",
       "restart": "Restart",
       "start": "Start",
@@ -4243,7 +4331,6 @@
       "hint": "macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
       "title": "Git Required"
     },
-    "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "migration": {
       "description": "An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
@@ -4304,7 +4391,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "Uninstall Progress",
     "uninstalled": {
       "description": "OpenClaw has been successfully uninstalled.",
       "title": "Uninstall Complete"
@@ -4751,6 +4837,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5414,7 +5501,8 @@
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup"
+        "skip_file_data_title": "Slim Backup",
+        "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
       },
       "clear_cache": {
         "button": "Clear Cache",
@@ -6007,6 +6095,30 @@
       "installError": "Failed to install tool",
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
+      "localModels": {
+        "cancel": "Cancel",
+        "description": "Models that run locally on your device — download once, then use offline with no API key.",
+        "download": "Download",
+        "embedding": {
+          "name": "Local Embedding",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "Download failed. Check your connection and try again.",
+          "inUse": "Still used by a knowledge base; the weights were kept.",
+          "removeFailed": "Remove failed. Check the logs for details."
+        },
+        "ocr": {
+          "name": "Local OCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Remove",
+        "status": {
+          "downloading": "Downloading…",
+          "ready": "Ready"
+        },
+        "title": "Local Models"
+      },
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6590,7 +6702,7 @@
         },
         "group_name": {
           "label": "Group Name",
-          "placeholder": "Optional e.g. ChatGPT",
+          "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
         },
         "max_input_tokens": {
@@ -6603,7 +6715,8 @@
         },
         "model_id": {
           "label": "Model ID",
-          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "placeholder": "e.g. gpt-5.5",
+          "required": "Please enter the model ID",
           "select": {
             "placeholder": "Select Model"
           },
@@ -6611,7 +6724,7 @@
         },
         "model_name": {
           "label": "Model Name",
-          "placeholder": "Optional e.g. GPT-4",
+          "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
         },
         "supported_text_delta": {
@@ -6680,14 +6793,18 @@
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
-      "list_title": "Model list",
+      "list_title": "Models",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
-          "label": "Add models to the list"
+          "label": "Add all models"
         },
+        "add_success_enable_failed": "Models were added, but the provider could not be enabled.",
         "add_whole_group": "Add the whole group",
+        "clean_stale_models": "Clean stale models",
+        "clean_stale_success": "Cleaned {{count}} stale model(s)",
+        "default_model_cannot_remove": "Default model can't be deleted.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6709,11 +6826,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Remove models from the list",
+        "remove_listed": "Remove all models",
         "remove_model": "Delete model",
+        "remove_skipped_default_in_use": "Skipped {{count}} default model(s)",
         "remove_whole_group": "Delete group",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Stale",
+        "stale_filter": "Stale",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6865,6 +6985,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Add Provider",
         "name": {
           "label": "Provider Name",
           "placeholder": "Example: OpenAI",
@@ -7091,6 +7212,7 @@
         "fill_after_create": "Authentication fields can be filled after create",
         "menu_label": "Add instance"
       },
+      "enable_failed_after_connection": "Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Agent Supported",
         "all": "All Providers",
@@ -7260,7 +7382,7 @@
     },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
-      "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
+      "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
       "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
       "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
       "selectTask": "Select a task to view details",
@@ -7411,6 +7533,13 @@
           "doc2x": {
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
+            "name": "Local PaddleOCR",
+            "status": {
+              "local": "Runs fully on your device"
+            }
           },
           "mineru": {
             "description": "OpenDataLab's open-source high-quality PDF extraction tool.",
@@ -7629,7 +7758,7 @@
   "title": {
     "apps": "Apps",
     "chat": "Chat",
-    "code": "Code",
+    "code": "Code Switch",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",
