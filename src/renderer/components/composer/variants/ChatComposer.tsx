@@ -21,6 +21,7 @@ import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -37,9 +38,14 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
+import {
+  canModelUseAssistantWebSearch,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel
+} from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -47,7 +53,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, Globe, Lightbulb } from 'lucide-react'
+import { Bot, Globe } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,6 +61,7 @@ import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { AgentSpeedControl, getAgentReasoningEfforts, getDefaultAgentReasoningEffort } from './agent/AgentSpeedControl'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
@@ -309,74 +316,43 @@ const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
 
 const ChatComposerPersistentToolShortcuts = ({
   inputAdapter,
-  reasoningLabel,
-  reasoningLauncher,
-  unifiedPanelControl,
   webSearchLabel,
   webSearchLauncher,
   onWebSearchLauncherClick
 }: {
   inputAdapter?: ComposerInputAdapter
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  unifiedPanelControl?: ComposerUnifiedPanelControl
   webSearchLabel: string
   webSearchLauncher?: ComposerToolLauncher
   onWebSearchLauncherClick: (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => void
 }) => {
-  const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
   const webSearchDisabled = !webSearchLauncher || webSearchLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
   const webSearchTooltip =
     webSearchDisabled && webSearchLauncher?.disabledReason ? webSearchLauncher.disabledReason : webSearchLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
   const webSearchIcon = webSearchLauncher?.icon ?? <Globe size={18} aria-hidden />
 
   return (
-    <>
-      <Tooltip content={reasoningTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent'
-          )}
-          aria-label={reasoningLabel}
-          aria-haspopup="menu"
-          disabled={reasoningDisabled}
-          data-active={reasoningLauncher?.active || undefined}
-          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-          {reasoningIcon}
-        </Button>
-      </Tooltip>
-      <Tooltip content={webSearchTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            webSearchLauncher?.active && 'bg-accent'
-          )}
-          aria-label={webSearchLabel}
-          aria-pressed={Boolean(webSearchLauncher?.active)}
-          disabled={webSearchDisabled}
-          data-active={webSearchLauncher?.active || undefined}
-          onClick={() => {
-            if (webSearchLauncher) {
-              onWebSearchLauncherClick(webSearchLauncher, inputAdapter)
-            }
-          }}>
-          {webSearchIcon}
-        </Button>
-      </Tooltip>
-    </>
+    <Tooltip content={webSearchTooltip} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={cn(
+          COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+          'disabled:pointer-events-none disabled:opacity-40',
+          webSearchLauncher?.active && 'bg-accent'
+        )}
+        aria-label={webSearchLabel}
+        aria-pressed={Boolean(webSearchLauncher?.active)}
+        disabled={webSearchDisabled}
+        data-active={webSearchLauncher?.active || undefined}
+        onClick={() => {
+          if (webSearchLauncher) {
+            onWebSearchLauncherClick(webSearchLauncher, inputAdapter)
+          }
+        }}>
+        {webSearchIcon}
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -565,7 +541,8 @@ const ChatComposerInner = ({
     model,
     isModelPending,
     isModelMissing,
-    setModel
+    setModel,
+    updateAssistantSettings
   } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
@@ -601,6 +578,35 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
+  const chatReasoningEffort = useMemo<AgentReasoningEffort | 'default'>(() => {
+    if (!runtimeModel) return 'none'
+    const supportedEfforts = getAgentReasoningEfforts(runtimeModel)
+    const configuredEffort = assistant?.settings.reasoning_effort as AgentReasoningEffort | 'default' | undefined
+    if (configuredEffort === 'default') return 'default'
+    if (configuredEffort && supportedEfforts.includes(configuredEffort)) {
+      return configuredEffort
+    }
+    return getDefaultAgentReasoningEffort(runtimeModel)
+  }, [assistant?.settings.reasoning_effort, runtimeModel])
+
+  const handleReasoningEffortChange = useCallback(
+    (effort: AgentReasoningEffort) => {
+      if (!assistant || !runtimeModel) return
+      if (
+        effort === 'minimal' &&
+        assistant.settings.enableWebSearch &&
+        isOpenAIWebSearchModel(runtimeModel) &&
+        isGPT5SeriesReasoningModel(runtimeModel)
+      ) {
+        toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
+
+      cacheService.set(`assistant.reasoning_effort_cache.${assistant.id}`, effort)
+      updateAssistantSettings({ reasoning_effort: effort })
+    },
+    [assistant, runtimeModel, t, updateAssistantSettings]
+  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -1085,11 +1091,6 @@ const ChatComposerInner = ({
     ]
   )
 
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
-
   const webSearchLauncher = useMemo(() => {
     void toolLaunchersVersion
     return getLaunchers().find((launcher) => launcher.id === 'web-search')
@@ -1103,24 +1104,15 @@ const ChatComposerInner = ({
   )
 
   const renderPersistentToolShortcuts = useCallback(
-    ({
-      inputAdapter,
-      unifiedPanelControl
-    }: {
-      inputAdapter?: ComposerInputAdapter
-      unifiedPanelControl?: ComposerUnifiedPanelControl
-    }) => (
+    ({ inputAdapter }: { inputAdapter?: ComposerInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => (
       <ChatComposerPersistentToolShortcuts
         inputAdapter={inputAdapter}
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
-        unifiedPanelControl={unifiedPanelControl}
         webSearchLabel={t('chat.input.web_search.label')}
         webSearchLauncher={webSearchLauncher}
         onWebSearchLauncherClick={handleWebSearchShortcutClick}
       />
     ),
-    [handleWebSearchShortcutClick, reasoningLauncher, t, webSearchLauncher]
+    [handleWebSearchShortcutClick, t, webSearchLauncher]
   )
 
   if (isMultiSelectMode) return null
@@ -1165,7 +1157,17 @@ const ChatComposerInner = ({
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
-    <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+    <>
+      {displayAssistant && runtimeModel ? (
+        <AgentSpeedControl
+          key={runtimeModel.id}
+          model={runtimeModel}
+          reasoningEffort={chatReasoningEffort}
+          onReasoningEffortChange={handleReasoningEffortChange}
+        />
+      ) : null}
+      <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+    </>
   )
 
   return (

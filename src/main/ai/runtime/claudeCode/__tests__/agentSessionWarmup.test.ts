@@ -62,7 +62,18 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession } = await import('../agentSessionWarmup')
+const { buildClaudeCodeQueryRequestForAgentSession, toClaudeCodeThinkingOptions } = await import(
+  '../agentSessionWarmup'
+)
+
+describe('toClaudeCodeThinkingOptions', () => {
+  it('maps toggle and out-of-range model modes onto Claude Agent SDK options', () => {
+    expect(toClaudeCodeThinkingOptions('none')).toEqual({ thinking: { type: 'disabled' } })
+    expect(toClaudeCodeThinkingOptions('auto')).toEqual({ thinking: { type: 'adaptive' } })
+    expect(toClaudeCodeThinkingOptions('minimal')).toEqual({ effort: 'low' })
+    expect(toClaudeCodeThinkingOptions('ultra')).toEqual({ effort: 'max' })
+  })
+})
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
@@ -365,6 +376,28 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything(),
       expect.anything(),
       expect.objectContaining({ fastMode: undefined, thinkingOptions: { effort: 'high' } })
+    )
+  })
+
+  it('forwards automatic thinking through internal headers for any gateway model', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::reasoning-model' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      defaultChatEndpoint: 'openai-responses'
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'reasoning-model', apiModelId: 'reasoning-model' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'auto',
+      fastMode: false
+    })
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-reasoning-effort: auto')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ thinkingOptions: { thinking: { type: 'adaptive' } } })
     )
   })
 

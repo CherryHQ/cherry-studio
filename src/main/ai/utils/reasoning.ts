@@ -32,6 +32,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -212,8 +213,15 @@ export function getReasoningEffort(
       return {}
     }
 
-    // GPT 5.1, GPT 5.2, or newer
-    if (isSupportNoneReasoningEffortModel(model)) {
+    // MiniMax M3 supports an explicit disabled thinking mode. M2.x does not.
+    if (isMiniMaxModel(model) && modelId.includes('minimax-m3')) {
+      return { thinking: { type: 'disabled' } }
+    }
+
+    // Models with an explicit `none` effort use the same generic reasoning-effort
+    // parameter as their enabled effort levels. Keep the legacy GPT inference for
+    // callers whose model metadata has not been enriched yet.
+    if (getModelSupportedReasoningEffortOptions(model)?.includes('none') || isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
       }

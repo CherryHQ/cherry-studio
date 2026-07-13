@@ -1,6 +1,5 @@
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
-import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
@@ -70,8 +69,6 @@ export interface ToolContext {
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     slashCommands?: SlashCommand[]
-    reasoningEffort?: ThinkingOption
-    onReasoningEffortChange?: (option: ThinkingOption) => void
   }
 }
 

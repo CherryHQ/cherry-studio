@@ -13,6 +13,7 @@ function model(overrides: Partial<Model>): Model {
     id: 'model',
     providerId: 'openai-codex',
     name: 'Model',
+    capabilities: [],
     ...overrides
   } as Model
 }
@@ -68,30 +69,75 @@ describe('AgentSpeedControl model capabilities', () => {
     expect(supportsAgentSpeedControl(unsupportedClaude)).toBe(false)
   })
 
-  it('does not invent a fixed three-effort fallback when capability metadata is missing', () => {
-    const modelWithoutEfforts = model({ apiModelId: 'gpt-5.3-codex-spark' })
+  it('does not invent effort or off capabilities when registry metadata is missing', () => {
+    const modelWithoutEfforts = model({
+      id: 'provider-1::reasoning-model',
+      providerId: 'provider-1',
+      apiModelId: 'reasoning-model',
+      capabilities: ['reasoning']
+    })
 
     expect(getAgentReasoningEfforts(modelWithoutEfforts)).toEqual([])
     expect(supportsAgentSpeedControl(modelWithoutEfforts)).toBe(false)
   })
 
-  it('uses the model reasoning effort order and filters unsupported agent values', () => {
+  it('does not show the control for a model without thinking support', () => {
+    const textModel = model({ id: 'provider-1::text-model', providerId: 'provider-1', apiModelId: 'text-model' })
+
+    expect(getAgentReasoningEfforts(textModel)).toEqual([])
+    expect(supportsAgentSpeedControl(textModel)).toBe(false)
+  })
+
+  it('uses effort capabilities for every provider', () => {
+    const providerModel = model({
+      providerId: 'provider-1',
+      reasoning: { type: 'openai-responses', supportedEfforts: ['low', 'medium', 'high'] }
+    })
+
+    expect(supportsAgentSpeedControl(providerModel)).toBe(true)
+  })
+
+  it('uses the full model reasoning effort order', () => {
     expect(
       getAgentReasoningEfforts(
-        model({ reasoning: { type: 'effort', supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] } })
+        model({
+          reasoning: {
+            type: 'openai-responses',
+            supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh']
+          }
+        })
       )
-    ).toEqual(['low', 'medium', 'high', 'xhigh'])
+    ).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh'])
+  })
+
+  it('starts auto-only thinking models in automatic mode', () => {
+    expect(
+      getDefaultAgentReasoningEffort(
+        model({ reasoning: { type: 'openai-responses', supportedEfforts: ['none', 'auto'] } })
+      )
+    ).toBe('auto')
   })
 
   it('starts from the model default effort when it is available', () => {
     expect(
       getDefaultAgentReasoningEffort(
-        model({ reasoning: { type: 'effort', supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'high' } })
+        model({
+          reasoning: {
+            type: 'openai-responses',
+            supportedEfforts: ['low', 'medium', 'high'],
+            defaultEffort: 'high'
+          }
+        })
       )
     ).toBe('high')
   })
 
   it('reads Fast support from model registry metadata', () => {
+    expect(supportsAgentFastMode(model({ providerId: 'claude-code', apiModelId: 'claude-fable-5' }))).toBe(false)
+    expect(supportsAgentFastMode(model({ providerId: 'claude-code', apiModelId: 'claude-opus-4-8' }))).toBe(false)
+    expect(
+      supportsAgentFastMode(model({ providerId: 'claude-code', apiModelId: 'claude-opus-4-8', supportsFastMode: true }))
+    ).toBe(true)
     expect(supportsAgentFastMode(model({ apiModelId: 'gpt-5.6-sol', supportsFastMode: true }))).toBe(true)
     expect(supportsAgentFastMode(model({ apiModelId: 'gpt-5.6-sol' }))).toBe(false)
     expect(supportsAgentFastMode(model({ apiModelId: 'gpt-5.3-codex-spark', supportsFastMode: false }))).toBe(false)

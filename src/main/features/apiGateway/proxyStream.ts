@@ -17,15 +17,18 @@
  */
 
 import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
+import { buildReasoningProviderOptions } from '@main/ai/utils/options'
 import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { merge } from 'es-toolkit/compat'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
@@ -134,6 +137,18 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     }
   }
   let providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
+  if (config.agentRuntimeOptions && provider) {
+    const model = modelService
+      .list({ providerId })
+      .find((candidate) => candidate.id === uniqueModelId || candidate.apiModelId === modelId)
+    if (model) {
+      providerOptions = merge(
+        {},
+        providerOptions,
+        buildReasoningProviderOptions(config.agentRuntimeOptions.reasoningEffort, model, provider)
+      )
+    }
+  }
   if (config.agentRuntimeOptions && isCodexProviderId(providerId)) {
     providerOptions = {
       ...providerOptions,

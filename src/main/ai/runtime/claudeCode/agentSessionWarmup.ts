@@ -11,7 +11,6 @@ import {
 } from '@shared/ai/agentRuntimeOptions'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
-import { isCodexProviderId } from '@shared/data/presets/codex'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -27,7 +26,7 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings } from './settingsBuilder'
+import { buildClaudeCodeSessionSettings, type ClaudeCodeSessionOptions } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
@@ -45,6 +44,7 @@ interface RuntimeModelRef {
 interface ClaudeCodeRuntimeRoute {
   baseUrl?: string
   apiKey?: string
+  usesGateway?: boolean
   modelIds: {
     primary: string
     opus: string
@@ -90,14 +90,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     await buildClaudeCodeSessionSettings(session, provider, {
       lastAgentSessionId: resumeSessionId,
       fastMode: isClaudeCodeProviderId(providerId) ? runtimeOptions?.fastMode : undefined,
-      thinkingOptions: runtimeOptions
-        ? {
-            effort: runtimeOptions.reasoningEffort === 'ultra' ? 'max' : runtimeOptions.reasoningEffort
-          }
-        : undefined
+      thinkingOptions: runtimeOptions ? toClaudeCodeThinkingOptions(runtimeOptions.reasoningEffort) : undefined
     }),
     route,
-    providerId,
     runtimeOptions
   )
   const sdkModelId = route.modelIds.primary
@@ -177,6 +172,7 @@ async function resolveClaudeCodeRuntimeRoute(
     return {
       baseUrl: gateway.baseUrl,
       apiKey: gateway.apiKey,
+      usesGateway: true,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -271,11 +267,10 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
 function mergeRuntimeSettings(
   settings: ClaudeCodeSettings,
   route: ClaudeCodeRuntimeRoute,
-  providerId: string,
   runtimeOptions?: AgentRuntimeOptions
 ): ClaudeCodeSettings {
   const agentHeaders =
-    isCodexProviderId(providerId) && runtimeOptions
+    route.usesGateway && runtimeOptions
       ? [
           `${AGENT_REASONING_EFFORT_HEADER}: ${runtimeOptions.reasoningEffort}`,
           `${AGENT_FAST_MODE_HEADER}: ${runtimeOptions.fastMode}`
@@ -297,6 +292,23 @@ function mergeRuntimeSettings(
           }
         : {})
     }
+  }
+}
+
+export function toClaudeCodeThinkingOptions(
+  reasoningEffort: AgentRuntimeOptions['reasoningEffort']
+): NonNullable<ClaudeCodeSessionOptions['thinkingOptions']> {
+  switch (reasoningEffort) {
+    case 'none':
+      return { thinking: { type: 'disabled' } }
+    case 'auto':
+      return { thinking: { type: 'adaptive' } }
+    case 'minimal':
+      return { effort: 'low' }
+    case 'ultra':
+      return { effort: 'max' }
+    default:
+      return { effort: reasoningEffort }
   }
 }
 

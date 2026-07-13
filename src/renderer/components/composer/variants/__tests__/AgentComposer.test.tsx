@@ -108,6 +108,19 @@ const codexTerraModel = {
   }
 } satisfies Model
 
+const autoThinkingModel = {
+  ...model,
+  id: 'provider-1::thinking-model',
+  providerId: 'provider-1',
+  apiModelId: 'thinking-model',
+  name: 'Thinking Model',
+  capabilities: ['reasoning'],
+  reasoning: {
+    type: 'openai-responses',
+    supportedEfforts: ['none', 'auto']
+  }
+} satisfies Model
+
 const file = {
   id: 'file-1',
   fileTokenSourceId: 'source-file-1',
@@ -713,6 +726,40 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('uses the reasoning pill and runtime options for auto-only models from any provider', async () => {
+    mocks.resolvedModel = autoThinkingModel
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.auto'
+    )
+    expect(
+      within(screen.getByTestId('composer-left-controls')).queryByRole('button', {
+        name: 'assistants.settings.reasoning_effort.label'
+      })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      expect.objectContaining({
+        body: expect.objectContaining({
+          agentRuntimeOptions: { reasoningEffort: 'auto', fastMode: false }
+        })
+      })
+    )
+  })
+
   it('keeps the inline model selector read-only when model changes are locked', () => {
     render(
       <AgentComposer
@@ -864,7 +911,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps reasoning and skill shortcuts in the input toolbar and opens the unified panel', () => {
+  it('keeps the skill shortcut and removes reasoning effort from the input toolbar', () => {
     mocks.toolLaunchers = [createThinkingLauncher()]
 
     render(
@@ -878,82 +925,18 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const reasoningButton = within(leftControls).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
     const skillButton = within(leftControls).getByRole('button', { name: 'plugins.skills' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
-    expect(reasoningButton.compareDocumentPosition(skillButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(
+      within(leftControls).queryByRole('button', { name: 'assistants.settings.reasoning_effort.label' })
+    ).not.toBeInTheDocument()
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.querySelector('.lucide-zap')).toBeInTheDocument()
 
-    fireEvent.click(reasoningButton)
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'assistants.settings.reasoning_effort.label'
-    })
-
     fireEvent.click(skillButton)
-    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ searchText: 'plugins.skills' })
-  })
-
-  it('disables the reasoning shortcut when the model cannot configure reasoning', () => {
-    mocks.toolLaunchers = [
-      createThinkingLauncher({
-        disabled: true,
-        disabledReason: 'chat.input.thinking.unsupported_model'
-      })
-    ]
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
-    expect(reasoningButton).toBeDisabled()
-    expect(screen.getByText('chat.input.thinking.unsupported_model')).toBeInTheDocument()
-
-    fireEvent.click(reasoningButton)
-
-    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
-  })
-
-  it('uses the active reasoning launcher icon and style after reasoning is selected', () => {
-    mocks.toolLaunchers = [
-      createThinkingLauncher({
-        active: true,
-        icon: <span data-testid="thinking-active-icon" />,
-        suffix: 'assistants.settings.reasoning_effort.high'
-      })
-    ]
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
-    expect(reasoningButton).toHaveAttribute('data-active', 'true')
-    expect(reasoningButton).toHaveClass('bg-accent', 'data-[active=true]:text-primary!')
-    expect(within(reasoningButton).getByTestId('thinking-active-icon')).toBeInTheDocument()
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ searchText: 'plugins.skills' })
   })
 
   it('hides the empty session action without a handler', () => {

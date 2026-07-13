@@ -1,6 +1,16 @@
 import * as z from 'zod'
 
-export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+export const AGENT_REASONING_EFFORTS = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra',
+  'auto'
+] as const
 
 export type AgentReasoningEffort = (typeof AGENT_REASONING_EFFORTS)[number]
 

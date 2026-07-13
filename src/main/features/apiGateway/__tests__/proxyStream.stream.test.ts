@@ -8,9 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * factories are stubbed; the real `SseListener` and `ReadableStream` glue run.
  */
 
-const { mockStreamPrompt, mockAbort, captured } = vi.hoisted(() => ({
+const { mockStreamPrompt, mockAbort, mockListModels, captured } = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
   mockAbort: vi.fn(),
+  mockListModels: vi.fn((): unknown[] => []),
   captured: { listener: undefined as StreamListener | undefined }
 }))
 
@@ -24,6 +25,10 @@ vi.mock('@application', () => ({
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: vi.fn(async () => undefined) }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { list: mockListModels }
 }))
 
 vi.mock('@logger', () => ({
@@ -60,6 +65,7 @@ import { processMessage } from '../proxyStream'
 beforeEach(() => {
   vi.clearAllMocks()
   captured.listener = undefined
+  mockListModels.mockReturnValue([])
   mockStreamPrompt.mockImplementation((opts: { listener: StreamListener }) => {
     captured.listener = opts.listener
   })
@@ -128,6 +134,56 @@ describe('processMessage (streaming)', () => {
 
     expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
       openai: { reasoningEffort: 'high', serviceTier: 'priority' }
+    })
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
+  it('maps an explicit off effort through model metadata for non-Codex providers', async () => {
+    mockListModels.mockReturnValue([
+      {
+        id: 'openai::gpt-5',
+        providerId: 'openai',
+        apiModelId: 'gpt-5',
+        name: 'gpt-5',
+        capabilities: ['reasoning'],
+        reasoning: {
+          type: 'openai-responses',
+          supportedEfforts: ['none', 'low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const res = await processMessage({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: false,
+          verbosity: false,
+          enableThinking: true
+        },
+        apiKeys: [],
+        authType: 'api-key',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: {
+          'openai-responses': { adapterFamily: 'openai' }
+        },
+        settings: {},
+        isEnabled: true
+      } as any,
+      params: { model: 'openai:gpt-5', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      agentRuntimeOptions: { reasoningEffort: 'none', fastMode: false }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'none' }
     })
 
     await captured.listener!.onDone({} as any)

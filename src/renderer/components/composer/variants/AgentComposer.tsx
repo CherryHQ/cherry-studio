@@ -14,7 +14,6 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -39,7 +38,6 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
@@ -55,7 +53,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, Lightbulb, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -664,60 +662,28 @@ const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter)
 }
 
 const AgentComposerQuickPanelShortcuts = ({
-  reasoningLabel,
-  reasoningLauncher,
-  showReasoningShortcut,
   skillLabel,
   unifiedPanelControl
 }: {
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  showReasoningShortcut: boolean
   skillLabel: string
   unifiedPanelControl?: AgentComposerUnifiedPanelControl
 }) => {
   const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
 
   return (
-    <>
-      {showReasoningShortcut ? (
-        <Tooltip content={reasoningTooltip} placement="top">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={cn(
-              COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-              'disabled:pointer-events-none disabled:opacity-40',
-              reasoningLauncher?.active && 'bg-accent'
-            )}
-            aria-label={reasoningLabel}
-            aria-haspopup="menu"
-            disabled={reasoningDisabled}
-            data-active={reasoningLauncher?.active || undefined}
-            onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-            {reasoningIcon}
-          </Button>
-        </Tooltip>
-      ) : null}
-      <Tooltip content={skillLabel} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
-          aria-label={skillLabel}
-          aria-haspopup="menu"
-          disabled={panelDisabled}
-          onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
-          <Zap size={18} aria-hidden />
-        </Button>
-      </Tooltip>
-    </>
+    <Tooltip content={skillLabel} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
+        aria-label={skillLabel}
+        aria-haspopup="menu"
+        disabled={panelDisabled}
+        onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
+        <Zap size={18} aria-hidden />
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -851,12 +817,47 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [agentReasoningEffort, setAgentReasoningEffort] = useState<AgentReasoningEffort>(() =>
-    getDefaultAgentReasoningEffort(model)
+  const [speedControlSelection, setSpeedControlSelection] = useState<{
+    modelId?: string
+    effort: AgentReasoningEffort
+    fastMode: boolean
+  }>(() => ({ modelId: model?.id, effort: getDefaultAgentReasoningEffort(model), fastMode: false }))
+  if (speedControlSelection.modelId !== model?.id) {
+    setSpeedControlSelection({
+      modelId: model?.id,
+      effort: getDefaultAgentReasoningEffort(model),
+      fastMode: false
+    })
+  }
+  const modelReasoningEfforts = model ? getAgentReasoningEfforts(model) : []
+  const agentReasoningEffort =
+    model && speedControlSelection.modelId === model.id && modelReasoningEfforts.includes(speedControlSelection.effort)
+      ? speedControlSelection.effort
+      : getDefaultAgentReasoningEffort(model)
+  const fastMode = Boolean(
+    model &&
+      speedControlSelection.modelId === model.id &&
+      speedControlSelection.fastMode &&
+      supportsAgentFastMode(model)
   )
-  const [legacyReasoningEffort, setLegacyReasoningEffort] = useState<ThinkingOption>('default')
-  const [fastMode, setFastMode] = useState(false)
-  const speedControlModelIdRef = useRef<string | undefined>(undefined)
+  const setAgentReasoningEffort = useCallback(
+    (effort: AgentReasoningEffort) =>
+      setSpeedControlSelection((current) => ({
+        modelId: model?.id,
+        effort,
+        fastMode: current.modelId === model?.id ? current.fastMode : false
+      })),
+    [model?.id]
+  )
+  const setFastMode = useCallback(
+    (enabled: boolean) =>
+      setSpeedControlSelection((current) => ({
+        modelId: model?.id,
+        effort: current.modelId === model?.id ? current.effort : getDefaultAgentReasoningEffort(model),
+        fastMode: enabled
+      })),
+    [model]
+  )
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
   )
@@ -973,11 +974,6 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
-
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
@@ -1029,31 +1025,10 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
-  useEffect(() => {
-    if (!model) return
-    if (speedControlModelIdRef.current !== model.id) {
-      speedControlModelIdRef.current = model.id
-      setAgentReasoningEffort(getDefaultAgentReasoningEffort(model))
-    } else if (!getAgentReasoningEfforts(model).includes(agentReasoningEffort)) {
-      setAgentReasoningEffort(getDefaultAgentReasoningEffort(model))
-    }
-    if (!supportsAgentFastMode(model)) setFastMode(false)
-  }, [agentReasoningEffort, model])
-
-  const toolsSession = useMemo(() => {
-    if (!sessionData) return undefined
-    if (model && supportsAgentSpeedControl(model)) return sessionData
-    return {
-      ...sessionData,
-      reasoningEffort: legacyReasoningEffort,
-      onReasoningEffortChange: setLegacyReasoningEffort
-    }
-  }, [legacyReasoningEffort, model, sessionData])
-
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
   // cache snapshot, which is variant state.
-  const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
+  const reconcileTokens = useComposerTokenReconcile({ scope, model, session: sessionData })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const nextDraftTokens = getCachedSkillTokens(draftTokens)
@@ -1269,15 +1244,9 @@ const AgentComposerInner = ({
 
   const renderQuickPanelShortcuts = useCallback(
     ({ unifiedPanelControl }: { unifiedPanelControl?: AgentComposerUnifiedPanelControl }) => (
-      <AgentComposerQuickPanelShortcuts
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
-        showReasoningShortcut={!model || !supportsAgentSpeedControl(model)}
-        skillLabel={t('plugins.skills')}
-        unifiedPanelControl={unifiedPanelControl}
-      />
+      <AgentComposerQuickPanelShortcuts skillLabel={t('plugins.skills')} unifiedPanelControl={unifiedPanelControl} />
     ),
-    [model, reasoningLauncher, t]
+    [t]
   )
 
   const controlSlots = renderControls({
@@ -1302,6 +1271,7 @@ const AgentComposerInner = ({
     <>
       {model ? (
         <AgentSpeedControl
+          key={model.id}
           model={model}
           reasoningEffort={agentReasoningEffort}
           fastMode={fastMode}
@@ -1316,7 +1286,7 @@ const AgentComposerInner = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={sessionData} />}
       <ComposerSurface
         text={text}
         onTextChange={setText}

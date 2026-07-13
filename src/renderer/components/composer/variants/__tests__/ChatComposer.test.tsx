@@ -18,11 +18,14 @@ const mocks = vi.hoisted(() => ({
   updateTopic: vi.fn(),
   setModel: vi.fn(),
   setDefaultModel: vi.fn(),
+  isGPT5SeriesReasoningModel: vi.fn(() => false),
+  isOpenAIWebSearchModel: vi.fn(() => false),
   setFiles: vi.fn(),
   setMentionedModels: vi.fn(),
   setSelectedKnowledgeBases: vi.fn(),
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
+  updateAssistantSettings: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
   toggleExpanded: vi.fn(),
@@ -105,8 +108,23 @@ const modelBWithFunctionCall = {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
+    setCasual: vi.fn(),
+    set: vi.fn()
   }
+}))
+
+vi.mock('../agent/AgentSpeedControl', () => ({
+  AgentSpeedControl: ({ model: currentModel, reasoningEffort, onReasoningEffortChange }: any) => (
+    <button
+      type="button"
+      aria-label="agent.speed.title"
+      onClick={() => onReasoningEffortChange(currentModel.reasoning?.defaultEffort ?? 'high')}>
+      {reasoningEffort}
+    </button>
+  ),
+  getAgentReasoningEfforts: (currentModel: Model) => currentModel.reasoning?.supportedEfforts ?? [],
+  getDefaultAgentReasoningEffort: (currentModel: Model) =>
+    currentModel.reasoning?.supportedEfforts?.includes('medium') ? 'medium' : 'none'
 }))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
@@ -382,6 +400,8 @@ vi.mock('@renderer/utils/model', () => ({
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isGenerateImageModel: () => false,
   isGenerateImageModels: () => false,
+  isGPT5SeriesReasoningModel: () => mocks.isGPT5SeriesReasoningModel(),
+  isOpenAIWebSearchModel: () => mocks.isOpenAIWebSearchModel(),
   isOpenRouterBuiltInWebSearchModel: () => false,
   isRerankModel: () => false,
   isSupportedReasoningEffortModel: () => false,
@@ -424,7 +444,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelPending: mocks.modelPending,
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
-    updateAssistant: mocks.updateAssistant
+    updateAssistant: mocks.updateAssistant,
+    updateAssistantSettings: mocks.updateAssistantSettings
   })
 }))
 
@@ -564,10 +585,15 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
     vi.mocked(cacheService.setCasual).mockReset()
+    vi.mocked(cacheService.set).mockReset()
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
     mocks.setDefaultModel.mockReset()
+    mocks.isGPT5SeriesReasoningModel.mockReset()
+    mocks.isGPT5SeriesReasoningModel.mockReturnValue(false)
+    mocks.isOpenAIWebSearchModel.mockReset()
+    mocks.isOpenAIWebSearchModel.mockReturnValue(false)
     mocks.setFiles.mockReset()
     mocks.setFiles.mockImplementation((value) => {
       mocks.files = typeof value === 'function' ? value(mocks.files ?? []) : value
@@ -585,6 +611,7 @@ describe('ChatComposer', () => {
     )
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
+    mocks.updateAssistantSettings.mockReset()
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
     mocks.toggleExpanded.mockReset()
@@ -697,15 +724,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
-  it('keeps reasoning and web search shortcuts in the assistant composer toolbar', () => {
-    const thinkingLauncher = {
-      id: 'thinking',
-      kind: 'group',
-      label: 'assistants.settings.reasoning_effort.label',
-      icon: <span data-testid="thinking-icon" />,
-      sources: ['popover'],
-      active: true
-    }
+  it('uses the reasoning pill and keeps the web search shortcut in chat', () => {
     const webSearchLauncher = {
       id: 'web-search',
       kind: 'command',
@@ -714,27 +733,36 @@ describe('ChatComposer', () => {
       sources: ['popover'],
       active: false
     }
-    mocks.toolLaunchers = [thinkingLauncher, webSearchLauncher]
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        type: 'openai-responses',
+        supportedEfforts: ['none', 'low', 'medium', 'high']
+      }
+    }
+    mocks.assistant.settings.reasoning_effort = 'low'
+    mocks.toolLaunchers = [webSearchLauncher]
     mocks.toolLaunchersVersion = 1
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const reasoningButton = within(leftControls).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
+    const reasoningPill = within(screen.getByTestId('composer-send-accessory')).getByRole('button', {
+      name: 'agent.speed.title'
+    })
 
-    expect(reasoningButton).toHaveAttribute('data-active', 'true')
-    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(reasoningPill).toHaveTextContent('low')
+    expect(
+      within(leftControls).queryByRole('button', { name: 'assistants.settings.reasoning_effort.label' })
+    ).not.toBeInTheDocument()
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
     expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
 
-    fireEvent.click(reasoningButton)
-    expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'assistants.settings.reasoning_effort.label'
-    })
+    fireEvent.click(reasoningPill)
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(cacheService.set).toHaveBeenCalledWith('assistant.reasoning_effort_cache.assistant-1', 'high')
 
     fireEvent.click(webSearchButton)
     expect(mocks.dispatchLauncher).toHaveBeenCalledWith(
@@ -744,6 +772,50 @@ describe('ChatComposer', () => {
         inputAdapter: expect.objectContaining({ focus: mocks.inputAdapterFocus })
       })
     )
+  })
+
+  it('shows the persisted provider-default reasoning state without inventing an explicit effort', () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        type: 'openai-responses',
+        supportedEfforts: ['none', 'low', 'medium', 'high']
+      }
+    }
+    mocks.assistant.settings.reasoning_effort = 'default'
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'agent.speed.title' })
+    ).toHaveTextContent('default')
+    expect(mocks.updateAssistantSettings).not.toHaveBeenCalled()
+  })
+
+  it('keeps the web-search warning when the chat pill selects minimal reasoning', () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        type: 'openai-responses',
+        supportedEfforts: ['none', 'minimal', 'low'],
+        defaultEffort: 'minimal'
+      }
+    }
+    mocks.assistant.settings = { enableWebSearch: true, reasoning_effort: 'low' }
+
+    mocks.isOpenAIWebSearchModel.mockReturnValue(true)
+    mocks.isGPT5SeriesReasoningModel.mockReturnValue(true)
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'agent.speed.title' })
+    )
+
+    expect(toast.warning).toHaveBeenCalledWith('chat.web_search.warning.openai')
+    expect(mocks.updateAssistantSettings).not.toHaveBeenCalled()
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {

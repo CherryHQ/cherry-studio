@@ -541,11 +541,13 @@ export class AgentSessionRuntimeService extends BaseService {
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    const canRedirectOnCurrentModel = entry.connectionModelId === entry.modelId
+    const canRedirectOnCurrentConnection =
+      entry.connectionModelId === entry.modelId &&
+      agentRuntimeOptionsEqual(entry.connectionRuntimeOptions, opts.runtimeOptions)
     if (
       turn &&
       !turn.terminalStatus &&
-      canRedirectOnCurrentModel &&
+      canRedirectOnCurrentConnection &&
       entry.connection?.redirect?.({ message, systemReminder: true })
     ) {
       return

@@ -956,6 +956,29 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
+  it('queues follow-ups whose runtime options differ from the live connection', () => {
+    const service = new AgentSessionRuntimeService()
+    const currentOptions = { reasoningEffort: 'high', fastMode: false } as const
+    const nextOptions = { reasoningEffort: 'low', fastMode: true } as const
+    service.beginTurn({ ...baseTurnInput, runtimeOptions: currentOptions })
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true)
+    }
+    entry.connection = connection
+    entry.connectionModelId = baseTurnInput.modelId
+    entry.connectionRuntimeOptions = currentOptions
+
+    service.enqueueUserMessage('session-1', userMessage('user-2'), { runtimeOptions: nextOptions })
+
+    expect(connection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toEqual([userMessage('user-2')])
+    expect(entry.runtimeOptionsByMessageId?.get('user-2')).toEqual(nextOptions)
+  })
+
   it('detaches and logs when a live policy update rejects without an open stream', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

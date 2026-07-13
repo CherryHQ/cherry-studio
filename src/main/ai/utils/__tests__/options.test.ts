@@ -3,7 +3,12 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { buildCapabilityProviderOptions, extractAiSdkStandardParams, mergeCustomProviderParameters } from '../options'
+import {
+  buildCapabilityProviderOptions,
+  buildReasoningProviderOptions,
+  extractAiSdkStandardParams,
+  mergeCustomProviderParameters
+} from '../options'
 
 describe('extractAiSdkStandardParams', () => {
   it('routes AI-SDK standard params to standardParams, others to providerParams', () => {
@@ -184,5 +189,6 @@ describe('buildCapabilityProviderOptions', () => {
     })
 
     expect(result.openai.reasoningSummary).toBe('detailed')
+    expect(buildReasoningProviderOptions('medium', model, provider).openai.reasoningEffort).toBe('medium')
   })
 })
