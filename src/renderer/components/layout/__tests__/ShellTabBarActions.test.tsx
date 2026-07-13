@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsTab: vi.fn(),
-    showSearchPopup: vi.fn(),
-    toggleTheme: vi.fn()
+    showSearchPopup: vi.fn()
   }
 }))
 
@@ -33,10 +32,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ settedTheme: 'light', toggleTheme: mocks.toggleTheme })
-}))
-
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
@@ -45,10 +40,6 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
-}))
-
-vi.mock('@renderer/i18n/label', () => ({
-  getThemeModeLabelKey: () => 'Light'
 }))
 
 vi.mock('react-i18next', () => ({
@@ -97,14 +88,11 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
   })
 
-  it('toggles theme from the sidebar icon footer action', async () => {
-    const user = userEvent.setup()
-
+  it('does not render the theme toggle in the sidebar footer action', () => {
     render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
-    await user.click(screen.getByRole('button', { name: 'Light' }))
-
-    expect(mocks.toggleTheme).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -120,7 +108,7 @@ describe('ShellTabBarActions', () => {
   it('renders sidebar full footer actions with visible labels', () => {
     render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveTextContent('Light')
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })

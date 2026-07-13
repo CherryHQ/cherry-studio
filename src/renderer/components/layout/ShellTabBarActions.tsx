@@ -1,12 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { getThemeModeLabelKey } from '@renderer/i18n/label'
 import { isLinux, isWin } from '@renderer/utils/platform'
-import { Monitor, Moon, Search, Settings, Sun } from 'lucide-react'
+import { Search, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { WindowControls } from '../WindowControls'
@@ -21,14 +18,6 @@ export function useShellTabBarLayout() {
     hasWindowControls,
     rightPaddingClass
   }
-}
-
-function useShellActionHandlers(onSettingsClick: () => void) {
-  const { t } = useTranslation()
-  const { settedTheme, toggleTheme } = useTheme()
-  const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
-
-  return { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick: onSettingsClick }
 }
 
 export function ShellTabBarActions() {
@@ -67,51 +56,30 @@ export function SidebarShellActions({
   layout: SidebarVisibleLayout
   onSettingsClick: () => void
 }) {
-  const { t, settedTheme, toggleTheme, ThemeIcon, handleSettingsClick } = useShellActionHandlers(onSettingsClick)
+  const { t } = useTranslation()
 
   if (layout === 'icon') {
     return (
-      <>
-        <Tooltip placement="right" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
-          <button
-            type="button"
-            aria-label={t(getThemeModeLabelKey(settedTheme))}
-            onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <ThemeIcon size={18} strokeWidth={1.6} />
-          </button>
-        </Tooltip>
-        <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
-          <button
-            type="button"
-            aria-label={t('settings.title')}
-            onClick={handleSettingsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <Settings size={18} strokeWidth={1.6} />
-          </button>
-        </CommandTooltip>
-      </>
+      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+        <button
+          type="button"
+          aria-label={t('settings.title')}
+          onClick={onSettingsClick}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          <Settings size={18} strokeWidth={1.6} />
+        </button>
+      </CommandTooltip>
     )
   }
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label={t(getThemeModeLabelKey(settedTheme))}
-        onClick={toggleTheme}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-        <ThemeIcon size={16} strokeWidth={1.6} />
-        <span>{t(getThemeModeLabelKey(settedTheme))}</span>
-      </button>
-      <button
-        type="button"
-        aria-label={t('settings.title')}
-        onClick={handleSettingsClick}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-        <Settings size={16} strokeWidth={1.6} />
-        <span>{t('settings.title')}</span>
-      </button>
-    </>
+    <button
+      type="button"
+      aria-label={t('settings.title')}
+      onClick={onSettingsClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+      <Settings size={16} strokeWidth={1.6} />
+      <span>{t('settings.title')}</span>
+    </button>
   )
 }
