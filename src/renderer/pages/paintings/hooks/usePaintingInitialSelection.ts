@@ -39,13 +39,18 @@ export function usePaintingInitialSelection({
   setCurrentPainting
 }: UsePaintingInitialSelectionInput) {
   const bootstrappedRef = useRef(false)
+  const bootstrapDraftIdRef = useRef(currentPainting.id)
 
   useEffect(() => {
     if (bootstrappedRef.current) return
 
     if (historyItems.length > 0) {
       bootstrappedRef.current = true
-      if (!historyItems.some((item) => item.id === currentPainting.id) && isUntouchedDraft(currentPainting)) {
+      if (
+        currentPainting.id === bootstrapDraftIdRef.current &&
+        !historyItems.some((item) => item.id === currentPainting.id) &&
+        isUntouchedDraft(currentPainting)
+      ) {
         setCurrentPainting(historyItems[0])
       }
       return
@@ -57,7 +62,9 @@ export function usePaintingInitialSelection({
     }
 
     if (initialProviderId && currentPainting.providerId !== initialProviderId) {
-      setCurrentPainting(createDefaultPainting(initialProviderId))
+      const nextPainting = createDefaultPainting(initialProviderId)
+      bootstrapDraftIdRef.current = nextPainting.id
+      setCurrentPainting(nextPainting)
     }
   }, [currentPainting, historyItems, initialProviderId, setCurrentPainting])
 }
