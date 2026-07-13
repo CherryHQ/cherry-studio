@@ -588,8 +588,9 @@ async function materializeUserContent(
       continue
     }
 
-    const materialized = await materializeNativeFilePart(part)
-    const parsed = materialized && parseDataUrl(materialized.url)
+    const preparedDataUrl = parseDataUrl(part.url)
+    const materialized = preparedDataUrl?.isBase64 ? part : await materializeNativeFilePart(part)
+    const parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : materialized && parseDataUrl(materialized.url)
     if (parsed?.isBase64) {
       const claudeType = toClaudeImageMediaType(parsed.mediaType)
       if (claudeType) {

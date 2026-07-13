@@ -232,6 +232,64 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => {
+      const image = message.parts.find((part) => part.type === 'file')
+      const materialized = await mocks.materializeNativeFilePart(image)
+      return [{ ...message, parts: [message.parts[0], materialized] }]
+    })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png',
+      filename: 'pixel.png',
+      providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'describe this' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
   it('keeps a visible fallback when an image attachment cannot be materialized or exposed as a local path', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
