@@ -18,7 +18,7 @@ const dialog = vi.hoisted(() => ({
   unmountCount: 0,
   settingsNavigate: vi.fn()
 }))
-const tabs = vi.hoisted(() => ({ openTab: vi.fn() }))
+const ipc = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -28,8 +28,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined })
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({ openTab: tabs.openTab })
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request }
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
@@ -170,7 +170,7 @@ afterEach(() => {
   dialog.closeOnOverlayClick = undefined
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
-  tabs.openTab.mockReset()
+  ipc.request.mockReset()
   dialog.mountCount = 0
   dialog.unmountCount = 0
   dialog.settingsNavigate.mockReset()
@@ -225,7 +225,7 @@ describe('ResourceCreateWizard close protection', () => {
     expect(dialog.closeOnOverlayClick).toBe(false)
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(ipc.request).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
     let prevented = false
     dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
@@ -264,9 +264,30 @@ describe('ResourceCreateWizard close protection', () => {
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
     expect(onOpenChange).not.toHaveBeenCalled()
-    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(ipc.request).not.toHaveBeenCalled()
 
     rerender(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+  })
+
+  it('opens a standalone knowledge window and keeps the wizard open', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
+
+    expect(ipc.request).toHaveBeenCalledTimes(1)
+    const [channel, payload] = ipc.request.mock.calls[0] as [string, Record<string, unknown>]
+    expect(channel).toBe('tab.detach')
+    expect(payload).toMatchObject({ url: '/app/knowledge', type: 'route' })
+    expect(typeof payload.id).toBe('string')
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
   })
 

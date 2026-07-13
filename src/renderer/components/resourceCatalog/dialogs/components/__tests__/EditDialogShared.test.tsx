@@ -1,15 +1,15 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLoggerWarn, mockUseQuery, mockOpenTab, mockToastSuccess } = vi.hoisted(() => ({
+const { mockLoggerWarn, mockUseQuery, mockIpcRequest, mockToastSuccess } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
   mockUseQuery: vi.fn(),
-  mockOpenTab: vi.fn(),
+  mockIpcRequest: vi.fn(),
   mockToastSuccess: vi.fn()
 }))
 
@@ -67,10 +67,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: mockUseQuery
 }))
 
-vi.mock('@renderer/hooks/tab/useTabs', () => ({
-  useTabs: () => ({
-    openTab: mockOpenTab
-  })
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mockIpcRequest }
 }))
 
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
@@ -86,7 +84,7 @@ describe('EditDialogShared', () => {
 
   beforeEach(() => {
     mockUseQuery.mockReturnValue({ data: { items: [] }, isLoading: false })
-    mockOpenTab.mockReset()
+    mockIpcRequest.mockReset()
     mockToastSuccess.mockReset()
     writeText.mockResolvedValue(undefined)
     mockLoggerWarn.mockReset()
@@ -122,11 +120,8 @@ describe('EditDialogShared', () => {
     }
   })
 
-  it('opens the knowledge page from the add knowledge popover footer', () => {
-    vi.useFakeTimers()
-
+  it('opens the knowledge page in a standalone window without closing the knowledge step', () => {
     function Harness() {
-      const [open, setOpen] = useState(true)
       const form = useForm<ResourceCreateWizardFormValues>({
         defaultValues: {
           avatar: '💬',
@@ -138,38 +133,27 @@ describe('EditDialogShared', () => {
           skillIds: []
         }
       })
-      if (!open) return <div data-testid="knowledge-step-closed" />
 
       return (
         <Form {...form}>
-          <KnowledgeStep form={form} onClose={() => setOpen(false)} portalContainer={null} />
+          <KnowledgeStep form={form} portalContainer={null} />
         </Form>
       )
     }
 
-    mockOpenTab.mockImplementationOnce(() => {
-      expect(screen.getByTestId('knowledge-step-closed')).toBeInTheDocument()
-    })
+    render(<Harness />)
 
-    try {
-      render(<Harness />)
+    expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
 
-      expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
 
-      fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
-
-      expect(screen.getByTestId('knowledge-step-closed')).toBeInTheDocument()
-      expect(mockOpenTab).not.toHaveBeenCalled()
-
-      act(() => {
-        vi.runOnlyPendingTimers()
-      })
-
-      expect(mockOpenTab).toHaveBeenCalledWith('/app/knowledge')
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith(
+      'tab.detach',
+      expect.objectContaining({ url: '/app/knowledge', type: 'route' })
+    )
+    expect(screen.getByRole('button', { name: 'Open Knowledge to create one' })).toBeInTheDocument()
   })
 
   it('closes and disables the knowledge picker when submission starts', async () => {

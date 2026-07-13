@@ -328,12 +328,7 @@ export function ResourceCreateWizard({
                   <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep
-                    form={form}
-                    isSubmitting={submitting}
-                    onClose={() => !submitting && onOpenChange(false)}
-                    portalContainer={dialogContentElement}
-                  />
+                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
