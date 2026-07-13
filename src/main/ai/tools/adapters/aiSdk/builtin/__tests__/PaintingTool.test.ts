@@ -1,5 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ToolApplyScope } from '../../types'
 
 const { getPreference, generateImage } = vi.hoisted(() => ({
   getPreference: vi.fn(),
@@ -51,19 +54,30 @@ describe('generate_image', () => {
 
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(GENERATE_IMAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('painting')
+    expect(entry.namespace).toBe('media')
     expect(entry.defer).toBe('auto')
   })
 
   describe('applies', () => {
-    it('returns false when no painting model is configured', () => {
-      getPreference.mockReturnValue(null)
-      expect(entry.applies!({ mcpToolIds: new Set() })).toBe(false)
+    const scopeWith = (enableGenerateImage?: boolean): ToolApplyScope => ({
+      mcpToolIds: new Set(),
+      assistant: enableGenerateImage === undefined ? undefined : ({ settings: { enableGenerateImage } } as Assistant)
     })
 
-    it('returns true when a painting model is configured', () => {
+    it('returns false when no painting model is configured', () => {
+      getPreference.mockReturnValue(null)
+      expect(entry.applies!(scopeWith(true))).toBe(false)
+    })
+
+    it('returns false when the assistant toggle is off (or absent)', () => {
       getPreference.mockReturnValue('openai::dall-e-3')
-      expect(entry.applies!({ mcpToolIds: new Set() })).toBe(true)
+      expect(entry.applies!(scopeWith(false))).toBe(false)
+      expect(entry.applies!(scopeWith(undefined))).toBe(false)
+    })
+
+    it('returns true when a painting model is configured and the assistant toggle is on', () => {
+      getPreference.mockReturnValue('openai::dall-e-3')
+      expect(entry.applies!(scopeWith(true))).toBe(true)
     })
   })
 

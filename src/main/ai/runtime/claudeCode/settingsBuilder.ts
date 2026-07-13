@@ -661,11 +661,14 @@ async function buildToolPermissions(
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
-  // Raw session context for tool enable-predicates (worktree tools need a .git dir).
+  // Raw session context for tool enable-predicates (worktree tools need a .git dir; generate_image
+  // needs a configured painting model).
   const cwd = session.workspace?.path
+  const hasPaintingModel = Boolean(application.get('PreferenceService').get('feature.paintings.model_id'))
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
-        cwd
+        cwd,
+        hasPaintingModel
       }
     : undefined
 

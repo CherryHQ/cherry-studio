@@ -40,14 +40,17 @@ const generateImageTool = tool({
 export function createGenerateImageToolEntry(): ToolEntry {
   return {
     name: GENERATE_IMAGE_TOOL_NAME,
-    namespace: 'painting',
+    namespace: 'media',
     description: 'Generate an image from a text prompt',
     defer: 'auto',
     tool: generateImageTool,
-    // No assistant-settings flag (the renderer is untouched in this change): expose the tool only
-    // once a global painting model is configured in Settings > Default Model. Until then there is
-    // nothing to generate with, so offering it would only produce errors.
-    applies: () => Boolean(application.get('PreferenceService').get('feature.paintings.model_id'))
+    // Two gates: the composer toggle (`assistant.settings.enableGenerateImage`) is the user's per-assistant
+    // opt-in, and a global painting model (Settings > Default Model) is what the tool actually generates with.
+    // Both are required — without a model there is nothing to generate; without the opt-in the model
+    // shouldn't be offered image generation at all.
+    applies: (scope) =>
+      Boolean(application.get('PreferenceService').get('feature.paintings.model_id')) &&
+      Boolean(scope.assistant?.settings?.enableGenerateImage)
   }
 }
 

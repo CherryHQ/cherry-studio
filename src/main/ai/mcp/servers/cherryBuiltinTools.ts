@@ -19,6 +19,7 @@
  * session's agent via the {@link CherryAgentContext} passed at construction.
  */
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
@@ -34,7 +35,12 @@ import {
   readOrGrepConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
-import { GENERATE_IMAGE_DESCRIPTION, generateImageFromPrompt, paintingModelOutput } from '@main/ai/tools/painting'
+import {
+  GENERATE_IMAGE_DESCRIPTION,
+  generateImageFromPrompt,
+  isPaintingError,
+  paintingModelOutput
+} from '@main/ai/tools/painting'
 import {
   fetchWeb,
   searchWeb,
@@ -77,7 +83,14 @@ export type { CherryAgentContext }
 
 const logger = loggerService.withContext('McpServer:CherryBuiltinTools')
 
-type ToolModelOutput = { type: 'text'; value: string } | { type: 'json'; value: unknown }
+type McpImageBlock = { data: string; mimeType: string }
+type ToolModelOutput =
+  | { type: 'text'; value: string }
+  | { type: 'json'; value: unknown }
+  // `value` is the model-facing summary; `images` are inline image content blocks (base64) so the
+  // agent transcript carries the actual picture — the renderer's agent card shows them inline, and
+  // the model can see what it produced. Only generate_image uses this.
+  | { type: 'text+images'; value: string; images: McpImageBlock[] }
 
 interface ToolHandler {
   description: string
@@ -158,9 +171,36 @@ const HANDLERS: Record<string, ToolHandler> = {
     inputSchema: generateImageInputSchema,
     run: async (args, signal) => {
       const input = generateImageInputSchema.parse(args)
-      return paintingModelOutput(await generateImageFromPrompt(input, signal))
+      const result = await generateImageFromPrompt(input, signal)
+      const text = paintingModelOutput(result).value
+      // On failure `result` is the model-facing note — text only, no image to attach.
+      if (isPaintingError(result)) return { type: 'text', value: text }
+      const images = await readGeneratedImages(result, signal)
+      return images.length > 0 ? { type: 'text+images', value: text, images } : { type: 'text', value: text }
     }
   }
+}
+
+/**
+ * Read the just-persisted generated images back as base64 image content blocks. Unlike the AI-SDK
+ * builtin (whose renderer resolves the returned FileEntry ids to `file://` URLs), MCP tool results
+ * only carry `content[]` to the agent renderer — the structured id array is dropped at the SDK
+ * boundary — so the picture must ride along as inline base64. A read failure drops that one image
+ * rather than failing the whole generation.
+ */
+async function readGeneratedImages(files: { id: string }[], signal: AbortSignal): Promise<McpImageBlock[]> {
+  const fileManager = application.get('FileManager')
+  const blocks: McpImageBlock[] = []
+  for (const file of files) {
+    if (signal.aborted) break
+    try {
+      const { content, mime } = await fileManager.read(file.id, { encoding: 'base64' })
+      blocks.push({ data: content, mimeType: mime })
+    } catch (error) {
+      logger.warn('Failed to read generated image for inline rendering', { id: file.id, error })
+    }
+  }
+  return blocks
 }
 
 /** Drop the `$schema` marker so strict MCP clients don't reject the advertised input schema. */
@@ -171,6 +211,14 @@ function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
 }
 
 function toMcpResult(output: ToolModelOutput): CallToolResult {
+  if (output.type === 'text+images') {
+    return {
+      content: [
+        { type: 'text', text: output.value },
+        ...output.images.map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType }))
+      ]
+    }
+  }
   const text = output.type === 'text' ? output.value : JSON.stringify(output.value)
   return { content: [{ type: 'text', text }] }
 }

@@ -11,6 +11,7 @@
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -34,11 +35,12 @@ export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${
 export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [KB_MANAGE_TOOL_NAME]
 
 /**
- * cherry-tools that only read (web/kb lookups), record a declaration (report_artifacts), or drive
- * the agent's own in-app autonomy (cron/notify/config — auto-approved since they shipped as the
- * blanket-allowed standalone `cherry` server; their side effects stay inside the app: scheduling
- * the agent's tasks, notifying the user's channels, managing the agent's own config). Excludes the
- * mutating tools above.
+ * cherry-tools that only read (web/kb lookups), record a declaration (report_artifacts), generate an
+ * image into the user's own library (generate_image — no external side effect, so it runs without a
+ * per-call prompt, matching the AI-SDK builtin), or drive the agent's own in-app autonomy
+ * (cron/notify/config — auto-approved since they shipped as the blanket-allowed standalone `cherry`
+ * server; their side effects stay inside the app: scheduling the agent's tasks, notifying the user's
+ * channels, managing the agent's own config). Excludes the mutating tools above.
  */
 export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   WEB_SEARCH_TOOL_NAME,
@@ -47,6 +49,7 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   KB_READ_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
   CRON_TOOL_NAME,
   NOTIFY_TOOL_NAME,
   CONFIG_TOOL_NAME

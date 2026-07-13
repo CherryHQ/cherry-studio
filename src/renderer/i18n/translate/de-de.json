@@ -882,6 +882,10 @@
           "description": "Verwaltet den In-App-Planer",
           "label": "Scheduler"
         },
+        "CherryGenerateImage": {
+          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
+          "label": "[to be translated]:Generate Image"
+        },
         "CherryKbManage": {
           "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
           "label": "Wissen verwalten"
@@ -1392,7 +1396,7 @@
         "title": "In Warteschlange ({{count}})"
       },
       "generate_image": "Bild generieren",
-      "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
+      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
@@ -1466,6 +1470,11 @@
         "collapse_out": "Aus Falten entfernen",
         "expand": "Ausklappen",
         "file_not_found": "Datei nicht gefunden: {{path}}",
+        "generate_image": {
+          "failed": "[to be translated]:Image generation failed",
+          "generating": "[to be translated]:Generating image…",
+          "title": "[to be translated]:Generated image"
+        },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
         "reveal_in_finder": "Im Finder anzeigen"
@@ -6799,6 +6808,7 @@
           "confirm": "Alle Modelle zur Liste hinzufügen?",
           "label": "Alle Modelle hinzufügen"
         },
+        "add_success_enable_failed": "[to be translated]:Models were added, but the provider could not be enabled.",
         "add_whole_group": "Gesamte Gruppe hinzufügen",
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
@@ -6867,6 +6877,8 @@
       },
       "more_actions": "Weitere Aktionen für die Modellliste",
       "not_enabled_models": "Deaktiviert",
+      "painting_model": "[to be translated]:Painting Model",
+      "painting_model_description": "[to be translated]:Model used for image generation",
       "provider_id": "Dienstanbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",
@@ -7210,6 +7222,7 @@
         "fill_after_create": "Authentifizierungsfelder können nach der Erstellung ausgefüllt werden",
         "menu_label": "Instanz hinzufügen"
       },
+      "enable_failed_after_connection": "[to be translated]:Connection succeeded, but the provider could not be enabled.",
       "filter": {
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",

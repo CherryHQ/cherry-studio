@@ -1,8 +1,10 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { AgentExecutionTimeline } from './agent'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
+import { MessageGenerateImageToolTitle } from './painting/MessageGenerateImage'
 import { AgentToolsType, isAskUserQuestionToolName } from './shared/agentToolTypes'
 import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 
@@ -33,6 +35,12 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   if (toolName === 'web_search') {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
+  if (toolName === GENERATE_IMAGE_TOOL_NAME) {
+    return <MessageGenerateImageToolTitle toolResponse={toolResponse} />
+  }
+  // The agent (Claude Code) wire name `mcp__cherry-tools__generate_image` falls through to the
+  // generic agent card below — its inline base64 image content is rendered by UnknownToolRenderer,
+  // the standard MCP image path, so it needs no bespoke card here.
   // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
   // agent tool-call card rather than dropping them.
   if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {

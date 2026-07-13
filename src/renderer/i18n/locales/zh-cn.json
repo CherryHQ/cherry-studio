@@ -887,6 +887,10 @@
           "description": "管理应用内的定时调度",
           "label": "定时任务"
         },
+        "CherryGenerateImage": {
+          "description": "使用你配置的绘画模型根据文本提示生成图片",
+          "label": "生成图片"
+        },
         "CherryKbManage": {
           "description": "添加、删除或刷新知识库中的文档",
           "label": "知识库管理"
@@ -1397,7 +1401,7 @@
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
-      "generate_image_not_supported": "模型不支持生成图片",
+      "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1471,6 +1475,11 @@
         "collapse_out": "移出折叠",
         "expand": "展开",
         "file_not_found": "文件不存在: {{path}}",
+        "generate_image": {
+          "failed": "图片生成失败",
+          "generating": "正在生成图片…",
+          "title": "已生成图片"
+        },
         "open_file": "打开文件",
         "open_file_error": "无法打开文件: {{path}}",
         "reveal_in_finder": "在文件管理器中显示"
