@@ -485,7 +485,7 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
   })
 })
 
-describe('listModels — newApiFetcher rerank capability mapping', () => {
+describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
   function makeNewApiProvider() {
     return makeProvider({
       id: 'new-api',
@@ -532,6 +532,27 @@ describe('listModels — newApiFetcher rerank capability mapping', () => {
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
     expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+  })
+
+  it('derives the capability for other capability-exclusive primary endpoints (image)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'opaque-image-model',
+            supported_endpoint_types: ['image-generation', 'openai']
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ])
   })
 })
 

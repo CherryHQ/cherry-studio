@@ -4,6 +4,7 @@
 
 import {
   ENDPOINT_TYPE,
+  endpointImpliedCapability,
   type EndpointType,
   inferAdapterFamily,
   MODEL_CAPABILITY,
@@ -511,8 +512,9 @@ function mapCapabilities(
       mapped.push(result)
     }
   }
-  if (!rerankExplicitlyDisabled && endpointTypes?.[0] === ENDPOINT_TYPE.JINA_RERANK) {
-    mapped.push(MODEL_CAPABILITY.RERANK)
+  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+  if (impliedCapability && !(impliedCapability === MODEL_CAPABILITY.RERANK && rerankExplicitlyDisabled)) {
+    mapped.push(impliedCapability)
   }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : []

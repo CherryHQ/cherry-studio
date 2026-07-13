@@ -16,7 +16,12 @@ import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
-import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  endpointImpliedCapability,
+  MODEL_CAPABILITY
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import {
@@ -439,11 +444,12 @@ const newApiFetcher: ModelFetcher = {
     })
     return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
       const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
 
       return toModel(m.id, provider, {
         ownedBy: m.owned_by,
         endpointTypes,
-        ...(endpointTypes?.[0] === ENDPOINT_TYPE.JINA_RERANK ? { capabilities: [MODEL_CAPABILITY.RERANK] } : {})
+        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
   }
