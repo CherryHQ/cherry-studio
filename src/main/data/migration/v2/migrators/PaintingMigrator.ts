@@ -1,6 +1,7 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { inArray, sql } from 'drizzle-orm'
@@ -111,6 +112,30 @@ export class PaintingMigrator extends BaseMigrator {
       for (const entries of groupedRecords.values()) {
         normalizedRows.push(...entries.map((e) => e.row))
       }
+
+      // ─── Reconcile modelId against user_model ───
+      // ProviderModelMigrator (order 1.75) has already populated user_model.
+      // If a painting's modelId has no matching user_model row, the composer
+      // would show a disabled send button with no way to fix it.
+      // Null the modelId so the painting falls back to model selection.
+      if (normalizedRows.length > 0) {
+        const existingModelIds = new Set(
+          ctx.db
+            .select({ id: userModelTable.id })
+            .from(userModelTable)
+            .all()
+            .map((r) => r.id)
+        )
+        for (const row of normalizedRows) {
+          if (row.modelId && !existingModelIds.has(row.modelId)) {
+            this.warnings.push(
+              `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — no matching user_model row exists for provider '${row.providerId}'`
+            )
+            row.modelId = null
+          }
+        }
+      }
+
       this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
 
       logger.info('Prepared painting migration records', {
