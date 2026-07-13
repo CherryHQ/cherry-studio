@@ -100,15 +100,15 @@ describe('providerHandlers', () => {
 
   describe('/providers/:providerId', () => {
     it('delegates PATCH to providerService.update with parsed body', async () => {
-      const updated = { id: 'openai', isEnabled: false }
+      const updated = { id: 'openai', isEnabled: true }
       updateMock.mockReturnValueOnce(updated)
 
       const result = await providerHandlers['/providers/:providerId'].PATCH({
         params: { providerId: 'openai' },
-        body: { isEnabled: false }
+        body: { isEnabled: true }
       } as never)
 
-      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: false })
+      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: true })
       expect(result).toBe(updated)
     })
 

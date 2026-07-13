@@ -68,11 +68,11 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                     }}
                     aria-label={getToggleLabel(displayName)}>
                     {/*
-                     * app.logo is the preset's logo ID (e.g. "moonshot") for preset
-                     * rows and a URL/path for custom rows — MiniAppLogoAvatar branches
-                     * between the brand icon and the image URL path.
+                     * Preset rows carry the logo ID (e.g. "moonshot") on `app.logo`;
+                     * custom rows carry a main-resolved image URL on `app.logoSrc` —
+                     * MiniAppLogoAvatar branches between the brand icon and the image.
                      */}
-                    <MiniAppLogoAvatar logo={app.logo} size={16} />
+                    <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/40"
