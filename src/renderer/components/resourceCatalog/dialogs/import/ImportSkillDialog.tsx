@@ -1,5 +1,6 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
+import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
 import { CheckCircle2, CircleAlert, FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -13,7 +14,7 @@ interface Props {
   onInstalled?: () => void
 }
 
-type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
 type InstallingKey = null | 'zip' | 'directory'
 type ImportKind = 'zip' | 'directory'
 type ImportItemStatus = 'pending' | 'installing' | 'success' | 'error'
@@ -116,13 +117,12 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
               total: nextItems.length
             })
           })
-        } else if (nextItems.length === 1 && lastSkill) {
-          setStatus({ kind: 'success', message: t('settings.skills.installSuccess', { name: lastSkill.name }) })
         } else {
-          setStatus({
-            kind: 'success',
-            message: t('settings.skills.batchInstallComplete', { count: successCount })
-          })
+          const message =
+            nextItems.length === 1 && lastSkill
+              ? t('settings.skills.installSuccess', { name: lastSkill.name })
+              : t('settings.skills.batchInstallComplete', { count: successCount })
+          toast.success(message)
         }
       } finally {
         setInstalling(null)
@@ -321,15 +321,16 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
           <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
             <ImportItemStatusIcon status={item.status} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-foreground">{item.name}</div>
-              <div className="mt-0.5 truncate text-foreground-muted">
-                {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                {item.status === 'installing' ? t('common.loading') : null}
-                {item.status === 'success'
-                  ? t('settings.skills.installSuccess', { name: item.skillName ?? item.name })
-                  : null}
-                {item.status === 'error' ? item.error : null}
+              <div className="truncate text-foreground">
+                {item.status === 'success' ? (item.skillName ?? item.name) : item.name}
               </div>
+              {item.status !== 'success' ? (
+                <div className="mt-0.5 truncate text-foreground-muted">
+                  {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                  {item.status === 'installing' ? t('common.loading') : null}
+                  {item.status === 'error' ? item.error : null}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
@@ -354,20 +355,6 @@ function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
 function StatusBanner({ status }: { status: ImportStatus }) {
   return (
     <AnimatePresence>
-      {status.kind === 'success' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="mt-4">
-          <Alert
-            type="success"
-            showIcon
-            message={status.message}
-            className="rounded-md px-3 py-2 text-xs shadow-none"
-          />
-        </motion.div>
-      )}
       {status.kind === 'error' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
