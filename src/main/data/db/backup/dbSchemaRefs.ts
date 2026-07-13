@@ -92,12 +92,14 @@ export const DB_TABLES = [
   'mcp_server',
   'message',
   'mini_app',
+  'mini_app_logo_file_ref',
   'note',
   'painting',
   'painting_file_ref',
   'pin',
   'preference',
   'prompt',
+  'provider_logo_file_ref',
   'tag',
   'topic',
   'translate_history',
@@ -415,7 +417,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'presetMiniAppId', dbName: 'presetMiniAppId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'url', dbName: 'url', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
-    { name: 'logo', dbName: 'logo', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'logoKey', dbName: 'logoKey', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'status', dbName: 'status', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'bordered', dbName: 'bordered', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -423,6 +425,13 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'supportedRegions', dbName: 'supportedRegions', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'configuration', dbName: 'configuration', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'nameKey', dbName: 'nameKey', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  mini_app_logo_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -472,6 +481,13 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'title', dbName: 'title', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'content', dbName: 'content', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  provider_logo_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -557,6 +573,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'providerId', dbName: 'providerId', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
     { name: 'presetProviderId', dbName: 'presetProviderId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'logoKey', dbName: 'logoKey', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'endpointConfigs', dbName: 'endpointConfigs', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     {
       name: 'defaultChatEndpoint',
@@ -636,12 +653,14 @@ export const DB_PRIMARY_KEYS = {
   mcp_server: { table: 'mcp_server', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   message: { table: 'message', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
   mini_app: { table: 'mini_app', columns: ['appId'], kind: 'natural', ambiguous: true },
+  mini_app_logo_file_ref: { table: 'mini_app_logo_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   note: { table: 'note', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   painting: { table: 'painting', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   painting_file_ref: { table: 'painting_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   pin: { table: 'pin', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   preference: { table: 'preference', columns: ['scope', 'key'], kind: 'composite', ambiguous: false },
   prompt: { table: 'prompt', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
+  provider_logo_file_ref: { table: 'provider_logo_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   tag: { table: 'tag', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   topic: { table: 'topic', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   translate_history: { table: 'translate_history', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
@@ -729,6 +748,10 @@ export const DB_FOREIGN_KEYS = {
     { columns: ['parentId'], targetTable: 'message', targetColumns: ['id'], onDelete: 'cascade' }
   ],
   mini_app: [],
+  mini_app_logo_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'mini_app', targetColumns: ['appId'], onDelete: 'cascade' }
+  ],
   note: [],
   painting: [],
   painting_file_ref: [
@@ -738,6 +761,10 @@ export const DB_FOREIGN_KEYS = {
   pin: [],
   preference: [],
   prompt: [],
+  provider_logo_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'user_provider', targetColumns: ['providerId'], onDelete: 'cascade' }
+  ],
   tag: [],
   topic: [
     { columns: ['assistantId'], targetTable: 'assistant', targetColumns: ['id'], onDelete: 'set null' },
@@ -799,12 +826,14 @@ export const DB_UNIQUE_KEYS = {
   mcp_server: [],
   message: [{ columns: ['ftsRowid'] }],
   mini_app: [],
+  mini_app_logo_file_ref: [{ columns: ['sourceId'] }],
   note: [{ columns: ['rootPath', 'path'] }],
   painting: [],
   painting_file_ref: [{ columns: ['fileEntryId', 'sourceId', 'role'] }],
   pin: [{ columns: ['entityType', 'entityId'] }],
   preference: [],
   prompt: [],
+  provider_logo_file_ref: [{ columns: ['sourceId'] }],
   tag: [{ columns: ['name'] }],
   topic: [],
   translate_history: [],
@@ -823,5 +852,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-09T08:54:11.163Z'
+  generatedAt: '2026-07-13T06:01:26.759Z'
 } as const

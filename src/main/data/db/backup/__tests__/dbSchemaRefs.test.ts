@@ -20,7 +20,7 @@ import {
 import { ALWAYS_STRIP_TABLES } from '../exclusions'
 
 // Current business-table count (sqliteTable() definitions). Update if schemas change.
-const EXPECTED_TABLE_COUNT = 36
+const EXPECTED_TABLE_COUNT = 38
 
 describe('DB_TABLES membership', () => {
   it('discovers exactly the sqliteTable() business tables, sorted ascending', () => {
