@@ -5131,6 +5131,28 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek-thinking",
+      "id": "deepseek-r1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "DeepSeek R1 0528",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.574
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.294
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
@@ -5157,58 +5179,6 @@
       },
       "reasoning": {
         "supportedEfforts": ["high", "max", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
-      "family": "deepseek-thinking",
-      "id": "deepseek-v4-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
-      "metadata": {},
-      "name": "DeepSeek V4 Pro",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.435
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.87
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["high", "max", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek-thinking",
-      "id": "deepseek-r1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "DeepSeek R1 0528",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.574
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.294
-        }
       }
     },
     {
@@ -5257,6 +5227,36 @@
           "currency": "USD",
           "perMillionTokens": 0.861
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "deepseek-thinking",
+      "id": "deepseek-v4-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4 Pro",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -14184,7 +14184,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 16384,
       "id": "step-2-16k",
       "inputModalities": ["text"],
@@ -14219,7 +14219,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 32768,
       "id": "step-1-32k",
       "inputModalities": ["text"],
@@ -17642,5 +17642,5 @@
       }
     }
   ],
-  "version": "906c9d8989aa38ed"
+  "version": "ccf838de9e5084ac"
 }

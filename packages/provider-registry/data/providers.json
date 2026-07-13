@@ -1275,11 +1275,11 @@
         "arrayContent": false,
         "developerRole": false
       },
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "Poe - AI model provider",
       "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
+        "openai-responses": {
+          "adapterFamily": "openai",
           "baseUrl": "https://api.poe.com/v1/"
         }
       },
@@ -1287,8 +1287,8 @@
       "metadata": {
         "website": {
           "apiKey": "https://poe.com/api/keys",
-          "docs": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
-          "models": "https://poe.com/",
+          "docs": "https://creator.poe.com/docs",
+          "models": "https://poe.com/api/models",
           "official": "https://poe.com/"
         }
       },
@@ -1453,5 +1453,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4b6940ba3a873ad9"
+  "version": "a6ed2c8a4795b52c"
 }
