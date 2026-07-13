@@ -1,5 +1,5 @@
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { COMPOSER_FILE_KIND } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
@@ -2204,6 +2204,44 @@ describe('ComposerSurface', () => {
 
     expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
+  })
+
+  it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
+    const imageToken = {
+      id: 'file:image-1',
+      kind: 'file' as const,
+      label: 'preview.png',
+      payload: {
+        id: 'image-1',
+        name: 'preview.png',
+        origin_name: 'preview.png',
+        path: '/tmp/preview.png',
+        ext: '.png',
+        type: FILE_TYPE.IMAGE
+      }
+    }
+
+    mocks.docDescendants.mockImplementation((visit: (node: any, position: number) => void) => {
+      visit({ type: { name: 'composerToken' }, attrs: imageToken, nodeSize: 1 }, 3)
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[imageToken]} managedTokenKinds={['file']} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    const { container } = render(
+      <>
+        {mocks.editorPresetOptions.renderToken(imageToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('h-6', 'align-baseline')
+    expect(token).toHaveTextContent('preview.png')
+    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toHaveClass('size-4.5!', 'object-cover')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
   })
 
   it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
