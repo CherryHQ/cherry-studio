@@ -7,6 +7,9 @@
  * @module utils
  */
 
+/** Close-animation duration of DialogContent's `duration-200` class. */
+export const DIALOG_CLOSE_DURATION_MS = 200
+
 /**
  * Converts `null` to `undefined`, otherwise returns the input value.
  * Useful when interfacing with APIs or libraries that treat `null` and `undefined` differently.

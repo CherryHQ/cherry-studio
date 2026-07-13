@@ -149,6 +149,7 @@ describe('OpenClawService gateway status state machine', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -338,13 +339,17 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('transitions to error when gateway fails to stop', async () => {
+      vi.useFakeTimers()
       ;(service as any).gatewayStatus = 'running'
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // still running
 
-      const result = await service.stopGateway()
+      const resultPromise = service.stopGateway()
+      await vi.runAllTimersAsync()
+      const result = await resultPromise
 
       expect(result.success).toBe(false)
       expect((service as any).gatewayStatus).toBe('error')
+      expect(checkHealthSpy).toHaveBeenCalledTimes(3)
     })
   })
 
