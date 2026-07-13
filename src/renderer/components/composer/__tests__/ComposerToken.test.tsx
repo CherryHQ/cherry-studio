@@ -515,6 +515,8 @@ describe('ComposerToken', () => {
           kind: 'file',
           label: 'avatar-preview.png',
           payload: createFileMetadata({
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
             path: '/tmp/avatar-preview.png',
             ext: '.png',
             type: FILE_TYPE.IMAGE
