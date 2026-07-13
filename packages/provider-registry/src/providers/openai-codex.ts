@@ -68,7 +68,6 @@ export default defineProvider({
       modelId: 'gpt-5-4-mini',
       apiModelId: 'gpt-5.4-mini',
       reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
-      supportsFastMode: true,
       endpointTypes: ['openai-responses']
     },
     { modelId: 'gpt-5-3-codex-spark', apiModelId: 'gpt-5.3-codex-spark', endpointTypes: ['openai-responses'] }

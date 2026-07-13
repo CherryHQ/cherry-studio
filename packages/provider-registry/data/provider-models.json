@@ -12047,8 +12047,7 @@
       "reasoning": {
         "defaultEffort": "medium",
         "supportedEfforts": ["low", "medium", "high", "xhigh"]
-      },
-      "supportsFastMode": true
+      }
     },
     {
       "apiModelId": "gpt-5.5",

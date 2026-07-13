@@ -261,7 +261,7 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   fastMode?: boolean
   thinkingOptions?: {
-    effort?: 'low' | 'medium' | 'high' | 'max'
+    effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
   }
 }

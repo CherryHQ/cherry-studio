@@ -19,8 +19,24 @@ vi.mock('@cherrystudio/ui', () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div data-testid="popover-content">{children}</div>,
-  Slider: ({ marks, max }: { marks: unknown[]; max: number }) => (
-    <div data-testid="reasoning-slider" data-mark-count={marks.length} data-max={max} />
+  Slider: ({
+    marks,
+    max,
+    thumbAriaLabel,
+    getThumbAriaValueText
+  }: {
+    marks: unknown[]
+    max: number
+    thumbAriaLabel: string
+    getThumbAriaValueText: (value: number) => string
+  }) => (
+    <div
+      data-testid="reasoning-slider"
+      data-mark-count={marks.length}
+      data-max={max}
+      data-thumb-label={thumbAriaLabel}
+      data-thumb-value-text={getThumbAriaValueText(0)}
+    />
   )
 }))
 
@@ -58,6 +74,11 @@ describe('AgentSpeedControl UI', () => {
     const popover = screen.getByTestId('popover-content')
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-mark-count', '6')
     expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-max', '5')
+    expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute('data-thumb-label', 'agent.speed.reasoning')
+    expect(within(popover).getByTestId('reasoning-slider')).toHaveAttribute(
+      'data-thumb-value-text',
+      'assistants.settings.reasoning_effort.low'
+    )
 
     const fastButton = within(popover).getByRole('button', { name: 'agent.speed.fast' })
     expect(fastButton).toHaveAttribute('aria-pressed', 'false')

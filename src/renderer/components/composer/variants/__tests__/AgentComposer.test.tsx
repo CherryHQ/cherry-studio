@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
   modelLookupId: undefined as UniqueModelId | undefined,
+  resolvedModel: undefined as Model | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -80,6 +81,31 @@ const model = {
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
+} satisfies Model
+
+const codexSolModel = {
+  ...model,
+  id: 'openai-codex::gpt-5-6-sol',
+  providerId: 'openai-codex',
+  apiModelId: 'gpt-5.6-sol',
+  name: 'GPT-5.6 Sol',
+  capabilities: ['reasoning'],
+  reasoning: {
+    type: 'openai-responses',
+    supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    defaultEffort: 'low'
+  }
+} satisfies Model
+
+const codexTerraModel = {
+  ...codexSolModel,
+  id: 'openai-codex::gpt-5-6-terra',
+  apiModelId: 'gpt-5.6-terra',
+  name: 'GPT-5.6 Terra',
+  reasoning: {
+    ...codexSolModel.reasoning,
+    defaultEffort: 'medium'
+  }
 } satisfies Model
 
 const file = {
@@ -337,7 +363,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: UniqueModelId) => {
     mocks.modelLookupId = id
-    return { model }
+    return { model: mocks.resolvedModel }
   }
 }))
 
@@ -480,6 +506,7 @@ describe('AgentComposer', () => {
     mocks.draftTokens = undefined
     mocks.files = []
     mocks.modelLookupId = undefined
+    mocks.resolvedModel = model
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
@@ -611,6 +638,79 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('uses each resolved model default without resetting on same-model revalidation', async () => {
+    mocks.resolvedModel = undefined
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    mocks.resolvedModel = codexSolModel
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+        'assistants.settings.reasoning_effort.low'
+      )
+    )
+
+    mocks.resolvedModel = {
+      ...codexSolModel,
+      reasoning: { ...codexSolModel.reasoning, defaultEffort: 'high' }
+    }
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.low'
+    )
+
+    mocks.resolvedModel = codexTerraModel
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+        'assistants.settings.reasoning_effort.medium'
+      )
+    )
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      expect.objectContaining({
+        body: expect.objectContaining({
+          agentRuntimeOptions: { reasoningEffort: 'medium', fastMode: false }
+        })
+      })
+    )
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {

@@ -1,5 +1,6 @@
 import { defineRoute } from '@shared/ipc/define'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
@@ -26,6 +27,14 @@ function makeRouter(overrides?: Partial<IpcHandlersFor<typeof schemas>>) {
   return { router: new IpcRouter(schemas, handlers), echo, whoami }
 }
 
+const aiStreamSchemas = { 'ai.stream_open': aiRequestSchemas['ai.stream_open'] }
+
+function makeAiStreamRouter() {
+  const streamOpen = vi.fn(async () => ({ mode: 'started' as const }))
+  const handlers: IpcHandlersFor<typeof aiStreamSchemas> = { 'ai.stream_open': streamOpen }
+  return { router: new IpcRouter(aiStreamSchemas, handlers), streamOpen }
+}
+
 describe('IpcRouter.dispatch', () => {
   it('routes to the matching handler and returns its result', async () => {
     const { router, echo } = makeRouter()
@@ -46,6 +55,20 @@ describe('IpcRouter.dispatch', () => {
     // zod object strips unknown keys → handler only sees declared fields
     expect(parsed).toEqual({ echoed: 'hi' })
     expect(echo).toHaveBeenCalledWith({ msg: 'hi' }, ctx)
+  })
+
+  it('preserves Agent runtime options through the ai.stream_open schema boundary', async () => {
+    const { router, streamOpen } = makeAiStreamRouter()
+    const request = {
+      topicId: 'agent:session-1',
+      trigger: 'submit-message',
+      userMessageParts: [],
+      agentRuntimeOptions: { reasoningEffort: 'xhigh', fastMode: true }
+    }
+
+    await router.dispatch('ai.stream_open', request, ctx)
+
+    expect(streamOpen).toHaveBeenCalledWith(request, ctx)
   })
 
   it('rejects with VALIDATION_FAILED and never calls the handler on invalid input', async () => {

@@ -88,7 +88,8 @@ export function AgentSpeedControl({
       <PopoverContent side="top" align="end" className="w-80 p-4">
         <div className="font-medium text-sm">{t('agent.speed.reasoning')}</div>
         <Slider
-          aria-label={t('agent.speed.reasoning')}
+          thumbAriaLabel={t('agent.speed.reasoning')}
+          getThumbAriaValueText={(index) => t(EFFORT_LABEL_KEYS[efforts[index]])}
           value={[currentIndex]}
           min={0}
           max={Math.max(1, efforts.length - 1)}

@@ -323,7 +323,25 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ fastMode: true, thinkingOptions: { effort: 'max' } })
+      expect.objectContaining({ fastMode: true, thinkingOptions: { effort: 'xhigh' } })
+    )
+  })
+
+  it('maps ultra Work reasoning to the highest Claude Agent SDK effort', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({ id: 'opus', apiModelId: 'claude-opus-4-8' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'ultra',
+      fastMode: false
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ thinkingOptions: { effort: 'max' } })
     )
   })
 

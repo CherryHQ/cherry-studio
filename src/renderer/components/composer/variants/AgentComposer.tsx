@@ -856,6 +856,7 @@ const AgentComposerInner = ({
   )
   const [legacyReasoningEffort, setLegacyReasoningEffort] = useState<ThinkingOption>('default')
   const [fastMode, setFastMode] = useState(false)
+  const speedControlModelIdRef = useRef<string | undefined>(undefined)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
   )
@@ -1030,8 +1031,12 @@ const AgentComposerInner = ({
 
   useEffect(() => {
     if (!model) return
-    const efforts = getAgentReasoningEfforts(model)
-    if (!efforts.includes(agentReasoningEffort)) setAgentReasoningEffort(getDefaultAgentReasoningEffort(model))
+    if (speedControlModelIdRef.current !== model.id) {
+      speedControlModelIdRef.current = model.id
+      setAgentReasoningEffort(getDefaultAgentReasoningEffort(model))
+    } else if (!getAgentReasoningEfforts(model).includes(agentReasoningEffort)) {
+      setAgentReasoningEffort(getDefaultAgentReasoningEffort(model))
+    }
     if (!supportsAgentFastMode(model)) setFastMode(false)
   }, [agentReasoningEffort, model])
 
