@@ -38,7 +38,7 @@ import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './Dialo
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start')
+const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start data-[state=active]:!shadow-none')
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -401,6 +401,12 @@ export function EditDialogShell<TValues extends FieldValues>({
             id="resource-edit-dialog-form"
             onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+            {/* Header — title, matching the create wizard's top bar. */}
+            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-base">{title}</DialogTitle>
+              </div>
+            </div>
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
@@ -408,8 +414,6 @@ export function EditDialogShell<TValues extends FieldValues>({
               className="min-h-0 flex-1 gap-0 overflow-hidden">
               {/* White rail matching the settings-page nav: hairline divider, no sidebar tint. */}
               <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px]">
-                {/* px-5 lines the title up with the nav item text (TabsList p-2.5 + item px-2.5). */}
-                <DialogTitle className="px-5 pt-4 text-sm">{title}</DialogTitle>
                 <TabsList
                   asChild
                   className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-2.5">
@@ -477,9 +481,7 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* Reserved row so the absolute top-4 close button sits on its own line, clear of the scrolling content. */}
-                <div className="h-10 shrink-0" />
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pb-4">
+                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-5 pt-4 pb-4">
                   {children}
                 </Scrollbar>
 
