@@ -535,6 +535,7 @@ vi.mock('@cherrystudio/ui', () => {
         label,
         children
       ),
+    submenuItemClassName: '',
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
