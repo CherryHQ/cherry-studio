@@ -300,6 +300,21 @@ describe('AppShellTabBar', () => {
     expect(tabStrip).not.toHaveClass('pl-1')
   })
 
+  it('removes the macOS traffic light reserve while fullscreen', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar({ isFullscreen: true })
+
+    const header = screen.getByTestId('app-shell-tab-strip').closest('header')
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+
+    expect(header).toHaveClass('pl-0')
+    expect(tabStrip).not.toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+    expect(tabStrip).toHaveClass('pr-1')
+  })
+
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
     const fadeMask = 'linear-gradient(to right, black 80%, transparent 100%)'
 

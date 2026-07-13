@@ -2,11 +2,12 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -21,6 +22,7 @@ export const AppShell = () => {
     useTabs()
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const handleOpenGlobalSearch = useCallback(() => {
     void GlobalSearchPopup.show()
@@ -28,6 +30,30 @@ export const AppShell = () => {
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useMainWindowNavigation()
+
+  useEffect(() => {
+    if (!isMac) return
+
+    let cancelled = false
+    void ipcApi
+      .request('window.is_full_screen')
+      .then((value) => {
+        if (!cancelled) {
+          setIsFullscreen(value)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useIpcOn('window.fullscreen_changed', (value) => {
+    if (isMac) {
+      setIsFullscreen(value)
+    }
+  })
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
@@ -78,6 +104,7 @@ export const AppShell = () => {
     <AppShellTabBar
       tabs={tabs}
       activeTabId={activeTabId}
+      isFullscreen={isFullscreen}
       setActiveTab={setActiveTab}
       closeTab={closeTab}
       reorderTabs={reorderTabs}
@@ -135,17 +162,21 @@ export const AppShell = () => {
         'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      <div
-        aria-hidden="true"
-        data-testid="macos-traffic-light-drag-region"
-        className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
-      />
-      <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+      {!isFullscreen && (
         <div
           aria-hidden="true"
-          data-testid="macos-traffic-light-spacer"
-          className="h-11 shrink-0 [-webkit-app-region:drag]"
+          data-testid="macos-traffic-light-drag-region"
+          className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
+      )}
+      <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+        {!isFullscreen && (
+          <div
+            aria-hidden="true"
+            data-testid="macos-traffic-light-spacer"
+            className="h-11 shrink-0 [-webkit-app-region:drag]"
+          />
+        )}
         <Sidebar />
       </div>
       {contentColumn}

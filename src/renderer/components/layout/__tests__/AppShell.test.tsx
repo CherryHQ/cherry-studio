@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   commandHandlers: new Map<string, () => void>(),
+  ipcHandlers: new Map<string, (value: unknown) => void>(),
+  ipcRequest: vi.fn(() => Promise.resolve(false)),
   platformState: { isMac: false },
   tabBarProps: undefined as Record<string, unknown> | undefined,
   showSearchPopup: vi.fn()
@@ -27,8 +29,13 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/ipc/useIpcOn', () => ({
-  useIpcOn: vi.fn()
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: mocks.ipcRequest
+  },
+  useIpcOn: (event: string, handler: (value: unknown) => void) => {
+    mocks.ipcHandlers.set(event, handler)
+  }
 }))
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
@@ -90,6 +97,8 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.commandHandlers.clear()
+  mocks.ipcHandlers.clear()
+  mocks.ipcRequest.mockResolvedValue(false)
   mocks.platformState.isMac = false
   mocks.tabBarProps = undefined
 })
@@ -157,5 +166,59 @@ describe('AppShell', () => {
     expect(contentColumn).toContainElement(tabRouter)
     expect(Array.from(root.children)).toEqual([trafficLightDragRegion, leftColumn, contentColumn])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
+    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+  })
+
+  it('removes macOS traffic light placeholders when the window is fullscreen', async () => {
+    mocks.platformState.isMac = true
+    mocks.ipcRequest.mockResolvedValue(true)
+
+    const { container } = render(<AppShell />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('macos-traffic-light-spacer')).toBeNull()
+    })
+
+    const root = container.firstElementChild
+    const sidebar = screen.getByTestId('sidebar')
+    const tabBar = screen.getByTestId('tab-bar')
+    const contentColumn = tabBar.parentElement
+
+    if (!(root instanceof HTMLElement) || !(contentColumn instanceof HTMLElement)) {
+      throw new Error('Expected AppShell to render a root and content column')
+    }
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.is_full_screen')
+    expect(screen.queryByTestId('macos-traffic-light-drag-region')).toBeNull()
+    expect(sidebar.parentElement?.children).toHaveLength(1)
+    expect(contentColumn.parentElement).toBe(root)
+    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', true)
+  })
+
+  it('updates macOS traffic light placeholders from fullscreen events', async () => {
+    mocks.platformState.isMac = true
+
+    render(<AppShell />)
+
+    expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
+
+    act(() => {
+      mocks.ipcHandlers.get('window.fullscreen_changed')?.(true)
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('macos-traffic-light-spacer')).toBeNull()
+    })
+
+    expect(screen.queryByTestId('macos-traffic-light-drag-region')).toBeNull()
+    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', true)
+
+    act(() => {
+      mocks.ipcHandlers.get('window.fullscreen_changed')?.(false)
+    })
+
+    expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
+    expect(screen.getByTestId('macos-traffic-light-drag-region')).toBeInTheDocument()
+    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
   })
 })

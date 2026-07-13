@@ -19,6 +19,7 @@ import { useTabDrag } from './useTabDrag'
 type AppShellTabBarProps = {
   tabs: Tab[]
   activeTabId: string
+  isFullscreen?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   addTab?: (tab: Tab) => void
@@ -371,6 +372,7 @@ const TabRightClickMenu = ({
 export const AppShellTabBar = ({
   tabs,
   activeTabId,
+  isFullscreen = false,
   setActiveTab,
   closeTab,
   reorderTabs,
@@ -498,7 +500,7 @@ export const AppShellTabBar = ({
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          style={isMac ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
           className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
