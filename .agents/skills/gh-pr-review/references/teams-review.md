@@ -1,8 +1,8 @@
 # Teams Review
 
-You are the **coordinator**. Dispatch reviewer, verifier, and fixer agents
-using the Agent tool. Never modify files directly. Read code only for
-arbitration, diagnosis, and fix verification.
+You are the **coordinator**. Dispatch reviewer, verifier, and fixer agents with
+the runtime-provided subagent coordination tools. Never modify source files
+directly. Read code only for arbitration, diagnosis, and fix verification.
 
 Always process all auto-fixable issues before involving the user. Do NOT pause
 to ask the user anything until Confirm (Phase 5) or Report (Phase 6).
@@ -77,11 +77,16 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments
 ```
 Store as `PR_COMMENTS` for verification in the review step.
 
-### Build baseline
+Also inspect its CI checks with `gh pr checks`. Record failing, pending, and
+successful checks as review evidence. Do not run local lint, test, or format
+commands during review.
 
-Skip if doc-only. Run `pnpm lint && pnpm test` as build baseline. If no
-build/test commands can be determined, warn that fix validation will be skipped.
-Fail → abort.
+### CI baseline
+
+When an associated PR exists, use `gh pr checks` as the validation baseline and
+record failing or pending jobs. If no PR exists, state that CI validation is
+unavailable and continue with static review only. Never substitute a local
+`pnpm lint`, `pnpm test`, or `pnpm format` run.
 
 ### Module partition
 
@@ -94,12 +99,12 @@ Suggested module boundaries for this project:
 - `src/main/data/` — DataApi handlers, data services, migrations, schemas
 - `src/main/core/` — lifecycle, application, windows, paths, logger
 - `src/main/services/` — Main-process business services and side effects
-- `src/renderer/src/data/` — DataApi hooks, Cache, Preference, renderer stores
-- `src/renderer/src/` — React UI components, hooks, pages
+- `src/renderer/data/` — DataApi hooks, Cache, Preference, renderer stores
+- `src/renderer/` — React UI components, hooks, pages, features, windows
 - `packages/aiCore/` — AI SDK middleware & providers
-- `packages/shared/` — Cross-process types, DataApi schemas, constants
+- `src/shared/` — Cross-process primitives, DataApi/IpcApi schemas, types, pure utilities
 - `packages/ui/` — Shared UI primitives
-- `src/preload/` — IPC bridge
+- `src/shared/ipc/`, `src/main/ipc/`, `src/preload/`, `src/renderer/ipc/` — IpcApi contract and bridge
 - `docs/references/data/` — Data architecture documentation
 - `.agents/skills/` — Agent skills and review instructions
 
@@ -119,20 +124,21 @@ has:
 
 ### Agent setup
 
-Launch agents using the Agent tool:
+Launch agents with the coordination tools exposed by the current runtime:
 
-- One reviewer agent per module (use `subagent_type: "general-purpose"` or
-  `"feature-dev:code-reviewer"`).
-- One **verifier** agent (`subagent_type: "general-purpose"`), launched after
-  all reviewers complete.
+- One independent reviewer per module.
+- One fresh independent **verifier**, launched after all reviewers complete.
+
+Do not prescribe tool names, agent types, or parameters the runtime does not
+expose. Keep reviewer and verifier contexts separate; pass tasks through the
+runtime's spawn/delegate interface and collect their returned reports.
 
 **Module merging**: if the total diff is ≤1000 changed lines AND ≤20 files,
 merge all modules into a single reviewer. The overhead of multiple agents
 (startup, coordination, forwarding) outweighs the parallelism benefit at
 this scale.
 
-Launch all reviewer agents in parallel using multiple Agent tool calls in a
-single message.
+Launch reviewers concurrently when the runtime supports parallel subagents.
 
 ### Reviewer prompt
 
@@ -263,8 +269,9 @@ issues exist, or Phase 6 if none.
 Stance: **precise** — apply each fix completely and correctly, never expand
 scope. The coordinator MUST NOT apply fixes directly.
 
-**Agent assignment**: launch fixer agents using the Agent tool. Prefer reusing
-reviewer context by describing which files were already reviewed:
+**Agent assignment**: launch fixer agents with the runtime-provided coordination
+tools. Prefer reusing an existing reviewer only when the runtime preserves that
+agent's context; otherwise start a fixer with the minimum verified issue context:
 
 - Issue in a file that a reviewer already analyzed → include that context in the
   fixer prompt.
@@ -278,54 +285,58 @@ Each fixer receives (include verbatim in every fixer prompt):
 
 ```
 Fix rules:
-1. After fixing each issue, immediately: git commit --only <files> -m "message"
-2. Only modify files explicitly assigned by the coordinator. Never use git add .
+1. Do not stage or commit. The coordinator validates all edits before any commit.
+2. Only modify files explicitly assigned by the coordinator.
 3. If a fix requires changes to unassigned files, stop and report to the coordinator
    for re-assignment.
-4. Commit message: English, under 120 characters, ending with a period.
+4. Keep each issue's edits separable and report the exact changed files.
 5. When in doubt, skip the fix rather than risk a wrong change.
 6. Do not run build or tests.
 7. Do not modify public API function signatures or class definitions (comments are OK),
    unless the coordinator's issue description explicitly requires an API signature fix.
 8. After each fix, check whether the change affects related comments or documentation
    within your assigned files (function/class doc-comments, inline comments describing
-   the changed logic). If so, update them in the same commit as the fix.
+   the changed logic). If so, update them as part of the same fix.
    Cross-module documentation updates (README, spec files, other modules) are handled
    separately by the coordinator.
-9. When done, report the commit hash for each fix and list any skipped issues with
-   the reason for skipping.
+9. When done, report the changed files for each fix and list any skipped issues
+   with the reason for skipping.
 ```
 
-Each fixer commits per issue (one commit per fix — never combine multiple
-issues into a single commit).
+Fixers leave all edits uncommitted. The review workflow never stages or commits
+fixes: repository policy requires local validation before a commit, while code
+review is CI-only. Hand verified patches to a separate user-authorized
+publish/commit workflow; that workflow owns the required local checks,
+Conventional Commit with a specific kebab-case scope, and `--signoff`. Never
+stage pre-existing user changes.
 
 ### Verify fixes (coordinator)
 
-Wait for all fixers. Before running build + test, the coordinator reads each
-fixer's commit diff and verifies:
+Wait for all fixers. Before running validation, the coordinator reads the
+working-tree diff for every assigned file and verifies:
 1. The fix correctly addresses the original issue
 2. No new issues introduced (naming inconsistencies, missing updates in
    surrounding code, logic errors)
 3. Fix scope matches the issue — no unintended changes
 
 If a problem is found, launch a correction agent with specific details
-(max 1 retry). If the retry fails, revert and mark `failed`.
+(max 1 retry). If the retry fails, mark it `failed`; never discard pre-existing
+user changes while removing an unsuccessful fixer edit.
 
-### Build/test validate
+### Validate fixes
 
-Run `pnpm lint && pnpm test`.
+Re-read every fixer diff and repeat the relevant reviewer/verifier checks. Do
+not run local lint, test, format, or build commands. Existing CI validates the
+reviewed remote commit and does not cover unpushed fixes; state that limitation
+in the report. If a later user-authorized publish workflow pushes the fixes,
+inspect the resulting CI before claiming them fully validated.
 
-**Revert scope**: only revert commits produced by fixers in this phase. Never
-revert commits unrelated to the current fixes. Identify fixer commits by the
-commit hashes reported by fixers; any other commits on the branch are out of
-scope.
-
-- Skip if no build/test commands available or doc-only modules.
-- **Pass** → mark issues `fixed`.
-- **Fail** → bisect among fixer commits only to find the failing commit, revert
-  it, re-validate remaining before blaming others (one bad commit may cause
-  cascading failures). Per failing issue: retry via a new fixer agent with
-  failure details (max 2 retries), or revert and mark `failed`.
+- **Static verification passes** → mark issues `fixed`, with CI pending when
+  the fix is not yet published.
+- **Static verification fails** → retry via a correction agent with failure
+  details (max 2 retries). If still unresolved, mark the issue `failed` and ask
+  before removing its exact patch; never reset, checkout, or otherwise discard
+  unrelated or pre-existing changes.
 
 ### After validation
 
@@ -364,7 +375,8 @@ Issues above the threshold still require individual confirmation.
 Summary:
 - Issues found / fixed / skipped / failed
 - Rolled-back issues and reasons
-- Final test result
+- Associated PR CI status, or "unavailable" when there is no PR
+- Unpushed fixes: static verification only, CI pending
 - Issues from PR comments (when `PR_COMMENTS` existed)
 - Note: "To verify fix quality, run `/gh-pr-review` again."
 

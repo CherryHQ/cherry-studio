@@ -1,9 +1,9 @@
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { buildSidebarAppOpenMetadata, getSidebarApp } from '@renderer/utils/sidebar'
-import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
 
@@ -48,9 +48,9 @@ function openConversationWindowImpl(appId: SidebarAppId, key: string, title?: st
   const app = getSidebarApp(appId)
   if (!app?.instanceKey) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
-  // Mirrors TabsContext.detachTab's Tab_Detach payload, but with a fresh tab id and
+  // Mirrors TabsContext.detachTab's tab.detach payload, but with a fresh tab id and
   // without closing any current-window tab — this is "open elsewhere", not "move".
-  window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+  void ipcApi.request('tab.detach', {
     id: uuid(),
     url: app.instanceKey.urlForKey(key),
     title,

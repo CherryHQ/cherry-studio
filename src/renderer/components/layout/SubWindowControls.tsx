@@ -3,8 +3,8 @@ import { loggerService } from '@logger'
 import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Pin } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,14 +24,14 @@ export const SubWindowControls = () => {
 
   const handleTogglePin = async () => {
     const next = !pinned
-    const ok = await window.api.window.setAlwaysOnTop(next)
+    const ok = await ipcApi.request('window.sub.set_always_on_top', next)
     if (ok) setPinned(next)
   }
 
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
     if (!tab) return
-    window.electron.ipcRenderer.invoke(IpcChannel.Tab_Attach, tab).catch((err) => {
+    ipcApi.request('tab.attach', tab).catch((err) => {
       logger.error('Back to main window failed', err as Error)
     })
   }

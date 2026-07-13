@@ -19,7 +19,51 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// Both sweep entries consult hasPendingRestore before doing anything; default
+// to false so every pre-existing scenario runs unguarded.
+const hasPendingRestoreMock = vi.fn((): boolean => false)
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
 const { runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
+
+beforeEach(() => {
+  hasPendingRestoreMock.mockReturnValue(false)
+})
+
+describe('pending-restore guard', () => {
+  it('runDbSweep aborts with pending-restore before touching any service', () => {
+    hasPendingRestoreMock.mockReturnValue(true)
+    const fileEntryService = { findUnreferenced: vi.fn(), listAllIds: vi.fn() }
+    const fileRefService = { countByEntryIds: vi.fn(), pruneMissingTempSessionRefs: vi.fn() }
+
+    const report = runDbSweep({ fileEntryService, fileRefService })
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(report.orphanRefsTotal).toBe(0)
+    expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
+    expect(fileEntryService.findUnreferenced).not.toHaveBeenCalled()
+    expect(fileRefService.pruneMissingTempSessionRefs).not.toHaveBeenCalled()
+  })
+
+  it('runFileSweep aborts with pending-restore before touching DB snapshot or filesystem', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
+    const fileEntryService = { listAllIds: vi.fn() }
+
+    const report = await runFileSweep({ fileEntryService })
+
+    expect(report.outcome).toBe('aborted')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('pending-restore')
+    }
+    expect(report.actualDeleteCount).toBe(0)
+    expect(fileEntryService.listAllIds).not.toHaveBeenCalled()
+  })
+})
 
 describe('scanOrphanEntries (report-only)', () => {
   const dbh = setupTestDatabase()

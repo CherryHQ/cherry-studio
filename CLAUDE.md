@@ -91,7 +91,7 @@ Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.
 
 ### Code Review
 
-Do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — inspect CI via `gh` instead.
+When reviewing a GitHub PR, do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — its CI already ran them; inspect via `gh` instead.
 
 ### Issues
 
@@ -256,3 +256,7 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 ### Breaking Changes Log
 
 When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
+
+## Local Instructions
+
+If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.
