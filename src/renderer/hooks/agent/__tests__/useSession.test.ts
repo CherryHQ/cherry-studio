@@ -19,9 +19,14 @@ import {
 } from '../useSession'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const mockUseIpcOn = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  useIpcOn: mockUseIpcOn
 }))
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
@@ -644,32 +649,23 @@ describe('useAgentSessionAutoRenameSync', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
-    ;(window as unknown as { api?: unknown }).api = undefined
   })
 
   it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
-    const unsubscribe = vi.fn()
     let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
-    const onAutoRenamed = vi.fn((callback: (payload: { sessionId: string }) => void) => {
-      emitAutoRenamed = callback
-      return unsubscribe
+    mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
+      if (event === 'ai.agent_session_auto_renamed') emitAutoRenamed = handler
     })
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
-    ;(window as unknown as { api: { agentSession: { onAutoRenamed: typeof onAutoRenamed } } }).api = {
-      agentSession: { onAutoRenamed }
-    }
 
-    const { unmount } = renderHook(() => useAgentSessionAutoRenameSync())
+    renderHook(() => useAgentSessionAutoRenameSync())
 
-    expect(onAutoRenamed).toHaveBeenCalledOnce()
+    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent_session_auto_renamed', expect.any(Function))
     act(() => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
 
     expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
-
-    unmount()
-    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

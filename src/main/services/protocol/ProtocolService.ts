@@ -126,7 +126,7 @@ export class ProtocolService extends BaseService {
       // PR #14631 review #4282327822 (Important #5). When adding such a host,
       // either route it through a dedicated case or add a parameter allowlist /
       // sensitive-name strip to this default broadcast.
-      application.get('WindowManager').broadcast('protocol-data', {
+      application.get('IpcApiService').broadcast('navigation.protocol_data', {
         url,
         params: Object.fromEntries(params.entries())
       })

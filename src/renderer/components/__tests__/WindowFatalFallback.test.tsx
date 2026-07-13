@@ -9,16 +9,13 @@ import { WindowFatalFallback } from '../WindowFatalFallback'
 // (ThemeProvider, CommandProvider, ...), so all tests mount it with zero wrappers —
 // that absence is itself the contract under test.
 describe('WindowFatalFallback', () => {
-  const reloadMock = vi.fn()
-  const toggleDevToolsMock = vi.fn()
+  // Both buttons dispatch through the typed IpcApi bridge (window.api.ipcApi.request);
+  // stub the transport so the fallback's own (provider-free) render stays exercised.
+  const request = vi.fn()
 
   beforeEach(() => {
-    vi.stubGlobal('api', {
-      reload: reloadMock,
-      devTools: { toggle: toggleDevToolsMock }
-    })
-    reloadMock.mockClear()
-    toggleDevToolsMock.mockClear()
+    request.mockReset().mockResolvedValue({ ok: true, data: undefined })
+    vi.stubGlobal('api', { ipcApi: { request } })
   })
 
   it('renders the translated fatal message and the error details without any provider', () => {
@@ -35,7 +32,7 @@ describe('WindowFatalFallback', () => {
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
 
-    expect(reloadMock).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
   })
 
   it('opens devtools when the devtools button is clicked', async () => {
@@ -44,7 +41,7 @@ describe('WindowFatalFallback', () => {
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.devtools') }))
 
-    expect(toggleDevToolsMock).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith('system.toggle_dev_tools', undefined)
   })
 
   it('removes the boot spinner overlay so the fallback stays clickable', () => {
