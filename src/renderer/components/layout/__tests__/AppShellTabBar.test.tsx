@@ -282,7 +282,7 @@ describe('AppShellTabBar', () => {
     expect(tabStrip).not.toHaveClass('pl-1')
   })
 
-  it('keeps the platform titlebar inset on macOS without caller configuration', () => {
+  it('keeps the macOS tab bar flush while tab buttons avoid traffic lights when the sidebar narrows', () => {
     mocks.platformState.isMac = true
 
     renderTabBar()
@@ -290,8 +290,14 @@ describe('AppShellTabBar', () => {
     const header = screen.getByTestId('app-shell-tab-strip').closest('header')
     const tabStrip = screen.getByTestId('app-shell-tab-strip')
 
-    expect(header).toHaveClass('pl-[env(titlebar-area-x)]')
-    expect(tabStrip).toHaveClass('pr-1', 'pl-1')
+    expect(header).toHaveClass('pl-0')
+    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
+    expect(screen.queryByTestId('macos-tab-strip-traffic-light-spacer')).toBeNull()
+    expect(tabStrip).toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+    expect(tabStrip).toHaveClass('pr-1')
+    expect(tabStrip).not.toHaveClass('pl-1')
   })
 
   it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {

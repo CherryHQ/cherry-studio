@@ -124,7 +124,7 @@ describe('AppShell', () => {
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })
 
-  it('keeps the macOS tab bar full width above the sidebar and content row', () => {
+  it('keeps the macOS traffic lights in the left column beside the tab/content column', () => {
     mocks.platformState.isMac = true
 
     const { container } = render(<AppShell />)
@@ -133,17 +133,29 @@ describe('AppShell', () => {
     const sidebar = screen.getByTestId('sidebar')
     const tabBar = screen.getByTestId('tab-bar')
     const tabRouter = screen.getByTestId('tab-router')
-    const mainRow = sidebar.parentElement
+    const trafficLightSpacer = screen.getByTestId('macos-traffic-light-spacer')
+    const trafficLightDragRegion = screen.getByTestId('macos-traffic-light-drag-region')
+    const leftColumn = sidebar.parentElement
+    const contentColumn = tabBar.parentElement
 
-    if (!(root instanceof HTMLElement) || !(mainRow instanceof HTMLElement)) {
-      throw new Error('Expected AppShell to render a root and macOS main row')
+    if (
+      !(root instanceof HTMLElement) ||
+      !(leftColumn instanceof HTMLElement) ||
+      !(contentColumn instanceof HTMLElement)
+    ) {
+      throw new Error('Expected AppShell to render macOS left and content columns')
     }
 
-    expect(tabBar.parentElement).toBe(root)
-    expect(mainRow.parentElement).toBe(root)
-    expect(mainRow).toContainElement(sidebar)
-    expect(mainRow).toContainElement(tabRouter)
-    expect(Array.from(root.children)).toEqual([tabBar, mainRow])
+    expect(trafficLightDragRegion.parentElement).toBe(root)
+    expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
+    expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')
+    expect(leftColumn.parentElement).toBe(root)
+    expect(leftColumn).not.toHaveClass('min-w-[88px]')
+    expect(contentColumn.parentElement).toBe(root)
+    expect(Array.from(leftColumn.children)).toEqual([trafficLightSpacer, sidebar])
+    expect(contentColumn).toContainElement(tabBar)
+    expect(contentColumn).toContainElement(tabRouter)
+    expect(Array.from(root.children)).toEqual([trafficLightDragRegion, leftColumn, contentColumn])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })
 })

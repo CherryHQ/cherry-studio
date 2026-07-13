@@ -90,7 +90,7 @@ export const AppShell = () => {
 
   const contentArea = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+      <main className="relative min-h-0 flex-1 overflow-hidden rounded-xl border-[0.5px] border-border bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
         {tabs
           .filter((t) => t.type === 'route' && !t.isDormant)
@@ -109,6 +109,13 @@ export const AppShell = () => {
     </div>
   )
 
+  const contentColumn = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {tabBar}
+      {contentArea}
+    </div>
+  )
+
   if (!isMac) {
     return (
       <div
@@ -117,10 +124,7 @@ export const AppShell = () => {
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
         <Sidebar />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {tabBar}
-          {contentArea}
-        </div>
+        {contentColumn}
       </div>
     )
   }
@@ -128,20 +132,23 @@ export const AppShell = () => {
   return (
     <div
       className={cn(
-        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Zone 1: Tab Bar (spans full width) */}
-      {tabBar}
-
-      {/* Zone 2: Main Area (Sidebar + Content) */}
-      <div className="flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden">
-        {/* Zone 2a: Sidebar */}
+      <div
+        aria-hidden="true"
+        data-testid="macos-traffic-light-drag-region"
+        className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
+      />
+      <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+        <div
+          aria-hidden="true"
+          data-testid="macos-traffic-light-spacer"
+          className="h-11 shrink-0 [-webkit-app-region:drag]"
+        />
         <Sidebar />
-
-        {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        {contentArea}
       </div>
+      {contentColumn}
     </div>
   )
 }
