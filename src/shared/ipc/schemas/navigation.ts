@@ -37,4 +37,9 @@ export type NavigationEventSchemas = {
   // it (settings singleton tab vs regular openTab). Fact-style name on purpose —
   // events report what happened; requests give orders.
   'navigation.open_route_requested': { to: string }
+  // Broadcast fall-through for a deep link whose host matched no dedicated handler
+  // (e.g. the PPIO OAuth callback, which has an empty host). Carries the raw url + query
+  // params; each consumer filters for what it expects. Broadcast, unlike the directed
+  // open_route_requested above.
+  'navigation.protocol_data': { url: string; params: Record<string, string> }
 }

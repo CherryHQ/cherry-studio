@@ -1,5 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import { useEffect } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
@@ -29,10 +30,10 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => void window.api.devTools.toggle()}>
+        <Button size="sm" onClick={() => void ipcApi.request('system.toggle_dev_tools')}>
           {i18n.t('error.boundary.default.devtools')}
         </Button>
-        <Button size="sm" onClick={() => void window.api.reload()}>
+        <Button size="sm" onClick={() => void ipcApi.request('window.main.reload')}>
           {i18n.t('error.boundary.default.reload')}
         </Button>
       </div>

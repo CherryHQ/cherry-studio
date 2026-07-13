@@ -8,6 +8,7 @@ import {
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
@@ -98,7 +99,10 @@ export function createTopicActionContext({
     },
     onExportWord: async (topic) => {
       const markdown = await topicToMarkdown(topic)
-      void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+      void ipcApi.request('export.word.from_markdown', {
+        markdown,
+        fileName: removeSpecialCharactersForFileName(topic.name)
+      })
     },
     onExportYuque: async (topic) => {
       const markdown = await topicToMarkdown(topic)

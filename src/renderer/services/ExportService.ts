@@ -8,6 +8,7 @@ import { Client } from '@notionhq/client'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
@@ -1186,7 +1187,10 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':
-        void window.api.export.toWord(`# ${node.name}\n\n${content}`, removeSpecialCharactersForFileName(node.name))
+        void ipcApi.request('export.word.from_markdown', {
+          markdown: `# ${node.name}\n\n${content}`,
+          fileName: removeSpecialCharactersForFileName(node.name)
+        })
         return
       case 'notion':
         await exportMessageToNotion(node.name, content)

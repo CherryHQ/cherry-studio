@@ -92,6 +92,11 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   }
 })
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn() },
+  useIpcOn: vi.fn()
+}))
+
 import { useTabsContext } from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'

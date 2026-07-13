@@ -66,7 +66,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveIcon: () => undefined
+  resolveIconRef: () => undefined,
+  useIcon: () => undefined
 }))
 
 vi.mock('@renderer/components/Navbar', () => ({

@@ -187,4 +187,8 @@ export type AiEventSchemas = {
   'ai.stream_chunk': StreamChunkPayload
   'ai.stream_done': StreamDonePayload
   'ai.stream_error': StreamErrorPayload
+  // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
+  // window showing it should invalidate its cache.
+  'ai.topic_auto_renamed': { topicId: string }
+  'ai.agent_session_auto_renamed': { sessionId: string }
 }
