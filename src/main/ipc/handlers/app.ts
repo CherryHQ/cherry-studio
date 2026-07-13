@@ -48,11 +48,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
     assertUserDataRelocationRequest(pending)
 
-    // Runtime BootConfig writes normally go through PreferenceService so all
-    // windows receive the standard change notification. Relocation additionally
-    // flushes the underlying BootConfig file because the request must be durable
-    // before the renderer asks Electron to relaunch.
-    await application.get('PreferenceService').set('BootConfig.temp.user_data_relocation', pending)
+    // Temporary BootConfig values bypass PreferenceService. Flush immediately
+    // because the request must be durable before Electron relaunches.
+    bootConfigService.set('temp.user_data_relocation', pending)
     bootConfigService.flush()
     logger.info('userData relocation requested; relaunch required', pending)
   },
