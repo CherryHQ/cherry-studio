@@ -5,7 +5,13 @@ const DolphinAiDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="15.25 29.59 89.51 59.22"
+      {...props}>
       <g clipPath={`url(#${iconId}-dolphinaidark__a)`}>
         <path
           fill="#fff"

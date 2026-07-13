@@ -34,7 +34,7 @@ const CutoffSettings = () => {
           }}
         />
       </SettingRowTitle>
-      <div className="flex w-56 shrink-0">
+      <div className="flex min-w-0 max-w-56 flex-1">
         <Input
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}

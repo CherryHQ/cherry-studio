@@ -82,18 +82,18 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        'group relative flex select-none items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm',
         'transition-colors',
         isFolder
           ? 'text-foreground/75 hover:bg-accent/50 hover:text-foreground'
-          : 'text-muted-foreground/70 hover:bg-accent/40 hover:text-foreground',
+          : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/60 text-foreground',
         isDragging && 'opacity-50',
-        dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
+        dragPosition === 'inside' && 'bg-control-accent/15 ring-1 ring-control-accent/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-control-accent before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-control-accent after:content-['']"
       )}>
       {isFolder ? (
         <Button

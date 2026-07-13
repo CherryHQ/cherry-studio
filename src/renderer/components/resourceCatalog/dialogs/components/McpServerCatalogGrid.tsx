@@ -99,7 +99,7 @@ export function McpServerCatalogGrid({
               title={settingsLabel}
               onClick={handleOpenMcpSettings}
               className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40">
-              <Settings size={12} strokeWidth={1.7} />
+              <Settings size={12} />
             </Button>
           </Tooltip>
         </div>

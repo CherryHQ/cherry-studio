@@ -4,7 +4,7 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  HelpTooltip,
+  InfoTooltip,
   Input,
   InputGroup,
   InputGroupAddon,
@@ -143,7 +143,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
             title={
               <span className="flex items-center gap-1">
                 <span>{t('translate.detect.method.label')}</span>
-                <HelpTooltip
+                <InfoTooltip
                   content={t('translate.detect.method.tip')}
                   iconProps={{ className: 'text-foreground-muted' }}
                 />
@@ -173,7 +173,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
             title={
               <span className="flex items-center gap-1">
                 <span>{t('translate.settings.bidirectional')}</span>
-                <HelpTooltip
+                <InfoTooltip
                   content={t('translate.settings.bidirectional_tip')}
                   iconProps={{ className: 'text-foreground-muted' }}
                 />
@@ -310,7 +310,7 @@ const TranslatePromptField: FC = () => {
       <textarea
         value={local}
         onChange={(e) => schedulePersist(e.target.value)}
-        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-foreground-secondary text-sm leading-relaxed outline-none transition-colors focus:border-border-hover"
+        className="min-h-30 w-full resize-y overflow-auto rounded-md border border-border-subtle bg-muted/40 p-3 text-foreground-secondary text-sm leading-relaxed outline-none transition-colors focus:border-border-hover"
       />
     </PageSidePanelSection>
   )

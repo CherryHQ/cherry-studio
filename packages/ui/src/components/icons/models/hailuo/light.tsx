@@ -10,7 +10,7 @@ const HailuoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="1.034 1.022 29.538 29.556"
+      viewBox="1.87 1.86 28.32 28.34"
       {...props}>
       <path
         fill={`url(#${iconId}-hailuolight__a)`}

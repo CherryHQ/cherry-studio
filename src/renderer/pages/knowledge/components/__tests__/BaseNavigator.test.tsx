@@ -1156,7 +1156,7 @@ describe('BaseNavigator', () => {
     await waitFor(() => expect(onCreateBase).toHaveBeenCalledWith('group-1'))
   })
 
-  it('renders no group header or menu trigger in the flat ungrouped layout', () => {
+  it('renders no group header in the flat ungrouped layout', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
@@ -1177,9 +1177,9 @@ describe('BaseNavigator', () => {
 
     expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
     expect(screen.queryByText('默认')).not.toBeInTheDocument()
-    // Base rows expose their actions only through the right-click context menu —
-    // so no "更多" button is rendered.
-    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+    // The flat layout has no group header or group menu trigger; the single
+    // "更多" button belongs to the base row's hover action trigger.
+    expect(screen.getAllByRole('button', { name: '更多' })).toHaveLength(1)
   })
 
   it('filters visible sections and rows when the search value changes', () => {

@@ -46,7 +46,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning-text">
-              <Zap size={22} strokeWidth={1.5} />
+              <Zap size={22} />
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>

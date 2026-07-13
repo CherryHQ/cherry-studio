@@ -98,6 +98,19 @@ const Selector = <V extends string | number>({
     return value !== undefined ? [value as V] : []
   }, [value, multiple])
 
+  // Plain-text copies of every leaf option label; rendered invisibly inside the
+  // trigger so it is always at least as wide as the longest option, which lets the
+  // dropdown (min-w = trigger width) match the trigger width exactly.
+  const optionTextLabels = useMemo(() => {
+    const collect = (opts: SelectorOption<V>[]): string[] =>
+      opts.flatMap((opt) => {
+        const nested = opt.options ? collect(opt.options) : []
+        const isGroup = opt.type === 'group' || Boolean(opt.options?.length)
+        return isGroup ? nested : [getNodeText(opt.label), ...nested]
+      })
+    return [...new Set(collect(options).filter(Boolean))]
+  }, [options])
+
   const label = useMemo(() => {
     if (selectedValues.length > 0) {
       const findLabels = (opts: SelectorOption<V>[]): (string | ReactNode)[] => {
@@ -172,7 +185,7 @@ const Selector = <V extends string | number>({
           aria-selected={isSelected}
           disabled={disabled || option.disabled}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
+            'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
             'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
             'disabled:pointer-events-none disabled:opacity-50',
             level > 0 && 'pl-4'
@@ -191,7 +204,7 @@ const Selector = <V extends string | number>({
     <Popover open={open && !disabled} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant="secondary"
+          variant="ghost"
           size="sm"
           role="combobox"
           aria-label={accessibleLabel || undefined}
@@ -199,21 +212,33 @@ const Selector = <V extends string | number>({
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'min-w-0 text-left leading-none',
-            open && !disabled && 'bg-secondary-active',
+            'min-w-0 justify-between rounded-lg bg-muted/50 text-left leading-none hover:bg-muted',
+            open && !disabled && 'bg-muted',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
           )}
           onKeyDown={handleTriggerKeyDown}
           style={{ fontSize: size, ...style }}>
-          <span className="min-w-0 truncate">{label}</span>
-          <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="grid min-w-0 text-left">
+            <span className="col-start-1 row-start-1 min-w-0 truncate">{label}</span>
+            {optionTextLabels.map((text) => (
+              // pr-4 compensates for the dropdown's wider per-row chrome (check column,
+              // row padding) so the trigger never ends up narrower than the dropdown needs.
+              <span
+                key={text}
+                aria-hidden="true"
+                className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden whitespace-nowrap pr-4 text-sm">
+                {text}
+              </span>
+            ))}
+          </span>
+          <ChevronDown aria-hidden="true" className="lucide-custom size-3.5 shrink-0 text-muted-foreground/40" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align={popoverPlacement.align}
         side={popoverPlacement.side}
-        className="max-h-80 w-auto min-w-(--radix-popover-trigger-width) overflow-y-auto p-1">
+        className="max-h-80 w-(--radix-popover-trigger-width) overflow-y-auto p-1">
         <div role="listbox" aria-multiselectable={multiple || undefined}>
           {renderOptions(options)}
         </div>

@@ -209,7 +209,7 @@ const CommandListPopover = ({
   return (
     <div ref={listRef} style={style} className="command-list-popover">
       {items.length === 0 ? (
-        <div style={{ padding: '12px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
+        <div style={{ padding: '12px', color: 'var(--color-foreground-muted)', textAlign: 'center', fontSize: '14px' }}>
           {t('richEditor.commands.noCommandsFound')}
         </div>
       ) : (

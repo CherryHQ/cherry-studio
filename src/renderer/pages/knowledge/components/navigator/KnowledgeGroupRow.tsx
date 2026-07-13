@@ -80,7 +80,7 @@ const KnowledgeGroupRow = ({ group, onRenameGroup, onCreateBase, onDeleteGroup }
                   size="icon-sm"
                   aria-label={t('common.more')}
                   className={cn(
-                    'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
+                    'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground/80 hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5 [&_svg]:[stroke-width:var(--icon-stroke)]',
                     moreMenuOpen ? 'opacity-100' : 'opacity-0'
                   )}>
                   <MoreHorizontal />

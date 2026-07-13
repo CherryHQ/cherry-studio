@@ -307,7 +307,7 @@ const FileToolbar = memo(function FileToolbar({
                 disabled={selectionControlsDisabled}
                 className="h-full w-8 rounded-none p-0 text-muted-foreground hover:text-foreground"
                 aria-label={t('files.actions')}>
-                <MoreHorizontal size={15} strokeWidth={1.8} />
+                <MoreHorizontal size={15} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-36">

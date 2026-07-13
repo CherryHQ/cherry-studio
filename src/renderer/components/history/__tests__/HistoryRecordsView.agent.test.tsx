@@ -861,7 +861,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(menuContent ?? null).toBeInTheDocument()
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Edit task name',
+      'Rename',
       'Pin task',
       '',
       'Delete'
@@ -876,10 +876,7 @@ describe('HistoryRecordsView agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Edit task name',
-      'Unpin task'
-    ])
+    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual(['Rename', 'Unpin task'])
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
@@ -888,7 +885,7 @@ describe('HistoryRecordsView agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit task name' }))
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
       await flushAnimationFrame()
     })
 

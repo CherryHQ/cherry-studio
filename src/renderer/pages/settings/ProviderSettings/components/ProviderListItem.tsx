@@ -77,13 +77,7 @@ export default function ProviderListItem({
         </div>
       </div>
       {hasTrailingSlot && (
-        <div
-          className={cn(
-            providerListClasses.itemTrailingSlot,
-            provider.isEnabled
-              ? providerListClasses.itemTrailingSlotIndicatorOnly
-              : providerListClasses.itemTrailingSlotAction
-          )}>
+        <div className={providerListClasses.itemTrailingSlot}>
           {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
           {menuButton && (renderMenuButton ? renderMenuButton(menuButton) : menuButton)}
         </div>

@@ -5,7 +5,13 @@ const MacosDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="23.55 30.32 72.1 63.73"
+      {...props}>
       <g clipPath={`url(#${iconId}-macosdark__a)`}>
         <g clipPath={`url(#${iconId}-macosdark__b)`}>
           <mask

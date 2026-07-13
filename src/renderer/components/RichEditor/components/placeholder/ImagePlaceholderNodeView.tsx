@@ -36,7 +36,7 @@ const ImagePlaceholderNodeView: React.FC<ImagePlaceholderNodeViewProps> = ({ del
   return (
     <NodeViewWrapper className="image-placeholder-wrapper">
       <PlaceholderBlock
-        icon={<ImageIcon size={20} style={{ color: '#656d76' }} />}
+        icon={<ImageIcon size={20} style={{ color: 'var(--color-foreground-secondary)' }} />}
         message={t('richEditor.image.placeholder')}
         onClick={handleClick}
       />

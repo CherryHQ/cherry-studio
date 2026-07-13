@@ -1,6 +1,14 @@
-import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Combobox,
+  InfoTooltip,
+  PageSidePanelItem,
+  PageSidePanelSection,
+  Slider,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
@@ -12,8 +20,8 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 /**
  * "Preferences" group of the display-settings drawer: region filter, open-link
- * external switch, and the max keep-alive slider. Every item follows the same
- * title + description + control structure.
+ * external switch, and the max keep-alive slider. Every item pairs a title +
+ * info tooltip with its control.
  */
 const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
@@ -57,34 +65,47 @@ const MiniAppDisplaySettings: FC = () => {
       {/* Roomier gap between items so each title + description block reads as its own unit. */}
       <div className="flex flex-col gap-5">
         <PageSidePanelItem
-          title={t('settings.miniApps.region.title')}
-          description={t('settings.miniApps.region.description')}
+          title={
+            <span className="inline-flex items-center gap-1">
+              {t('settings.miniApps.region.title')}
+              <InfoTooltip content={t('settings.miniApps.region.description')} />
+            </span>
+          }
           action={
-            <Selector
-              size={14}
+            <Combobox
+              searchable={false}
               value={region}
-              onChange={(v: MiniAppRegionFilter) => setRegion(v)}
+              onChange={(value) => setRegion(value as MiniAppRegionFilter)}
               options={regionOptions}
+              width={140}
             />
           }
         />
 
         <PageSidePanelItem
-          title={t('settings.miniApps.open_link_external.title')}
-          description={t('settings.miniApps.open_link_external.description')}
+          title={
+            <span className="inline-flex items-center gap-1">
+              {t('settings.miniApps.open_link_external.title')}
+              <InfoTooltip content={t('settings.miniApps.open_link_external.description')} />
+            </span>
+          }
           action={<Switch checked={openLinkExternal} onCheckedChange={(v) => setOpenLinkExternal(v)} />}
         />
 
         <PageSidePanelItem
-          title={t('settings.miniApps.cache_title')}
-          description={t('settings.miniApps.cache_description')}
+          title={
+            <span className="inline-flex items-center gap-1">
+              {t('settings.miniApps.cache_title')}
+              <InfoTooltip content={t('settings.miniApps.cache_description')} />
+            </span>
+          }
           action={
             <Tooltip content={t('settings.miniApps.reset_tooltip')}>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleResetCacheLimit}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                className="shrink-0 text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]"
                 aria-label={t('settings.miniApps.reset_tooltip')}>
                 <Undo2 />
               </Button>

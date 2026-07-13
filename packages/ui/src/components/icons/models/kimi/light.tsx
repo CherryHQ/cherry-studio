@@ -5,7 +5,13 @@ const KimiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 32 32" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="3.52 3.52 24.7 24.7"
+      {...props}>
       <path fill="#fff" d="M0 0H32V32H0z" />
       <g fillRule="evenodd" clipPath={`url(#${iconId}-kimilight__a)`} clipRule="evenodd">
         <path

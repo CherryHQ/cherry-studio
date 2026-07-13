@@ -6,8 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
 
-const settingsNavigateMock = vi.fn()
-
 type ReactTestRuntime = {
   Children: {
     map: <T>(children: ReactNode, fn: (child: ReactNode, index: number) => T) => T[] | null
@@ -99,21 +97,16 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     value,
     onSelect,
-    onSettingsNavigate,
     trigger
   }: {
     value?: UniqueModelId
     onSelect: (modelId: UniqueModelId | undefined) => void
-    onSettingsNavigate?: (navigate: () => void) => void
     trigger: ReactNode
   }) => (
     <div data-testid="role-model-selector" data-value={value ?? ''}>
       {trigger}
       <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1' as UniqueModelId)}>
         select role model
-      </button>
-      <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
-        open role model settings
       </button>
     </div>
   )
@@ -132,7 +125,6 @@ function renderFields(
     config?: Record<string, unknown>
     onChange?: (next: Record<string, unknown>) => void
     section?: 'all' | 'basic' | 'advanced'
-    onSettingsNavigate?: (navigate: () => void) => void
   } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
@@ -143,7 +135,6 @@ function renderFields(
       section={options.section ?? 'advanced'}
       providerId="anthropic"
       modelFilter={() => true}
-      onSettingsNavigate={options.onSettingsNavigate}
     />
   )
 
@@ -252,18 +243,6 @@ describe('ClaudeConfigFields', () => {
       'settings.models.empty',
       'settings.models.empty'
     ])
-  })
-
-  it('forwards settings navigation through every detailed role selector', () => {
-    const onSettingsNavigate = vi.fn()
-    renderFields({ onSettingsNavigate })
-
-    const settingsButtons = screen.getAllByRole('button', { name: 'open role model settings' })
-    expect(settingsButtons).toHaveLength(4)
-
-    fireEvent.click(settingsButtons[0])
-
-    expect(onSettingsNavigate).toHaveBeenCalledWith(settingsNavigateMock)
   })
 
   it('hides 1M controls until a role has its own selected model', () => {

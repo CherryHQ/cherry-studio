@@ -321,7 +321,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToPrevious}
         disabled={disableNavigation}
         aria-label={t('common.previous_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-foreground/80 shadow-none hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]">
         <ChevronUp size={16} />
       </Button>
       <Button
@@ -331,7 +331,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToNext}
         disabled={disableNavigation}
         aria-label={t('common.next_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-foreground/80 shadow-none hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]">
         <ChevronDown size={16} />
       </Button>
       <div className="h-4 w-px bg-border" />
@@ -341,7 +341,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         size="icon-sm"
         onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-foreground/80 shadow-none hover:text-foreground [&_svg]:[stroke-width:var(--icon-stroke)]">
         <X size={16} />
       </Button>
     </div>

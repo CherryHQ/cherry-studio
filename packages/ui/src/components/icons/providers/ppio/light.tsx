@@ -5,7 +5,13 @@ const PpioLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="16.91 16.91 85.79 86.19"
+      {...props}>
       <g clipPath={`url(#${iconId}-ppiolight__a)`}>
         <mask
           id={`${iconId}-ppiolight__b`}

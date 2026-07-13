@@ -10,7 +10,8 @@ export function CherryinAvatar({ size = 32, shape = 'circle', className }: Omit<
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <CherryinLight style={{ width: size * 0.7, height: size * 0.7 }} />
+        {/* The logo is a squircle plate; full-size it gets corner-clipped by the circular avatar. */}
+        <CherryinLight style={{ width: size * 0.75, height: size * 0.75 }} />
       </AvatarFallback>
     </Avatar>
   )

@@ -5,7 +5,13 @@ const ImaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="15.15 15.15 89.7 89.7"
+      {...props}>
       <g clipPath={`url(#${iconId}-imalight__a)`}>
         <mask
           id={`${iconId}-imalight__b`}

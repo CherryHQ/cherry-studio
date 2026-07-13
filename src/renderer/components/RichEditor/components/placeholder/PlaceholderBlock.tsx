@@ -54,7 +54,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
         target.style.backgroundColor = colors.background
       }}>
       {icon}
-      <span style={{ color: '#656d76', fontSize: 14 }}>{message}</span>
+      <span style={{ color: 'var(--color-foreground-secondary)', fontSize: 14 }}>{message}</span>
     </div>
   )
 }

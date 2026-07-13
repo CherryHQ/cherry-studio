@@ -27,7 +27,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="z-1001 bg-black/50 backdrop-blur-[8px]"
-        className="z-1001 flex h-[80vh] max-h-[80vh] w-[60vw] max-w-[60vw] flex-col gap-0 overflow-hidden rounded-4xl border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[60vw]">
+        className="z-1001 flex h-[70vh] max-h-[600px] w-[640px] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[640px]">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>

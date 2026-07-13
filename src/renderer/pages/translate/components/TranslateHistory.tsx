@@ -284,7 +284,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-lg p-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
       <IconButton
         size="sm"
         tone="star"
@@ -302,11 +302,11 @@ const HistoryRow: FC<{
         <Star size={10} className={cn(item.star && 'fill-amber-500')} />
       </IconButton>
       <div className="flex items-center gap-1.5 pr-5">
-        <span className="rounded bg-muted px-1 py-px text-muted-foreground text-sm">
+        <span className="rounded bg-muted/50 px-1 py-px text-muted-foreground text-xs">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
         <ArrowRight size={8} className="text-foreground-muted" />
-        <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
+        <span className="rounded bg-control-accent/5 px-1 py-px text-control-accent text-xs">
           {item._targetEmoji} {item._targetLabel}
         </span>
         <span className="ml-auto text-foreground-muted text-sm">{item._createdAtLabel}</span>
@@ -360,7 +360,7 @@ const HistoryDetail: FC<{
             {item._sourceEmoji} {item._sourceLabel}
           </span>
           <ArrowRight size={10} className="text-foreground-muted" />
-          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-sm">
+          <span className="rounded-sm bg-control-accent/10 px-1.5 py-0.5 text-control-accent text-sm">
             {item._targetEmoji} {item._targetLabel}
           </span>
           <span className="flex-1" />

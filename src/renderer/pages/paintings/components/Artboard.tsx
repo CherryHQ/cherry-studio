@@ -56,7 +56,7 @@ const InlineLoadingState: FC<{ text: ReactNode; onCancel: () => void; cancelLabe
         className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
         role="progressbar"
         aria-label={progressLabel}>
-        <span className="animation-migration-backup-progress-indeterminate absolute inset-y-0 left-0 w-1/3 min-w-20 rounded-full bg-linear-to-r from-primary/0 via-primary to-primary/0" />
+        <span className="animation-migration-backup-progress-indeterminate absolute inset-y-0 left-0 w-1/3 min-w-20 rounded-full bg-linear-to-r from-control-accent/0 via-control-accent to-control-accent/0" />
       </div>
       <Button type="button" variant="outline" size="sm" onClick={onCancel} className="min-w-20">
         {cancelLabel}
@@ -190,8 +190,10 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
           <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
             <ImageViewer
               alt=""
-              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
-                isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${isLoading ? 'blur-md' : ''} ${
+                isDraggingImage
+                  ? 'cursor-grabbing transition-none'
+                  : 'cursor-grab transition-[transform,filter] duration-150'
               }`}
               draggable={false}
               onPointerCancel={stopImageDrag}
@@ -212,10 +214,10 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               {painting.files.length > 1 && (
                 <>
                   <ArtboardToolButton label={t('preview.previous')} onClick={onPrevImage}>
-                    <ImageUp className="size-[18px]" />
+                    <ImageUp className="size-[18px] text-foreground" />
                   </ArtboardToolButton>
                   <ArtboardToolButton label={t('preview.next')} onClick={onNextImage}>
-                    <ImageDown className="size-[18px]" />
+                    <ImageDown className="size-[18px] text-foreground" />
                   </ArtboardToolButton>
                   <span className="my-0.5 h-px w-4 bg-border-subtle" aria-hidden />
                 </>
@@ -224,22 +226,22 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 label={t('preview.zoom_out')}
                 disabled={imageScale <= MIN_IMAGE_SCALE}
                 onClick={zoomOut}>
-                <ZoomOut className="size-4" />
+                <ZoomOut className="size-4 text-foreground" />
               </ArtboardToolButton>
               <ArtboardToolButton
                 label={t('preview.zoom_in')}
                 disabled={imageScale >= MAX_IMAGE_SCALE}
                 onClick={zoomIn}>
-                <ZoomIn className="size-4" />
+                <ZoomIn className="size-4 text-foreground" />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.rotate_left')} onClick={rotateImageLeft}>
-                <RotateCcwSquare className="size-4" />
+                <RotateCcwSquare className="size-4 text-foreground" />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImageRight}>
-                <RotateCwSquare className="size-4" />
+                <RotateCwSquare className="size-4 text-foreground" />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
-                <RefreshCcw className="size-4" />
+                <RefreshCcw className="size-4 text-foreground" />
               </ArtboardToolButton>
             </div>
             <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">

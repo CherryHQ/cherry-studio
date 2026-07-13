@@ -5,7 +5,13 @@ const CozeDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="16.08 16.48 87.03 87.43"
+      {...props}>
       <g clipPath={`url(#${iconId}-cozedark__a)`}>
         <path fill="#fff" d="M27 27H93V93H27z" />
         <path

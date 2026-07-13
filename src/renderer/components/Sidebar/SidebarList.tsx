@@ -1,8 +1,9 @@
 import { MenuItem } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 
-import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
@@ -57,7 +58,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       items={entries}
       itemKey="key"
       onReorder={onReorder}
-      className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
+      className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
         const isActive = entry.isActive(active)
 
@@ -68,13 +69,10 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 type="button"
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-sidebar-active-bg text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 [&_svg]:text-current ${
+                  isActive ? 'bg-accent text-foreground' : 'text-foreground/80 hover:bg-accent/60 hover:text-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
-                {entry.renderIcon(18, 'lg')}
+                {entry.renderIcon(16, 'lg')}
               </button>
             </EntryContextMenu>
           </SidebarTooltip>
@@ -85,6 +83,8 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
 }
 
 function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
+  const isMacTransparentWindow = useMacTransparentWindow()
+
   return (
     <SidebarSortableList
       items={entries}
@@ -103,10 +103,23 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+                className={cn(
+                  'gap-2.5 py-1 text-foreground/80 hover:text-foreground data-[active=true]:text-foreground [&_svg]:text-current',
+                  // On glass, the opaque --cs-selected fill washes out and the default hover:bg-accent
+                  // diverges from the tab bar. Mirror AppShellTabBar's transparent-mode active AND
+                  // hover recipes (same glass-surface/hover/border tokens, backdrop-blur, and dark
+                  // inset shadow) so the sidebar and top selected/hover states match. One deliberate
+                  // difference: unlike the fixed-height tab bar we keep the 1px border in dark mode
+                  // (the dark glass-border token is transparent anyway) — border-0 would make the
+                  // active row 2px shorter and cause a vertical jump on selection. The glass-hover
+                  // override beats the shared MenuItem variant's hover:bg-accent via tailwind-merge.
+                  // Non-transparent mode keeps bg-accent (already matches the tab bar).
+                  isMacTransparentWindow
+                    ? 'hover:bg-[var(--color-tabbar-glass-hover)] data-[active=true]:border-[var(--color-tabbar-glass-border)] data-[active=true]:bg-[var(--color-tabbar-glass-surface)] data-[active=true]:backdrop-blur-sm dark:data-[active=true]:shadow-[inset_0_0_0_1px_var(--color-tabbar-glass-shadow)]'
+                    : 'data-[active=true]:bg-selected data-[active=true]:shadow-(--shadow-selected-outline)'
+                )}
               />
             </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
           </div>
         )
       }}

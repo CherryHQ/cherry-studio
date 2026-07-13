@@ -135,13 +135,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     if (isPromptsLoading && promptItems.length === 0) {
       newList.push({
         label: t('common.loading'),
-        icon: <Zap />,
+        icon: <Zap className="text-foreground" />,
         disabled: true
       })
     } else if (promptsError && promptItems.length === 0) {
       newList.push({
         label: formatErrorMessageWithPrefix(promptsError, t('settings.prompts.errors.loadFailed')),
-        icon: <Zap />,
+        icon: <Zap className="text-foreground" />,
         disabled: true
       })
     } else {
@@ -149,7 +149,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         ...promptItems.map((item) => ({
           label: item.title,
           description: item.content,
-          icon: <Zap />,
+          icon: <Zap className="text-foreground" />,
           action: (options) => handleItemSelect(item, options)
         }))
       )
@@ -163,7 +163,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
 
     newList.push({
       label: t('settings.prompts.add') + '...',
-      icon: <Plus />,
+      icon: <Plus className="text-foreground" />,
       action: openAddModal
     })
 
@@ -213,7 +213,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         label: t('settings.prompts.title'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        icon: <Zap />,
+        icon: <Zap className="text-foreground" />,
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)
         }

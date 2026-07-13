@@ -45,7 +45,7 @@ const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisibl
           onReorder={reorderVisible}
           toggleAction="hide"
         />
-        <Separator orientation="vertical" />
+        <Separator orientation="vertical" className="bg-border-subtle" />
         <MiniAppListColumn
           title={t('settings.miniApps.disabled')}
           count={hidden.length}

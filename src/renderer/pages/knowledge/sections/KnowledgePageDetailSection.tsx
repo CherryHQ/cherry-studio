@@ -48,6 +48,7 @@ const KnowledgePageDetailSection = () => {
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
         onRebuild={() => openRestoreBaseDialog(selectedBase)}
+        onAddSource={openAddSourceDialog}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-background">
@@ -61,7 +62,6 @@ const KnowledgePageDetailSection = () => {
             hasMore={hasMoreItems}
             isLoadingMore={isLoadingMoreItems}
             onLoadMore={loadMoreItems}
-            updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
             onDelete={deleteItem}
