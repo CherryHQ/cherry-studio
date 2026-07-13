@@ -1225,7 +1225,6 @@ export class MessageService {
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       if (dto.status !== undefined) updates.status = dto.status
       if (dto.stats !== undefined) updates.stats = dto.stats
-      if (dto.messageSnapshot !== undefined) updates.messageSnapshot = dto.messageSnapshot
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {

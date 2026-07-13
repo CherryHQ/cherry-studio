@@ -263,7 +263,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId: model.id,
             backend: new MessageServiceBackend({
               assistantMessageId: placeholder.id,
-              messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity),
               afterPersist: attachAutoRename
                 ? async (finalMessage) => {
                     await topicNamingService.maybeRenameFromConversationSummary(
@@ -349,7 +348,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
     const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
     const [model] = resolveModels([continueModelId], defaultModelId)
-    const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
     // anything below throws or it leaks.
@@ -367,10 +365,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({
-            assistantMessageId: anchor.id,
-            messageSnapshot: anchor.messageSnapshot ?? buildAssistantMessageSnapshot(model, assistantIdentity)
-          }),
+          backend: new MessageServiceBackend({ assistantMessageId: anchor.id }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
@@ -438,7 +433,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new PersistenceListener({
           topicId: req.topicId,
           modelId: model.id,
-          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, messageSnapshot }),
+          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id }),
           onPersistFailed: (error) =>
             application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
