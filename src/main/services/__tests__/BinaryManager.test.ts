@@ -848,7 +848,7 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['use', '-g', 'node@22', 'npm:ntn@1.0.0'], {
         cwd: '/tmp',
         env: {},
-        timeout: 120_000
+        timeout: 15 * 60_000
       })
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['reshim'], {
         cwd: '/tmp',
@@ -946,6 +946,12 @@ describe('BinaryManager', () => {
 
       const result = await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
       expect(result.version).toBe('10.0.0')
+      expect(mockExecFileAsync).toHaveBeenNthCalledWith(
+        1,
+        '/mock/mise',
+        ['use', '-g', 'github:sharkdp/fd@10.0.0'],
+        expect.objectContaining({ timeout: 15 * 60_000 })
+      )
     })
   })
 

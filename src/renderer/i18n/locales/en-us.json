@@ -7890,6 +7890,29 @@
     "output": {
       "placeholder": "Translation"
     },
+    "pdf": {
+      "action": {
+        "close": "Close PDF translation",
+        "export": "Export bilingual PDF"
+      },
+      "error": {
+        "title": "PDF translation failed"
+      },
+      "export_failed": "Failed to export bilingual PDF",
+      "pane": {
+        "source": "Source PDF",
+        "translated": "Bilingual PDF"
+      },
+      "ready": {
+        "description": "Select a target language and start translation.",
+        "title": "Ready to translate"
+      },
+      "status": {
+        "installing": "Installing PDF translation engine...",
+        "translating": "Translating PDF..."
+      },
+      "success": "Bilingual PDF generated"
+    },
     "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
     "settings": {

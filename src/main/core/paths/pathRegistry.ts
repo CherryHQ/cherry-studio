@@ -95,6 +95,9 @@ export function buildPathRegistry() {
     // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
+    // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
+    'feature.pdf_translation.runtime': path.join(appUserDataRuntime, 'babeldoc'),
+
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
     'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
@@ -163,6 +166,7 @@ export function buildPathRegistry() {
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
+    'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.

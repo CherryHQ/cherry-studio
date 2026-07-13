@@ -26,7 +26,7 @@ import { type SelectionEventSchemas, selectionRequestSchemas } from './selection
 import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
-import { translateRequestSchemas } from './translate'
+import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -94,6 +94,7 @@ export type IpcEventSchemas = AiEventSchemas &
   SelectionEventSchemas &
   SystemEventSchemas &
   TabEventSchemas &
+  TranslateEventSchemas &
   WebviewEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */

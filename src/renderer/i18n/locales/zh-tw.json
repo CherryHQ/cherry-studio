@@ -7890,6 +7890,29 @@
     "output": {
       "placeholder": "翻譯"
     },
+    "pdf": {
+      "action": {
+        "close": "關閉 PDF 翻譯",
+        "export": "匯出雙語 PDF"
+      },
+      "error": {
+        "title": "PDF 翻譯失敗"
+      },
+      "export_failed": "匯出雙語 PDF 失敗",
+      "pane": {
+        "source": "原始 PDF",
+        "translated": "雙語 PDF"
+      },
+      "ready": {
+        "description": "選擇目標語言並開始翻譯。",
+        "title": "等待翻譯"
+      },
+      "status": {
+        "installing": "正在安裝 PDF 翻譯引擎...",
+        "translating": "正在翻譯 PDF..."
+      },
+      "success": "雙語 PDF 已產生"
+    },
     "preferred_target": "首選目標",
     "processing": "翻譯中...",
     "settings": {

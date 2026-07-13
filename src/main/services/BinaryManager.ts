@@ -71,6 +71,8 @@ function isFloatingVersion(v?: string): boolean {
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
+const MISE_COMMAND_TIMEOUT_MS = 2 * 60_000
+const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
 
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
@@ -360,7 +362,10 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  private async runMise(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  private async runMise(
+    args: string[],
+    timeout = MISE_COMMAND_TIMEOUT_MS
+  ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
       // used for the env would have silently fallen back to `process.env`,
@@ -372,7 +377,7 @@ export class BinaryManager extends BaseService {
     const env = await this.getIsolatedEnv()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
-    return execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
+    return execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout })
   }
 
   private async isManagedBinaryReady(toolName: string): Promise<boolean> {
@@ -399,7 +404,7 @@ export class BinaryManager extends BaseService {
     const toolSpec = `${tool.tool}@${requested}`
     const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
 
-    await this.runMise(args)
+    await this.runMise(args, MISE_INSTALL_TIMEOUT_MS)
     await this.runMise(['reshim'])
 
     try {
