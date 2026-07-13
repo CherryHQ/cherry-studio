@@ -1,4 +1,5 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -25,7 +26,6 @@ import {
   PictureInPicture2,
   Radio,
   Search,
-  Server,
   Settings2,
   TextCursorInput
 } from 'lucide-react'
@@ -72,7 +72,7 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Server />}
+                icon={<GatewayIcon />}
                 label={t('apiGateway.title')}
                 active={isActive('/settings/api-gateway')}
                 onClick={() => go('/settings/api-gateway')}
