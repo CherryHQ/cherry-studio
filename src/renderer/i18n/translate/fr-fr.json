@@ -3594,7 +3594,7 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "L'image est trop grande (max {{limit}})",
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
@@ -3616,7 +3616,7 @@
         "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
       },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Échec du traitement de l'image, veuillez réessayer",
       "invalid": {
         "api": {
           "host": "Adresse API invalide",
@@ -6799,6 +6799,7 @@
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
           "label": "Ajouter tous les modèles"
         },
+        "add_success_enable_failed": "Des modèles ont été ajoutés, mais le fournisseur n'a pas pu être activé.",
         "add_whole_group": "Ajouter tout le groupe",
         "clean_stale_models": "Nettoyer les modèles obsolètes",
         "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
@@ -7210,6 +7211,7 @@
         "fill_after_create": "Les champs d'authentification peuvent être remplis après la création",
         "menu_label": "Ajouter une instance"
       },
+      "enable_failed_after_connection": "Connexion réussie, mais le fournisseur n'a pas pu être activé.",
       "filter": {
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",

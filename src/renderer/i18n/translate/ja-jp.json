@@ -3594,7 +3594,7 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "画像が大きすぎます（最大{{limit}}）",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -3616,7 +3616,7 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "画像の処理に失敗しました。もう一度お試しください",
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
@@ -6799,6 +6799,7 @@
           "confirm": "すべてのモデルをリストに追加しますか？",
           "label": "すべてのモデルを追加"
         },
+        "add_success_enable_failed": "モデルは追加されましたが、プロバイダーを有効にできませんでした。",
         "add_whole_group": "グループ全体を追加",
         "clean_stale_models": "無効なモデルをクリーンアップ",
         "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
@@ -7210,6 +7211,7 @@
         "fill_after_create": "認証フィールドは作成後に入力できます",
         "menu_label": "インスタンスを追加"
       },
+      "enable_failed_after_connection": "接続に成功しましたが、プロバイダーを有効にできませんでした。",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",

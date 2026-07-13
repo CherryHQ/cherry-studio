@@ -3594,7 +3594,7 @@
     },
     "empty_url": "Bild konnte nicht heruntergeladen werden. Möglicherweise enthält der Prompt sensible Inhalte oder verbotene Wörter",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Das Bild ist zu groß (max. {{limit}})",
       "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
       "copy": "Kopieren fehlgeschlagen",
       "dimension_too_large": "Inhaltsgröße zu groß",
@@ -3616,7 +3616,7 @@
         "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
       },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Das Bild konnte nicht verarbeitet werden, bitte versuchen Sie es erneut",
       "invalid": {
         "api": {
           "host": "Ungültige API-Adresse",
@@ -6799,6 +6799,7 @@
           "confirm": "Alle Modelle zur Liste hinzufügen?",
           "label": "Alle Modelle hinzufügen"
         },
+        "add_success_enable_failed": "Modelle wurden hinzugefügt, aber der Anbieter konnte nicht aktiviert werden.",
         "add_whole_group": "Gesamte Gruppe hinzufügen",
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
@@ -7210,6 +7211,7 @@
         "fill_after_create": "Authentifizierungsfelder können nach der Erstellung ausgefüllt werden",
         "menu_label": "Instanz hinzufügen"
       },
+      "enable_failed_after_connection": "Verbindung erfolgreich, aber der Anbieter konnte nicht aktiviert werden.",
       "filter": {
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",

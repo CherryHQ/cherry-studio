@@ -3594,7 +3594,7 @@
     },
     "empty_url": "Không tải được hình ảnh, có thể do lời nhắc chứa nội dung nhạy cảm hoặc từ ngữ bị cấm",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "Hình ảnh quá lớn (tối đa {{limit}})",
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
@@ -3616,7 +3616,7 @@
         "text_extraction_failed": "Không thể trích xuất văn bản từ {{name}}"
       },
       "get_embedding_dimensions": "Không thể lấy kích thước embedding",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Không thể xử lý hình ảnh, vui lòng thử lại",
       "invalid": {
         "api": {
           "host": "Máy chủ API không hợp lệ",
@@ -6799,6 +6799,7 @@
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm tất cả mô hình"
         },
+        "add_success_enable_failed": "Đã thêm các mô hình, nhưng không thể kích hoạt nhà cung cấp.",
         "add_whole_group": "Thêm toàn bộ nhóm",
         "clean_stale_models": "Dọn dẹp mô hình không hợp lệ",
         "clean_stale_success": "Đã dọn dẹp {{count}} mô hình không hợp lệ",
@@ -7210,6 +7211,7 @@
         "fill_after_create": "Các trường xác thực có thể được điền sau khi tạo",
         "menu_label": "Thêm phiên bản"
       },
+      "enable_failed_after_connection": "Kết nối thành công, nhưng không thể kích hoạt nhà cung cấp.",
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp",
