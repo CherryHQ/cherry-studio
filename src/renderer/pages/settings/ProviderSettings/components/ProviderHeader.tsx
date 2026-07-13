@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import { Bolt } from 'lucide-react'
+import { Bolt, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,13 +62,31 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                   meta.fancyProviderName
                 )}
               </h1>
+              {meta.docsWebsite && (
+                <Tooltip content={t('common.docs')}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground">
+                    <a
+                      href={meta.docsWebsite}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
+                      <ExternalLink className="size-3.5" aria-hidden />
+                    </a>
+                  </Button>
+                </Tooltip>
+              )}
               {meta.showApiOptionsButton && (
                 <Tooltip content={t('settings.provider.api.options.label')}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-accent/40 hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-(--color-surface-fg-subtle-solid) hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />

@@ -1,4 +1,5 @@
 import { Input } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { useTranslation } from 'react-i18next'
@@ -32,8 +33,9 @@ export function ModelContextWindowFields({
     <>
       <ProviderField
         title={t('settings.models.add.context_window.label')}
-        titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        layout="horizontal"
+        className={drawerClasses.field}
+        titleClassName={drawerClasses.fieldTitle}>
         <Input
           type="number"
           min={1}
@@ -42,7 +44,7 @@ export function ModelContextWindowFields({
           aria-label={t('settings.models.add.context_window.label')}
           value={contextWindow}
           placeholder={t('settings.models.add.context_window.placeholder')}
-          className={drawerClasses.input}
+          className={cn(drawerClasses.input, 'w-32')}
           onChange={(event) => onContextWindowChange(event.target.value.replace(/[^\d]/g, ''))}
           onBlur={onContextWindowBlur}
         />
@@ -50,8 +52,9 @@ export function ModelContextWindowFields({
 
       <ProviderField
         title={t('settings.models.add.max_input_tokens.label')}
-        titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        layout="horizontal"
+        className={drawerClasses.field}
+        titleClassName={drawerClasses.fieldTitle}>
         <Input
           type="number"
           min={1}
@@ -60,7 +63,7 @@ export function ModelContextWindowFields({
           aria-label={t('settings.models.add.max_input_tokens.label')}
           value={maxInputTokens}
           placeholder={t('settings.models.add.max_input_tokens.placeholder')}
-          className={drawerClasses.input}
+          className={cn(drawerClasses.input, 'w-32')}
           onChange={(event) => onMaxInputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
           onBlur={onMaxInputTokensBlur}
         />
@@ -68,8 +71,9 @@ export function ModelContextWindowFields({
 
       <ProviderField
         title={t('settings.models.add.max_output_tokens.label')}
-        titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        layout="horizontal"
+        className={drawerClasses.field}
+        titleClassName={drawerClasses.fieldTitle}>
         <Input
           type="number"
           min={1}
@@ -78,7 +82,7 @@ export function ModelContextWindowFields({
           aria-label={t('settings.models.add.max_output_tokens.label')}
           value={maxOutputTokens}
           placeholder={t('settings.models.add.max_output_tokens.placeholder')}
-          className={drawerClasses.input}
+          className={cn(drawerClasses.input, 'w-32')}
           onChange={(event) => onMaxOutputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
           onBlur={onMaxOutputTokensBlur}
         />

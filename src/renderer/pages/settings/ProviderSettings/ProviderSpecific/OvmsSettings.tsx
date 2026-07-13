@@ -90,9 +90,9 @@ const OvmsSettings: FC = () => {
 
   const bannerClasses = cn(
     'w-full rounded-lg border px-3 py-3 text-sm',
-    ovmsStatus === 'running' && 'border-emerald-500/40 bg-emerald-500/10 text-foreground',
-    ovmsStatus === 'not-running' && 'border-amber-500/40 bg-amber-500/10 text-foreground',
-    ovmsStatus === 'not-installed' && 'border-destructive/40 bg-destructive/10 text-foreground'
+    ovmsStatus === 'running' && 'border-success-border bg-success-bg text-foreground',
+    ovmsStatus === 'not-running' && 'border-warning-border bg-warning-bg text-foreground',
+    ovmsStatus === 'not-installed' && 'border-error-border bg-error-bg text-foreground'
   )
 
   const getStatusMessage = () => {
@@ -119,8 +119,8 @@ const OvmsSettings: FC = () => {
               <StatusIcon
                 className={cn(
                   'mt-0.5 size-4 shrink-0',
-                  ovmsStatus === 'running' && 'text-emerald-600 dark:text-emerald-400',
-                  ovmsStatus === 'not-running' && 'text-amber-600 dark:text-amber-400',
+                  ovmsStatus === 'running' && 'text-success',
+                  ovmsStatus === 'not-running' && 'text-warning',
                   ovmsStatus === 'not-installed' && 'text-destructive'
                 )}
                 aria-hidden
@@ -152,9 +152,9 @@ const OvmsSettings: FC = () => {
       </div>
 
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-control-accent/20 bg-control-accent/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
-        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <Info className="mt-0.5 size-4 shrink-0 text-control-accent" aria-hidden />
         <div className="min-w-0 flex-1 space-y-1">
           <p className="font-medium">{t('ovms.guide')}</p>
           <div>
@@ -166,7 +166,7 @@ const OvmsSettings: FC = () => {
                 p: <p />,
                 a: (
                   <a
-                    className="text-primary"
+                    className="text-link underline-offset-4 hover:underline"
                     href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
                     rel="noreferrer"
                     target="_blank"

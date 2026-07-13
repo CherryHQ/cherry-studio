@@ -26,7 +26,6 @@ import {
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
   ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
@@ -36,16 +35,7 @@ import {
 import * as z from 'zod'
 
 // Re-export const objects for consumers
-export {
-  CANONICAL_PARAM_KEY,
-  CURRENCY,
-  ENDPOINT_TYPE,
-  endpointImpliedCapability,
-  MODALITY,
-  MODEL_CAPABILITY,
-  objectValues,
-  REASONING_EFFORT
-}
+export { CANONICAL_PARAM_KEY, CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
 // Re-export types for consumers
 export type {

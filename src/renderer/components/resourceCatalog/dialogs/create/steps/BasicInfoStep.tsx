@@ -18,7 +18,6 @@ type BasicInfoStepProps = {
   portalContainer: HTMLElement | null
   fallbackAvatar: string
   modelFilter?: (model: Model) => boolean
-  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 /**
@@ -27,13 +26,7 @@ type BasicInfoStepProps = {
  * own emoji-picker and model-label state so selecting a model/avatar re-renders
  * only this step, never the dialog shell (keeps DialogContent's ref stable).
  */
-export function BasicInfoStep({
-  form,
-  portalContainer,
-  fallbackAvatar,
-  modelFilter,
-  onSettingsNavigate
-}: BasicInfoStepProps) {
+export function BasicInfoStep({ form, portalContainer, fallbackAvatar, modelFilter }: BasicInfoStepProps) {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
@@ -66,7 +59,6 @@ export function BasicInfoStep({
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
-        onSettingsNavigate={onSettingsNavigate}
       />
 
       <TextInputField

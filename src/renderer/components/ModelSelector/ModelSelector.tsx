@@ -4,11 +4,10 @@ import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import type { SettingsPath } from '@shared/data/types/settingsPath'
+import { useNavigate } from '@tanstack/react-router'
 import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
@@ -212,7 +211,6 @@ function ModelRow({
       <ModelSelectorRow
         selected={isSelected}
         focused={isFocused}
-        showSelectedIndicator={!showCheckbox && isSelected}
         checkbox={checkbox}
         leading={leading}
         trailing={trailing}
@@ -232,13 +230,9 @@ function ModelRow({
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
-          {item.model.name}
-        </span>
+        <span className="min-w-0 max-w-full shrink-0 truncate">{item.model.name}</span>
         {item.isPinned && (
-          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
-            | {providerName}
-          </span>
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs">| {providerName}</span>
         )}
       </ModelSelectorRow>
     </ModelSelectorDetailCard>
@@ -264,10 +258,10 @@ export function ModelSelector(props: ModelSelectorProps) {
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
-    onSettingsNavigate,
     shortcut
   } = props
   const { t } = useTranslation()
+  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -277,7 +271,6 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
-  const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -476,54 +469,15 @@ export function ModelSelector(props: ModelSelectorProps) {
     setOpen(false)
   }, [setOpen])
 
-  const pendingCloseActionRef = useRef<(() => void) | null>(null)
-  const runPendingCloseAction = useCallback(() => {
-    const action = pendingCloseActionRef.current
-    if (!action) return
-
-    pendingCloseActionRef.current = null
-    action()
-  }, [])
-  const closeBeforeAction = useCallback(
-    (action: () => void) => {
-      pendingCloseActionRef.current = action
-      if (!open) {
-        setShellKey((key) => key + 1)
-        runPendingCloseAction()
-        return
-      }
-
-      setShellKey((key) => key + 1)
-      setOpen(false)
-    },
-    [open, runPendingCloseAction, setOpen]
-  )
-
-  const closeBeforeSettingsNavigation = useCallback(
-    (path: SettingsPath) => {
-      closeBeforeAction(() => {
-        const navigate = () => openSettingsTab(path)
-        if (onSettingsNavigate) {
-          onSettingsNavigate(navigate)
-          return
-        }
-
-        navigate()
-      })
-    },
-    [closeBeforeAction, onSettingsNavigate]
-  )
-
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
-      closeBeforeSettingsNavigation(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+      setOpen(false)
+      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+      })
     },
-    [closeBeforeSettingsNavigation]
+    [navigate, setOpen]
   )
-
-  const handleNavigateToCustomModelSettings = useCallback(() => {
-    closeBeforeSettingsNavigation('/settings/provider')
-  }, [closeBeforeSettingsNavigation])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
@@ -623,15 +577,6 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
-    if (open) {
-      return undefined
-    }
-
-    const frameId = window.requestAnimationFrame(runPendingCloseAction)
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open, runPendingCloseAction])
-
-  useEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -660,7 +605,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
+          <div className="group text-(length:--font-size-body-xs) flex h-7 items-center gap-1 bg-popover px-4 text-muted-foreground">
             <span className="truncate">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
@@ -746,7 +691,9 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     return (
       <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+        <span className="text-(length:--font-size-body-2xs) mr-1 text-muted-foreground">
+          {t('models.filter.by_tag')}
+        </span>
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
@@ -776,22 +723,12 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const bottomAction = useMemo(
-    () => ({
-      icon: <Settings2 className="size-3.5" />,
-      label: t('models.action.configure_custom'),
-      onClick: handleNavigateToCustomModelSettings
-    }),
-    [handleNavigateToCustomModelSettings, t]
-  )
-
   const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <SelectorShell
-        key={shellKey}
         trigger={trigger}
         open={open}
         onOpenChange={setOpen}
@@ -805,7 +742,6 @@ export function ModelSelector(props: ModelSelectorProps) {
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
         contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
-        bottomAction={bottomAction}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

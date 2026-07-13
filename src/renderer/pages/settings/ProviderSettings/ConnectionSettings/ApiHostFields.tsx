@@ -109,13 +109,14 @@ export function ApiHostField({
           </div>
           <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
             <span className="inline-flex shrink-0">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 className={fieldClasses.inputActionButton}
                 aria-label={t('settings.provider.request_configuration_tooltip')}
                 onClick={onOpenRequestConfig}>
                 <Settings size={14} aria-hidden />
-              </button>
+              </Button>
             </span>
           </Tooltip>
         </div>
@@ -245,13 +246,14 @@ export function AnthropicApiHostField({
         </InputGroup>
         <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
           <span className="inline-flex shrink-0">
-            <button
+            <Button
               type="button"
+              variant="outline"
               className={fieldClasses.inputActionButton}
               aria-label={t('settings.provider.request_configuration_tooltip')}
               onClick={onOpenRequestConfig}>
               <Settings size={14} aria-hidden />
-            </button>
+            </Button>
           </span>
         </Tooltip>
       </div>

@@ -2,6 +2,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu 
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
 import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
 import { useMemo } from 'react'
@@ -25,6 +26,14 @@ interface ProviderListItemWithContextMenuProps {
   onSetListItemRef: (providerId: string, element: HTMLDivElement | null) => void
 }
 
+// CommandContextMenu/CommandPopupMenu's extra items have no per-item className, so the
+// provider list's row-height/radius styling is applied via descendant selectors instead.
+const menuContentClassName = cn(
+  providerListClasses.itemMenuContent,
+  '[&_[data-slot=context-menu-item]]:h-8 [&_[data-slot=context-menu-item]]:rounded-lg [&_[data-slot=context-menu-item]]:px-2.5',
+  '[&_[data-slot=dropdown-menu-item]]:h-8 [&_[data-slot=dropdown-menu-item]]:rounded-lg [&_[data-slot=dropdown-menu-item]]:px-2.5'
+)
+
 export default function ProviderListItemWithContextMenu({
   provider,
   selected,
@@ -40,66 +49,70 @@ export default function ProviderListItemWithContextMenu({
 }: ProviderListItemWithContextMenuProps) {
   const { t } = useTranslation()
 
-  const menuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
+  const menuItems = useMemo<CommandContextMenuExtraItem[]>(() => {
     const items: CommandContextMenuExtraItem[] = []
+
     if (showManagementActions) {
       items.push({
         type: 'item',
         id: 'edit',
         label: t('common.edit'),
-        icon: <Edit size={14} />,
+        icon: <Edit className="size-3.5 text-current" />,
         onSelect: onEdit
       })
     }
+
     if (onDuplicate) {
       items.push({
         type: 'item',
         id: 'duplicate',
         label: t('settings.provider.duplicate.menu_label'),
-        icon: <CopyPlus size={14} />,
+        icon: <CopyPlus className="size-3.5 text-current" />,
         onSelect: onDuplicate
       })
     }
+
     items.push({
       type: 'item',
       id: 'notes',
       label: t('settings.provider.notes.title'),
-      icon: <UserPen size={14} />,
+      icon: <UserPen className="size-3.5 text-current" />,
       onSelect: () => ModelNotesPopup.show({ providerId: provider.id })
     })
+
     if (showManagementActions) {
       items.push({
         type: 'item',
         id: 'delete',
         label: t('common.delete'),
-        icon: <Trash2 size={14} />,
+        icon: <Trash2 className="size-3.5 text-current" />,
         destructive: true,
         onSelect: onDelete
       })
     }
+
     return items
   }, [onDelete, onDuplicate, onEdit, provider.id, showManagementActions, t])
 
-  // Right-click stays uncontrolled — Radix handles cross-popup mutex naturally.
-  // The more-button popup remains controlled so the parent's single-row-active-at-a-time
-  // tracking (`contextProviderId`) keeps working across clicks between rows.
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+    <CommandContextMenu location="webcontents.context" extraItems={menuItems} contentClassName={menuContentClassName}>
       <div className="w-full" ref={(element) => onSetListItemRef(provider.id, element)}>
         <ProviderListItem
           provider={{ ...provider, name: getFancyProviderName(provider) }}
           selected={selected}
           dragging={listState.dragging}
           onClick={onSelect}
-          onOpenMenu={() => onContextOpenChange(true)}
+          // Opening is handled by CommandPopupMenu's own Radix trigger below; this only
+          // needs to be truthy so ProviderListItem renders the button (with stopPropagation).
+          onOpenMenu={() => {}}
           renderMenuButton={(button) => (
             <CommandPopupMenu
               location="webcontents.context"
               extraItems={menuItems}
-              open={contextOpen}
-              onOpenChange={onContextOpenChange}
               align="end"
-              contentClassName={providerListClasses.itemMenuContent}>
+              contentClassName={menuContentClassName}
+              open={contextOpen}
+              onOpenChange={onContextOpenChange}>
               {button}
             </CommandPopupMenu>
           )}
