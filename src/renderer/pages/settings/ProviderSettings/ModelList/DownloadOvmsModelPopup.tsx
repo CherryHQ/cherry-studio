@@ -1,6 +1,7 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
@@ -173,7 +174,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       try {
         setCancelled(true) // Mark as cancelled by user
         logger.info('Stopping download...')
-        await window.api.ovms.stopAddModel()
+        await ipcApi.request('ovms.cancel_add_model')
         stopFakeProgress(false)
         setLoading(false)
       } catch (error) {
@@ -208,7 +209,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       logger.info(
         `🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${normalizedModelSource}, task: ${task}`
       )
-      const result = await window.api.ovms.addModel(modelName, modelId, normalizedModelSource, task)
+      const result = await ipcApi.request('ovms.add_model', {
+        modelName,
+        modelId,
+        modelSource: normalizedModelSource,
+        task
+      })
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
@@ -219,7 +225,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
         // Only show error if not cancelled by user
         if (!cancelled) {
-          setError(result.message)
+          setError(result.message ?? null)
         }
       }
     } catch (error: any) {

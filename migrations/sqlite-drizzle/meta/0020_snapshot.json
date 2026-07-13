@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "478cf761-6780-473c-97d5-5fcae9a68f80",
+  "id": "5b6b03b4-0882-4ab4-9eb8-29425fd9e797",
   "prevId": "2db09e8e-7808-4ecb-a6e2-8e57c0340882",
   "tables": {
     "agent": {
@@ -1436,6 +1436,81 @@
         }
       }
     },
+    "mini_app_logo_file_ref": {
+      "name": "mini_app_logo_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "malfr_entry_id_idx": {
+          "name": "malfr_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "malfr_source_id_idx": {
+          "name": "malfr_source_id_idx",
+          "columns": ["source_id"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "mini_app_logo_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "mini_app_logo_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "mini_app_logo_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mini_app_logo_file_ref_source_id_mini_app_app_id_fk": {
+          "name": "mini_app_logo_file_ref_source_id_mini_app_app_id_fk",
+          "tableFrom": "mini_app_logo_file_ref",
+          "tableTo": "mini_app",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["app_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "painting_file_ref": {
       "name": "painting_file_ref",
       "columns": {
@@ -1527,6 +1602,81 @@
           "value": "\"painting_file_ref\".\"role\" IN ('output', 'input')"
         }
       }
+    },
+    "provider_logo_file_ref": {
+      "name": "provider_logo_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "plfr_entry_id_idx": {
+          "name": "plfr_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "plfr_source_id_idx": {
+          "name": "plfr_source_id_idx",
+          "columns": ["source_id"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "provider_logo_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "provider_logo_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "provider_logo_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "provider_logo_file_ref_source_id_user_provider_provider_id_fk": {
+          "name": "provider_logo_file_ref_source_id_user_provider_provider_id_fk",
+          "tableFrom": "provider_logo_file_ref",
+          "tableTo": "user_provider",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["provider_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "group": {
       "name": "group",
@@ -2686,8 +2836,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo": {
-          "name": "logo",
+        "logo_key": {
+          "name": "logo_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2882,55 +3032,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "params": {
-          "name": "params",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "canvas_x": {
-          "name": "canvas_x",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "canvas_y": {
-          "name": "canvas_y",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "canvas_w": {
-          "name": "canvas_w",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "order_key": {
@@ -3783,6 +3884,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "logo_key": {
+          "name": "logo_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "endpoint_configs": {

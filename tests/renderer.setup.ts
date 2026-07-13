@@ -179,6 +179,18 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
+  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
+  application: {
+    relaunch: vi.fn().mockResolvedValue(undefined)
+  },
+  // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
+  // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
+  // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
+  ipcApi: {
+    request: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(() => () => {})
   }
 })
 

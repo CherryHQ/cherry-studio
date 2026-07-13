@@ -3,8 +3,10 @@ import {
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
+  miniAppLogoRef,
   paintingRoles,
-  paintingSourceType
+  paintingSourceType,
+  providerLogoRef
 } from '@shared/data/types/file'
 import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
@@ -12,7 +14,9 @@ import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { fileEntryTable } from './file'
 import { messageTable } from './message'
+import { miniAppTable } from './miniApp'
 import { paintingTable } from './painting'
+import { userProviderTable } from './userProvider'
 
 function sqlStringList(values: readonly string[]) {
   return sql.raw(values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', '))
@@ -79,12 +83,74 @@ export const paintingFileRefTable = sqliteTable(
   ]
 )
 
+/**
+ * Single-file entity-image refs (provider logo, mini-app logo).
+ *
+ * These model a single-file slot and are the **single source of truth** for an
+ * owner's uploaded logo — the owner row keeps only `logo_key` (preset / URL
+ * refs), never a duplicate `logo_file_id`. Writes go through the `logoRef`
+ * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`); reads look the file
+ * id back up via `getLogoFileId` (one indexed lookup on the unique `(sourceId)`
+ * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
+ * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
+ * collection ref tables (`chat_message`, `painting`): dropping a provider /
+ * mini-app or its file drops the ref row, so orphan-counting stays exact.
+ * Because both FKs are enforced, a write must order its inserts
+ * `file_entry → owner row → ref row` (the ref's `fileEntryId` FK needs the file,
+ * its `sourceId` FK needs the owner): the live `set_logo` path always updates an
+ * existing owner, and the migrators sequence the inserts explicitly. There is
+ * **no `role` column**: the slot's role is a constant ('logo') read by nothing,
+ * so the unique `(sourceId)` index alone enforces at most one file per slot.
+ * (The user avatar deliberately has no slot table — it is persisted only in the
+ * `app.user.avatar` preference.)
+ */
+export const providerLogoFileRefTable = sqliteTable(
+  'provider_logo_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => userProviderTable.providerId, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('plfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('plfr_source_id_idx').on(t.sourceId)]
+)
+
+export const miniAppLogoFileRefTable = sqliteTable(
+  'mini_app_logo_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => miniAppTable.appId, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
+)
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
-  [paintingSourceType]: paintingFileRefTable
-} as const satisfies Record<PersistentFileRefSourceType, typeof chatMessageFileRefTable | typeof paintingFileRefTable>
+  [paintingSourceType]: paintingFileRefTable,
+  [providerLogoRef.sourceType]: providerLogoFileRefTable,
+  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
+} as const satisfies Record<
+  PersistentFileRefSourceType,
+  | typeof chatMessageFileRefTable
+  | typeof paintingFileRefTable
+  | typeof providerLogoFileRefTable
+  | typeof miniAppLogoFileRefTable
+>
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert
 export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
+export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
+export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
+export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
+export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert

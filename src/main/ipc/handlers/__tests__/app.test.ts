@@ -23,26 +23,13 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('appHandlers', () => {
-  it('check_for_update delegates to AppUpdaterService and passes the result through', async () => {
-    const updateInfo = { version: '2.0.0' }
-    appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: '1.0.0', updateInfo })
+  it('check_for_update triggers the AppUpdaterService check and resolves void (results arrive via events)', async () => {
+    appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: '1.0.0', updateInfo: null })
 
     const result = await appHandlers['app.updater.check_for_update'](undefined, ctx)
 
     expect(appUpdaterService.checkForUpdates).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ currentVersion: '1.0.0', updateInfo })
-  })
-
-  it('check_for_update normalizes a SemVer currentVersion to a plain string', async () => {
-    // autoUpdater.currentVersion is a SemVer; only its string form survives the
-    // IPC contract, so the handler must coerce it.
-    const semverLike = { toString: () => '1.2.3' }
-    appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: semverLike, updateInfo: null })
-
-    const result = await appHandlers['app.updater.check_for_update'](undefined, ctx)
-
-    expect(result).toEqual({ currentVersion: '1.2.3', updateInfo: null })
-    expect(typeof result.currentVersion).toBe('string')
+    expect(result).toBeUndefined()
   })
 
   it('quit_and_install delegates to AppUpdaterService and resolves void', async () => {

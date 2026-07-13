@@ -591,6 +591,11 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /** Get a window's registered type by ID (O(1) lookup; undefined if unknown/closed). */
+  public getWindowType(windowId: string): WindowType | undefined {
+    return this.windows.get(windowId)?.type
+  }
+
   /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
   public getWindowsByType(type: WindowType): BrowserWindow[] {
     const windowIds = this.windowsByType.get(type)

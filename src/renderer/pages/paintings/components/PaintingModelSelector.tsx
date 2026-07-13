@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
@@ -48,12 +48,13 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, draf
 
   const selectedName = selectedModel?.name ?? draft.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
-  const selectedIcon = useMemo(() => {
+  const selectedIconRef = useMemo(() => {
     if (!draft.providerId) return undefined
     const identifier = selectedModel?.apiModelId ?? draft.model
     if (!identifier) return undefined
-    return resolveIcon(identifier, draft.providerId) ?? resolveIcon(selectedModel?.name ?? '', draft.providerId)
+    return resolveIconRef(identifier, draft.providerId) ?? resolveIconRef(selectedModel?.name ?? '', draft.providerId)
   }, [draft.providerId, draft.model, selectedModel])
+  const selectedIcon = useIcon(selectedIconRef)
 
   return (
     <div className={hideTitle ? 'contents' : undefined}>

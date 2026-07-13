@@ -9,6 +9,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +42,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/siyuan')
   }
 
   const handleCheckConnection = async () => {

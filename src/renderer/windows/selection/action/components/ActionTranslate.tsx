@@ -1,10 +1,6 @@
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
@@ -18,10 +14,17 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { defaultLanguage } from '@shared/utils/languages'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import WindowFooter from './WindowFooter'
+
+// Lazy boundary (S6b): keeps the heavy message-content chain out of the action
+// window's first paint. Preloaded on mount so the chunk downloads in parallel
+// with the translate request (React.lazy alone would wait for the response);
+// the module cache dedupes the two import() calls.
+const importActionResultContent = () => import('./ActionResultContent')
+const ActionResultContent = React.lazy(importActionResultContent)
 
 interface Props {
   action: SelectionActionItem
@@ -34,8 +37,6 @@ const TRANSLATION_TOPIC_ID = 'selection-translation'
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { renderConfig } = useMessageListRenderConfig()
-  const platformActions = useMessagePlatformActions()
   const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
@@ -215,6 +216,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
 
   useEffect(() => {
+    // Kick the result-renderer chunk off immediately — rendering waits for the
+    // response content, but the download must overlap the request latency.
+    importActionResultContent().catch((error) => {
+      logger.warn('Failed to preload ActionResultContent chunk:', error as Error)
+    })
+  }, [])
+
+  useEffect(() => {
     void fetchResult()
   }, [fetchResult])
 
@@ -381,13 +390,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         <div className="mt-4 w-full whitespace-pre-wrap break-words">
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
-            <MessageContentProvider
-              messages={[latestAssistantMessage]}
-              partsByMessageId={partsMap}
-              renderConfig={renderConfig}
-              actions={platformActions}>
-              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </MessageContentProvider>
+            <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
+              <ActionResultContent
+                key={latestAssistantMessage.id}
+                message={latestAssistantMessage}
+                partsByMessageId={partsMap}
+              />
+            </Suspense>
           )}
         </div>
         {error && (
