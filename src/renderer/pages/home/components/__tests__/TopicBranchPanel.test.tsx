@@ -123,23 +123,6 @@ vi.mock('@renderer/components/chat/flow', () => ({
     }
   }),
   layoutTopicMessageFlowGraph: vi.fn((graph) => graph),
-  mergeTopicMessageFlowLiveTree: vi.fn((tree, liveState) => {
-    if (!liveState) return tree
-    return {
-      ...tree,
-      activeNodeId: liveState.activeNodeId ?? tree.activeNodeId,
-      nodes: [
-        ...tree.nodes,
-        ...liveState.nodes
-          .filter((liveNode: { id: string }) => !tree.nodes.some((node: { id: string }) => node.id === liveNode.id))
-          .map((liveNode: { id: string; parentId: string | null; preview: string }) => ({
-            id: liveNode.id,
-            parentId: liveNode.parentId,
-            preview: liveNode.preview
-          }))
-      ]
-    }
-  }),
   TopicMessageFlowCanvas: ({
     graph,
     onNodeContextMenu,
@@ -163,6 +146,26 @@ vi.mock('@renderer/components/chat/flow', () => ({
       ))}
     </div>
   )
+}))
+
+vi.mock('@renderer/utils/topicMessageFlowLiveTree', () => ({
+  mergeTopicMessageFlowLiveTree: vi.fn((tree, liveState) => {
+    if (!liveState) return tree
+    return {
+      ...tree,
+      activeNodeId: liveState.activeNodeId ?? tree.activeNodeId,
+      nodes: [
+        ...tree.nodes,
+        ...liveState.nodes
+          .filter((liveNode: { id: string }) => !tree.nodes.some((node: { id: string }) => node.id === liveNode.id))
+          .map((liveNode: { id: string; parentId: string | null; preview: string }) => ({
+            id: liveNode.id,
+            parentId: liveNode.parentId,
+            preview: liveNode.preview
+          }))
+      ]
+    }
+  })
 }))
 
 vi.mock('react-i18next', () => ({

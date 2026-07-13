@@ -1,4 +1,3 @@
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -15,12 +14,13 @@ import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import type { TopicMessageFlowLiveState } from '@renderer/utils/topicMessageFlowLiveTree'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TopicBranchPanel from './TopicBranchPanel'
+const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
 interface TopicRightPaneSurfaceProps {
   topicId?: string
@@ -179,17 +179,19 @@ function TopicRightPaneSurface({
       <ResourcePanePanel />
       {hasBranchPanel && (
         <Shell.Panel value="branch">
-          <TopicBranchPanel
-            open
-            topicId={topicId}
-            topicName={topicName}
-            liveState={branchLiveState}
-            focusKey={canvasFocusKey}
-            layoutReady={canvasLayoutReady}
-            onLocateMessage={handleLocateMessage}
-            onStartBranchDraft={onStartBranchDraft}
-            onCancelBranchDraft={onCancelBranchDraft}
-          />
+          <Suspense fallback={null}>
+            <TopicBranchPanel
+              open
+              topicId={topicId}
+              topicName={topicName}
+              liveState={branchLiveState}
+              focusKey={canvasFocusKey}
+              layoutReady={canvasLayoutReady}
+              onLocateMessage={handleLocateMessage}
+              onStartBranchDraft={onStartBranchDraft}
+              onCancelBranchDraft={onCancelBranchDraft}
+            />
+          </Suspense>
         </Shell.Panel>
       )}
       {hasBranchPanel && enableDeveloperMode && (
