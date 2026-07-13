@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Capture the close-control props the wizard hands to the UI dialog so the test can
@@ -13,7 +13,10 @@ const dialog = vi.hoisted(() => ({
   onPointerDownOutside: undefined as
     | ((event: { defaultPrevented: boolean; preventDefault: () => void }) => void)
     | undefined,
-  renderCount: 0
+  renderCount: 0,
+  mountCount: 0,
+  unmountCount: 0,
+  settingsNavigate: vi.fn()
 }))
 const tabs = vi.hoisted(() => ({ openTab: vi.fn() }))
 
@@ -39,15 +42,26 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
 vi.mock('../steps/BasicInfoStep', () => ({
-  BasicInfoStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button
-      type="button"
-      onClick={() => {
-        form.setValue('name', 'My Resource')
-        form.setValue('modelId', 'provider::model')
-      }}>
-      fill basic
-    </button>
+  BasicInfoStep: ({
+    form,
+    onSettingsNavigate
+  }: {
+    form: { setValue: (name: string, value: unknown) => void }
+    onSettingsNavigate?: (navigate: () => void) => void
+  }) => (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill basic
+      </button>
+      <button type="button" onClick={() => onSettingsNavigate?.(dialog.settingsNavigate)}>
+        open model settings
+      </button>
+    </>
   )
 }))
 vi.mock('../steps/PersonaStep', () => ({
@@ -126,6 +140,12 @@ vi.mock('@cherrystudio/ui', async () => {
       onOpenChange?: (open: boolean) => void
       children: ReactNode
     }) => {
+      React.useEffect(() => {
+        dialog.mountCount += 1
+        return () => {
+          dialog.unmountCount += 1
+        }
+      }, [])
       dialog.onOpenChange = onOpenChange
       return open ? <div>{children}</div> : null
     },
@@ -151,7 +171,33 @@ afterEach(() => {
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
   tabs.openTab.mockReset()
+  dialog.mountCount = 0
+  dialog.unmountCount = 0
+  dialog.settingsNavigate.mockReset()
+  vi.restoreAllMocks()
 })
+
+function mockDeferredAnimationFrames() {
+  const callbacks: FrameRequestCallback[] = []
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+
+  return {
+    pendingCount: () => callbacks.length,
+    flushAllFrames: () => {
+      while (callbacks.length > 0) {
+        const pendingCallbacks = callbacks.splice(0)
+        act(() => {
+          for (const callback of pendingCallbacks) {
+            callback(0)
+          }
+        })
+      }
+    }
+  }
+}
 
 describe('ResourceCreateWizard close protection', () => {
   it('blocks overlay / Esc close while a submit is in flight, then releases once it settles', async () => {
@@ -236,5 +282,32 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill persona' }))
 
     expect(dialog.renderCount).toBe(renderCountAfterNavigation)
+  })
+
+  it('closes and recreates the dialog before running model settings navigation', async () => {
+    function Host() {
+      const [open, setOpen] = useState(true)
+
+      return <ResourceCreateWizard kind="assistant" open={open} onOpenChange={setOpen} onSubmit={vi.fn()} />
+    }
+
+    render(<Host />)
+    const frames = mockDeferredAnimationFrames()
+    const mountCountAfterOpen = dialog.mountCount
+
+    await userEvent.click(screen.getByRole('button', { name: 'open model settings' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(dialog.unmountCount).toBeGreaterThan(0)
+    expect(dialog.mountCount).toBeGreaterThan(mountCountAfterOpen)
+    expect(dialog.settingsNavigate).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(frames.pendingCount()).toBeGreaterThan(0)
+    frames.flushAllFrames()
+
+    expect(dialog.settingsNavigate).toHaveBeenCalledTimes(1)
   })
 })

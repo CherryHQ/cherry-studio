@@ -2,8 +2,9 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +16,7 @@ const {
   fetchGenerateMock,
   mcpStatusState,
   openSettingsTabMock,
+  settingsNavigateMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -51,6 +53,7 @@ const {
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  settingsNavigateMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -71,11 +74,22 @@ const MODEL = vi.hoisted(
 )
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
+  ModelSelector: ({
+    trigger,
+    onSelect,
+    onSettingsNavigate
+  }: {
+    trigger: ReactNode
+    onSelect: (modelId: string | undefined) => void
+    onSettingsNavigate?: (navigate: () => void) => void
+  }) => (
     <div>
       {trigger}
       <button type="button" onClick={() => onSelect(MODEL.id)}>
         Pick model
+      </button>
+      <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
+        Open model settings
       </button>
     </div>
   )
@@ -544,6 +558,33 @@ function openTagSelect() {
   fireEvent.click(select)
 }
 
+function mockDeferredAnimationFrames() {
+  const callbacks: FrameRequestCallback[] = []
+  const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+  const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+  return {
+    pendingCount: () => callbacks.length,
+    flushAllFrames: () => {
+      while (callbacks.length > 0) {
+        const pendingCallbacks = callbacks.splice(0)
+        act(() => {
+          for (const callback of pendingCallbacks) {
+            callback(0)
+          }
+        })
+      }
+    },
+    restore: () => {
+      requestAnimationFrameSpy.mockRestore()
+      cancelAnimationFrameSpy.mockRestore()
+    }
+  }
+}
+
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     const onSaved = vi.fn()
@@ -912,6 +953,68 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
     expect(onAgentOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('closes the assistant edit dialog before running model settings navigation on the next frame', async () => {
+    function Host() {
+      const [open, setOpen] = useState(true)
+      const [target, setTarget] = useState<Assistant | null>(ASSISTANT)
+
+      const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setTarget(null)
+      }
+
+      return <AssistantEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
+    }
+
+    render(<Host />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(settingsNavigateMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(frames.pendingCount()).toBeGreaterThan(0)
+    frames.flushAllFrames()
+
+    expect(settingsNavigateMock).toHaveBeenCalledTimes(1)
+    frames.restore()
+  })
+
+  it('closes the agent edit dialog before running model settings navigation on the next frame', async () => {
+    function Host() {
+      const [open, setOpen] = useState(true)
+      const [target, setTarget] = useState<AgentDetail | null>(AGENT)
+
+      const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setTarget(null)
+      }
+
+      return <AgentEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
+    }
+
+    render(<Host />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open model settings' })[0])
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(settingsNavigateMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(frames.pendingCount()).toBeGreaterThan(0)
+    frames.flushAllFrames()
+
+    expect(settingsNavigateMock).toHaveBeenCalledTimes(1)
+    frames.restore()
   })
 
   it('keeps popover content inside the dialog container', async () => {
