@@ -169,7 +169,7 @@ export function KnowledgeBaseAvatar({
 }) {
   return (
     <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
-      <Database size={14} strokeWidth={1.4} />
+      <Database size={14} />
     </span>
   )
 }
@@ -231,7 +231,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
           />
           {linkedItems.length === 0 ? (
             <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
-              <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
+              <Database size={20} className="mb-2 text-muted-foreground/80 [stroke-width:var(--icon-stroke-display)]" />
               <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
               <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
             </div>
@@ -407,7 +407,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <span className="min-w-0 flex-1 truncate px-1 text-left">{tab.label}</span>
                               <ChevronDown
                                 size={13}
-                                strokeWidth={1.8}
                                 className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
                                 data-expanded={groupExpanded || undefined}
                               />
@@ -559,8 +558,7 @@ export function CompactModelField({
   portalContainer,
   modelLabels,
   setModelLabels,
-  onModelChange,
-  onSettingsNavigate
+  onModelChange
 }: {
   form: UseFormReturn<any>
   name: ModelLabelKey
@@ -572,7 +570,6 @@ export function CompactModelField({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
-  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const value = form.watch(name)
@@ -607,7 +604,6 @@ export function CompactModelField({
                 value={selectorValue}
                 filter={filter}
                 portalContainer={portalContainer}
-                onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
                   const selectedModelId = getSelectedModelId(selection)
                   if (onModelChange) {

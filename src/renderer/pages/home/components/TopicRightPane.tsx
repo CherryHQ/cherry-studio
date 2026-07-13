@@ -14,7 +14,6 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
@@ -140,8 +139,6 @@ function TopicRightPaneSurface({
   const resourcePane = useResourcePane()
   const hasBranchPanel = !!topicId
   const branchLiveState = useTopicBranchLiveState(topicId ?? '')
-  const { mode, chrome } = useWindowFrame()
-  const isWindow = mode === 'window'
   const canvasFocusKey = `${topicId ?? ''}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
   const handleLocateMessage = useCallback(
@@ -151,15 +148,9 @@ function TopicRightPaneSurface({
     [onLocateMessage]
   )
 
-  // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
-  // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}
-    </>
-  )
+  // Sub-window controls (pin/back-to-main) always stay outside on the title-bar glass —
+  // ConversationShell floats them at the root's top-right corner whenever the pane is open.
+  const tabListTrailing = <>{(resourcePane || hasBranchPanel) && <TopicRightPaneToggle />}</>
 
   return (
     <Shell.Tabs>

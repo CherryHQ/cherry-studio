@@ -3,9 +3,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { messageService } from '@data/services/MessageService'
 import { insertWithOrderKey } from '@data/services/utils/orderKey'
-import { DEFAULT_ASSISTANT_SEED, getDefaultAssistantNameForLocale } from '@shared/data/presets/defaultAssistant'
+import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/defaultAssistant'
 import { and, eq, isNull } from 'drizzle-orm'
-import { app } from 'electron'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -20,8 +19,7 @@ export class DefaultAssistantSeeder implements ISeeder {
     this.version = hashObject({
       assistant: DEFAULT_ASSISTANT_SEED,
       topic: { name: '', empty: true },
-      freshGuard: 'bootstrap-only; no active assistant/topic/message',
-      localizedName: 'preferredSystemLanguages[0]; zh=>Cherry 助手; other=>Cherry Assistant'
+      freshGuard: 'bootstrap-only; no active assistant/topic/message'
     })
   }
 
@@ -33,7 +31,6 @@ export class DefaultAssistantSeeder implements ISeeder {
 
       const insertValues = {
         ...DEFAULT_ASSISTANT_SEED,
-        name: getDefaultAssistantNameForLocale(this.getPreferredSystemLanguage()),
         settings: { ...DEFAULT_ASSISTANT_SEED.settings }
       } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
@@ -51,14 +48,6 @@ export class DefaultAssistantSeeder implements ISeeder {
 
       messageService.createRootMessageTx(tx, topic.id as string)
     })
-  }
-
-  private getPreferredSystemLanguage(): string | undefined {
-    try {
-      return app.getPreferredSystemLanguages()[0]
-    } catch {
-      return undefined
-    }
   }
 
   private isFreshUserDatabase(tx: Pick<DbType, 'select'>): boolean {

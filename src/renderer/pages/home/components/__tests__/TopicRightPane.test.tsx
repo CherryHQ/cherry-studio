@@ -8,6 +8,10 @@ import { TopicRightPane } from '../TopicRightPane'
 
 const developerModeEnabled = vi.fn(() => true)
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
     key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]

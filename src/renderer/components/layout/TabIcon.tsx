@@ -46,5 +46,5 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
     )
   }
   const Icon = getTabIcon(tab)
-  return <Icon size={size} strokeWidth={1.6} className={className} />
+  return <Icon size={size} className={className} />
 }

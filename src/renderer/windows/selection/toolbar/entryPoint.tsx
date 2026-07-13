@@ -1,9 +1,12 @@
 import '@renderer/assets/styles/tailwind.css'
 
+import { loggerService } from '@logger'
 import { prepareWindow } from '@renderer/windows/prepareWindow'
 import { createRoot } from 'react-dom/client'
 
 import SelectionToolbarApp from './SelectionToolbarApp'
+
+loggerService.initWindowSource('SelectionToolbar')
 
 await prepareWindow({
   preference: [

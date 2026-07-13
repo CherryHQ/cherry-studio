@@ -4,7 +4,6 @@
 
 import {
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
   type EndpointType,
   inferAdapterFamily,
   MODEL_CAPABILITY,
@@ -458,7 +457,6 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
-  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -472,10 +470,10 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
+    capabilities: mapCapabilities(legacy.capabilities),
     inputModalities: null,
     outputModalities: null,
-    endpointTypes,
+    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,
@@ -488,36 +486,19 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
   }
 }
 
-function mapCapabilities(
-  capabilities?: LegacyModel['capabilities'],
-  endpointTypes?: EndpointType[] | null
-): ModelCapability[] {
-  // Capabilities the user explicitly turned off in v1 — respected over any
-  // duplicate "enabled" entry and never re-added by an endpoint.
-  const disabled = new Set<ModelCapability>()
-  for (const capability of capabilities ?? []) {
-    const result = CAPABILITY_MAP[capability.type]
-    if (result !== undefined && capability.isUserSelected === false) {
-      disabled.add(result)
-    }
+function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
+  if (!capabilities || capabilities.length === 0) {
+    return []
   }
 
   const mapped: ModelCapability[] = []
-  for (const capability of capabilities ?? []) {
+  for (const capability of capabilities) {
     const result = CAPABILITY_MAP[capability.type]
-    if (result === undefined) {
-      if (capability.type !== 'text') {
-        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
-      }
-      continue
+    if (result !== undefined) {
+      mapped.push(result)
+    } else if (capability.type !== 'text') {
+      logger.warn('Unknown capability type dropped during migration', { type: capability.type })
     }
-    if (disabled.has(result)) continue
-    mapped.push(result)
-  }
-
-  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-  if (impliedCapability && !disabled.has(impliedCapability)) {
-    mapped.push(impliedCapability)
   }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : []
@@ -535,7 +516,7 @@ function mapEndpointTypes(
   const mapped: EndpointType[] = []
   for (const type of sourceTypes) {
     if (!type) continue
-    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
+    const result = ENDPOINT_MAP[type]
     if (result !== undefined) {
       mapped.push(result)
     } else {
