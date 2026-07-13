@@ -1969,6 +1969,11 @@
       },
       "select_placeholder": "请选择…"
     },
+    "api_gateway": {
+      "description": "任意 CLI，畅用全部模型",
+      "requires_running": "启用后请保持 Cherry Studio 运行，外部 CLI 才能连接到它托管的网关。",
+      "title": "统一网关"
+    },
     "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
@@ -2048,6 +2053,7 @@
     "model_required": "请选择模型",
     "model_selection": "模型选择",
     "more": "更多",
+    "move_provider_to_top": "将服务商移到顶部",
     "no_matching_providers": "没有匹配的服务商",
     "no_model_for_provider": "该服务商没有可用的模型",
     "no_providers_description": "在 设置 → 模型服务 中启用支持的服务商",

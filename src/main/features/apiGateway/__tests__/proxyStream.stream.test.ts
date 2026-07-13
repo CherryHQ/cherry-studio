@@ -1,4 +1,5 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -8,10 +9,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * factories are stubbed; the real `SseListener` and `ReadableStream` glue run.
  */
 
-const { mockStreamPrompt, mockAbort, mockListModels, captured } = vi.hoisted(() => ({
+const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, captured } = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
   mockAbort: vi.fn(),
-  mockListModels: vi.fn((): unknown[] => []),
+  mockGetProvider: vi.fn(),
+  mockListModels: vi.fn(),
   captured: { listener: undefined as StreamListener | undefined }
 }))
 
@@ -24,7 +26,7 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { getByProviderId: vi.fn(async () => undefined) }
+  providerService: { getByProviderId: mockGetProvider }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -65,7 +67,15 @@ import { processMessage } from '../proxyStream'
 beforeEach(() => {
   vi.clearAllMocks()
   captured.listener = undefined
-  mockListModels.mockReturnValue([])
+  mockGetProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
+  mockListModels.mockReturnValue([
+    {
+      id: createUniqueModelId('openai', 'gpt-4'),
+      providerId: 'openai',
+      apiModelId: 'gpt-4',
+      capabilities: []
+    }
+  ])
   mockStreamPrompt.mockImplementation((opts: { listener: StreamListener }) => {
     captured.listener = opts.listener
   })
@@ -124,8 +134,17 @@ describe('processMessage (streaming)', () => {
   })
 
   it('maps the Work Fast setting to Codex priority processing', async () => {
+    mockGetProvider.mockReturnValue({ id: 'openai-codex', name: 'OpenAI Codex', isEnabled: true, settings: {} })
+    mockListModels.mockReturnValue([
+      {
+        id: createUniqueModelId('openai-codex', 'gpt-5.4'),
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-5.4',
+        capabilities: []
+      }
+    ])
+
     const res = await processMessage({
-      provider: { id: 'openai-codex' } as any,
       params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
       inputFormat: 'anthropic',
       outputFormat: 'anthropic',
