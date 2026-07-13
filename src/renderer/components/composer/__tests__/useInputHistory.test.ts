@@ -281,49 +281,49 @@ describe('useInputHistory', () => {
   })
 
   describe('saveHistory', () => {
-    it('persists non-empty content in the renderer persist cache', async () => {
+    it('persists non-empty content in the renderer persist cache', () => {
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
         })
       )
 
-      await act(async () => {
-        await result.current.saveHistory('hello world')
+      act(() => {
+        result.current.saveHistory('hello world')
       })
 
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['hello world'])
     })
 
-    it('trims surrounding whitespace before persisting', async () => {
+    it('trims surrounding whitespace before persisting', () => {
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
         })
       )
 
-      await act(async () => {
-        await result.current.saveHistory('  hello  ')
+      act(() => {
+        result.current.saveHistory('  hello  ')
       })
 
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['hello'])
     })
 
-    it('short-circuits without changing cache for whitespace-only content', async () => {
+    it('short-circuits without changing cache for whitespace-only content', () => {
       const { result } = renderHook(() =>
         useInputHistory({
           applyDraft: () => undefined
         })
       )
 
-      await act(async () => {
-        await result.current.saveHistory('     ')
+      act(() => {
+        result.current.saveHistory('     ')
       })
 
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     })
 
-    it('moves duplicate content to the latest position', async () => {
+    it('moves duplicate content to the latest position', () => {
       seedHistory(['repeat', 'other'])
 
       const { result } = renderHook(() =>
@@ -332,14 +332,14 @@ describe('useInputHistory', () => {
         })
       )
 
-      await act(async () => {
-        await result.current.saveHistory('other')
+      act(() => {
+        result.current.saveHistory('other')
       })
 
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['other', 'repeat'])
     })
 
-    it('keeps only the configured number of recent entries', async () => {
+    it('keeps only the configured number of recent entries', () => {
       seedHistory(Array.from({ length: INPUT_HISTORY_LIMIT }, (_, index) => `content-${index}`))
 
       const { result } = renderHook(() =>
@@ -348,8 +348,8 @@ describe('useInputHistory', () => {
         })
       )
 
-      await act(async () => {
-        await result.current.saveHistory('newest')
+      act(() => {
+        result.current.saveHistory('newest')
       })
 
       const history = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')

@@ -1353,7 +1353,9 @@ describe('ChatComposer', () => {
 
     const queueContent = mocks.surfaceProps?.queueContent as any
     const itemId = queueContent.props.items[0].id
-    act(() => queueContent.props.onEdit(itemId))
+    await act(async () => {
+      await queueContent.props.onEdit(itemId)
+    })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued draft'))
     await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
     expect(mocks.files).toEqual([queuedFile])
