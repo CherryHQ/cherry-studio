@@ -988,7 +988,7 @@ const MessageContentEntryView = React.memo(
     previous.message.role === next.message.role &&
     previous.message.createdAt === next.message.createdAt &&
     previous.message.modelId === next.message.modelId &&
-    previous.message.modelSnapshot === next.message.modelSnapshot &&
+    previous.message.model === next.message.model &&
     previous.renderOptions === next.renderOptions &&
     areGroupedEntriesEqual(previous.entry, next.entry)
 )
