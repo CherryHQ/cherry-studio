@@ -187,7 +187,7 @@ const NormalTabButton = ({
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>

@@ -275,6 +275,8 @@ describe('AppShellTabBar', () => {
     expect(title).not.toHaveClass('font-medium')
     expect(title).not.toHaveClass('truncate')
     expect(title.getAttribute('style')).toContain(`mask-image: ${fadeMask}`)
+    expect(tabButton).toHaveClass('pl-2', 'pr-1.5')
+    expect(tabButton).not.toHaveClass('pr-1')
     expect(icon).toHaveAttribute('width', '14')
     expect(icon).toHaveAttribute('height', '14')
     expect(iconBox).toHaveClass('h-3.5', 'w-3.5')
