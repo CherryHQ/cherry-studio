@@ -16,14 +16,6 @@ vi.mock('@application', () => ({
   }
 }))
 
-const providerServiceMock = vi.hoisted(() => ({
-  getByProviderId: vi.fn()
-}))
-
-vi.mock('@main/data/services/ProviderService', () => ({
-  providerService: providerServiceMock
-}))
-
 const loggerMock = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -195,61 +187,50 @@ describe('CodeCliService', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
-  // A stale/deleted provider must fail the launch outright — previously the
-  // lookup failure was swallowed, launching OpenCode with a default provider
-  // name ("Studio") that doesn't match the provider key written into
-  // opencode.json, while still reporting success.
-  describe('run (OpenCode provider resolution)', () => {
+  // OpenCode's model selection lives entirely in opencode.json (top-level `model` field
+  // written by the config flow) — the launch command must NOT carry a `--model` flag.
+  // Previously the flag was assembled from provider name + model id here, which could
+  // drift from the provider key written into opencode.json (gateway mode) and made
+  // OpenCode reject the model and fall back to its own last-used one.
+  describe('run (OpenCode launch)', () => {
+    const originalPlatform = process.platform
+
     beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
       const resolver = await import('@main/utils/binaryResolver')
       vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
-    it('fails the launch instead of defaulting to a wrong provider name', async () => {
-      providerServiceMock.getByProviderId.mockImplementation(() => {
-        throw new Error('Provider not found: ghost')
-      })
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
-        mode: 'normal',
-        cliTool: CodeCli.OPEN_CODE,
-        model: 'gpt-4o',
-        providerId: 'ghost',
-        directory: '/tmp/project'
-      })
-
-      expect(result).toEqual({
-        success: false,
-        message: expect.stringContaining('OpenCode provider not found: ghost')
-      })
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
-    // OpenCode is the one CLI that concatenates `model` straight into the launch command, so a model
-    // id carrying shell metacharacters ($(), backticks, ;, quotes, spaces) is rejected before the
-    // command is ever assembled — it can't inject into the sh -c / AppleScript / .bat string.
-    it.each(['gpt-4o; rm -rf ~', 'gpt$(reboot)', 'gpt`whoami`', "gpt'x", 'gpt 4o'])(
-      'rejects a model id carrying shell metacharacters (%j)',
-      async (badModel) => {
-        providerServiceMock.getByProviderId.mockReturnValue({ id: 'deepseek', name: 'DeepSeek' })
+    it('launches without --model and disables OpenCode auto-update via env', async () => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
 
         const result = await codeCliService.run({
           mode: 'normal',
           cliTool: CodeCli.OPEN_CODE,
-          model: badModel,
-          providerId: 'deepseek',
+          model: 'deepseek:deepseek-chat',
+          providerId: 'cherry-gateway',
           directory: '/tmp/project'
         })
 
-        expect(result).toEqual({
-          success: false,
-          message: expect.stringContaining('Unsupported model id')
-        })
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        const script = (call![1] as string[]).join(' ')
+        expect(script).not.toContain('--model')
+        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+      } finally {
+        vi.useRealTimers()
       }
-    )
+    })
   })
 
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by

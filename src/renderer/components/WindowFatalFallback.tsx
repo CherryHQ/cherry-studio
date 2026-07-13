@@ -1,6 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { ipcApi } from '@renderer/ipc'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import { useEffect } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
@@ -13,9 +14,9 @@ import type { FallbackProps } from 'react-error-boundary'
  * light palette because ThemeProvider never got to apply the `dark` class.
  */
 export const WindowFatalFallback = ({ error }: FallbackProps) => {
-  // The main window's boot spinner is normally removed by useAppInit, a leaf inside
-  // the provider stack; when a provider throws it never runs, and the leftover fixed
-  // full-viewport overlay would block clicks on this fallback.
+  // The main window's boot spinner is normally removed by the main-only ready effect
+  // in MainWindowRuntime, a leaf inside the provider stack; when a provider throws it
+  // never runs, and the leftover fixed full-viewport overlay would block clicks here.
   useEffect(() => {
     document.getElementById('spinner')?.remove()
   }, [])
@@ -25,14 +26,14 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
       <Alert
         type="error"
         message={i18n.t('error.boundary.default.message')}
-        description={formatErrorMessage(error)}
+        description={formatErrorDetails(error)}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => void window.api.devTools.toggle()}>
+        <Button size="sm" onClick={() => void ipcApi.request('system.toggle_dev_tools')}>
           {i18n.t('error.boundary.default.devtools')}
         </Button>
-        <Button size="sm" onClick={() => void window.api.reload()}>
+        <Button size="sm" onClick={() => void ipcApi.request('window.main.reload')}>
           {i18n.t('error.boundary.default.reload')}
         </Button>
       </div>

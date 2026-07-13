@@ -1190,6 +1190,7 @@
           "official": "https://cloud.tencent.com/product/tokenhub"
         }
       },
+      "modelListSource": "registry",
       "name": "TokenHub"
     },
     {
@@ -1280,6 +1281,7 @@
           "official": "https://www.voyageai.com/"
         }
       },
+      "modelListSource": "registry",
       "name": "VoyageAI"
     },
     {
@@ -1299,6 +1301,7 @@
           "official": "https://aws.amazon.com/bedrock/"
         }
       },
+      "modelListSource": "registry",
       "name": "AWS Bedrock"
     },
     {
@@ -1484,5 +1487,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "fa2d6918443aaabe"
+  "version": "1acdf00c430c6247"
 }

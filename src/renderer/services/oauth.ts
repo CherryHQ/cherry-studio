@@ -85,7 +85,7 @@ export const oauthWithPPIO = async (setKey) => {
   logger.debug('[PPIO OAuth] Setting up protocol listener')
 
   return new Promise<string>((resolve, reject) => {
-    const removeListener = window.api.protocol.onReceiveData(async (data) => {
+    const removeListener = ipcApi.on('navigation.protocol_data', async (data) => {
       try {
         const url = new URL(data.url)
         const params = new URLSearchParams(url.search)

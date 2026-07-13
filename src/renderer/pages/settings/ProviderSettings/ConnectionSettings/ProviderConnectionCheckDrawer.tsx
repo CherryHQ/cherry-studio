@@ -10,10 +10,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { SerializedError } from '@renderer/types/error'
 import { maskApiKey } from '@renderer/utils/api'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { sortBy } from 'es-toolkit/compat'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
@@ -38,8 +39,8 @@ interface ProviderConnectionCheckDrawerProps {
 type ModelOption = ComboboxOption<{ model: Model }>
 type ApiKeyOption = ComboboxOption
 
-function renderModelIcon(model: Model, size = 20) {
-  const Icon = getModelLogo(model)
+function ModelOptionIcon({ model, size = 20 }: { model: Model; size?: number }) {
+  const Icon = useIcon(getModelLogoRef(model))
 
   return Icon ? (
     <Icon.Avatar size={size} />
@@ -53,7 +54,7 @@ function renderModelIcon(model: Model, size = 20) {
 function renderModelOptionContent(model: Model) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      {renderModelIcon(model)}
+      <ModelOptionIcon model={model} />
       <span className="min-w-0 flex-1 truncate" title={model.name}>
         {model.name}
       </span>

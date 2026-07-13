@@ -35,6 +35,10 @@ function resolveHomeRelativeFilePath(filePath: string): string {
   return path.join(application.getPath('sys.home'), filePath.slice(2))
 }
 
+function normalizeTrashPath(filePath: string): string {
+  return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
@@ -269,12 +273,15 @@ class FileStorage {
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!filePath) return
+
+      const nativePath = normalizeTrashPath(filePath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(filePath)
-      logger.debug(`External file moved to trash successfully: ${filePath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -283,12 +290,15 @@ class FileStorage {
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(dirPath)) {
+      if (!dirPath) return
+
+      const nativePath = normalizeTrashPath(dirPath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(dirPath)
-      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error

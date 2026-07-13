@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +44,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       ref,
       value,
       onChange,
-      placeholder
+      placeholder,
+      autoFocus
     }: ComponentProps<'textarea'> & {
       ref?: Ref<{ focus: () => void }>
       value: string
@@ -60,6 +61,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           <div className="cm-content">
             <textarea
               ref={textareaRef}
+              autoFocus={autoFocus}
               aria-label="Prompt editor"
               placeholder={placeholder}
               value={value}
@@ -114,5 +116,18 @@ describe('PromptEditorField', () => {
     fireEvent.mouseDown(screen.getByTestId('gutter'))
 
     expect(editor).toHaveFocus()
+  })
+
+  it('focuses the editor when autoFocus is enabled', async () => {
+    function Harness() {
+      const [value, setValue] = useState('')
+      return <PromptEditorField autoFocus label={<span>Prompt</span>} value={value} onChange={setValue} />
+    }
+
+    render(<Harness />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Prompt editor')).toHaveFocus()
+    })
   })
 })

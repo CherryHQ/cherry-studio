@@ -107,7 +107,11 @@ export default defineProvider({
           generate: {
             supports: {
               size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              sequentialImageGeneration: { type: 'switch' },
+              // The catalog types this key as a string (matching dmxapi's own doubao
+              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
+              // `switch` here renders a boolean control that gets coerced away before
+              // the request, so the feature silently no-ops.
+              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
             },
@@ -124,7 +128,11 @@ export default defineProvider({
           generate: {
             supports: {
               size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              sequentialImageGeneration: { type: 'switch' },
+              // The catalog types this key as a string (matching dmxapi's own doubao
+              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
+              // `switch` here renders a boolean control that gets coerced away before
+              // the request, so the feature silently no-ops.
+              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
             },
