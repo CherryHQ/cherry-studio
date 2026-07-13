@@ -1272,23 +1272,17 @@ export default function ComposerSurface({
         style: editorStyle
       },
       handleKeyDown: (_view: EditorView, event: KeyboardEvent) => {
+        const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
           const qp = quickPanelRef.current
           const handled = qp.dispatchKeyDown(event)
           if (handled) return true
-          if (
-            qp.isVisible &&
-            event.key === 'Enter' &&
-            event.shiftKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey
-          ) {
+          if (qp.isVisible && isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
             return false
           }
-          if (qp.isVisible && event.key === 'Enter') {
+          if (qp.isVisible && isEnterPressed) {
             event.preventDefault()
             event.stopPropagation()
             return true
@@ -1314,7 +1308,6 @@ export default function ComposerSurface({
           }
         }
 
-        const isEnterPressed = event.key === 'Enter' && !event.isComposing
         if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
           if (!sendDisabledRef.current && editorRef.current) {
             const draft = serializeComposerDocument(editorRef.current)
