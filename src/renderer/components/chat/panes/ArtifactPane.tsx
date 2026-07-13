@@ -659,13 +659,13 @@ export function ArtifactPaneView({
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
-        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
+        <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {refreshButton}
             <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            {refreshButton}
             <Tooltip content={t('agent.preview_pane.close')} delay={800}>
               <Button
                 type="button"
