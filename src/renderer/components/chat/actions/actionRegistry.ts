@@ -123,7 +123,7 @@ export class ActionRegistry<TContext> {
   }
 
   async execute(actionId: string, context: TContext): Promise<boolean> {
-    const action = this.findAction(actionId)
+    const action = this.findAction(actionId, context)
     if (!action) return false
 
     const resolvedAction = this.resolveAction(action, context)
@@ -144,9 +144,9 @@ export class ActionRegistry<TContext> {
     this.commands.clear()
   }
 
-  private findAction(actionId: string): ActionDescriptor<TContext> | undefined {
+  private findAction(actionId: string, context: TContext): ActionDescriptor<TContext> | undefined {
     for (const action of this.actions.values()) {
-      const found = this.findActionInTree(action, actionId)
+      const found = this.findActionInTree(action, actionId, context)
       if (found) return found
     }
     return undefined
@@ -154,11 +154,13 @@ export class ActionRegistry<TContext> {
 
   private findActionInTree(
     action: ActionDescriptor<TContext>,
-    actionId: string
+    actionId: string,
+    context: TContext
   ): ActionDescriptor<TContext> | undefined {
     if (action.id === actionId) return action
-    for (const child of action.children ?? []) {
-      const found = this.findActionInTree(child, actionId)
+    const children = typeof action.children === 'function' ? action.children(context) : (action.children ?? [])
+    for (const child of children) {
+      const found = this.findActionInTree(child, actionId, context)
       if (found) return found
     }
     return undefined
@@ -178,8 +180,9 @@ export class ActionRegistry<TContext> {
     const availability = combineAvailability(actionAvailability, commandAvailability)
     if (!availability.visible) return undefined
 
+    const actionChildren = typeof action.children === 'function' ? action.children(context) : (action.children ?? [])
     const children = sortResolvedActions(
-      (action.children ?? [])
+      actionChildren
         .map((child) => this.resolveAction(child, context, surface))
         .filter((child): child is ResolvedAction<TContext> => !!child)
     )

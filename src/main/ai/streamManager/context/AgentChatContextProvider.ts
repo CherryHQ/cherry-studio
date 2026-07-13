@@ -31,7 +31,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       status: row.status,
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
-      modelSnapshot: row.modelSnapshot ?? undefined,
+      messageSnapshot: row.messageSnapshot ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -70,7 +70,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
+    // header shows the agent first, even after the agent is deleted.
+    const messageSnapshot = {
+      id: agent.id,
+      name: agent.name,
+      // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
+      // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
+      emoji: agent.configuration?.avatar?.trim() || '🤖',
+      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    }
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -84,7 +93,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       status: 'success',
       searchableText: '',
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -113,7 +122,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application
         .get('AgentSessionRuntimeService')
-        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true })
+        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true, messageSnapshot })
 
       return {
         topicId: req.topicId,
@@ -162,7 +171,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           status: 'pending',
           data: { parts: [] },
           modelId: uniqueModelId,
-          modelSnapshot
+          messageSnapshot
         }
       ]
     })
@@ -187,7 +196,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
-      traceId
+      traceId,
+      messageSnapshot
     })
 
     return {
