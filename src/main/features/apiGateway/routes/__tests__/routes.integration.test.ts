@@ -274,13 +274,32 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
-    it('rejects unauthenticated /v1beta requests with 401', async () => {
-      const { status } = await read(
+    it('rejects unauthenticated /v1beta requests with a 401 Google UNAUTHENTICATED envelope', async () => {
+      const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, {
           'content-type': 'application/json'
         })
       )
       expect(status).toBe(401)
+      // Auth short-circuits before the handler, but must still speak the Google dialect.
+      expect(body.error.code).toBe(401)
+      expect(body.error.status).toBe('UNAUTHENTICATED')
+      expect(typeof body.error.message).toBe('string')
+      // Not the OpenAI/Anthropic shapes.
+      expect(body.type).toBeUndefined()
+      expect(body.error.type).toBeUndefined()
+    })
+
+    it('rejects an invalid /v1beta key with a 403 Google PERMISSION_DENIED envelope', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, {
+          'content-type': 'application/json',
+          'x-goog-api-key': 'wrong-key'
+        })
+      )
+      expect(status).toBe(403)
+      expect(body.error.code).toBe(403)
+      expect(body.error.status).toBe('PERMISSION_DENIED')
     })
 
     it('authenticates via the x-goog-api-key header', async () => {

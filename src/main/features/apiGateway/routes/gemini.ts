@@ -2,6 +2,7 @@ import { bearer } from '@elysia/bearer'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
+import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
 import { processMessage } from '../proxyStream'
 import { getModels } from '../utils/models'
@@ -82,8 +83,11 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
       const failure = authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey)
       if (!failure) return undefined
+      // Short-circuit responses bypass the root `onError`, so shape the Google
+      // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)
+      // to honour the `/v1beta` dialect's error contract.
       set.status = failure.status
-      return { error: failure.error }
+      return googleEnvelope(failure.status, failure.error)
     }
   })
   .post(

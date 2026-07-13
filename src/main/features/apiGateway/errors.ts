@@ -33,7 +33,7 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
 })
 
 /** Google (Gemini) dialect envelope: `{ error: { code, message, status } }`. */
-const googleEnvelope = (httpStatus: number, message: string) => ({
+export const googleEnvelope = (httpStatus: number, message: string) => ({
   error: { code: httpStatus, message, status: googleStatusName(httpStatus) }
 })
 
