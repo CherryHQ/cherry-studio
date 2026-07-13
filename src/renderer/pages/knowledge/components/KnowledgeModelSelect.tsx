@@ -19,6 +19,7 @@ interface KnowledgeModelSelectProps {
   allowClear?: boolean
   clearAriaLabel?: string
   'aria-label'?: string
+  onSettingsNavigate?: (navigate: () => void) => void
   onChange: (modelId: string | null) => void
 }
 
@@ -35,6 +36,7 @@ export const KnowledgeModelSelect = ({
   allowClear = false,
   clearAriaLabel,
   'aria-label': ariaLabel,
+  onSettingsNavigate,
   onChange
 }: KnowledgeModelSelectProps) => {
   const { models } = useModels({ enabled: true })
@@ -56,6 +58,7 @@ export const KnowledgeModelSelect = ({
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
+        onSettingsNavigate={onSettingsNavigate}
         onSelect={(modelId) => onChange(modelId ?? null)}
         trigger={
           <Button

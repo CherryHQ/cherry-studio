@@ -13,7 +13,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useModelById } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -151,6 +151,8 @@ export function ResourceCreateWizard({
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
+  const [dialogKey, setDialogKey] = useState(0)
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
   // protection (overlay / Esc / X) stays locked for the entire submit, not just the
@@ -221,6 +223,37 @@ export function ResourceCreateWizard({
   }
   const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
 
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setDialogKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      setDialogKey((key) => key + 1)
+      onOpenChange(false)
+    },
+    [onOpenChange, open, runPendingCloseAction]
+  )
+
+  useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
+
   const handleCreate = form.handleSubmit(async (values) => {
     if (!values.modelId) return
     form.clearErrors('root')
@@ -247,7 +280,7 @@ export function ResourceCreateWizard({
   const currentStep = steps[stepIndex]
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
+    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
@@ -317,6 +350,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
+                    onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (
