@@ -18,7 +18,16 @@ export {
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
-export { ImageGenerationSupportSchema } from './schemas/model'
+export type { ImageParamCatalogEntry, ParamValue, ParamValues } from './schemas/imageParamCatalog'
+export {
+  IMAGE_PARAM_CATALOG,
+  IMAGE_PARAM_CATALOG_KEYS,
+  imageParamsSchema,
+  paramCatalogEntry,
+  wireName
+} from './schemas/imageParamCatalog'
+export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
 export type {
