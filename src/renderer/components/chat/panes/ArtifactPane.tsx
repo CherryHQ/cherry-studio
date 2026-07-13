@@ -68,7 +68,6 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
-  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
@@ -150,7 +149,6 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
-  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -367,7 +365,6 @@ export function ArtifactFilePreview({
         sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
         className="min-h-0"
         refreshKey={contentRefreshKey}
-        actions={officeActions}
       />
     )
   }
@@ -626,19 +623,23 @@ export function ArtifactPaneView({
     [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
   )
 
+  const refreshButton = (
+    <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground"
+        aria-label={t('agent.preview_pane.refresh')}
+        onClick={handleRefresh}>
+        <RotateCw size={16} />
+      </Button>
+    </Tooltip>
+  )
+
   const searchToolbar = (
     <div className="flex shrink-0 items-center gap-1">
-      <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={t('agent.preview_pane.refresh')}
-          onClick={handleRefresh}>
-          <RotateCw size={16} />
-        </Button>
-      </Tooltip>
+      {refreshButton}
       {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
     </div>
   )
@@ -663,21 +664,25 @@ export function ArtifactPaneView({
             ? 'overflow-hidden'
             : 'overflow-auto'
         )}>
-        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 py-2">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
-          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.close')}
-              onClick={handleClosePreview}>
-              <X size={16} />
-            </Button>
-          </Tooltip>
+          <div className="flex shrink-0 items-center gap-1">
+            {refreshButton}
+            <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            <Tooltip content={t('agent.preview_pane.close')} delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={t('agent.preview_pane.close')}
+                onClick={handleClosePreview}>
+                <X size={16} />
+              </Button>
+            </Tooltip>
+          </div>
         </div>
         <div className="min-h-0 flex-1">
           <ArtifactFilePreview
@@ -688,11 +693,6 @@ export function ArtifactPaneView({
             pdfLayoutPending={pdfLayoutPending}
             pdfLayoutRefreshKey={pdfLayoutRefreshKey}
             contentRefreshKey={contentRefreshToken}
-            officeActions={
-              isOfficeDocumentSelection ? (
-                <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
-              ) : undefined
-            }
           />
         </div>
       </div>
