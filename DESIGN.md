@@ -3,6 +3,8 @@
 ## 1. Visual Theme & Atmosphere
 
 > **Source of truth:** token sources live in `packages/ui/src/styles/tokens/` and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
+>
+> **Stable contract vs internal slots:** the public `--color-*` aliases generated from `tokens/colors/{semantic,status}.css` (and everything documented here) are the supported theme contract. Aliases generated from `tokens/colors/component.css` are **internal component slots**: advanced custom CSS may override them, but their names are not compatibility-stable and product code outside the owning component must not depend on them.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
@@ -25,32 +27,37 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 ## 2. Color Palette & Roles
 
-> Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status}.css`. This section names what each token is for; refer to the source files for resolved values.
+> Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status,component}.css`. This section names what each token is for; refer to the source files for resolved values.
 
 ### Palette Philosophy — Neutrals via Alpha, Colors via Steps
 
 The color system follows one consistent rule:
 
 - **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
-- **Chromatic tokens** (`--color-primary`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
+- **Solid role tokens** (`--color-primary`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background. In v2, `--color-primary` is a neutral strong action color; chromatic interaction emphasis belongs to `--color-control-accent`.
 
 When you reach for a value:
 1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the existing semantic neutral token (`--color-foreground*`, `--color-border*`, `--color-secondary`, `--color-accent`, `--color-ghost-*`). Do not invent `oklch(0 0 0 / 0.x)` literals — the token already encodes the intent.
 2. If the role is "this exact color regardless of surface" (brand, error, success), use the corresponding solid token from the `--color-{primary,destructive,success,warning,info,*-base,*-text,*-bg}` set or a primitive scale.
 
 ### Primary
-- **Primary**: `var(--color-primary)` — exported primary accent for true page actions, selected states, links, and component accents. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
+- **Primary**: `var(--color-primary)` — neutral strong action and selected-state color. It does not follow the user accent; links and chromatic interaction states use Control Accent instead. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
 - **Primary Foreground**: `var(--color-primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: `var(--color-primary-hover)`
+
+### Control Accent
+- **Control Accent**: `var(--color-control-accent)` (backed by the runtime input `--cs-theme-control-accent`) — the chromatic accent for interactive controls whose on/active fill should track the user's theme color instead of the neutral primary. Used by the Switch on-state (`bg-control-accent`, loading `bg-control-accent/60!`) and followed by `--color-link`. Use this — not `var(--color-primary)` (neutral) and not a page-local brand hue — when a control needs a chromatic on/active state.
+- **Control Thumb**: `var(--color-control-thumb)` — the Switch thumb fill.
 
 ### Text Colors
 - **Foreground**: `var(--color-foreground)` — primary body text
 - **Foreground Secondary**: `var(--color-foreground-secondary)` — secondary text, helper labels
 - **Foreground Muted**: `var(--color-foreground-muted)` — placeholder, disabled, low-emphasis text
+- **Muted Foreground (shadcn alias)**: `var(--color-muted-foreground)` / `text-muted-foreground` — shadcn-ecosystem name for secondary text; an alias of the token `--cs-foreground-secondary-solid`, the opaque twin of Foreground Secondary. Despite the similar name it is **not** `--color-foreground-muted` — that is a lighter 40% wash with a different role.
 - **Card / Popover / Accent / Secondary Foreground**: `var(--color-card-foreground)` / `var(--color-popover-foreground)` / `var(--color-accent-foreground)` / `var(--color-secondary-foreground)` — contrast text on each surface
 
 ### Surface & Background
-- **Background**: `var(--color-background)` — primary page background (`#FFFFFF` light / `#0A0A0A` dark)
+- **Background**: `var(--color-background)` — primary page background. Dark mode carries ~55% alpha **by contract**: it is what lets macOS vibrancy windows blur the wallpaper through; an override that makes it opaque kills the glass effect.
 - **Background Subtle**: `var(--color-background-subtle)` — slightly tinted background variant
 - **Card**: `var(--color-card)` — elevated card surfaces
 - **Popover**: `var(--color-popover)` — floating panel surfaces (dropdowns, menus, tooltips)
@@ -103,7 +110,7 @@ Defined in `tokens/colors/status.css`. Use these when a status surface needs mor
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
 
 ### Links
-Links inherit `var(--color-primary)` for color and add an underline on hover. There is no separate `--color-link` token by design — primary is the link color.
+Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` follows the control accent (`--cs-theme-control-accent`), i.e. the user-customizable theme color. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
 
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:

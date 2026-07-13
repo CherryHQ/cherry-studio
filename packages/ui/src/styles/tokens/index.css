@@ -10,6 +10,7 @@
  * - colors/primitive.css: Base color palette
  * - colors/semantic.css: Semantic color mappings
  * - colors/status.css: Status colors (Error, Success, Warning)
+ * - colors/component.css: Overrideable but compatibility-unstable component slots
  * - spacing.css: Spacing and sizing
  * - radius.css: Border radius
  * - typography.css: Typography system
@@ -18,6 +19,7 @@
 @import './colors/primitive.css';
 @import './colors/semantic.css';
 @import './colors/status.css';
+@import './colors/component.css';
 @import './spacing.css';
 @import './radius.css';
 @import './typography.css';
