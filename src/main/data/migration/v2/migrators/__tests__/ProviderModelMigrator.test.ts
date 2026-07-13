@@ -566,21 +566,6 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.outputModalities).toBeNull()
     })
 
-    it('infers rerank capability for legacy rerank model ids without capability metadata', async () => {
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [makeProvider('voyageai', [{ id: 'rerank-2' }])]
-        }
-      })
-      await migrator.prepare(migrationContext)
-      const result = await migrator.execute(migrationContext)
-
-      expect(result.success).toBe(true)
-
-      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
-      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
-    })
-
     it('preserves an explicit rerank disable for matching model ids and registry presets', async () => {
       registryFixtures.models.set('rerank-2', {
         id: 'rerank-2',

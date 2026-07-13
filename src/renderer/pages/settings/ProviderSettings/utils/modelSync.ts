@@ -3,14 +3,8 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import {
-  type EndpointType as RuntimeEndpointType,
-  type Model,
-  MODEL_CAPABILITY,
-  parseUniqueModelId
-} from '@shared/data/types/model'
+import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { inferRerankFromModelId } from '@shared/utils/model'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -51,19 +45,6 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
   return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
 }
 
-function getRerankCapability(model: Pick<Partial<Model>, 'apiModelId' | 'id' | 'capabilities'>): Model['capabilities'] {
-  if (model.capabilities?.includes(MODEL_CAPABILITY.RERANK)) {
-    return [MODEL_CAPABILITY.RERANK]
-  }
-
-  const rawModelId = getRawModelId(model)
-  if (rawModelId && inferRerankFromModelId(rawModelId)) {
-    return [MODEL_CAPABILITY.RERANK]
-  }
-
-  return []
-}
-
 export function toCreateModelDto(
   providerId: string,
   model: Model,
@@ -71,14 +52,12 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const capabilities = getRerankCapability(model)
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
-    ...(capabilities.length > 0 ? { capabilities } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -137,8 +116,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
 
     if (!registry) {
-      const capabilities = getRerankCapability(base)
-      return capabilities.length > 0 ? { ...base, capabilities } : base
+      return base
     }
 
     const merged = { ...base }
@@ -153,12 +131,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       }
     }
 
-    const rerankCapability = getRerankCapability(merged)
-    if (rerankCapability.length === 0) {
-      return merged
-    }
-
-    return { ...merged, capabilities: Array.from(new Set([...(merged.capabilities ?? []), ...rerankCapability])) }
+    return merged
   })
 }
 

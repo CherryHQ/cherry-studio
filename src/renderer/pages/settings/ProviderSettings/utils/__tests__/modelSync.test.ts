@@ -63,22 +63,6 @@ describe('fetchResolvedProviderModels', () => {
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
   })
-
-  it('infers rerank capability for upstream rerank model ids when registry metadata is absent', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'voyageai::rerank-2' as UniqueModelId,
-        providerId: 'voyageai',
-        apiModelId: 'rerank-2',
-        name: 'rerank-2',
-        capabilities: []
-      }
-    ])
-
-    const [model] = await fetchResolvedProviderModels('voyageai')
-
-    expect(model.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
-  })
 })
 
 describe('resolveCreateModelEndpointTypes', () => {
@@ -154,7 +138,7 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('persists only the rerank capability in the create DTO', () => {
+  it('does not forward model capabilities in the create DTO (resolved server-side from the registry)', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
@@ -168,30 +152,11 @@ describe('toCreateModelDto', () => {
       isHidden: false
     } as Model)
 
+    expect(dto.capabilities).toBeUndefined()
     expect(dto).toMatchObject({
       providerId: 'ppio',
       modelId: 'bge-reranker-v2-m3',
-      capabilities: [MODEL_CAPABILITY.RERANK],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
-  })
-
-  it('infers rerank capability in the create payload when upstream omits capabilities', () => {
-    const dto = toCreateModelDto('voyageai', {
-      id: 'voyageai::rerank-2' as UniqueModelId,
-      providerId: 'voyageai',
-      apiModelId: 'rerank-2',
-      name: 'rerank-2',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    } as Model)
-
-    expect(dto).toMatchObject({
-      providerId: 'voyageai',
-      modelId: 'rerank-2',
-      capabilities: [MODEL_CAPABILITY.RERANK]
     })
   })
 })

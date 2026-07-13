@@ -22,7 +22,6 @@ import type {
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
-import { inferRerankFromModelId } from '@shared/utils/model'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -472,7 +471,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.id, legacy.capabilities, endpointTypes),
+    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
     inputModalities: null,
     outputModalities: null,
     endpointTypes,
@@ -489,7 +488,6 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
 }
 
 function mapCapabilities(
-  modelId: string,
   capabilities?: LegacyModel['capabilities'],
   endpointTypes?: EndpointType[] | null
 ): ModelCapability[] {
@@ -512,9 +510,6 @@ function mapCapabilities(
 
       mapped.push(result)
     }
-  }
-  if (!rerankExplicitlyDisabled && inferRerankFromModelId(modelId)) {
-    mapped.push(MODEL_CAPABILITY.RERANK)
   }
   if (!rerankExplicitlyDisabled && endpointTypes?.[0] === ENDPOINT_TYPE.JINA_RERANK) {
     mapped.push(MODEL_CAPABILITY.RERANK)
