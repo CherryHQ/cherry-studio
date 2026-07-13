@@ -202,6 +202,19 @@ export const VercelGatewayModelsResponseSchema = z.object({
   )
 })
 
+// === Anthropic (/v1/models) ===
+
+export const AnthropicModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      display_name: z.string().optional(),
+      created_at: z.string().optional()
+    })
+  ),
+  has_more: z.boolean().optional()
+})
+
 // === AIHubMix ===
 
 export const AIHubMixModelsResponseSchema = z.object({
