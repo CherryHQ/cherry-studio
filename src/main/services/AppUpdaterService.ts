@@ -8,7 +8,6 @@ import { regionService } from '@main/services/RegionService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import { APP_NAME } from '@shared/utils/constants'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
@@ -155,10 +154,9 @@ export class AppUpdaterService extends BaseService {
   }
 
   private registerAutoUpdaterListeners(): void {
-    const wm = () => application.get('WindowManager')
     const onError = (error: Error) => {
       logger.error('update error', error)
-      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateError, error)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
     autoUpdater.on('error', onError)
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
@@ -166,26 +164,26 @@ export class AppUpdaterService extends BaseService {
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateAvailable, processedReleaseInfo)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = () => {
-      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateNotAvailable)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
-      wm().broadcastToType(WindowType.Main, IpcChannel.DownloadProgress, progress)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_progress', progress)
     }
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
     const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      wm().broadcastToType(WindowType.Main, IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
     }
     autoUpdater.on('update-downloaded', onUpdateDownloaded)

@@ -1,8 +1,15 @@
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  chatMessageFileRefTable,
+  miniAppLogoFileRefTable,
+  paintingFileRefTable,
+  providerLogoFileRefTable
+} from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
@@ -1396,6 +1403,39 @@ describe('FileEntryService', () => {
       })
     }
 
+    async function seedProviderLogoRef(fileEntryId: FileEntryId): Promise<void> {
+      const now = Date.now()
+      const providerId = `provider-${fileEntryId.slice(-12)}`
+      await dbh.db.insert(userProviderTable).values({ providerId, name: 'P', orderKey: providerId })
+      await dbh.db.insert(providerLogoFileRefTable).values({
+        id: `44444444-4444-4444-8444-${fileEntryId.slice(-12)}`,
+        fileEntryId,
+        sourceId: providerId,
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
+    async function seedMiniAppLogoRef(fileEntryId: FileEntryId): Promise<void> {
+      const now = Date.now()
+      const appId = `app-${fileEntryId.slice(-12)}`
+      await dbh.db.insert(miniAppTable).values({
+        appId,
+        presetMiniAppId: null,
+        name: 'A',
+        url: 'https://a.com',
+        status: 'enabled',
+        orderKey: appId
+      })
+      await dbh.db.insert(miniAppLogoFileRefTable).values({
+        id: `55555555-5555-4555-8555-${fileEntryId.slice(-12)}`,
+        fileEntryId,
+        sourceId: appId,
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
     it('returns only entries with zero persistent refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
@@ -1465,6 +1505,26 @@ describe('FileEntryService', () => {
 
       const result = fileEntryService.findUnreferenced()
       expect(result.map((e) => e.id)).toEqual([orphan])
+    })
+
+    it('excludes entries referenced only by provider_logo_file_ref', async () => {
+      const referenced = '019606a0-0000-7000-8000-000000000d31' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d32' as FileEntryId
+      fileEntryService.create({ id: referenced, origin: 'internal', name: 'plogo', ext: 'webp', size: 1 })
+      fileEntryService.create({ id: orphan, origin: 'internal', name: 'orphan', ext: 'webp', size: 1 })
+      await seedProviderLogoRef(referenced)
+
+      expect(fileEntryService.findUnreferenced().map((e) => e.id)).toEqual([orphan])
+    })
+
+    it('excludes entries referenced only by mini_app_logo_file_ref', async () => {
+      const referenced = '019606a0-0000-7000-8000-000000000d33' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d34' as FileEntryId
+      fileEntryService.create({ id: referenced, origin: 'internal', name: 'malogo', ext: 'webp', size: 1 })
+      fileEntryService.create({ id: orphan, origin: 'internal', name: 'orphan', ext: 'webp', size: 1 })
+      await seedMiniAppLogoRef(referenced)
+
+      expect(fileEntryService.findUnreferenced().map((e) => e.id)).toEqual([orphan])
     })
 
     it('honours the optional origin filter', async () => {

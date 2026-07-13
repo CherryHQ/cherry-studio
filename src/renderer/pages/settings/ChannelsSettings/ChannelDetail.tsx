@@ -25,6 +25,7 @@ import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/com
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -119,22 +120,20 @@ const ChannelLogModal: FC<{
     }
 
     // Load existing logs
-    window.api.channel
-      .getLogs(channelId)
+    ipcApi
+      .request('channel.get_logs', channelId)
       .then(setLogs)
       .catch((err) => {
         logger.warn('Failed to load channel logs', { channelId, err })
       })
-
-    // Subscribe to real-time logs
-    const unsub = window.api.channel.onLog((entry) => {
-      if (entry.channelId === channelId) {
-        setLogs((prev) => [...prev.slice(-199), entry])
-      }
-    })
-
-    return unsub
   }, [open, channelId])
+
+  // Subscribe to real-time logs
+  useIpcOn('channel.log', (entry) => {
+    if (entry.channelId === channelId) {
+      setLogs((prev) => [...prev.slice(-199), entry])
+    }
+  })
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -436,31 +435,31 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
 
-  // Fetch initial statuses + subscribe to real-time changes
+  // Fetch initial statuses
   useEffect(() => {
-    window.api.channel
-      .getStatuses()
+    ipcApi
+      .request('channel.get_statuses')
       .then((list) => {
         setStatuses(new Map(list.map((s) => [s.channelId, s])))
       })
       .catch((err) => {
         logger.warn('Failed to load initial channel statuses', { err })
       })
+  }, [])
 
-    const unsub = window.api.channel.onStatusChange((status) => {
-      setStatuses((prev) => {
-        // When a channel transitions to connected, revalidate SWR
-        // (e.g. after QR registration saves credentials in main process)
-        if (status.connected && !prev.get(status.channelId)?.connected) {
-          void mutate()
-        }
-        const next = new Map(prev)
-        next.set(status.channelId, status)
-        return next
-      })
+  // Subscribe to real-time status changes
+  useIpcOn('channel.status_changed', (status) => {
+    setStatuses((prev) => {
+      // When a channel transitions to connected, revalidate SWR
+      // (e.g. after QR registration saves credentials in main process)
+      if (status.connected && !prev.get(status.channelId)?.connected) {
+        void mutate()
+      }
+      const next = new Map(prev)
+      next.set(status.channelId, status)
+      return next
     })
-    return unsub
-  }, [mutate])
+  })
 
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0

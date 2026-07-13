@@ -89,7 +89,7 @@ describe('MiniAppSeeder', () => {
       presetMiniAppId: null,
       name: 'My Custom Override',
       url: 'https://custom.example/path',
-      logo: 'custom-logo',
+      logoKey: 'custom-logo',
       status: 'enabled',
       orderKey: 'a0'
     })
@@ -101,6 +101,6 @@ describe('MiniAppSeeder', () => {
     expect(row.presetMiniAppId).toBeNull()
     expect(row.name).toBe('My Custom Override')
     expect(row.url).toBe('https://custom.example/path')
-    expect(row.logo).toBe('custom-logo')
+    expect(row.logoKey).toBe('custom-logo')
   })
 })

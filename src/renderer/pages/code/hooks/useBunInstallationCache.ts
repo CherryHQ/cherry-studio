@@ -1,4 +1,5 @@
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { useEffect } from 'react'
 
@@ -12,7 +13,7 @@ export function useBunInstallationCache(): void {
     let cancelled = false
     void (async () => {
       try {
-        const bunExists = await window.api.isBinaryExist('bun')
+        const bunExists = await ipcApi.request('binary.is_installed', 'bun')
         if (!cancelled) setIsBunInstalled(bunExists)
       } catch (error) {
         logger.error('Failed to check bun installation status:', error as Error)

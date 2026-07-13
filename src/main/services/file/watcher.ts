@@ -37,6 +37,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { type FilePath, FilePathSchema } from '@shared/types/file'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
@@ -150,13 +151,15 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
 
   private handleError(err: Error): void {
     const code = (err as NodeJS.ErrnoException).code
-    if (!this.closed && !this.usingPolling && (code === 'EMFILE' || err.message.includes('EMFILE'))) {
-      logger.warn('chokidar native watcher hit EMFILE; falling back to polling', err)
+    const isWindowsEperm = isWin && (code === 'EPERM' || err.message.includes('EPERM'))
+    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsEperm
+    if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
+      logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
       const oldWatcher = this.fsw
       oldWatcher.removeAllListeners()
       this.usingPolling = true
       this.fsw = this.createWatcher(true)
-      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close EMFILE watcher', closeErr as Error))
+      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr as Error))
       return
     }
 

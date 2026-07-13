@@ -1,5 +1,6 @@
 import { Button, ColFlex } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { FC } from 'react'
@@ -27,7 +28,7 @@ const OvmsSettings: FC = () => {
   useEffect(() => {
     const checkStatus = async () => {
       if (!isSupported) return
-      const status = await window.api.ovms.getStatus()
+      const status = await ipcApi.request('ovms.get_status')
       setOvmsStatus(status)
     }
     void checkStatus()
@@ -36,8 +37,8 @@ const OvmsSettings: FC = () => {
   const installOvms = async () => {
     try {
       setIsInstallingOvms(true)
-      await window.api.installOvmsBinary()
-      const status = await window.api.ovms.getStatus()
+      await ipcApi.request('ovms.install_binary')
+      const status = await ipcApi.request('ovms.get_status')
       setOvmsStatus(status)
       setIsInstallingOvms(false)
     } catch (error: unknown) {
@@ -64,8 +65,8 @@ const OvmsSettings: FC = () => {
   const runOvms = async () => {
     try {
       setIsRunningOvms(true)
-      await window.api.ovms.runOvms()
-      const status = await window.api.ovms.getStatus()
+      await ipcApi.request('ovms.start')
+      const status = await ipcApi.request('ovms.get_status')
       setOvmsStatus(status)
       setIsRunningOvms(false)
     } catch (error: unknown) {
@@ -77,8 +78,8 @@ const OvmsSettings: FC = () => {
   const stopOvms = async () => {
     try {
       setIsStoppingOvms(true)
-      await window.api.ovms.stopOvms()
-      const status = await window.api.ovms.getStatus()
+      await ipcApi.request('ovms.stop')
+      const status = await ipcApi.request('ovms.get_status')
       setOvmsStatus(status)
       setIsStoppingOvms(false)
     } catch (error: unknown) {
