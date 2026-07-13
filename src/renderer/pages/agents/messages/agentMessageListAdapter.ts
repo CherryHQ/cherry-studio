@@ -24,6 +24,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
@@ -179,7 +180,7 @@ export function useAgentMessageListProviderValue({
   }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
-    return window.api.mcp.abortTool(toolId)
+    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(

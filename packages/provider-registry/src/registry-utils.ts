@@ -3,7 +3,7 @@
  * Safe to import from browser/renderer contexts.
  */
 
-import { ENDPOINT_TYPE, type EndpointType } from './schemas/enums'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
 import type { ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
@@ -113,4 +113,27 @@ export function inferAdapterFamily(
 ): string {
   if (catalogConfig?.adapterFamily) return catalogConfig.adapterFamily
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
+}
+
+/**
+ * Capability-exclusive endpoints imply a model capability: a model whose primary
+ * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,
+ * an image endpoint can only generate images. Single source of truth for deriving
+ * a capability from a model's endpoint when the catalog has no entry for it (e.g.
+ * opaque gateway/NewAPI model ids). Chat/completions endpoints are general-purpose
+ * and imply nothing, so they're absent from the map.
+ *
+ * ponytail: covers the non-chat leak class (rerank/embedding/image); add the
+ * tts/stt/video endpoints here if those ever surface through a gateway.
+ */
+const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>> = {
+  [ENDPOINT_TYPE.JINA_RERANK]: MODEL_CAPABILITY.RERANK,
+  [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: MODEL_CAPABILITY.EMBEDDING,
+  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: MODEL_CAPABILITY.IMAGE_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION
+}
+
+/** Capability implied by a capability-exclusive endpoint, or `undefined` for general-purpose endpoints. */
+export function endpointImpliedCapability(endpointType: EndpointType | undefined | null): ModelCapability | undefined {
+  return endpointType ? ENDPOINT_IMPLIED_CAPABILITY[endpointType] : undefined
 }

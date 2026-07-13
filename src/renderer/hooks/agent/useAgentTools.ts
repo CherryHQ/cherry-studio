@@ -1,5 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { ipcApi } from '@renderer/ipc'
 import type { McpTool } from '@renderer/types/tool'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
@@ -97,7 +98,7 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
       if (!server?.isActive || requestedRefreshes.current.has(id)) continue
       if ((toolsByServer[id]?.length ?? 0) > 0) continue
       requestedRefreshes.current.add(id)
-      void window.api.mcp.refreshTools(server.id).catch(() => {
+      void ipcApi.request('mcp.server.refresh_tools', { serverId: server.id }).catch(() => {
         requestedRefreshes.current.delete(id)
       })
     }

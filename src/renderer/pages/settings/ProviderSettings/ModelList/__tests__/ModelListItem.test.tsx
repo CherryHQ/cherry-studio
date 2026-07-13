@@ -38,7 +38,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('../../components/FreeTrialModelTag', () => ({

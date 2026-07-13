@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -54,6 +55,7 @@ const RestoreKnowledgeBaseDialog = ({
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))
@@ -138,6 +140,7 @@ const RestoreKnowledgeBaseDialog = ({
                 placeholder={t('knowledge.not_set')}
                 filter={isEmbeddingModel}
                 invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />
               {hasAttemptedSubmit && !values.embeddingModelId ? (

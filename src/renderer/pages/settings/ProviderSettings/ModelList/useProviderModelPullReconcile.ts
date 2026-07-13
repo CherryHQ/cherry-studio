@@ -72,7 +72,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId] = usePreference('feature.translate.model_id')
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
@@ -179,18 +179,29 @@ export function useProviderModelPullReconcile(providerId: string) {
         await createModels(
           toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model)))
         )
+      } catch (error) {
+        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
+        toast.error(t('settings.models.manage.operation_failed'))
+        return
+      }
+
+      try {
         await enableProviderWhenModelsAvailable(
           provider,
-          updateProvider,
+          enableProvider,
           models.length + toAdd.length,
           'model_manage_add'
         )
       } catch (error) {
-        logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
-        toast.error(t('settings.models.manage.operation_failed'))
+        logger.error('Models were added but provider enablement failed', {
+          providerId,
+          count: toAdd.length,
+          error
+        })
+        toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
     },
-    [createModels, models, provider, providerId, t, updateProvider]
+    [createModels, enableProvider, models, provider, providerId, t]
   )
 
   const removeModels = useCallback(
