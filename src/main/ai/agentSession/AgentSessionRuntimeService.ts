@@ -23,7 +23,7 @@ import {
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -1051,7 +1051,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
-    if (!agentService.getAgent(entry.agentId)?.model) {
+    const liveAgent = agentService.getAgent(entry.agentId)
+    if (!liveAgent?.model) {
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -1065,10 +1066,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const rootSpan = this.startRuntimeRootSpan(entry)
-    // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last
-    // beginTurn set) so a mid-session agent/model change can't stamp the queued reply with a stale author.
-    const messageSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
+    // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
+    // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
+    // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
+    // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
+    // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
+    const frozenSnapshot = entry.pendingSnapshots?.get(nextMessage.id) ?? entry.messageSnapshot
     entry.pendingSnapshots?.delete(nextMessage.id)
+    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -1412,6 +1417,23 @@ export class AgentSessionRuntimeService extends BaseService {
 
 function isAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
+}
+
+/**
+ * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
+ * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
+ * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
+ * stays frozen. No-op when the frozen model already is the running model.
+ */
+function reconcileSnapshotModel(
+  snapshot: MessageSnapshot | undefined,
+  modelId: UniqueModelId,
+  modelName: string | null | undefined
+): MessageSnapshot | undefined {
+  if (!snapshot) return undefined
+  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
 }
 
 function createRuntimeSeedMessages(
