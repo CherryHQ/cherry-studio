@@ -1,5 +1,4 @@
-import { stat as fsStat } from '@main/utils/file'
-import { getFileType } from '@main/utils/file/metadata'
+import { getFileType, stat as fsStat } from '@main/utils/file'
 import type { FilePath, PhysicalFileMetadata } from '@shared/types/file'
 import mime from 'mime'
 

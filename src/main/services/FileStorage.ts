@@ -11,8 +11,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
-import { getFileType } from '@main/utils/file/metadata'
+import { getFileType } from '@main/utils/file'
+import {
+  checkName,
+  getFileType as getFileTypeByExt,
+  getName,
+  readTextFileWithAutoEncoding
+} from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
