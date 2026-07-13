@@ -33,20 +33,21 @@ const PaintingPage: FC = () => {
   return (
     <div className={paintingClasses.page}>
       <div id="content-container" className={paintingClasses.content}>
-        <div className={paintingClasses.tabsWrap}>
-          <SegmentedControl
-            size="sm"
-            value={view}
-            onValueChange={setView}
-            options={[
-              { value: 'canvas', label: t('paintings.view.canvas') },
-              { value: 'list', label: t('paintings.view.list') }
-            ]}
-          />
-        </div>
         <div className="flex min-h-0 flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
+              {/* View switch floats over the active view instead of taking its own row. */}
+              <div className="-translate-x-1/2 absolute top-3 left-1/2 z-30">
+                <SegmentedControl
+                  size="sm"
+                  value={view}
+                  onValueChange={setView}
+                  options={[
+                    { value: 'canvas', label: t('paintings.view.canvas') },
+                    { value: 'list', label: t('paintings.view.list') }
+                  ]}
+                />
+              </div>
               {view === 'list' ? (
                 <PaintingListView
                   items={ws.items}

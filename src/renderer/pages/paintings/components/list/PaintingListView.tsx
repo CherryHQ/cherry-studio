@@ -44,9 +44,9 @@ const PaintingListView: FC<PaintingListViewProps> = ({
   }, [items.length, inflightCards.length])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full w-full min-w-0 flex-col">
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pt-14 pb-4">
           {hasMore && (
             <Button variant="ghost" size="sm" className="self-center text-muted-foreground" onClick={loadMore}>
               {t('paintings.list.load_more')}
