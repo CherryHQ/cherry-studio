@@ -964,13 +964,7 @@ export class BinaryManager extends BaseService {
       const state = this.loadState()
       const existing = state.tools[toolName]
       if (!existing) return
-      // Runtime interpreters (node/python) back every tool of their backend;
-      // the UI hides their remove action, and the service refuses as well so
-      // no IPC path can break installed npm:/pipx: tools.
-      if (isRuntimeDependency(existing.tool)) {
-        throw new Error(`${toolName} is a runtime dependency of other tools and cannot be removed`)
-      }
-
+      const runtime = isRuntimeDependency(existing.tool)
       if (this.miseBin) {
         try {
           await this.runMise(['unuse', '-g', existing.tool])
@@ -984,6 +978,11 @@ export class BinaryManager extends BaseService {
             name: toolName,
             error: err instanceof Error ? err.message : String(err)
           })
+          // Explicit runtime removal is destructive and carries a dedicated UI
+          // warning. Do not report success or drop its ownership record unless
+          // mise actually completes the removal; otherwise the user loses the
+          // only safe retry path while dependent tools remain in an unknown state.
+          if (runtime) throw err
         }
       }
 

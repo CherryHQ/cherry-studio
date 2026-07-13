@@ -90,9 +90,6 @@ vi.mock('@cherrystudio/ui', () => {
       void closeOnOverlayClick
       return React.createElement(tag, props, children)
     }
-  // Render children only — these carry non-DOM props that React would warn
-  // about if spread onto a div.
-  const childrenOnly = ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children)
   const dialog = ({ open, children }: { open?: boolean; children?: React.ReactNode }) =>
     open ? React.createElement('div', { role: 'dialog' }, children) : null
   return {
@@ -110,7 +107,15 @@ vi.mock('@cherrystudio/ui', () => {
       disabled?: boolean
       title?: string
     }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
-    ConfirmDialog: childrenOnly,
+    ConfirmDialog: ({
+      open,
+      title,
+      description
+    }: {
+      open: boolean
+      title: React.ReactNode
+      description: React.ReactNode
+    }) => (open ? React.createElement('div', { role: 'alertdialog' }, title, description) : null),
     Dialog: dialog,
     DialogContent: passthrough('div'),
     DialogDescription: passthrough('div'),
@@ -328,6 +333,34 @@ describe('EnvironmentDependencies', () => {
     expect(card).toHaveTextContent('settings.dependencies.runtimeDependency')
     expect(card).not.toHaveTextContent('settings.mcp.install')
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
+  it('keeps a managed runtime from the custom inventory actionable and warns before removal', async () => {
+    customToolsRef.value = [{ name: 'node', tool: 'core:node' }]
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: true }])
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('settings.dependencies.runtimeDependency')
+    expect(within(card).getByTitle('settings.dependencies.update')).toBeInTheDocument()
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeRuntimeConfirmMessage')
+  })
+
+  it('allows explicitly adding a runtime tool', async () => {
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'node' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /core:node/ }))
+    fireEvent.click(screen.getByText('common.add'))
+
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'node', tool: 'core:node' }))
+    expect(setCustomToolsMock).toHaveBeenCalledWith([{ name: 'node', tool: 'core:node' }])
   })
 
   it('rejects adding a tool that already exists in the inventory', async () => {

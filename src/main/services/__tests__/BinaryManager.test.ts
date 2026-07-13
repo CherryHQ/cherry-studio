@@ -485,15 +485,40 @@ describe('BinaryManager', () => {
   })
 
   describe('removeTool', () => {
-    it('refuses to remove a runtime dependency', async () => {
+    it('removes a managed runtime through mise and clears its state', async () => {
       const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
 
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({ tools: { node: { tool: 'core:node', version: '22.23.1' } } })
       )
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
 
-      await expect(service.removeTool('node')).rejects.toThrow(/runtime dependency/)
+      await service.removeTool('node')
+
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).toContainEqual(['unuse', '-g', 'core:node'])
+      expect(miseArgs).toContainEqual(['uninstall', '--all', 'core:node'])
+
+      const lastWriteCall = mockFs.writeFileSync.mock.calls.at(-1)!
+      const savedState = JSON.parse(lastWriteCall[1])
+      expect(savedState.tools.node).toBeUndefined()
+    })
+
+    it('keeps a managed runtime recorded when mise removal fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { node: { tool: 'core:node', version: '22.23.1' } } })
+      )
+      mockExecFileAsync.mockRejectedValue(new Error('mise removal failed'))
+
+      await expect(service.removeTool('node')).rejects.toThrow('mise removal failed')
       expect(mockFs.writeFileSync).not.toHaveBeenCalled()
     })
 

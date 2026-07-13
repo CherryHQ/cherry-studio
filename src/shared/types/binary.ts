@@ -8,7 +8,7 @@ export type BinaryInstallState = { status: 'installing' } | { status: 'failed'; 
 
 export type BinaryInstallStates = Record<string, BinaryInstallState>
 
-/** A BinaryManager inventory entry: persisted installs are manageable; runtime dependencies are display-only. */
+/** A BinaryManager inventory entry: persisted installs are manageable; auto-discovered runtimes are display-only. */
 export type BinaryToolInventoryEntry =
   | { name: string; tool: string; version: string; managed: true }
   | { name: string; tool: string; version: string; managed: false }

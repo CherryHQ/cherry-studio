@@ -33,7 +33,12 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import {
+  type BinaryToolPreset,
+  isRuntimeDependency,
+  PRESETS_BINARY_TOOLS,
+  validateManagedBinary
+} from '@shared/data/presets/binaryTools'
 import type { BinaryResolutions, BinaryToolInventoryEntry } from '@shared/types/binary'
 import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
@@ -116,11 +121,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showInstallSettings, setShowInstallSettings] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean } | null>(null)
   const [installError, setInstallError] = useState<{ name: string; message: string } | null>(null)
-  // Retain the last target name so the confirm dialog keeps its message during the close animation.
-  const deleteNameRef = useRef('')
-  if (deleteTarget) deleteNameRef.current = deleteTarget
+  // Retain the last target so the confirm dialog keeps its message during the close animation.
+  const deleteTargetRef = useRef<{ name: string; runtime: boolean }>({ name: '', runtime: false })
+  if (deleteTarget) deleteTargetRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
@@ -352,22 +357,29 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
-              onRemove={() => setDeleteTarget(tool.name)}
+              onRemove={() => setDeleteTarget({ name: tool.name, runtime: false })}
             />
           )
         })}
         {extraTools.map((tool) => {
           const resolution = resolutions[tool.name] ?? { source: 'none' as const }
-          // Only BinaryManager's explicit runtime entries are display-only.
-          // State-file entries remain its manageable authority.
-          const runtime = 'managed' in tool && tool.managed === false
-          const managed = resolution.source === 'managed' || runtime
-          const systemPath = !runtime && resolution.source === 'system' ? resolution.path : undefined
+          const runtime = isRuntimeDependency(tool.tool)
+          // Only auto-discovered inventory entries are read-only. A runtime in
+          // BinaryManager state (including a custom preference) is explicitly
+          // managed and can be updated or removed like any other managed tool.
+          const readOnly = 'managed' in tool && tool.managed === false
+          const managedInventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
+          const managed =
+            !readOnly &&
+            (resolution.source === 'managed' ||
+              ('managed' in tool && tool.managed) ||
+              managedInventoryEntry?.managed === true)
+          const systemPath = !readOnly && resolution.source === 'system' ? resolution.path : undefined
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
           const installedVersion =
             resolution.source === 'managed'
               ? resolution.version || tool.version
-              : runtime
+              : readOnly
                 ? tool.version || undefined
                 : undefined
           const latestVersion = latestVersions?.[tool.name]
@@ -379,6 +391,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               tool={tool}
               runtime={runtime}
               managed={managed}
+              readOnly={readOnly}
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
@@ -388,7 +401,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               onInstall={() => installTool(tool)}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => resolvedPath && openToolDir(resolvedPath)}
-              onRemove={() => setDeleteTarget(tool.name)}
+              onRemove={() => setDeleteTarget({ name: tool.name, runtime })}
             />
           )
         })}
@@ -405,10 +418,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title={t('settings.dependencies.removeConfirmTitle')}
-        description={t('settings.dependencies.removeConfirmMessage', { name: deleteNameRef.current })}
+        description={t(
+          deleteTargetRef.current.runtime
+            ? 'settings.dependencies.removeRuntimeConfirmMessage'
+            : 'settings.dependencies.removeConfirmMessage',
+          { name: deleteTargetRef.current.name }
+        )}
         destructive
         onConfirm={async () => {
-          if (deleteTarget) await handleRemoveTool(deleteTarget)
+          if (deleteTarget) await handleRemoveTool(deleteTarget.name)
         }}
       />
     </div>
@@ -592,6 +610,7 @@ const CustomToolCard: FC<{
   tool: ManagedBinary
   managed: boolean
   runtime?: boolean
+  readOnly: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
@@ -606,6 +625,7 @@ const CustomToolCard: FC<{
   tool,
   managed,
   runtime = false,
+  readOnly,
   systemPath,
   installedVersion,
   latestVersion,
@@ -618,7 +638,7 @@ const CustomToolCard: FC<{
   onRemove
 }) => {
   const { t } = useTranslation()
-  const installed = managed || !!systemPath
+  const installed = managed || readOnly || !!systemPath
 
   return (
     <div
@@ -669,10 +689,7 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {/* Runtime deps are display-only: BinaryManager pins their version
-              (RUNTIME_DEPS), so user update/remove would fight the pin or
-              break every tool of that backend. */}
-          {managed && !runtime && (
+          {managed && !readOnly && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -698,7 +715,7 @@ const CustomToolCard: FC<{
               <FolderOpen className="size-3.5" />
             </Button>
           )}
-          {!runtime && (
+          {!readOnly && (
             <Button
               variant="ghost"
               size="icon-sm"

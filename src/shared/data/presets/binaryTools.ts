@@ -9,8 +9,8 @@ export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$
 /**
  * Whether a tool spec is a runtime interpreter that mise auto-installs for
  * package backends (BinaryManager's RUNTIME_DEPS: npm → node, pipx → python).
- * Runtime deps are displayed in the inventory but must not be removable —
- * uninstalling them breaks every tool of that backend.
+ * Auto-discovered runtime deps are display-only in the inventory. Explicitly
+ * managed runtimes remain removable after the UI warns about dependent tools.
  */
 export function isRuntimeDependency(toolSpec: string): boolean {
   const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec
