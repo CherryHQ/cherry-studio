@@ -73,7 +73,7 @@ describe('PinService', () => {
       expect(ids.size).toBe(3)
     })
 
-    it('should maintain independent orderKey sequences per entityType', async () => {
+    it('should prepend fresh pins within independent entityType orderKey sequences', async () => {
       const topicFirst = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const assistantFirst = pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
@@ -82,7 +82,7 @@ describe('PinService', () => {
       expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
 
       const topicSecond = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
-      expect(topicSecond.orderKey > topicFirst.orderKey).toBe(true)
+      expect(topicSecond.orderKey < topicFirst.orderKey).toBe(true)
     })
 
     it('should accept UniqueModelId values for model pins', async () => {
@@ -144,13 +144,13 @@ describe('PinService', () => {
   })
 
   describe('listByEntityType', () => {
-    it('should return pins ordered by orderKey, scoped to the requested entityType', async () => {
+    it('should return newest pins first by orderKey within the requested entityType', async () => {
       const topicA = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const topicB = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       const topics = pinService.listByEntityType('topic')
-      expect(topics.map((p) => p.id)).toEqual([topicA.id, topicB.id])
+      expect(topics.map((p) => p.id)).toEqual([topicB.id, topicA.id])
     })
 
     it('should return an empty array when no pins exist for the entityType', async () => {
@@ -164,10 +164,10 @@ describe('PinService', () => {
       const b = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       const c = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
 
-      pinService.reorder(c.id, { position: 'first' })
+      pinService.reorder(a.id, { position: 'first' })
 
       const ids = pinService.listByEntityType('topic').map((p) => p.id)
-      expect(ids).toEqual([c.id, a.id, b.id])
+      expect(ids).toEqual([a.id, c.id, b.id])
     })
 
     it('should move a pin to before an anchor', async () => {
@@ -175,10 +175,10 @@ describe('PinService', () => {
       const b = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       const c = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
 
-      pinService.reorder(c.id, { before: b.id })
+      pinService.reorder(a.id, { before: b.id })
 
       const ids = pinService.listByEntityType('topic').map((p) => p.id)
-      expect(ids).toEqual([a.id, c.id, b.id])
+      expect(ids).toEqual([c.id, a.id, b.id])
     })
 
     it('should throw NOT_FOUND when the target id does not exist', async () => {
@@ -200,12 +200,12 @@ describe('PinService', () => {
       const d = pinService.pin({ entityType: 'topic', entityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4' })
 
       pinService.reorderBatch([
-        { id: d.id, anchor: { position: 'first' } },
-        { id: a.id, anchor: { position: 'last' } }
+        { id: d.id, anchor: { position: 'last' } },
+        { id: a.id, anchor: { position: 'first' } }
       ])
 
       const ids = pinService.listByEntityType('topic').map((p) => p.id)
-      expect(ids).toEqual([d.id, b.id, c.id, a.id])
+      expect(ids).toEqual([a.id, c.id, b.id, d.id])
     })
 
     it('should reject a batch spanning multiple entityTypes with VALIDATION_ERROR', async () => {
@@ -262,9 +262,9 @@ describe('PinService', () => {
       pinService.purgeForEntityTx(dbh.db, 'topic', b.entityId)
 
       const remaining = pinService.listByEntityType('topic')
-      expect(remaining.map((p) => p.id)).toEqual([a.id, c.id])
-      expect(remaining[0].orderKey).toBe(a.orderKey)
-      expect(remaining[1].orderKey).toBe(c.orderKey)
+      expect(remaining.map((p) => p.id)).toEqual([c.id, a.id])
+      expect(remaining[0].orderKey).toBe(c.orderKey)
+      expect(remaining[1].orderKey).toBe(a.orderKey)
     })
 
     it('should be a no-op when no matching pin exists', async () => {
@@ -318,9 +318,9 @@ describe('PinService', () => {
       pinService.purgeForEntitiesTx(dbh.db, 'topic', [b.entityId])
 
       const remaining = pinService.listByEntityType('topic')
-      expect(remaining.map((p) => p.id)).toEqual([a.id, c.id])
-      expect(remaining[0].orderKey).toBe(a.orderKey)
-      expect(remaining[1].orderKey).toBe(c.orderKey)
+      expect(remaining.map((p) => p.id)).toEqual([c.id, a.id])
+      expect(remaining[0].orderKey).toBe(c.orderKey)
+      expect(remaining[1].orderKey).toBe(a.orderKey)
     })
   })
 })

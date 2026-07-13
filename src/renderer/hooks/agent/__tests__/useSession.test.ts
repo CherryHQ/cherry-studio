@@ -358,6 +358,32 @@ describe('useSessions', () => {
     })
   })
 
+  it('builds a pin-owned query without the selected session sort', () => {
+    mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
+
+    renderHook(() =>
+      useSessions('agent-1', {
+        pinned: true,
+        q: 'needle',
+        searchScope: 'name',
+        sortBy: 'updatedAt'
+      })
+    )
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/agent-sessions',
+      expect.objectContaining({
+        continuityKey: '{"agentId":"agent-1","mode":"pinned","pinned":true,"q":"needle","searchScope":"name"}',
+        query: {
+          agentId: 'agent-1',
+          pinned: true,
+          q: 'needle',
+          searchScope: 'name'
+        }
+      })
+    )
+  })
+
   it('creates a session through DataApi without a second list refresh', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const mockSession = {

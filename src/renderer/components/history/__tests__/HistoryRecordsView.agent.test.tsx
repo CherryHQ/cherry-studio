@@ -526,8 +526,7 @@ describe('HistoryRecordsView agent mode', () => {
       pageSize: 50,
       pinned: true,
       q: '',
-      searchScope: 'full',
-      sortBy: 'updatedAt'
+      searchScope: 'full'
     })
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
       enabled: true,

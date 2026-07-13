@@ -59,7 +59,7 @@ export type PinSchemas = {
       query: ListPinsQuery
       response: Pin[]
     }
-    /** Idempotent pin: returns the existing row when already pinned */
+    /** Idempotent pin: returns the existing row when already pinned; fresh pins are inserted first */
     POST: {
       body: CreatePinDto
       response: Pin

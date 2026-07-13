@@ -60,7 +60,7 @@ type UseSessionsOptions = {
   searchScope?: AgentSessionSearchScope
   /** Bounded explicit id filter for runtime History status rows. Flat path only. */
   ids?: string[]
-  /** Pin membership filter. Flat path only. */
+  /** true selects the independent pin-owned stream; false filters the flat stream. */
   pinned?: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
@@ -278,6 +278,8 @@ export const useSessions = (
   const ids = typeof options === 'number' ? undefined : options.ids
   const pinned = typeof options === 'number' ? undefined : options.pinned
   const workspaceId = typeof options === 'number' ? undefined : options.workspaceId
+  const isPinnedStream = pinned === true
+  const effectiveSortBy = isPinnedStream ? undefined : sortBy
 
   const query = useMemo(() => {
     const built: {
@@ -290,28 +292,28 @@ export const useSessions = (
       workspaceId?: AgentSessionWorkspaceScope
     } = {}
     if (agentId) built.agentId = agentId
-    if (sortBy) built.sortBy = sortBy
-    // q/searchScope are flat-path record filters — the legacy composite view rejects them.
-    if (sortBy && q) built.q = q
-    if (sortBy && q && searchScope) built.searchScope = searchScope
-    if (sortBy && ids?.length) built.ids = ids
-    if (sortBy && pinned !== undefined) built.pinned = pinned
-    if (sortBy && workspaceId !== undefined) built.workspaceId = workspaceId
+    if (effectiveSortBy) built.sortBy = effectiveSortBy
+    const supportsRecordFilters = !!effectiveSortBy || isPinnedStream
+    if (supportsRecordFilters && q) built.q = q
+    if (supportsRecordFilters && q && searchScope) built.searchScope = searchScope
+    if (supportsRecordFilters && ids?.length) built.ids = ids
+    if (supportsRecordFilters && pinned !== undefined) built.pinned = pinned
+    if (supportsRecordFilters && workspaceId !== undefined) built.workspaceId = workspaceId
     return Object.keys(built).length > 0 ? built : undefined
-  }, [agentId, ids, pinned, q, searchScope, sortBy, workspaceId])
+  }, [agentId, effectiveSortBy, ids, isPinnedStream, pinned, q, searchScope, workspaceId])
 
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
         agentId,
         ids,
-        mode: sortBy ? 'flat' : 'legacy',
+        mode: isPinnedStream ? 'pinned' : effectiveSortBy ? 'flat' : 'legacy',
         pinned,
         q,
         searchScope,
         workspaceId
       }),
-    [agentId, ids, pinned, q, searchScope, sortBy, workspaceId]
+    [agentId, effectiveSortBy, ids, isPinnedStream, pinned, q, searchScope, workspaceId]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     continuityKey,

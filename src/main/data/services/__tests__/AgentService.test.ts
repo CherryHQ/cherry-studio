@@ -763,7 +763,7 @@ describe('AgentService', () => {
 
       const { agents } = agentService.listAgents()
 
-      expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_c', 'agent_pin_b', 'agent_pin_a'])
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_b', 'agent_pin_c', 'agent_pin_a'])
     })
 
     it('orders rows with equal updatedAt by id using the requested direction (tiebreaker)', async () => {

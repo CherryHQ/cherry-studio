@@ -899,7 +899,7 @@ describe('Topics', () => {
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
-      expect.objectContaining({ query: { pinned: true, sortBy: 'createdAt' }, limit: 50, enabled: true })
+      expect.objectContaining({ query: { pinned: true }, limit: 50, enabled: true })
     )
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
@@ -907,7 +907,7 @@ describe('Topics', () => {
     )
   })
 
-  it('passes the selected timestamp sort to both topic streams', () => {
+  it('keeps the pin-order stream independent when the topic sort changes', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'updatedAt')
 
@@ -915,7 +915,7 @@ describe('Topics', () => {
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
-      expect.objectContaining({ query: { pinned: true, sortBy: 'updatedAt' }, limit: 50, enabled: true })
+      expect.objectContaining({ query: { pinned: true }, limit: 50, enabled: true })
     )
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',

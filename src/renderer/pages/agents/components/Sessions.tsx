@@ -418,8 +418,7 @@ const Sessions = ({
     pageSize: SESSION_PAGE_SIZE,
     pinned: true,
     q: debouncedRemoteQuery,
-    searchScope: 'name',
-    sortBy: sessionSortBy
+    searchScope: 'name'
   })
   const {
     deleteSession,

@@ -155,8 +155,8 @@ export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceSco
  * Sort profiles for `GET /agent-sessions` (D1 of #16890). Direction is derived
  * server-side: `createdAt` → creation order (`createdAt DESC, id ASC`),
  * `updatedAt` → activity (`updatedAt DESC, id ASC`), `orderKey` → manual drag
- * order (`orderKey ASC, id ASC`). Pin state selects a band but never defines
- * an independent ordering.
+ * order (`orderKey ASC, id ASC`). A pinned-only query uses the independent
+ * `pin.orderKey ASC, id ASC` order instead.
  */
 export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
@@ -187,12 +187,14 @@ const hasSessionRecordFilters = (q: {
 /**
  * Query for `GET /agent-sessions`.
  *
- * Without `sortBy` the response is the legacy composite view (pinned first by
+ * `pinned=true` selects a pin-owned stream ordered by `pin.orderKey ASC`; its
+ * order is independent of the session sort profile. Otherwise, without
+ * `sortBy` the response is the legacy composite view (pinned first by
  * `pin.orderKey`, then unpinned by `session.orderKey ASC`) and only a concrete
- * `agentId` filter is accepted — kept unchanged for existing consumers. With
- * `sortBy` the response is a single flat stream with a `(sortValue, id)`
- * keyset cursor, and the record filters below apply. Workspace grouping uses
- * the stable workspace id; path remains presentation metadata.
+ * `agentId` filter is accepted. With `sortBy` the response is a single flat
+ * stream with a `(sortValue, id)` keyset cursor, and the record filters below
+ * apply. Workspace grouping uses the stable workspace id; path remains
+ * presentation metadata.
  */
 export const ListAgentSessionsQuerySchema = z
   .strictObject({
@@ -202,21 +204,21 @@ export const ListAgentSessionsQuerySchema = z
     cursor: z.string().optional(),
     /** Page size; defaults to 50 in the service. */
     limit: z.coerce.number().int().positive().max(200).optional(),
-    /** Sort profile; omitted → legacy composite pinned-first view. */
+    /** Sort profile; omitted with pinned=true → pin order, otherwise the legacy composite view. */
     sortBy: AgentSessionSortBySchema.optional(),
     /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
     q: z.string().optional(),
     /** Search scope for `q`; defaults to `name` in the service. */
     searchScope: AgentSessionSearchScopeSchema.optional(),
-    /** true → only pinned sessions; false → only unpinned. Omitted → both. */
+    /** true → pin-owned stream; false → only unpinned sessions (requires sortBy). Omitted → both. */
     pinned: z.boolean().optional(),
     /** Bounded explicit id filter (e.g. History running/failed row fetches). */
     ids: z.array(z.string().min(1)).min(1).max(200).optional(),
     /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
     workspaceId: AgentSessionWorkspaceScopeSchema.optional()
   })
-  .refine((q) => q.sortBy !== undefined || !hasSessionRecordFilters(q), {
-    message: 'record filters (q/searchScope/pinned/ids/owner/workspace scope) require sortBy'
+  .refine((q) => q.sortBy !== undefined || q.pinned === true || !hasSessionRecordFilters(q), {
+    message: 'record filters (q/searchScope/pinned/ids/owner/workspace scope) require sortBy unless pinned=true'
   })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>

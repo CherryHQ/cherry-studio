@@ -9,6 +9,8 @@
  * - `listByEntityType` is the canonical read path; `entityType` is always required.
  * - `pin` is idempotent AND concurrent-safe: repeat calls for the same
  *   (entityType, entityId) resolve to the same row, even under parallel writes.
+ *   A fresh pin is inserted at the head of its entityType bucket so the most
+ *   recently pinned entity appears first.
  * - `unpin` is a hard delete. There is no soft-delete / audit column.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
  *   scope inference and enforces "batch stays within one entityType".
@@ -111,6 +113,7 @@ export class PinService {
           { entityType: dto.entityType, entityId: dto.entityId },
           {
             pkColumn: pinTable.id,
+            position: 'first',
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )

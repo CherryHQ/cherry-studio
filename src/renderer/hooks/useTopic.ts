@@ -219,12 +219,12 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * Backed by `useInfiniteQuery` cursor pagination. Without `sortBy`, `/topics`
  * returns the legacy server-composed view (pinned topics first via the `pin`
- * table, then unpinned ordered by `topic.orderKey`). With `sortBy` (D1 of
- * #16890) the response is a flat stream — `'createdAt'` for immutable creation
- * order, `'updatedAt'` for activity order, or `'orderKey'` for manual order.
- * Pin state selects a band and composes with the same business ordering; the
- * `assistantId` owner scope (`uuid | 'unlinked'`) also applies. Consumers page
- * explicitly with `loadNext()`.
+ * table, then unpinned ordered by `topic.orderKey`). `pinned=true` selects the
+ * independent pin-owned stream. Otherwise `sortBy` (D1 of #16890) selects a
+ * flat stream — `'createdAt'` for immutable creation order, `'updatedAt'` for
+ * activity order, or `'orderKey'` for manual order. The `assistantId` owner
+ * scope (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
+ * `loadNext()`.
  *
  * `q` triggers server-side LIKE search on `topic.name` in both modes.
  */
@@ -237,24 +237,26 @@ export function useTopics(opts?: {
   enabled?: boolean
 }) {
   const q = opts?.q?.trim()
+  const isPinnedStream = opts?.pinned === true
+  const sortBy = isPinnedStream ? undefined : opts?.sortBy
   const query = useMemo(() => {
     const built: { q?: string; sortBy?: TopicSortBy; assistantId?: string; pinned?: boolean } = {}
     if (q) built.q = q
-    if (opts?.sortBy) built.sortBy = opts.sortBy
-    if (opts?.sortBy && opts?.assistantId) built.assistantId = opts.assistantId
-    if (opts?.sortBy && opts?.pinned !== undefined) built.pinned = opts.pinned
+    if (sortBy) built.sortBy = sortBy
+    if ((sortBy || isPinnedStream) && opts?.assistantId) built.assistantId = opts.assistantId
+    if ((sortBy || isPinnedStream) && opts?.pinned !== undefined) built.pinned = opts.pinned
     return Object.keys(built).length > 0 ? built : undefined
-  }, [q, opts?.sortBy, opts?.assistantId, opts?.pinned])
+  }, [isPinnedStream, opts?.assistantId, opts?.pinned, q, sortBy])
   const pageSize = opts?.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const continuityKey = useMemo(
     () =>
       JSON.stringify({
         assistantId: opts?.assistantId,
-        mode: opts?.sortBy ? 'flat' : 'legacy',
+        mode: isPinnedStream ? 'pinned' : sortBy ? 'flat' : 'legacy',
         pinned: opts?.pinned,
         q
       }),
-    [opts?.assistantId, opts?.pinned, opts?.sortBy, q]
+    [isPinnedStream, opts?.assistantId, opts?.pinned, q, sortBy]
   )
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     continuityKey,

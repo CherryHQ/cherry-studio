@@ -76,11 +76,12 @@ const hasRecordFilters = (q: { assistantId?: string; pinned?: boolean; ids?: str
 /**
  * Query parameters for `GET /topics`.
  *
- * Without `sortBy` the response is the legacy composite view (pinned first by
- * `pin.orderKey`, then unpinned by `topic.orderKey ASC`) and only `q` is
- * accepted — that path predates the flat contracts and is kept unchanged for
- * existing consumers. With `sortBy` the response is a single flat stream with
- * a `(sortValue, id)` keyset cursor, and the record filters below apply.
+ * `pinned=true` selects a pin-owned stream ordered by `pin.orderKey ASC`; its
+ * order is independent of the topic sort profile. Otherwise, without `sortBy`
+ * the response is the legacy composite view (pinned first by `pin.orderKey`,
+ * then unpinned by `topic.orderKey ASC`) and only `q` is accepted. With
+ * `sortBy` the response is a single flat stream with a `(sortValue, id)`
+ * keyset cursor, and the record filters below apply.
  */
 export const ListTopicsQuerySchema = z
   .strictObject({
@@ -90,17 +91,17 @@ export const ListTopicsQuerySchema = z
     limit: z.coerce.number().int().positive().max(200).optional(),
     /** Substring filter on topic name (case-insensitive LIKE). */
     q: z.string().optional(),
-    /** Sort profile; omitted → legacy composite pinned-first view. */
+    /** Sort profile; omitted with pinned=true → pin order, otherwise the legacy composite view. */
     sortBy: TopicSortBySchema.optional(),
     /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
     assistantId: TopicOwnerScopeSchema.optional(),
-    /** true → only pinned topics; false → only unpinned. Omitted → both. */
+    /** true → pin-owned stream; false → only unpinned topics (requires sortBy). Omitted → both. */
     pinned: z.boolean().optional(),
     /** Bounded explicit id filter (e.g. History running/failed row fetches). */
     ids: z.array(z.string().min(1)).min(1).max(200).optional()
   })
-  .refine((q) => q.sortBy !== undefined || !hasRecordFilters(q), {
-    message: 'record filters (assistantId/pinned/ids) require sortBy'
+  .refine((q) => q.sortBy !== undefined || q.pinned === true || !hasRecordFilters(q), {
+    message: 'record filters (assistantId/pinned/ids) require sortBy unless pinned=true'
   })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 

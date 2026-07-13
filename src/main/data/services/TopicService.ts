@@ -486,6 +486,9 @@ export class TopicService {
   }
 
   /**
+   * `pinned=true` → pin-owned single-stream page ordered by
+   * `pin.orderKey ASC, topic.id ASC`, independent of the topic sort profile.
+   *
    * `sortBy` present → flat single-stream page with a `(sortValue, id)` keyset
    * cursor and the D1 record filters (see `listFlatByCursor`).
    *
@@ -498,6 +501,9 @@ export class TopicService {
    * opt into their explicit sort profiles instead.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
+    if (query.pinned === true) {
+      return this.listPinnedByCursor(query)
+    }
     if (query.sortBy !== undefined) {
       return this.listFlatByCursor(query, query.sortBy)
     }
@@ -588,6 +594,38 @@ export class TopicService {
   }
 
   /**
+   * Pinned-only page. Pin order is its own business order and deliberately
+   * ignores `query.sortBy` when both fields are supplied.
+   */
+  private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const filters = buildRecordFilters(query)
+    const { where, orderBy } = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'topics-pinned')
+    if (cursor) filters.push(where(cursor))
+
+    const rows = db
+      .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
+      .from(topicTable)
+      .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+
+    return {
+      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
+      nextCursor: hasMore ? encodeCursor(last.pinOrderKey, last.topic.id) : undefined
+    }
+  }
+
+  /**
    * Flat single-stream page (D1 of #16890): `createdAt` → immutable creation
    * order, `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey`
    * → manual order (`ASC, id ASC`). Cursor is the shared `(sortValue, id)`
@@ -601,9 +639,9 @@ export class TopicService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
 
     const filters = buildRecordFilters(query)
-    if (query.pinned !== undefined) {
+    if (query.pinned === false) {
       const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-      filters.push(query.pinned ? inArray(topicTable.id, pinnedSubquery) : notInArray(topicTable.id, pinnedSubquery))
+      filters.push(notInArray(topicTable.id, pinnedSubquery))
     }
 
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'

@@ -14,7 +14,7 @@ The conversation and agent-task list options now separate display mode from sort
 
 Users can change the order of conversations or tasks inside assistant, work-directory, and agent groups without changing the order of those outer groups. Timestamp sorts show newest first, while manual order restores item dragging.
 
-Changing sort or pin state keeps compatible rows mounted while the corresponding cursor windows restart from their first page, avoiding a full sidebar loading refresh.
+Pinned conversations and tasks keep their own pin order regardless of the selected list sort, and newly pinned items appear first. Changing sort leaves the pinned cursor window untouched while affected ordinary/group windows restart from their first page, avoiding a full sidebar loading refresh.
 
 ## What the user should do
 

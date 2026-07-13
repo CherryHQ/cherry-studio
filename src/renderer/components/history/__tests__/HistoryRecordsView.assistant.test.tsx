@@ -952,7 +952,9 @@ describe('HistoryRecordsView assistant mode', () => {
 
     render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true, sortBy: 'updatedAt' }))
+    expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: true }))
+    const pinnedCall = hookMocks.useTopics.mock.calls.find(([options]) => options?.pinned === true)
+    expect(pinnedCall?.[0]).not.toHaveProperty('sortBy')
     expect(hookMocks.useTopics).toHaveBeenCalledWith(expect.objectContaining({ pinned: false, sortBy: 'updatedAt' }))
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant/ })

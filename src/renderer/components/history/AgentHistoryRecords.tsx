@@ -73,7 +73,6 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     pageSize: HISTORY_PAGE_SIZE,
     q: debouncedSearch,
     searchScope: 'full',
-    sortBy: historySortBy,
     pinned: true
   })
   const {

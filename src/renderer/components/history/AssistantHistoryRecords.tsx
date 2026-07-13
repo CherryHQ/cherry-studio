@@ -85,7 +85,6 @@ const AssistantHistoryRecords = ({
     loadNext: loadNextPinnedTopics,
     refetch: refetchPinnedTopics
   } = useTopics({
-    sortBy: historySortBy,
     q: debouncedSearch,
     assistantId: ownerScope,
     pinned: true

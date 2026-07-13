@@ -65,13 +65,10 @@ describe('ListTopicsQuerySchema', () => {
     expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toEqual({ q: 'x', limit: 10 })
   })
 
-  it.each([{ assistantId: 'unlinked' }, { pinned: true }, { ids: ['t1'] }])(
-    'rejects record filter %j without sortBy',
-    (filter) => {
-      expect(() => ListTopicsQuerySchema.parse(filter)).toThrow(/require sortBy/)
-      expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
-    }
-  )
+  it.each([{ assistantId: 'unlinked' }, { ids: ['t1'] }])('rejects record filter %j without sortBy', (filter) => {
+    expect(() => ListTopicsQuerySchema.parse(filter)).toThrow(/require sortBy/)
+    expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
+  })
 
   it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
     expect(ListTopicsQuerySchema.parse({ sortBy: 'createdAt' })).toEqual({ sortBy: 'createdAt' })
@@ -84,7 +81,11 @@ describe('ListTopicsQuerySchema', () => {
     expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
-  it('composes the pin band with business ordering and rejects pinOrderKey', () => {
+  it('accepts the pin-owned stream without sortBy and rejects pinOrderKey', () => {
+    expect(ListTopicsQuerySchema.parse({ pinned: true, assistantId: 'unlinked' })).toEqual({
+      pinned: true,
+      assistantId: 'unlinked'
+    })
     expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
       sortBy: 'updatedAt',
       pinned: true

@@ -274,15 +274,18 @@ export class AgentSessionService {
   }
 
   /**
-   * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
-   * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
-   * pin page spills into the unpinned section to fill `limit`. Pins float a
-   * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract. Flat creation/activity views opt into their
-   * explicit sort profiles instead.
+   * `pinned=true` returns a pin-owned single stream ordered by
+   * `pin.orderKey ASC, session.id ASC`, independent of the session sort
+   * profile. Otherwise this is the two-section page mirroring
+   * `TopicService.listByCursor`: pinned sessions first, then unpinned by
+   * `session.orderKey ASC, id ASC` (manual/creation drag order). A partial pin
+   * page spills into the unpinned section to fill `limit`. Flat
+   * creation/activity views opt into their explicit sort profiles instead.
    */
   listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionListItem> {
+    if (query.pinned === true) {
+      return this.listPinnedByCursor(query)
+    }
     if (query.sortBy !== undefined) {
       return this.listFlatByCursor(query, query.sortBy)
     }
@@ -377,6 +380,48 @@ export class AgentSessionService {
   }
 
   /**
+   * Pinned-only page. Pin order is its own business order and deliberately
+   * ignores `query.sortBy` when both fields are supplied.
+   */
+  private listPinnedByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const filters = buildSessionRecordFilters(query)
+    const { where, orderBy } = keysetOrdering(pinTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-sessions-pinned')
+    if (cursor) filters.push(where(cursor))
+
+    let builder = db
+      .select({
+        session: sessionsTable,
+        workspace: agentWorkspaceTable,
+        pinId: pinTable.id,
+        pinOrderKey: pinTable.orderKey
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
+      .$dynamic()
+    if (query.searchScope === 'full') {
+      builder = builder.leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+    }
+    const rows = builder
+      .where(and(...filters))
+      .orderBy(...orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+
+    return {
+      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), row.pinId)),
+      nextCursor: hasMore ? encodeCursor(last.pinOrderKey, last.session.id) : undefined
+    }
+  }
+
+  /**
    * Flat single-stream page (D1 of #16890), mirroring
    * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
    * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
@@ -391,14 +436,12 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
 
     const filters = buildSessionRecordFilters(query)
-    if (query.pinned !== undefined) {
+    if (query.pinned === false) {
       const pinnedSubquery = db
         .select({ id: pinTable.entityId })
         .from(pinTable)
         .where(eq(pinTable.entityType, 'session'))
-      filters.push(
-        query.pinned ? inArray(sessionsTable.id, pinnedSubquery) : notInArray(sessionsTable.id, pinnedSubquery)
-      )
+      filters.push(notInArray(sessionsTable.id, pinnedSubquery))
     }
 
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'

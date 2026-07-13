@@ -1039,7 +1039,7 @@ describe('Sessions', () => {
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
       undefined,
-      expect.objectContaining({ pinned: true, sortBy: 'createdAt', pageSize: 50, enabled: true })
+      expect.objectContaining({ pinned: true, pageSize: 50, enabled: true })
     )
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
       undefined,
@@ -1047,7 +1047,7 @@ describe('Sessions', () => {
     )
   })
 
-  it('passes the selected timestamp sort to both session streams', () => {
+  it('keeps the pin-order stream independent when the session sort changes', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     preferenceMocks.values.set('agent.session.sort_type', 'updatedAt')
 
@@ -1055,12 +1055,14 @@ describe('Sessions', () => {
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
       undefined,
-      expect.objectContaining({ pinned: true, sortBy: 'updatedAt', pageSize: 50, enabled: true })
+      expect.objectContaining({ pinned: true, pageSize: 50, enabled: true })
     )
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
       undefined,
       expect.objectContaining({ pinned: false, sortBy: 'updatedAt', pageSize: 50, enabled: true })
     )
+    const pinnedCall = sessionDataMocks.useSessions.mock.calls.find(([, options]) => options?.pinned === true)
+    expect(pinnedCall?.[1]).not.toHaveProperty('sortBy')
   })
 
   it('passes session sorting to agent-group requests and cursor cache identity', async () => {

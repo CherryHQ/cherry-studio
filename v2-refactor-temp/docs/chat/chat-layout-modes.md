@@ -97,8 +97,9 @@ record filters.
 - The list options menu separates display mode from item sorting. Topics and
   sessions can use `updatedAt DESC, id ASC`, `createdAt DESC, id ASC`, or
   `orderKey ASC, id ASC`.
-- Time views request separate pinned and unpinned streams with the selected
-  sort. Pin state selects the top band but does not define an independent order.
+- Time views request separate pinned and unpinned streams. The pinned stream is
+  always ordered by `pin.orderKey ASC, id ASC`; the selected topic/session sort
+  applies only to the unpinned stream. Fresh pins are inserted first.
 - Assistant, agent, and work-directory modes keep independent per-group cursor
   windows with the same selected topic/session sort. The assistant, agent, or
   workspace group rank is applied before sorting items within each group, so
@@ -106,9 +107,10 @@ record filters.
 - Outer groups come from the assistant, agent, or workspace catalog and use the
   topic/session stats aggregates only to omit groups without ordinary rows.
   Child rows are fetched lazily from the corresponding owner/workspace list.
-- Changing sort retires each affected cursor and starts the expanded group from
-  its first page, while keeping its previous rows mounted until that page
-  settles. Removed groups are pruned without clearing retained siblings.
+- Changing sort leaves the pinned cursor window untouched. Each affected
+  ordinary/group cursor restarts from its first page while keeping its previous
+  rows mounted until that page settles. Removed groups are pruned without
+  clearing retained siblings.
 - Pin/unpin keeps the toggled row visible while the pinned and ordinary windows
   reconcile independently. The active cursor families still reset, and an old
   cursor is never exposed for load-more during the transition.
@@ -120,8 +122,8 @@ record filters.
 - Create/delete/rename/clear/move refresh the affected cursor windows inside the
   current Renderer after the local mutation succeeds; compatible visible rows
   remain mounted during the first-page handoff.
-- History records keep their own updated-time order and do not read these list
-  sort preferences.
+- Unpinned History records keep their own updated-time order and do not read
+  these list sort preferences; their pinned band follows the shared pin order.
 
 ## Key Files
 

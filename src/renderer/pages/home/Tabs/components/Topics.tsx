@@ -299,8 +299,7 @@ export function Topics({
     enabled: isTopicListEnabled,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: true,
-    q: debouncedRemoteQuery,
-    sortBy: topicSortBy
+    q: debouncedRemoteQuery
   })
   const { loadNext: loadNextPinnedTopics, refetch: refetchPinnedTopics, topics: pinnedTopicRows } = pinnedTopicsSource
   const createdTopicsSource = useTopics({

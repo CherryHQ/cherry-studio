@@ -29,7 +29,6 @@ describe('ListAgentSessionsQuerySchema', () => {
   it.each([
     { q: 'x' },
     { searchScope: 'full' },
-    { pinned: true },
     { ids: ['s1'] },
     { agentId: 'unlinked' },
     { workspaceId: WORKSPACE_ID },
@@ -51,7 +50,10 @@ describe('ListAgentSessionsQuerySchema', () => {
     expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
-  it('composes the pin band with business ordering and rejects pinOrderKey', () => {
+  it('accepts the pin-owned stream without sortBy and rejects pinOrderKey', () => {
+    expect(
+      ListAgentSessionsQuerySchema.parse({ pinned: true, q: 'x', searchScope: 'full', workspaceId: 'system' })
+    ).toEqual({ pinned: true, q: 'x', searchScope: 'full', workspaceId: 'system' })
     expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
       sortBy: 'updatedAt',
       pinned: true
