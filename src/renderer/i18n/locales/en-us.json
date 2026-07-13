@@ -3594,6 +3594,7 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
+      "avatar_image_too_large": "Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
@@ -3615,6 +3616,7 @@
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "image_process_failed": "Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Invalid API Host",

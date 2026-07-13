@@ -3,7 +3,6 @@ import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -488,7 +487,7 @@ class FeishuAdapter extends ChannelAdapter {
     appId?: string,
     appSecret?: string
   ): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Feishu_QrLogin, {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.feishu.qr_login', {
       channelId: this.channelId,
       url,
       status,

@@ -24,7 +24,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiService: { generateText: mocks.generateText },
-    WindowManager: { broadcast: mocks.broadcast }
+    IpcApiService: { broadcast: mocks.broadcast }
   } as never)
 })
 
@@ -136,6 +136,7 @@ describe('TopicNamingService', () => {
       name: 'Generated Title',
       isNameManuallyEdited: false
     })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_auto_renamed', { topicId: 'topic-1' })
   })
 
   it('falls back to the managed CherryAI default when topic naming model preference is empty', async () => {
@@ -241,7 +242,7 @@ describe('TopicNamingService', () => {
       name: 'Please inspect the renderer startup path and sugge',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('agent-session:auto-renamed', { sessionId: 'session-1' })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent_session_auto_renamed', { sessionId: 'session-1' })
   })
 
   it.each(unnamedTranslations)('recognizes localized default agent session name "%s"', async (name) => {
