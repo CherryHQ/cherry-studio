@@ -83,6 +83,25 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
     // A non-default CherryAI model is still routable.
     expect(filter(model(CHERRYAI_PROVIDER_ID, 'some-other-model'))).toBe(true)
   })
+
+  // The picker shares isGatewayRoutableModel with the gateway's /v1/models listing, so every
+  // non-chat class is excluded — not just embedding/rerank/text-to-image (audio/video generation
+  // and transcription models would reach the chat runtime and fail).
+  it('excludes non-chat audio/video generation and transcription models', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
+
+    expect(filter(model('elevenlabs', 'eleven-tts', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(false)
+    expect(filter(model('openai', 'whisper-1', [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(false)
+    expect(filter(model('kling', 'kling-video', [MODEL_CAPABILITY.VIDEO_GENERATION]))).toBe(false)
+  })
+
+  it('excludes models of a provider id containing ":" (cannot round-trip the gateway address)', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE))
+    const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
+
+    expect(filter(model('corp:west', 'gpt-4o'))).toBe(false)
+  })
 })
 
 describe('useConfigMetadata.resolveProviderMeta', () => {

@@ -269,6 +269,24 @@ describe('useConfigPanelController', () => {
       })
     })
 
+    // Same single-owner failure contract as the provider panel: a failed own-login injection must
+    // reject so OwnLoginConfigPanel keeps the dialog (and the user's edits) open instead of closing.
+    it('propagates an own-login injection failure to the submitting dialog', async () => {
+      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
+      mocks.writeOwnLoginCliConfigDraft.mockReset()
+      mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel(ownLoginProvider)
+      })
+
+      await expect(
+        result.current.ownLoginConfigPanelProps!.onSubmit({ config: { effortLevel: 'high' } })
+      ).rejects.toThrow('settings write failed')
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+    })
+
     it('writes hand-edited raw files verbatim when own-login config is saved with raw edits', async () => {
       const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
       const { result } = renderHook(() => useConfigPanelController(options))
@@ -356,6 +374,52 @@ describe('useConfigPanelController', () => {
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+    })
+
+    // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
+    // submitting dialog treats the save as failed, keeps the user's draft, and stays open.
+    it('propagates a config-write failure on panel save to the submitting dialog', async () => {
+      const options = { ...baseOptions(), currentProviderId: 'p1' } // editing the active provider
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: 'p1' } as Provider)
+      })
+      const submit = result.current.configPanelProps?.onSubmit
+      expect(submit).toBeTypeOf('function')
+
+      await expect(submit!({ modelId: 'anthropic::claude-sonnet-4-5' as any, config: {} })).rejects.toThrow(
+        'config write failed'
+      )
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+    })
+
+    it('propagates a gateway ensureReady failure on panel save to the submitting dialog', async () => {
+      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const options = {
+        ...baseOptions(),
+        currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'cs-sk-old',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+      })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({ modelId: 'deepseek::deepseek-chat' as any, config: {} })
+      ).rejects.toThrow('API gateway failed to start')
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
     })
 
     // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the

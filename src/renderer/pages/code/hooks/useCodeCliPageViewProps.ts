@@ -188,6 +188,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     isOwnLoginSelected,
     currentProviderConfig,
     selectedTerminal,
+    apiGatewayProvider: apiGatewayBundle,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,

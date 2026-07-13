@@ -1,10 +1,10 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/types/apiGateway'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -87,8 +87,9 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     // Deduplicate by the gateway-addressable id ("providerId:modelId").
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
-      const apiModelId = model.apiModelId ?? model.id
-      if (isManagedCherryAiDefaultModel(model.providerId, apiModelId)) {
+      // Same routable-model predicate as the renderer's gateway picker — the
+      // listing must never advertise a model the proxy cannot route.
+      if (!isGatewayRoutableModel(model)) {
         continue
       }
 

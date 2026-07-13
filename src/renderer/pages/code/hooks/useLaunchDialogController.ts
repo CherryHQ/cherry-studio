@@ -3,14 +3,15 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import type { CodeCli } from '@shared/types/codeCli'
+import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolveCliConfigApplyContext } from '../cliConfig'
+import { resolveCliConfigApplyContext, writeCliConfigDraft } from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 import { useAvailableTerminals } from './useAvailableTerminals'
 
 const logger = loggerService.withContext('useLaunchDialogController')
@@ -23,6 +24,8 @@ interface UseLaunchDialogControllerOptions {
   isOwnLoginSelected: boolean
   currentProviderConfig?: CliProviderConfig | null
   selectedTerminal?: string
+  /** Synthetic Cherry gateway bundle — used to re-verify/rebuild the gateway config before launch. */
+  apiGatewayProvider?: ApiGatewayProviderBundle | null
   upsertProviderConfig: (
     providerId: string,
     partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
@@ -46,6 +49,7 @@ export function useLaunchDialogController({
   isOwnLoginSelected,
   currentProviderConfig,
   selectedTerminal,
+  apiGatewayProvider,
   upsertProviderConfig,
   setCurrentProvider,
   setTerminal,
@@ -122,6 +126,19 @@ export function useLaunchDialogController({
 
     try {
       setLaunching(true)
+      // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
+      // config; re-verify it's serving and rewrite the config with the fresh context so the
+      // CLI never launches against a dead endpoint or a stale key.
+      if (enabledProvider && isApiGatewayProviderId(enabledProvider.id) && apiGatewayProvider) {
+        const apiKey = await apiGatewayProvider.ensureReady()
+        await writeCliConfigDraft({
+          cliTool: selectedCliTool,
+          modelId: cliConfigContext.modelId,
+          configBlob: currentProviderConfig?.config,
+          writePrimaryModel: cliConfigContext.writePrimaryModel,
+          gateway: { provider: apiGatewayProvider.provider, apiKey }
+        })
+      }
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
@@ -149,6 +166,7 @@ export function useLaunchDialogController({
     upsertProviderConfig,
     selectedCliTool,
     effectiveTerminal,
+    apiGatewayProvider,
     setCurrentProvider,
     t
   ])

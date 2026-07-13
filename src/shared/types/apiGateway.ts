@@ -19,6 +19,12 @@ export type ApiGatewayStatusResult = { success: true } | { success: false; error
  * routable through the gateway and throw, mirroring the gateway's own guard.
  */
 export function formatGatewayModelId(providerId: string, apiModelId: string): string {
+  // The single-colon format cannot round-trip a provider id that itself contains ':' —
+  // the gateway would split "corp:west:model" at the first ':' and route to "corp".
+  // Fail loudly rather than emit an address that silently targets the wrong provider.
+  if (providerId.includes(':')) {
+    throw new Error(`Provider id "${providerId}" contains ":" and cannot be addressed through the API gateway`)
+  }
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw new Error('CherryAI managed default model is not available through the API gateway')
   }

@@ -162,8 +162,10 @@ export function useConfigPanelController({
           }
           setCurrentCliConfigConnection(null)
         } catch (err) {
+          // Rethrow so the submitting dialog treats the save as failed and keeps the
+          // user's draft (it owns the failure toast) instead of silently closing.
           logger.error('Failed to inject CLI config on edit:', err as Error)
-          toast.error(t('code.apply_failed'))
+          throw err
         }
       }
     },
@@ -175,8 +177,7 @@ export function useConfigPanelController({
       upsertProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
-      resolveGatewayWriteContext,
-      t
+      resolveGatewayWriteContext
     ]
   )
 
@@ -305,12 +306,14 @@ export function useConfigPanelController({
           })
           setCurrentCliConfigConnection(null)
         } catch (err) {
+          // Rethrow so the submitting dialog treats the save as failed and keeps the
+          // user's draft (it owns the failure toast) instead of silently closing.
           logger.error('Failed to inject own-login config on edit:', err as Error)
-          toast.error(t('code.apply_failed'))
+          throw err
         }
       }
     },
-    [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection, t]
+    [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection]
   )
 
   const isEditingOwnLogin = editingProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
