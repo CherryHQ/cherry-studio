@@ -118,6 +118,43 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
+    // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
+    // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
+    // any of them that dropped the v1 assistant snapshot would be caught here.
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    m['blockLookup'] = new Map([b1, b2].map((b) => [b.id, b]))
+    m['assistantLookup'] = new Map([['ast-1', { id: 'ast-1', name: 'My Assistant', emoji: '🎯', type: 'assistant' }]])
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['legacyAssistantIdRemap'] = new Map()
+    m['validAssistantIds'] = new Set(['ast-1'])
+    m['skippedMessages'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const model = { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    const messages = [msg('u1', 'user', ['b1'], { model }), msg('a1', 'assistant', ['b2'], { model })]
+
+    const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, topic('t1', messages), undefined)
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    // Assistant row: frozen author identity with the model nested inside.
+    expect(msgMap.get('a1')?.messageSnapshot).toEqual({
+      id: 'ast-1',
+      name: 'My Assistant',
+      emoji: '🎯',
+      model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    })
+    // User row: never snapshotted, even though the source message carried a model.
+    expect(msgMap.get('u1')?.messageSnapshot).toBeNull()
+  })
+
   it('resolves parentId through first-pass skipped messages (no blocks)', async () => {
     // u1 → a1 (no blocks, skipped) → u2
     // u2's parentId should resolve through a1 to u1
@@ -841,7 +878,7 @@ describe('ChatMigrator model reference sanitization', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: 1,
         updatedAt: 1
@@ -917,7 +954,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       status: 'success',
       siblingsGroupId: 0,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       createdAt: 1,
       updatedAt: 1

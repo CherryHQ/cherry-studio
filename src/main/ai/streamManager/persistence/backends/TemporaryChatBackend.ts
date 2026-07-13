@@ -8,14 +8,14 @@
  */
 
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { CherryMessagePart, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
 export interface TemporaryChatBackendOptions {
   topicId: string
   modelId?: string
-  modelSnapshot?: ModelSnapshot
+  messageSnapshot?: MessageSnapshot
   /** Explicit stats override; wins over listener-composed `input.stats`. Usually undefined. */
   stats?: MessageStats
 }
@@ -33,7 +33,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
       data: { parts },
       status,
       modelId: this.opts.modelId,
-      modelSnapshot: this.opts.modelSnapshot,
+      messageSnapshot: this.opts.messageSnapshot,
       stats: this.opts.stats ?? stats
     })
   }
