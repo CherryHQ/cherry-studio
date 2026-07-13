@@ -11,6 +11,7 @@ const {
   bootConfigGetMock,
   bootConfigSetMock,
   commitMock,
+  platformState,
   relaunchMock,
   updateProgressMock,
   windowCloseMock,
@@ -23,6 +24,7 @@ const {
   bootConfigGetMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
   commitMock: vi.fn(),
+  platformState: { isWin: false },
   relaunchMock: vi.fn(),
   updateProgressMock: vi.fn(),
   windowCloseMock: vi.fn(),
@@ -40,7 +42,11 @@ vi.mock('@application', () => ({
     relaunch: relaunchMock
   }
 }))
-vi.mock('@main/core/platform', () => ({ isWin: false }))
+vi.mock('@main/core/platform', () => ({
+  get isWin() {
+    return platformState.isWin
+  }
+}))
 vi.mock('@main/core/preboot/userDataLocation', () => ({ commitUserDataRelocation: commitMock }))
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
@@ -89,7 +95,7 @@ async function loadGate() {
 beforeEach(async () => {
   vi.resetModules()
   vi.clearAllMocks()
-  vi.doMock('@main/core/platform', () => ({ isWin: false }))
+  platformState.isWin = false
   await usePromises()
 
   relocationState = { installPath: makeRoot(), 'temp.user_data_relocation': null }
@@ -279,7 +285,7 @@ describe('userDataRelocationGate', () => {
     fs.symlinkSync('real', path.join(source, 'relative-link'), 'dir')
     appGetPathMock.mockReturnValue(source)
     relocationState['temp.user_data_relocation'] = pending(source, target)
-    vi.doMock('@main/core/platform', () => ({ isWin: true }))
+    platformState.isWin = true
     const symlinkMock = vi.fn<typeof symlink>().mockResolvedValue(undefined)
     await usePromises({ symlink: symlinkMock })
 
