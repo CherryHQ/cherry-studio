@@ -46,7 +46,7 @@ function QuickAssistantApp(): React.ReactElement {
               boundary) keep running. This window has no TabRouter, so unlike
               main/subWindow it can't rely on the per-tab RouteErrorFallback here. */}
           <ErrorBoundary>
-            <HomeWindow />
+            <HomeWindow showRestoreMain />
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />

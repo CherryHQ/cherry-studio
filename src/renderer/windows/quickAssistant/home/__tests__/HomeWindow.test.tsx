@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,13 +22,14 @@ const state = vi.hoisted(() => ({
   setMessages: vi.fn(),
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
-  resetTemporaryTopic: vi.fn()
+  resetTemporaryTopic: vi.fn(),
+  ipcRequest: vi.fn()
 }))
 
 import HomeWindow from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  ipcApi: { request: state.ipcRequest, on: vi.fn(() => () => {}) },
   useIpcOn: vi.fn()
 }))
 
@@ -105,21 +107,52 @@ vi.mock('../components/InputBar', () => ({
   default: ({
     text,
     placeholder,
-    handleChange
+    handleChange,
+    onRestoreMain
   }: {
     text: string
     placeholder: string
     handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-  }) => <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
+    onRestoreMain?: () => void
+  }) => (
+    <div>
+      <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
+      {onRestoreMain && (
+        <button type="button" onClick={onRestoreMain}>
+          Restore Main
+        </button>
+      )}
+    </div>
+  )
 }))
 
 vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
-    ({ ref }: { ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null> }) => {
+    ({
+      ref,
+      setRoute
+    }: {
+      ref?: React.RefObject<{
+        nextFeature: () => void
+        prevFeature: () => void
+        useFeature: () => void
+        resetSelectedIndex: () => void
+      } | null>
+      setRoute: (route: 'translate') => void
+    }) => {
       if (ref) {
-        ref.current = { useFeature: vi.fn(), resetSelectedIndex: vi.fn() }
+        ref.current = {
+          nextFeature: vi.fn(),
+          prevFeature: vi.fn(),
+          useFeature: vi.fn(),
+          resetSelectedIndex: vi.fn()
+        }
       }
-      return <div data-testid="feature-menus" />
+      return (
+        <button type="button" onClick={() => setRoute('translate')}>
+          Open Translate
+        </button>
+      )
     }
   )
 }))
@@ -150,6 +183,7 @@ describe('HomeWindow', () => {
     state.resetExecutionMessages.mockClear()
     state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
+    state.ipcRequest.mockClear()
   })
 
   it('renders the input surface in model-only quick assistant mode', () => {
@@ -165,5 +199,29 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('restores Main from the input action', async () => {
+    const user = userEvent.setup()
+    render(<HomeWindow draggable={false} showRestoreMain />)
+
+    await user.click(screen.getByRole('button', { name: 'Restore Main' }))
+
+    expect(state.ipcRequest).toHaveBeenCalledWith('quick_assistant.restore_main')
+  })
+
+  it('does not show the restore action in the embedded settings preview', () => {
+    render(<HomeWindow draggable={false} />)
+
+    expect(screen.queryByRole('button', { name: 'Restore Main' })).not.toBeInTheDocument()
+  })
+
+  it('does not show the restore action on a route without the input bar', async () => {
+    const user = userEvent.setup()
+    render(<HomeWindow draggable={false} showRestoreMain />)
+
+    await user.click(screen.getByRole('button', { name: 'Open Translate' }))
+
+    expect(screen.queryByRole('button', { name: 'Restore Main' })).not.toBeInTheDocument()
   })
 })

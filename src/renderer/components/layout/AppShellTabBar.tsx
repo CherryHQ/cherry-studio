@@ -17,7 +17,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
+import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
@@ -485,7 +485,6 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { rightPaddingClass } = useShellTabBarLayout()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -764,7 +763,6 @@ export const AppShellTabBar = ({
         className={cn(
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
-          rightPaddingClass,
           'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
@@ -777,7 +775,7 @@ export const AppShellTabBar = ({
             thawAfterCollapseRef.current = false
           }}
           onMouseLeave={handleStripMouseLeave}
-          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
