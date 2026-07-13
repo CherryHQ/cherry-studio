@@ -672,15 +672,6 @@ const fetchers: ModelFetcher[] = [
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 
-const UNSUPPORTED_PROVIDER_PRESETS = [SystemProviderIds['aws-bedrock']] as const
-
-function isUnsupported(provider: Provider): boolean {
-  return (
-    UNSUPPORTED_PROVIDER_PRESETS.some((presetId) => matchesPreset(provider, presetId)) ||
-    provider.presetProviderId === 'vertex-anthropic'
-  )
-}
-
 // ── Public API ──
 
 export async function listModels(
@@ -689,14 +680,6 @@ export async function listModels(
   options?: { throwOnError?: boolean }
 ): Promise<Partial<Model>[]> {
   try {
-    if (isUnsupported(provider)) {
-      logger.warn('Provider does not support model listing', { providerId: provider.id })
-      if (options?.throwOnError) {
-        throw new Error(`Provider does not support model listing: ${provider.id}`)
-      }
-      return []
-    }
-
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {

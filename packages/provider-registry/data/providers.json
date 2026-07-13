@@ -1268,6 +1268,7 @@
           "official": "https://aws.amazon.com/bedrock/"
         }
       },
+      "modelListSource": "registry",
       "name": "AWS Bedrock"
     },
     {
@@ -1453,5 +1454,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4b6940ba3a873ad9"
+  "version": "f96e45d2273ff92e"
 }

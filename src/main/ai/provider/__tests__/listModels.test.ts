@@ -378,26 +378,6 @@ describe('listModels — copied preset provider routing', () => {
     })
     expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
   })
-
-  // anthropic is intentionally absent: it now has a dedicated fetcher (see the anthropicFetcher
-  // suite) rather than being unsupported — it still never hits the OpenAI-compatible fallback.
-  it.each(['aws-bedrock'] as const)(
-    'does not use the OpenAI-compatible fallback for a copied %s provider',
-    async (presetProviderId) => {
-      const provider = makeProvider({
-        id: `copied-${presetProviderId}`,
-        presetProviderId,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
-        }
-      })
-
-      await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow(
-        `Provider does not support model listing: copied-${presetProviderId}`
-      )
-      expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('listModels — newApiFetcher endpoint types', () => {
