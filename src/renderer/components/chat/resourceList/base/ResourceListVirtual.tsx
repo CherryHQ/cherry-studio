@@ -8,7 +8,7 @@ import {
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject, UIEvent as ReactUIEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -34,6 +34,7 @@ import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from '
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
+const END_REACHED_THRESHOLD = RESOURCE_LIST_DEFAULT_ROW_SIZE * 4
 const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_ROW_HEIGHT_CLASS}`
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
@@ -72,6 +73,7 @@ export type VirtualItemsProps<T extends ResourceListItemBase> = {
   ref?: Ref<HTMLDivElement>
   /** Accessible name for the listbox scroller (e.g. "Topics", "Sessions"). */
   ariaLabel?: string
+  onEndReached?: () => void
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
 }
 
@@ -151,6 +153,57 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   return { stage, handleScroll }
 }
 
+function useEndReached(
+  scrollElementRef: RefObject<HTMLDivElement | null>,
+  itemCount: number,
+  onEndReached?: () => void
+) {
+  const onEndReachedRef = useRef(onEndReached)
+  const wasNearEndRef = useRef(false)
+  const observedStateRef = useRef<{ enabled: boolean; itemCount: number } | null>(null)
+  const enabled = onEndReached !== undefined
+
+  useLayoutEffect(() => {
+    onEndReachedRef.current = onEndReached
+  }, [onEndReached])
+
+  const checkEndReached = useCallback(
+    (element = scrollElementRef.current) => {
+      const callback = onEndReachedRef.current
+      if (!element || !callback) return
+      if (element.clientHeight <= 0 || element.scrollHeight <= 0) return
+      const isNearEnd = element.scrollTop + element.clientHeight >= element.scrollHeight - END_REACHED_THRESHOLD
+      if (!isNearEnd) {
+        wasNearEndRef.current = false
+        return
+      }
+      if (wasNearEndRef.current) return
+
+      wasNearEndRef.current = true
+      callback()
+    },
+    [scrollElementRef]
+  )
+
+  useEffect(() => {
+    const observedState = observedStateRef.current
+    if (!observedState || observedState.enabled !== enabled || observedState.itemCount !== itemCount) {
+      wasNearEndRef.current = false
+    }
+    observedStateRef.current = { enabled, itemCount }
+    checkEndReached()
+
+    const element = scrollElementRef.current
+    if (!element || !enabled || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => checkEndReached(element))
+    observer.observe(element)
+    if (element.firstElementChild) observer.observe(element.firstElementChild)
+    return () => observer.disconnect()
+  }, [checkEndReached, enabled, itemCount, scrollElementRef])
+
+  return checkEndReached
+}
+
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
     '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [scrollbar-gutter:stable]',
@@ -181,12 +234,16 @@ function VirtualItemRow({
   )
 }
 
-function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListContextValue<T>['view']) {
+function buildVirtualGroups<T extends ResourceListItemBase>(
+  view: ResourceListContextValue<T>['view'],
+  usesScrollPagination = false
+) {
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
 
   const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number]) => {
     const items: ResourceListVirtualItem<T>[] = []
+    const usesScrollPaginationForGroup = usesScrollPagination && !group.group.label && group.status !== 'error'
 
     for (const item of group.items) {
       items.push({ group: group.group, groupCollapsed: group.collapsed, item, itemIndex })
@@ -198,7 +255,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
       header: group.group.label ? { type: 'group', group: group.group } : undefined,
       items,
       footer:
-        group.hasMore || group.canCollapseToDefault
+        (!usesScrollPaginationForGroup && group.hasMore) || group.canCollapseToDefault
           ? { group: group.group, groupCollapsed: group.collapsed, groupId: group.group.id }
           : undefined
     })
@@ -478,17 +535,19 @@ export function VirtualItems<T extends ResourceListItemBase>({
   className,
   ref,
   ariaLabel,
+  onEndReached,
   renderItem
 }: VirtualItemsProps<T>) {
   const meta = useResourceListMeta<T>()
   const { estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view), [view])
+  const groups = useMemo(() => buildVirtualGroups(view, !!onEndReached), [onEndReached, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
+  const checkEndReached = useEndReached(listboxRef, view.visibleItems.length, onEndReached)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -497,6 +556,13 @@ export function VirtualItems<T extends ResourceListItemBase>({
     virtualRows
   })
   const isScrolling = stage !== 'idle'
+  const handleListScroll = useCallback(
+    (event: ReactUIEvent<HTMLDivElement>) => {
+      handleScroll()
+      checkEndReached(event.currentTarget)
+    },
+    [checkEndReached, handleScroll]
+  )
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
@@ -555,7 +621,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
         }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
-        onScroll={handleScroll}
+        onScroll={handleListScroll}
         overscan={6}
         estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
@@ -574,12 +640,14 @@ export type VirtualDraggableItemsProps<T extends ResourceListItemBase> = {
   ref?: Ref<HTMLDivElement>
   /** Accessible name for the listbox scroller (e.g. "Topics", "Sessions"). */
   ariaLabel?: string
+  onEndReached?: () => void
 }
 
 export function VirtualDraggableItems<T extends ResourceListItemBase>({
   className,
   ref,
   ariaLabel,
+  onEndReached,
   renderItem
 }: VirtualDraggableItemsProps<T>) {
   const actions = useResourceListActions()
@@ -596,11 +664,12 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view), [view])
+  const groups = useMemo(() => buildVirtualGroups(view, !!onEndReached), [onEndReached, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
+  const checkEndReached = useEndReached(listboxRef, view.visibleItems.length, onEndReached)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -609,6 +678,13 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     virtualRows
   })
   const isScrolling = stage !== 'idle'
+  const handleListScroll = useCallback(
+    (event: ReactUIEvent<HTMLDivElement>) => {
+      handleScroll()
+      checkEndReached(event.currentTarget)
+    },
+    [checkEndReached, handleScroll]
+  )
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
   const getVirtualItemId = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => getItemId(virtualItem.item),
@@ -781,7 +857,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
-        onScroll={handleScroll}
+        onScroll={handleListScroll}
         overscan={6}
         getGroupId={getGroupId}
         getItemId={getVirtualItemId}

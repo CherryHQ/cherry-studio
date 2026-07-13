@@ -22,6 +22,35 @@ export type ResourceListRevealRequest = {
   requestId: number
 }
 
+export type ResourceListRemoteGroupState = {
+  /** Factual total for the current server-side filters. */
+  totalCount: number
+  /** Whether another cursor page exists after the loaded group window. */
+  hasMore: boolean
+  status: ResourceListStatus
+}
+
+export type ResourceListRemoteRevealTarget = {
+  groupId?: string | null
+  sectionId?: string | null
+}
+
+/**
+ * Optional server-backed mode for ResourceList. The caller owns query state,
+ * loaded windows, cursors and errors; ResourceList owns only presentation and
+ * interaction policy.
+ */
+export type ResourceListRemoteData = {
+  query: string
+  groupStates?: Readonly<Record<string, ResourceListRemoteGroupState | undefined>>
+  onQueryChange: (query: string) => void
+  /** Load an unopened group and return its first item id when header selection should navigate. */
+  loadGroup?: (groupId: string) => Promise<string | null | void>
+  loadMoreGroup?: (groupId: string) => Promise<void>
+  /** Ensure an unloaded item is present and return its group/section placement. */
+  revealItem?: (request: ResourceListRevealRequest) => Promise<ResourceListRemoteRevealTarget | null>
+}
+
 export type ResourceListGroup = {
   id: string
   label: string
@@ -116,7 +145,8 @@ export type ResourceListActionMap = {
   cancelRename: () => void
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
-  showMoreInGroup: (groupId: string) => void
+  selectGroupHeader: (groupId: string) => Promise<boolean>
+  showMoreInGroup: (groupId: string) => Promise<void>
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -138,7 +168,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
-  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
+  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
@@ -187,6 +217,7 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   hasMore: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
+  status: ResourceListStatus
 }
 
 export type ResourceListViewSection<T extends ResourceListItemBase> = {

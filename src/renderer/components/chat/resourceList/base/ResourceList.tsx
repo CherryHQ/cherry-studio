@@ -42,6 +42,9 @@ export type {
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListMeta,
+  ResourceListRemoteData,
+  ResourceListRemoteGroupState,
+  ResourceListRemoteRevealTarget,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,
@@ -572,6 +575,8 @@ type BodyProps<T extends ResourceListItemBase> = {
   emptyFallback?: ReactNode
   errorFallback?: ReactNode
   listRef?: Ref<HTMLDivElement>
+  /** Invoked when the virtual scroller approaches its bottom. */
+  onEndReached?: () => void
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
   virtualClassName?: string
   /** Accessible name forwarded to the listbox scroller in both the plain and draggable paths. */
@@ -583,6 +588,7 @@ function Body<T extends ResourceListItemBase>({
   emptyFallback,
   errorFallback,
   listRef,
+  onEndReached,
   renderItem,
   virtualClassName,
   ariaLabel
@@ -604,11 +610,25 @@ function Body<T extends ResourceListItemBase>({
 
   if (draggable) {
     return (
-      <VirtualDraggableItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+      <VirtualDraggableItems
+        ref={listRef}
+        className={virtualClassName}
+        ariaLabel={ariaLabel}
+        onEndReached={onEndReached}
+        renderItem={renderItem}
+      />
     )
   }
 
-  return <VirtualItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  return (
+    <VirtualItems
+      ref={listRef}
+      className={virtualClassName}
+      ariaLabel={ariaLabel}
+      onEndReached={onEndReached}
+      renderItem={renderItem}
+    />
+  )
 }
 
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>

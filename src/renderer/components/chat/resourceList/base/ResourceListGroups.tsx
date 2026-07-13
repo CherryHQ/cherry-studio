@@ -132,7 +132,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     },
     [onContextMenu]
   )
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(async () => {
     if (!isCollapsible) return
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
@@ -142,8 +142,10 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         return
       }
 
+      if (await actions.selectGroupHeader(group.id)) return
+
       if (meta.onEmptyGroupHeaderClick) {
-        const handled = meta.onEmptyGroupHeaderClick(group)
+        const handled = await meta.onEmptyGroupHeaderClick(group)
         if (handled !== false) return
       }
     }
@@ -195,7 +197,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             aria-expanded={!collapsed}
             aria-current={selected ? 'true' : undefined}
             className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-            onClick={handleClick}>
+            onClick={() => void handleClick().catch(() => undefined)}>
             {groupHeaderIcon && (
               <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
                 {groupHeaderIcon}
@@ -256,6 +258,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
   const meta = useResourceListMeta()
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
+  const isLoading = groupState.status === 'loading'
   const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   if (!label) return null
@@ -273,13 +276,16 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
+        aria-busy={isLoading || undefined}
+        data-error={groupState.status === 'error' || undefined}
+        disabled={isLoading}
         className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
             return
           }
-          actions.showMoreInGroup(groupId)
+          void actions.showMoreInGroup(groupId).catch(() => undefined)
         }}>
         {label}
       </button>
