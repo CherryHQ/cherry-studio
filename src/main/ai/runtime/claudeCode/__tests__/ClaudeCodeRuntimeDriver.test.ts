@@ -886,7 +886,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('redirect declines without a live turn and stashes the steer in the holder once a turn is active', async () => {
+  it('redirect only stashes text steers while a turn is active', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -913,29 +913,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(connection.redirect?.({ message: userMessage() })).toBe(true)
     expect(steerHolder.pending).toHaveLength(1)
 
-    void connection.close()
-    expect(steerHolder.dispose).toHaveBeenCalled()
-  })
-
-  it('emits redirected attachment steers as undelivered so they can run as the next SDK turn', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValue(query)
-    const steerHolder = { pending: [] as any[], dispose: vi.fn() }
-    mocks.buildRequest.mockResolvedValueOnce({
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: { steerHolder },
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    const steer = {
+    const attachmentSteer = {
       message: {
         ...userMessage(),
         id: 'user-2',
@@ -948,28 +926,20 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       systemReminder: true
     }
+    expect(connection.redirect?.(attachmentSteer)).toBe(false)
+    expect(steerHolder.pending).toHaveLength(1)
 
-    await connection.send({ message: userMessage() })
-    expect(connection.redirect?.(steer)).toBe(true)
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: {} })
-
-    const seen: any[] = []
-    for (;;) {
-      const { value, done } = await events.next()
-      if (done) break
-      seen.push(value)
-      if (value?.type === 'turn-complete') break
-    }
-
-    expect(seen).toEqual(expect.arrayContaining([{ type: 'steer-undelivered', inputs: [steer] }]))
-    expect(steerHolder.pending).toHaveLength(0)
     void connection.close()
+    expect(steerHolder.dispose).toHaveBeenCalled()
   })
 
-  it('emits redirected attachment steers as undelivered before tearing down after a query error', async () => {
+  it('emits pending text steers as undelivered before tearing down after a query error', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     const steerHolder = { pending: [] as any[], dispose: vi.fn() }
+    steerHolder.dispose.mockImplementation(() => {
+      steerHolder.pending = []
+    })
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.buildRequest.mockResolvedValueOnce({
       key: 'warm-key',
@@ -989,10 +959,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ...userMessage(),
         id: 'user-2',
         data: {
-          parts: [
-            { type: 'text', text: 'look at this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
-          ]
+          parts: [{ type: 'text', text: 'change direction' }]
         }
       },
       systemReminder: true

@@ -725,40 +725,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(onInjected).not.toHaveBeenCalled()
   })
 
-  it('keeps a steer with attachments pending so it can be queued as the next SDK turn', async () => {
-    const session = {
-      id: 'session-attachment-steer',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(6)
-
-    const steerHook = preToolUse![5] as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    const multimodalSteer = {
-      message: {
-        data: {
-          parts: [
-            { type: 'text', text: 'look at this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
-          ]
-        }
-      }
-    } as never
-    settings.steerHolder!.pending.push(multimodalSteer)
-
-    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
-
-    expect(settings.steerHolder!.pending).toEqual([multimodalSteer])
-    expect(onInjected).not.toHaveBeenCalled()
-  })
-
   it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
     const session = {
       id: 'session-1',

@@ -879,11 +879,6 @@ async function buildToolPermissions(
     // holder the connection wired, not a holder instance captured before this connection existed.
     const holder = getSteerHolder(session.id)
     if (holder.pending.length === 0) return {}
-    const hasAttachments = holder.pending.some((input) =>
-      input.message.data?.parts?.some((part) => part.type !== 'text')
-    )
-    // The hook can only inject text; leave attachment steers for the next SDK turn.
-    if (hasAttachments) return {}
 
     const taken = holder.pending.splice(0)
     const text = taken
