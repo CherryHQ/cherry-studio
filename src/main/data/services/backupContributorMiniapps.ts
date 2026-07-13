@@ -33,7 +33,12 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         renamable: false
       }
     ],
-    fileRefSourcePolicies: [],
+    // mini_app_logo single-file ref (mini_app_logo_file_ref.sourceId → mini_app):
+    // MINIAPPS owns the sourceType so finalize #11 (FileRefSourceType coverage) passes.
+    // Logo blob staging follows the full single-file-ref backup track (follow-up).
+    fileRefSourcePolicies: [
+      { sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner', sourceTable: table('mini_app') }
+    ],
     jsonSoftReferences: [],
     // mini_app JSON columns hold config/region data — no embedded fileId/entityId
     // soft refs. Declared so finalize #12 exhaustiveness passes.
