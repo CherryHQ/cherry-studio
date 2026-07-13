@@ -188,7 +188,7 @@ const NormalTabButton = ({
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
@@ -215,8 +215,11 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-normal text-xs leading-none"
-        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        style={{
+          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+        }}>
         {tab.title}
       </span>
       {/* Right-side close button — only on wide tabs */}
