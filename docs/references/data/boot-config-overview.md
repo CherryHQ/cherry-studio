@@ -62,10 +62,11 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 - Writes to a temp file first, then renames to `boot-config.json`
 - Prevents corruption from crashes during write
 
-### Debounced Saving
+### Saving
 
-- Writes are debounced by 500ms to coalesce rapid changes
-- `flush()` forces an immediate write (used on app quit)
+- `set()` marks state dirty and schedules a **debounced** background save (350ms) to coalesce rapid changes. Background saves are **best-effort**: a write failure is logged, not thrown, and the dirty flag is kept for a later retry.
+- `flush()` — force an immediate write, **best-effort** (never throws; logs and swallows failures). Use only where a failed write is genuinely tolerable, e.g. app quit.
+- `persist()` — force an immediate write, **strict** (throws on any fs failure; dirty flag retained on failure for retry). Use wherever a failed write has consequences — `BootConfigMigrator`, the preboot userData pin (`pinUserDataPath`, whose silent failure would loop the next launch), or an IPC handler that must not report success before the change is on disk. **Choose strict vs. best-effort by the consequence of failure, not by "it runs in preboot"** — a preboot caller that needs durability uses `persist()` and routes the throw to an explicit fatal path, rather than downgrading to `flush()`.
 
 ### Error Handling
 
