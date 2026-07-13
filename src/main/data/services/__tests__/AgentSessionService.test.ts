@@ -125,6 +125,317 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  describe('listByCursor (flat sortBy profiles)', () => {
+    // orderKey and updatedAt deliberately disagree so each profile's assertion
+    // pins its own sort column. s2 is pinned; s3/s4 are unlinked (agentId NULL).
+    async function seedFlat() {
+      const workspace = await createWorkspace('flat')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 's1',
+          agentId: 'agent-session-test',
+          name: 'Alpha',
+          description: 'first session',
+          workspaceId: workspace.id,
+          orderKey: 'a3',
+          createdAt: 1,
+          updatedAt: 100
+        },
+        {
+          id: 's2',
+          agentId: 'agent-session-test',
+          name: 'Beta',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          createdAt: 2,
+          updatedAt: 200
+        },
+        {
+          id: 's3',
+          agentId: null,
+          name: 'Gamma',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          createdAt: 3,
+          updatedAt: 300
+        },
+        {
+          id: 's4',
+          agentId: null,
+          name: 'Delta',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          createdAt: 4,
+          updatedAt: 400
+        }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: '77777777-7777-4777-8777-777777777777',
+        entityType: 'session',
+        entityId: 's2',
+        orderKey: 'a0'
+      })
+      return workspace
+    }
+
+    it('sortBy=updatedAt returns activity order with the workspace relation intact', async () => {
+      await seedFlat()
+      const result = agentSessionService.listByCursor({ sortBy: 'updatedAt' })
+      expect(result.items.map((s) => s.id)).toEqual(['s4', 's3', 's2', 's1'])
+      expect(result.items[0].workspace).toBeDefined()
+      expect(result.items.find((session) => session.id === 's2')).toMatchObject({
+        pinned: true,
+        pinId: '77777777-7777-4777-8777-777777777777'
+      })
+      expect(result.items.find((session) => session.id === 's1')).toMatchObject({
+        pinned: false,
+        pinId: null
+      })
+      expect(result.nextCursor).toBeUndefined()
+    })
+
+    it('breaks createdAt ties by id ASC across page boundaries (no skip/dup)', async () => {
+      const workspace = await createWorkspace('created-ties')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'tie-a',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          createdAt: 100
+        },
+        {
+          id: 'tie-b',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          createdAt: 100
+        },
+        {
+          id: 'tie-c',
+          agentId: 'agent-session-test',
+          name: 'C',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          createdAt: 100
+        }
+      ])
+
+      const first = agentSessionService.listByCursor({ sortBy: 'createdAt', limit: 2 })
+      const second = agentSessionService.listByCursor({ sortBy: 'createdAt', limit: 2, cursor: first.nextCursor })
+
+      expect(first.items.map((session) => session.id)).toEqual(['tie-a', 'tie-b'])
+      expect(second.items.map((session) => session.id)).toEqual(['tie-c'])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('sortBy=orderKey returns manual order including pinned rows, and paginates via cursor', async () => {
+      await seedFlat()
+      const page1 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 3 })
+      expect(page1.items.map((s) => s.id)).toEqual(['s4', 's3', 's2'])
+      const page2 = agentSessionService.listByCursor({ sortBy: 'orderKey', limit: 3, cursor: page1.nextCursor })
+      expect(page2.items.map((s) => s.id)).toEqual(['s1'])
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
+    it('pages a pinned-only stream by the requested business sort, not pin order', async () => {
+      await seedFlat()
+      await dbh.db.insert(pinTable).values({
+        id: '88888888-8888-4888-8888-888888888888',
+        entityType: 'session',
+        entityId: 's4',
+        orderKey: 'a1'
+      })
+
+      const page1 = agentSessionService.listByCursor({ sortBy: 'createdAt', pinned: true, limit: 1 })
+      const page2 = agentSessionService.listByCursor({
+        sortBy: 'createdAt',
+        pinned: true,
+        limit: 1,
+        cursor: page1.nextCursor
+      })
+
+      expect(page1.items.map((session) => session.id)).toEqual(['s4'])
+      expect(page2.items.map((session) => session.id)).toEqual(['s2'])
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
+    it('filters by concrete agentId and by unlinked', async () => {
+      await seedFlat()
+      const owned = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'agent-session-test' })
+      expect(owned.items.map((s) => s.id)).toEqual(['s2', 's1'])
+      const unlinked = agentSessionService.listByCursor({ sortBy: 'updatedAt', agentId: 'unlinked' })
+      expect(unlinked.items.map((s) => s.id)).toEqual(['s4', 's3'])
+    })
+
+    it('filters by pinned=true / pinned=false', async () => {
+      await seedFlat()
+      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', pinned: true }).items.map((s) => s.id)).toEqual([
+        's2'
+      ])
+      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', pinned: false }).items.map((s) => s.id)).toEqual([
+        's4',
+        's3',
+        's1'
+      ])
+    })
+
+    it('searchScope=name matches session name only; full also matches description and agent name', async () => {
+      await seedFlat()
+      // 'first' appears only in s1's description.
+      expect(agentSessionService.listByCursor({ sortBy: 'updatedAt', q: 'first' }).items).toEqual([])
+      expect(
+        agentSessionService
+          .listByCursor({ sortBy: 'updatedAt', q: 'first', searchScope: 'full' })
+          .items.map((s) => s.id)
+      ).toEqual(['s1'])
+      // 'Session Test Agent' matches via the owning agent's name — only linked sessions.
+      expect(
+        agentSessionService
+          .listByCursor({ sortBy: 'updatedAt', q: 'Test Agent', searchScope: 'full' })
+          .items.map((s) => s.id)
+      ).toEqual(['s2', 's1'])
+    })
+
+    it('treats LIKE wildcards in q as literals', async () => {
+      const workspace = await createWorkspace('literal')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'lit-1',
+          agentId: 'agent-session-test',
+          name: '100% done',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'lit-2',
+          agentId: 'agent-session-test',
+          name: '100 percent done',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        }
+      ])
+      const result = agentSessionService.listByCursor({ sortBy: 'updatedAt', q: '100%' })
+      expect(result.items.map((s) => s.id)).toEqual(['lit-1'])
+    })
+
+    it('filters by explicit ids', async () => {
+      await seedFlat()
+      expect(
+        agentSessionService.listByCursor({ sortBy: 'updatedAt', ids: ['s1', 's4'] }).items.map((s) => s.id)
+      ).toEqual(['s4', 's1'])
+    })
+
+    it('pages the unpinned creation stream by createdAt DESC with a stable cursor', async () => {
+      await seedFlat()
+      const first = agentSessionService.listByCursor({ sortBy: 'createdAt', pinned: false, limit: 2 })
+      const second = agentSessionService.listByCursor({
+        sortBy: 'createdAt',
+        pinned: false,
+        limit: 2,
+        cursor: first.nextCursor
+      })
+
+      expect(first.items.map((session) => session.id)).toEqual(['s4', 's3'])
+      expect(second.items.map((session) => session.id)).toEqual(['s1'])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('filters by stable user workspace id and explicit system scope', async () => {
+      const workspace = await seedFlat()
+      const systemSession = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System',
+        workspace: { type: 'system' }
+      })
+
+      const userSessions = agentSessionService.listByCursor({
+        sortBy: 'updatedAt',
+        workspaceId: workspace.id
+      })
+      expect(userSessions.items.map((session) => session.id)).toEqual(['s4', 's3', 's2', 's1'])
+      expect(
+        agentSessionService.listByCursor({ sortBy: 'updatedAt', workspaceId: 'system' }).items.map((s) => s.id)
+      ).toEqual([systemSession.id])
+    })
+  })
+
+  describe('stats', () => {
+    async function seedStats() {
+      const workspace = await createWorkspace('stats')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 's1',
+          agentId: 'agent-session-test',
+          name: 'Alpha',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 's2',
+          agentId: 'agent-session-test',
+          name: 'Beta',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        },
+        { id: 's3', agentId: null, name: 'Gamma', workspaceId: workspace.id, orderKey: 'a2', updatedAt: 300 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: '88888888-8888-4888-8888-888888888888',
+        entityType: 'session',
+        entityId: 's1',
+        orderKey: 'a0'
+      })
+      return workspace
+    }
+
+    it('returns total, pinnedCount, and byAgent with an explicit unlinked (null) entry', async () => {
+      const workspace = await seedStats()
+      const stats = agentSessionService.stats()
+      expect(stats.total).toBe(3)
+      expect(stats.pinnedCount).toBe(1)
+      const byAgent = [...stats.byAgent].sort((a, b) => String(a.agentId).localeCompare(String(b.agentId)))
+      expect(byAgent).toEqual([
+        { agentId: 'agent-session-test', count: 2, pinnedCount: 1 },
+        { agentId: null, count: 1, pinnedCount: 0 }
+      ])
+      expect(stats.byWorkspace).toEqual([{ workspaceId: workspace.id, count: 3, pinnedCount: 1 }])
+    })
+
+    it('applies owner scope and name search filters', async () => {
+      await seedStats()
+      expect(agentSessionService.stats({ agentId: 'unlinked' })).toMatchObject({ total: 1, pinnedCount: 0 })
+      expect(agentSessionService.stats({ q: 'Alpha' })).toMatchObject({
+        total: 1,
+        pinnedCount: 1
+      })
+    })
+
+    it('aggregates stable workspace ids and the explicit system bucket', async () => {
+      const workspace = await seedStats()
+      agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System',
+        workspace: { type: 'system' }
+      })
+
+      expect(
+        [...agentSessionService.stats().byWorkspace].sort((left, right) =>
+          left.workspaceId.localeCompare(right.workspaceId)
+        )
+      ).toEqual([
+        { workspaceId: workspace.id, count: 3, pinnedCount: 1 },
+        { workspaceId: 'system', count: 1, pinnedCount: 0 }
+      ])
+    })
+  })
+
   describe('getLatestUpdated', () => {
     it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')
@@ -694,6 +1005,12 @@ describe('AgentSessionService', () => {
     const result = agentSessionService.listByCursor()
     // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
     expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
+    expect(result.items.map(({ pinned, pinId }) => ({ pinned, pinId }))).toEqual([
+      { pinned: true, pinId: 'pin-a' },
+      { pinned: true, pinId: 'pin-b' },
+      { pinned: false, pinId: null },
+      { pinned: false, pinId: null }
+    ])
     expect(result.nextCursor).toBeUndefined()
   })
 

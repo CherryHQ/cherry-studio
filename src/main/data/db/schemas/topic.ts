@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -29,6 +30,8 @@ export const topicTable = sqliteTable(
     ...createUpdateDeleteTimestamps
   },
   (t) => [
+    index('topic_created_at_id_idx').on(sql`${t.createdAt} desc`, t.id),
+    index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
     index('topic_updated_at_idx').on(t.updatedAt),
     orderKeyIndex('topic')(t),
     index('topic_assistant_id_idx').on(t.assistantId)

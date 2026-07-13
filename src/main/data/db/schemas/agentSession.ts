@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -20,7 +21,11 @@ export const agentSessionTable = sqliteTable(
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },
-  (t) => [orderKeyIndex('agent_session')(t), index('agent_session_updated_at_idx').on(t.updatedAt)]
+  (t) => [
+    index('agent_session_created_at_id_idx').on(sql`${t.createdAt} desc`, t.id),
+    orderKeyIndex('agent_session')(t),
+    index('agent_session_updated_at_idx').on(t.updatedAt)
+  ]
 )
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect

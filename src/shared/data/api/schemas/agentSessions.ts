@@ -108,6 +108,9 @@ export const AgentSessionEntitySchema = z.strictObject({
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
+/** Fixed collection projection; by-id and mutation responses remain pure session entities. */
+export type AgentSessionListItem = AgentSessionEntity & { pinned: boolean; pinId: string | null }
+
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
 export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
@@ -136,14 +139,113 @@ export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 export const SetAgentSessionWorkspaceSchema = AgentSessionWorkspaceSourceSchema
 export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
-/** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
-export const ListAgentSessionsQuerySchema = z.strictObject({
-  agentId: z.string().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
-})
+/**
+ * Owner scope for session list/stats filters: a concrete agent id, or the
+ * literal `'unlinked'` for sessions whose agent was deleted via cascade
+ * (`agentId IS NULL`). Agent ids are UUIDs, so the sentinel cannot collide.
+ */
+export const AgentSessionOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+export type AgentSessionOwnerScope = z.infer<typeof AgentSessionOwnerScopeSchema>
+
+/** A concrete user-workspace id, or the aggregate `system` scope sentinel. */
+export const AgentSessionWorkspaceScopeSchema = z.string().min(1)
+export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceScopeSchema>
+
+/**
+ * Sort profiles for `GET /agent-sessions` (D1 of #16890). Direction is derived
+ * server-side: `createdAt` → creation order (`createdAt DESC, id ASC`),
+ * `updatedAt` → activity (`updatedAt DESC, id ASC`), `orderKey` → manual drag
+ * order (`orderKey ASC, id ASC`). Pin state selects a band but never defines
+ * an independent ordering.
+ */
+export const AgentSessionSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
+export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
+
+/**
+ * Search scope (D6 of #16890): `name` is a literal substring over the session
+ * name (resource-list behavior); `full` additionally ORs the session
+ * description and the owning agent's name (Agent History behavior).
+ */
+export const AgentSessionSearchScopeSchema = z.enum(['name', 'full'])
+export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
+
+const hasSessionRecordFilters = (q: {
+  q?: string
+  searchScope?: string
+  pinned?: boolean
+  ids?: string[]
+  agentId?: string
+  workspaceId?: string
+}) =>
+  q.q !== undefined ||
+  q.searchScope !== undefined ||
+  q.pinned !== undefined ||
+  q.ids !== undefined ||
+  q.agentId === 'unlinked' ||
+  q.workspaceId !== undefined
+
+/**
+ * Query for `GET /agent-sessions`.
+ *
+ * Without `sortBy` the response is the legacy composite view (pinned first by
+ * `pin.orderKey`, then unpinned by `session.orderKey ASC`) and only a concrete
+ * `agentId` filter is accepted — kept unchanged for existing consumers. With
+ * `sortBy` the response is a single flat stream with a `(sortValue, id)`
+ * keyset cursor, and the record filters below apply. Workspace grouping uses
+ * the stable workspace id; path remains presentation metadata.
+ */
+export const ListAgentSessionsQuerySchema = z
+  .strictObject({
+    /** Owner scope: concrete agent id, or 'unlinked' (`agentId IS NULL`, flat path only). */
+    agentId: AgentSessionOwnerScopeSchema.optional(),
+    /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
+    cursor: z.string().optional(),
+    /** Page size; defaults to 50 in the service. */
+    limit: z.coerce.number().int().positive().max(200).optional(),
+    /** Sort profile; omitted → legacy composite pinned-first view. */
+    sortBy: AgentSessionSortBySchema.optional(),
+    /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
+    q: z.string().optional(),
+    /** Search scope for `q`; defaults to `name` in the service. */
+    searchScope: AgentSessionSearchScopeSchema.optional(),
+    /** true → only pinned sessions; false → only unpinned. Omitted → both. */
+    pinned: z.boolean().optional(),
+    /** Bounded explicit id filter (e.g. History running/failed row fetches). */
+    ids: z.array(z.string().min(1)).min(1).max(200).optional(),
+    /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
+    workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+  })
+  .refine((q) => q.sortBy !== undefined || !hasSessionRecordFilters(q), {
+    message: 'record filters (q/searchScope/pinned/ids/owner/workspace scope) require sortBy'
+  })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+/**
+ * Query for `GET /agent-sessions/stats`. Current consumers need owner scope
+ * and name search only; pagination, pin state, ids, workspace filtering and
+ * full-text scope remain list-only concerns.
+ */
+export const AgentSessionStatsQuerySchema = z.strictObject({
+  q: z.string().optional(),
+  agentId: AgentSessionOwnerScopeSchema.optional()
+})
+export type AgentSessionStatsQuery = z.infer<typeof AgentSessionStatsQuerySchema>
+
+/**
+ * Response for `GET /agent-sessions/stats`. Factual aggregation only — the
+ * renderer derives display counts (`count - pinnedCount`). `byAgent` is an
+ * array so the unlinked scope (`agentId: null`) is representable. Workspace
+ * facts use a stable user-workspace id or the aggregate `system` sentinel.
+ * Stats and list calls are separate
+ * SQLite snapshots; invalidation reconciles transient disagreement.
+ */
+export interface AgentSessionStats {
+  total: number
+  pinnedCount: number
+  byAgent: Array<{ agentId: string | null; count: number; pinnedCount: number }>
+  byWorkspace: Array<{ workspaceId: AgentSessionWorkspaceScope; count: number; pinnedCount: number }>
+}
 
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
@@ -179,7 +281,7 @@ export type AgentSessionSchemas = {
   '/agent-sessions': {
     GET: {
       query?: ListAgentSessionsQueryParams
-      response: CursorPaginationResponse<AgentSessionEntity>
+      response: CursorPaginationResponse<AgentSessionListItem>
     }
     POST: {
       body: CreateAgentSessionDto
@@ -211,6 +313,19 @@ export type AgentSessionSchemas = {
   '/agent-sessions/latest': {
     GET: {
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /**
+   * Factual aggregation over sessions (D3 of #16890): totals, pinned counts,
+   * per-agent and per-workspace breakdowns under the same record filters as the
+   * list. Declared before `/agent-sessions/:sessionId` and matched exactly by
+   * the server router, so `stats` is never mistaken for a session id.
+   */
+  '/agent-sessions/stats': {
+    GET: {
+      query?: AgentSessionStatsQuery
+      response: AgentSessionStats
     }
   }
 

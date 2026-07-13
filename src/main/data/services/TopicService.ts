@@ -8,6 +8,7 @@ import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
+import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -18,17 +19,23 @@ import type {
   DeleteTopicsResult,
   DuplicateTopicDto,
   ListTopicsQuery,
+  MoveTopicDto,
+  TopicListItem,
+  TopicSortBy,
+  TopicStats,
+  TopicStatsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -58,6 +65,10 @@ function rowToTopic(row: TopicRow): Topic {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function toTopicListItem(topic: Topic, pinId: string | null): TopicListItem {
+  return { ...topic, pinned: pinId !== null, pinId }
 }
 
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
@@ -110,6 +121,25 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
     .limit(1)
     .all()
   if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+}
+
+/**
+ * Shared record filters for flat list and stats paths (D1/D3 of #16890).
+ * Callers join live assistants before applying these filters, so `unlinked`
+ * covers both NULL owners and topics whose assistant is soft-deleted. `pinned`
+ * is NOT built here — it needs the pin subquery and only applies to lists.
+ */
+function buildRecordFilters(query: { q?: string; assistantId?: string; ids?: string[] }): SQL[] {
+  const filters: SQL[] = [isNull(topicTable.deletedAt)]
+  const search = buildSearchPredicate(query.q)
+  if (search) filters.push(search)
+  if (query.assistantId === 'unlinked') {
+    filters.push(isNull(assistantTable.id))
+  } else if (query.assistantId !== undefined) {
+    filters.push(eq(topicTable.assistantId, query.assistantId))
+  }
+  if (query.ids !== undefined) filters.push(inArray(topicTable.id, query.ids))
+  return filters
 }
 
 export class TopicService {
@@ -308,6 +338,44 @@ export class TopicService {
     return topic
   }
 
+  move(id: string, dto: MoveTopicDto): void {
+    return withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [target] = tx
+            .select({ id: topicTable.id })
+            .from(topicTable)
+            .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
+          if (dto.assistantId !== null) {
+            const [assistant] = tx
+              .select({ id: assistantTable.id })
+              .from(assistantTable)
+              .where(and(eq(assistantTable.id, dto.assistantId), isNull(assistantTable.deletedAt)))
+              .limit(1)
+              .all()
+            if (!assistant) throw DataApiErrorFactory.notFound('Assistant', dto.assistantId)
+          }
+
+          tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+          applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+            pkColumn: topicTable.id,
+            scope: isNull(topicTable.deletedAt)
+          })
+        }),
+      {
+        ...defaultHandlersFor('Topic', id),
+        foreignKey: () =>
+          dto.assistantId === null
+            ? DataApiErrorFactory.notFound('Topic', id)
+            : DataApiErrorFactory.notFound('Assistant', dto.assistantId)
+      } satisfies SqliteErrorHandlers
+    )
+  }
+
   /**
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
    * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
@@ -354,7 +422,6 @@ export class TopicService {
     tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
-
     return deletedIds
   }
 
@@ -419,20 +486,27 @@ export class TopicService {
   }
 
   /**
-   * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
-   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
-   * drag order). A partial pin page spills into the unpinned section to fill
-   * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
-   * one pagination contract (pinned-first, then manual order); recency ordering
-   * for the time-grouped view is applied by the renderer over the loaded list.
+   * `sortBy` present → flat single-stream page with a `(sortValue, id)` keyset
+   * cursor and the D1 record filters (see `listFlatByCursor`).
+   *
+   * `sortBy` absent → legacy two-section page: pinned topics (via `pin` JOIN,
+   * ordered by `pin.orderKey`) then unpinned (ordered by `topic.orderKey ASC,
+   * id ASC` — manual/creation drag order). A partial pin page spills into the
+   * unpinned section to fill `limit`. This mirrors
+   * `AgentSessionService.listByCursor` so both rails share one pagination
+   * contract (pinned-first, then manual order). Flat creation/activity views
+   * opt into their explicit sort profiles instead.
    */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
+  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
+    if (query.sortBy !== undefined) {
+      return this.listFlatByCursor(query, query.sortBy)
+    }
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
 
-    const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
+    const items: TopicListItem[] = []
 
     if (cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
@@ -442,7 +516,7 @@ export class TopicService {
           )
         : undefined
       const pinRows = db
-        .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
+        .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
         .where(and(isNull(topicTable.deletedAt), pinAfter, search))
@@ -459,20 +533,20 @@ export class TopicService {
 
       const hasMoreInPin = pinRows.length > limit
       for (const row of pinRows.slice(0, limit)) {
-        items.push({ topic: rowToTopic(row.topic), pinOrderKey: row.pinOrderKey })
+        items.push(toTopicListItem(rowToTopic(row.topic), row.pinId))
       }
 
       if (hasMoreInPin) {
-        const last = items[items.length - 1]
+        const last = pinRows[limit - 1]
         return {
-          items: items.map((i) => i.topic),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
+          items,
+          nextCursor: encodePinCursor(last.pinOrderKey, last.topic.id)
         }
       }
 
       if (items.length >= limit) {
         return {
-          items: items.map((i) => i.topic),
+          items,
           nextCursor: encodeEntitySectionStart()
         }
       }
@@ -501,7 +575,7 @@ export class TopicService {
 
     const hasMoreInTopic = topicRows.length > remaining
     for (const row of topicRows.slice(0, remaining)) {
-      items.push({ topic: rowToTopic(row) })
+      items.push(toTopicListItem(rowToTopic(row), null))
     }
 
     let nextCursor: string | undefined
@@ -510,7 +584,112 @@ export class TopicService {
       nextCursor = encodeEntityCursor(last.orderKey, last.id)
     }
 
-    return { items: items.map((i) => i.topic), nextCursor }
+    return { items, nextCursor }
+  }
+
+  /**
+   * Flat single-stream page (D1 of #16890): `createdAt` → immutable creation
+   * order, `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey`
+   * → manual order (`ASC, id ASC`). Cursor is the shared `(sortValue, id)`
+   * tuple codec; a value cursor stays valid when its anchor row is deleted.
+   * Mutating `updatedAt` or `orderKey` between page requests may move a row
+   * across the boundary; callers restart pagination after local mutations that
+   * affect either sort key.
+   */
+  private listFlatByCursor(query: ListTopicsQuery, sortBy: TopicSortBy): CursorPaginationResponse<TopicListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+
+    const filters = buildRecordFilters(query)
+    if (query.pinned !== undefined) {
+      const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
+      filters.push(query.pinned ? inArray(topicTable.id, pinnedSubquery) : notInArray(topicTable.id, pinnedSubquery))
+    }
+
+    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'
+    const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.updatedAt
+    const { where, orderBy } = isTimestampSort
+      ? keysetOrdering(timestampColumn, topicTable.id, { major: 'desc', tie: 'asc' })
+      : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = isTimestampSort
+      ? decodeListCursor(query.cursor, asNumericKey, 'topics-flat')
+      : decodeListCursor(query.cursor, asStringKey, 'topics-flat')
+    if (cursor) filters.push(where(cursor))
+
+    const rows = db
+      .select({ topic: topicTable, pinId: pinTable.id })
+      .from(topicTable)
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+    const nextCursor = hasMore
+      ? encodeCursor(
+          sortBy === 'createdAt'
+            ? last.topic.createdAt
+            : sortBy === 'updatedAt'
+              ? last.topic.updatedAt
+              : last.topic.orderKey,
+          last.topic.id
+        )
+      : undefined
+
+    return {
+      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
+      nextCursor
+    }
+  }
+
+  /**
+   * Factual aggregation for `GET /topics/stats` (D3 of #16890). Counts include
+   * pinned rows; the renderer derives display counts (`count - pinnedCount`).
+   * Runs separately from list reads, so a subsequent refetch reconciles any
+   * transient disagreement between their independent SQLite snapshots.
+   */
+  stats(query: TopicStatsQuery = {}): TopicStats {
+    const db = application.get('DbService').getDb()
+    const filters = buildRecordFilters(query)
+    const pinJoin = and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id))
+    const assistantScope = sql<string | null>`CASE
+      WHEN ${assistantTable.id} IS NULL THEN NULL
+      ELSE ${topicTable.assistantId}
+    END`
+
+    const byAssistantRows = db
+      .select({
+        assistantId: assistantScope,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(topicTable)
+      .leftJoin(pinTable, pinJoin)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .groupBy(assistantScope)
+      .all()
+
+    let total = 0
+    let pinnedCount = 0
+    for (const row of byAssistantRows) {
+      total += row.count
+      pinnedCount += row.pinnedCount
+    }
+
+    return {
+      total,
+      pinnedCount,
+      byAssistant: byAssistantRows.map((row) => ({
+        assistantId: row.assistantId,
+        count: row.count,
+        pinnedCount: row.pinnedCount
+      }))
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): TopicEntitySearchItem[] {
@@ -563,6 +742,18 @@ export class TopicService {
 
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
+      const ids = moves.map((m) => m.id)
+      const targets = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
+        .all()
+
+      if (targets.length !== ids.length) {
+        const found = new Set(targets.map((t) => t.id))
+        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+        throw DataApiErrorFactory.notFound('Topic', missing)
+      }
       applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
         scope: isNull(topicTable.deletedAt)

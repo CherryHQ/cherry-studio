@@ -16,6 +16,10 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
+  AgentSessionListItem,
+  AgentSessionSortBy,
+  AgentSessionStats,
+  AgentSessionStatsQuery,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   ListAgentSessionsQuery,
@@ -24,9 +28,10 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -58,6 +63,10 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   }
 }
 
+function toAgentSessionListItem(session: AgentSessionEntity, pinId: string | null): AgentSessionListItem {
+  return { ...session, pinned: pinId !== null, pinId }
+}
+
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
@@ -67,6 +76,52 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
 
   return or(nameMatch, descriptionMatch)
+}
+
+/**
+ * D6 search predicate for the flat list/stats paths. `name` matches the
+ * session name only; `full` ORs in the description and the owning agent's
+ * name (queries using `full` must LEFT JOIN the agent table).
+ */
+function buildScopedSearchPredicate(q: string | undefined, scope: 'name' | 'full'): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (scope === 'name') return nameMatch
+  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
+  const agentNameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, agentNameMatch)
+}
+
+/**
+ * Shared record filters for the flat list and stats paths (D1/D3 of #16890).
+ * `pinned` is NOT built here — it needs the pin subquery and only applies to
+ * lists. Sessions are hard-deleted, so there is no deletedAt guard.
+ */
+function buildSessionRecordFilters(query: {
+  q?: string
+  searchScope?: 'name' | 'full'
+  agentId?: string
+  ids?: string[]
+  workspaceId?: string
+}): SQL[] {
+  const filters: SQL[] = []
+  const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
+  if (search) filters.push(search)
+  if (query.agentId === 'unlinked') {
+    filters.push(isNull(sessionsTable.agentId))
+  } else if (query.agentId !== undefined) {
+    filters.push(eq(sessionsTable.agentId, query.agentId))
+  }
+  if (query.ids !== undefined) filters.push(inArray(sessionsTable.id, query.ids))
+  if (query.workspaceId === 'system') {
+    filters.push(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM))
+  } else if (query.workspaceId !== undefined) {
+    filters.push(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
+    filters.push(eq(sessionsTable.workspaceId, query.workspaceId))
+  }
+  return filters
 }
 
 export class AgentSessionService {
@@ -224,16 +279,19 @@ export class AgentSessionService {
    * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
    * pin page spills into the unpinned section to fill `limit`. Pins float a
    * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * one pagination contract. Flat creation/activity views opt into their
+   * explicit sort profiles instead.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
+  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionListItem> {
+    if (query.sortBy !== undefined) {
+      return this.listFlatByCursor(query, query.sortBy)
+    }
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
 
-    const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
+    const items: AgentSessionListItem[] = []
 
     if (cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
@@ -243,7 +301,12 @@ export class AgentSessionService {
           )
         : undefined
       const pinRows = db
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
+        .select({
+          session: sessionsTable,
+          workspace: agentWorkspaceTable,
+          pinId: pinTable.id,
+          pinOrderKey: pinTable.orderKey
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
@@ -261,19 +324,19 @@ export class AgentSessionService {
 
       const hasMoreInPin = pinRows.length > limit
       for (const row of pinRows.slice(0, limit)) {
-        items.push({ session: rowToSession(row), pinOrderKey: row.pinOrderKey })
+        items.push(toAgentSessionListItem(rowToSession(row), row.pinId))
       }
 
       if (hasMoreInPin) {
-        const last = items[items.length - 1]
+        const last = pinRows[limit - 1]
         return {
-          items: items.map((i) => i.session),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
+          items,
+          nextCursor: encodePinCursor(last.pinOrderKey, last.session.id)
         }
       }
 
       if (items.length >= limit) {
-        return { items: items.map((i) => i.session), nextCursor: encodeEntitySectionStart() }
+        return { items, nextCursor: encodeEntitySectionStart() }
       }
     }
 
@@ -301,7 +364,7 @@ export class AgentSessionService {
 
     const hasMoreInSession = sessionRows.length > remaining
     for (const row of sessionRows.slice(0, remaining)) {
-      items.push({ session: rowToSession(row) })
+      items.push(toAgentSessionListItem(rowToSession(row), null))
     }
 
     let nextCursor: string | undefined
@@ -310,7 +373,141 @@ export class AgentSessionService {
       nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
     }
 
-    return { items: items.map((i) => i.session), nextCursor }
+    return { items, nextCursor }
+  }
+
+  /**
+   * Flat single-stream page (D1 of #16890), mirroring
+   * `TopicService.listFlatByCursor`: `createdAt` → immutable creation order,
+   * `updatedAt` → activity order (both `DESC, id ASC`), and `orderKey` →
+   * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
+   * `searchScope: 'full'` LEFT JOINs the agent table for agent-name matches.
+   */
+  private listFlatByCursor(
+    query: ListAgentSessionsQuery,
+    sortBy: AgentSessionSortBy
+  ): CursorPaginationResponse<AgentSessionListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+
+    const filters = buildSessionRecordFilters(query)
+    if (query.pinned !== undefined) {
+      const pinnedSubquery = db
+        .select({ id: pinTable.entityId })
+        .from(pinTable)
+        .where(eq(pinTable.entityType, 'session'))
+      filters.push(
+        query.pinned ? inArray(sessionsTable.id, pinnedSubquery) : notInArray(sessionsTable.id, pinnedSubquery)
+      )
+    }
+
+    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'updatedAt'
+    const timestampColumn = sortBy === 'createdAt' ? sessionsTable.createdAt : sessionsTable.updatedAt
+    const { where, orderBy } = isTimestampSort
+      ? keysetOrdering(timestampColumn, sessionsTable.id, { major: 'desc', tie: 'asc' })
+      : keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = isTimestampSort
+      ? decodeListCursor(query.cursor, asNumericKey, 'agent-sessions-flat')
+      : decodeListCursor(query.cursor, asStringKey, 'agent-sessions-flat')
+    if (cursor) filters.push(where(cursor))
+
+    let builder = db
+      .select({
+        session: sessionsTable,
+        workspace: agentWorkspaceTable,
+        pinId: pinTable.id
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
+      .$dynamic()
+    if (query.searchScope === 'full') {
+      builder = builder.leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+    }
+    const rows = builder
+      .where(and(...filters))
+      .orderBy(...orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+    const nextCursor = hasMore
+      ? encodeCursor(
+          sortBy === 'createdAt'
+            ? last.session.createdAt
+            : sortBy === 'updatedAt'
+              ? last.session.updatedAt
+              : last.session.orderKey,
+          last.session.id
+        )
+      : undefined
+
+    return {
+      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), row.pinId)),
+      nextCursor
+    }
+  }
+
+  /**
+   * Factual aggregation for `GET /agent-sessions/stats` (D3 of #16890),
+   * mirroring `TopicService.stats`: totals include pinned rows. Stats and list
+   * use independent SQLite snapshots; a subsequent refetch reconciles transient drift.
+   */
+  stats(query: AgentSessionStatsQuery = {}): AgentSessionStats {
+    const db = application.get('DbService').getDb()
+    const filters = buildSessionRecordFilters(query)
+    const pinJoin = and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id))
+
+    const byAgentRows = db
+      .select({
+        agentId: sessionsTable.agentId,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(pinTable, pinJoin)
+      .where(and(...filters))
+      .groupBy(sessionsTable.agentId)
+      .all()
+
+    let total = 0
+    let pinnedCount = 0
+    for (const row of byAgentRows) {
+      total += row.count
+      pinnedCount += row.pinnedCount
+    }
+
+    const result: AgentSessionStats = {
+      total,
+      pinnedCount,
+      byAgent: byAgentRows.map((row) => ({
+        agentId: row.agentId,
+        count: row.count,
+        pinnedCount: row.pinnedCount
+      })),
+      byWorkspace: []
+    }
+
+    const workspaceScopeExpr = sql<string>`CASE
+      WHEN ${agentWorkspaceTable.type} = ${AGENT_WORKSPACE_TYPE.SYSTEM} THEN 'system'
+      ELSE ${sessionsTable.workspaceId} END`
+    result.byWorkspace = db
+      .select({
+        workspaceId: workspaceScopeExpr,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(pinTable, pinJoin)
+      .where(and(...filters))
+      .groupBy(workspaceScopeExpr)
+      .all()
+
+    return result
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {

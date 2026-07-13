@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DuplicateTopicSchema,
+  ListTopicsQuerySchema,
+  MoveTopicSchema,
+  SetActiveNodeSchema,
+  TopicStatsQuerySchema,
+  UpdateTopicSchema
+} from '../topics'
 
 describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
@@ -29,6 +37,72 @@ describe('UpdateTopicSchema', () => {
 
   it('accepts null assistantId to clear default-assistant ownership', () => {
     expect(UpdateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+  })
+})
+
+describe('MoveTopicSchema', () => {
+  it('requires owner and order together', () => {
+    expect(MoveTopicSchema.parse({ assistantId: null, order: { before: 'topic-2' } })).toEqual({
+      assistantId: null,
+      order: { before: 'topic-2' }
+    })
+    expect(() => MoveTopicSchema.parse({ assistantId: null })).toThrow()
+    expect(() => MoveTopicSchema.parse({ order: { position: 'first' } })).toThrow()
+  })
+
+  it('accepts UUID owners and rejects malformed owner ids', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(MoveTopicSchema.parse({ assistantId, order: { position: 'last' } })).toEqual({
+      assistantId,
+      order: { position: 'last' }
+    })
+    expect(() => MoveTopicSchema.parse({ assistantId: 'assistant-1', order: { position: 'last' } })).toThrow()
+  })
+})
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts the legacy query shape (cursor/limit/q only, no sortBy)', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toEqual({ q: 'x', limit: 10 })
+  })
+
+  it.each([{ assistantId: 'unlinked' }, { pinned: true }, { ids: ['t1'] }])(
+    'rejects record filter %j without sortBy',
+    (filter) => {
+      expect(() => ListTopicsQuerySchema.parse(filter)).toThrow(/require sortBy/)
+      expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
+    }
+  )
+
+  it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
+    expect(ListTopicsQuerySchema.parse({ sortBy: 'createdAt' })).toEqual({ sortBy: 'createdAt' })
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'name' })).toThrow()
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', assistantId: 'not-a-uuid' })).toThrow()
+  })
+
+  it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
+    expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
+  })
+
+  it('composes the pin band with business ordering and rejects pinOrderKey', () => {
+    expect(ListTopicsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
+      sortBy: 'updatedAt',
+      pinned: true
+    })
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('TopicStatsQuerySchema', () => {
+  it('rejects cursor/limit/sortBy/pinned — stats take record filters only', () => {
+    expect(() => TopicStatsQuerySchema.parse({ cursor: 'x' })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ limit: 10 })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ sortBy: 'updatedAt' })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ pinned: true })).toThrow()
+  })
+
+  it('rejects the list-only ids filter', () => {
+    expect(() => TopicStatsQuerySchema.parse({ ids: ['topic-1'] })).toThrow(/unrecognized/i)
   })
 })
 

@@ -5,6 +5,7 @@ const {
   createSessionMock,
   getByIdMock,
   getLatestUpdatedMock,
+  statsMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
@@ -19,6 +20,7 @@ const {
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
   getLatestUpdatedMock: vi.fn(),
+  statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     create: createSessionMock,
     getById: getByIdMock,
     getLatestUpdated: getLatestUpdatedMock,
+    stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
@@ -63,22 +66,40 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions', () => {
+    // Agent ids are UUID v4 (remapAgentPrefixIds rewrites legacy prefix ids),
+    // and AgentSessionOwnerScopeSchema enforces uuid | 'unlinked'.
+    const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+
     it('forwards query to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
-          agentId: 'agent-1',
+          agentId: AGENT_ID,
           limit: '10'
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
-        agentId: 'agent-1',
+        agentId: AGENT_ID,
         limit: 10
       })
       expect(result).toBe(response)
+    })
+  })
+
+  describe('/agent-sessions/stats', () => {
+    it('parses stats query and delegates to agentSessionService.stats', async () => {
+      const stats = { total: 0, pinnedCount: 0, byAgent: [] }
+      statsMock.mockReturnValueOnce(stats)
+
+      const result = await agentSessionHandlers['/agent-sessions/stats'].GET({
+        query: { agentId: 'unlinked' }
+      } as never)
+
+      expect(statsMock).toHaveBeenCalledWith({ agentId: 'unlinked' })
+      expect(result).toBe(stats)
     })
   })
 

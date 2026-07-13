@@ -9,9 +9,11 @@ const {
   getByIdMock,
   getLatestUpdatedMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
   setActiveNodeMock,
+  statsMock,
   updateMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -22,9 +24,11 @@ const {
   getByIdMock: vi.fn(),
   getLatestUpdatedMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
+  statsMock: vi.fn(),
   updateMock: vi.fn()
 }))
 
@@ -38,9 +42,11 @@ vi.mock('@data/services/TopicService', () => ({
     getById: getByIdMock,
     getLatestUpdated: getLatestUpdatedMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     setActiveNode: setActiveNodeMock,
+    stats: statsMock,
     update: updateMock
   }
 }))
@@ -106,6 +112,19 @@ describe('topicHandlers', () => {
     })
   })
 
+  describe('/topics/stats', () => {
+    it('parses record filters and delegates to TopicService', async () => {
+      const result = { total: 2, pinnedCount: 1, byAssistant: [] }
+      statsMock.mockReturnValueOnce(result)
+
+      await expect(
+        topicHandlers['/topics/stats'].GET({ query: { assistantId: 'unlinked', q: ' needle ' } } as never)
+      ).resolves.toBe(result)
+
+      expect(statsMock).toHaveBeenCalledWith({ assistantId: 'unlinked', q: ' needle ' })
+    })
+  })
+
   describe('/assistants/:assistantId/topics', () => {
     it('delegates assistant-scoped topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
@@ -146,6 +165,23 @@ describe('topicHandlers', () => {
       expect(duplicateMock).toHaveBeenCalledWith('source-topic', {
         nodeId: 'source-node',
         name: 'Source (Copy)'
+      })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('delegates the parsed owner and order as one service operation', async () => {
+      const assistantId = '22222222-2222-4222-8222-222222222222'
+
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-1' },
+          body: { assistantId, order: { after: 'topic-2' } }
+        } as never)
+      ).resolves.toBeUndefined()
+      expect(moveMock).toHaveBeenCalledWith('topic-1', {
+        assistantId,
+        order: { after: 'topic-2' }
       })
     })
   })

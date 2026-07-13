@@ -9,7 +9,7 @@ import * as z from 'zod'
 
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -41,18 +41,97 @@ export const UpdateTopicSchema = TopicSchema.pick({
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
-/**
- * Query parameters for `GET /topics` (cursor pagination + search).
- */
-export const ListTopicsQuerySchema = z.strictObject({
-  /** Opaque cursor from previous page's `nextCursor`. */
-  cursor: z.string().optional(),
-  /** Page size; defaults to 50 in the service. */
-  limit: z.coerce.number().int().positive().max(200).optional(),
-  /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+/** Atomic owner change plus placement in the one global topic order. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: z.uuidv4().nullable(),
+  order: OrderRequestSchema
 })
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
+
+/**
+ * Owner scope for topic list/stats filters: a concrete assistant id, or the
+ * literal `'unlinked'` for topics with no live owner (`assistantId IS NULL` or
+ * the referenced assistant is soft-deleted). Assistant ids are UUIDs, so the
+ * sentinel cannot collide with a real id.
+ */
+export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
+
+/**
+ * Sort profiles for `GET /topics` (D1 of #16890). Direction is derived
+ * server-side from the profile — there is no caller-controlled `sortOrder`:
+ * - `createdAt` → creation order (`createdAt DESC, id ASC`)
+ * - `updatedAt` → activity order (`updatedAt DESC, id ASC`)
+ * - `orderKey` → manual drag order (`orderKey ASC, id ASC`)
+ */
+export const TopicSortBySchema = z.enum(['createdAt', 'updatedAt', 'orderKey'])
+export type TopicSortBy = z.infer<typeof TopicSortBySchema>
+
+/** Topic lists expose only pin identity; pin order remains an internal cursor key. */
+export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
+
+const hasRecordFilters = (q: { assistantId?: string; pinned?: boolean; ids?: string[] }) =>
+  q.assistantId !== undefined || q.pinned !== undefined || q.ids !== undefined
+
+/**
+ * Query parameters for `GET /topics`.
+ *
+ * Without `sortBy` the response is the legacy composite view (pinned first by
+ * `pin.orderKey`, then unpinned by `topic.orderKey ASC`) and only `q` is
+ * accepted — that path predates the flat contracts and is kept unchanged for
+ * existing consumers. With `sortBy` the response is a single flat stream with
+ * a `(sortValue, id)` keyset cursor, and the record filters below apply.
+ */
+export const ListTopicsQuerySchema = z
+  .strictObject({
+    /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
+    cursor: z.string().optional(),
+    /** Page size; defaults to 50 in the service. */
+    limit: z.coerce.number().int().positive().max(200).optional(),
+    /** Substring filter on topic name (case-insensitive LIKE). */
+    q: z.string().optional(),
+    /** Sort profile; omitted → legacy composite pinned-first view. */
+    sortBy: TopicSortBySchema.optional(),
+    /** Owner scope: concrete assistant id, or 'unlinked' (`assistantId IS NULL`). */
+    assistantId: TopicOwnerScopeSchema.optional(),
+    /** true → only pinned topics; false → only unpinned. Omitted → both. */
+    pinned: z.boolean().optional(),
+    /** Bounded explicit id filter (e.g. History running/failed row fetches). */
+    ids: z.array(z.string().min(1)).min(1).max(200).optional()
+  })
+  .refine((q) => q.sortBy !== undefined || !hasRecordFilters(q), {
+    message: 'record filters (assistantId/pinned/ids) require sortBy'
+  })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/**
+ * Query parameters for `GET /topics/stats`. Only filters used by current
+ * aggregation consumers are exposed; pagination, pin state and bounded id
+ * lookup remain list-only concerns.
+ */
+export const TopicStatsQuerySchema = z.strictObject({
+  q: z.string().optional(),
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type TopicStatsQuery = z.infer<typeof TopicStatsQuerySchema>
+
+export interface CountWithPins {
+  count: number
+  pinnedCount: number
+}
+
+/**
+ * Response for `GET /topics/stats`. Factual aggregation only — the renderer
+ * derives display counts (e.g. ordinary group count = `count - pinnedCount`).
+ * `byAssistant` is an array so the unlinked scope (`assistantId: null`) is
+ * representable. Stats and list calls are separate SQLite snapshots; transient
+ * disagreement during concurrent mutation is reconciled by invalidation.
+ */
+export interface TopicStats {
+  total: number
+  pinnedCount: number
+  byAssistant: Array<{ assistantId: string | null } & CountWithPins>
+}
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -156,7 +235,7 @@ export type TopicSchemas = {
      */
     GET: {
       query?: ListTopicsQuery
-      response: CursorPaginationResponse<Topic>
+      response: CursorPaginationResponse<TopicListItem>
     }
     /** Create a new topic. */
     POST: {
@@ -193,6 +272,22 @@ export type TopicSchemas = {
   }
 
   /**
+   * Factual aggregation over topics (D3 of #16890): totals, pinned counts, and
+   * per-assistant breakdowns under the same record filters as the list.
+   * Declared before `/topics/:id` and matched exactly by the server router, so
+   * `stats` is never mistaken for a topic id.
+   *
+   * @example GET /topics/stats
+   * @example GET /topics/stats?assistantId=unlinked
+   */
+  '/topics/stats': {
+    GET: {
+      query?: TopicStatsQuery
+      response: TopicStats
+    }
+  }
+
+  /**
    * Individual topic endpoint
    * @example GET /topics/abc123
    * @example PATCH /topics/abc123 { "name": "Updated Name" }
@@ -213,6 +308,14 @@ export type TopicSchemas = {
     /** Delete a topic and all its messages */
     DELETE: {
       params: { id: string }
+      response: void
+    }
+  }
+
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
       response: void
     }
   }

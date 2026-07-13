@@ -10,6 +10,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
@@ -281,6 +282,12 @@ describe('TopicService', () => {
 
       const result = service.listByCursor()
       expect(result.items.map((t) => t.id)).toEqual(['t-pinned-1', 't-pinned-2', 't-unpinned-1', 't-unpinned-2'])
+      expect(result.items.map(({ id, pinned, pinId }) => ({ id, pinned, pinId }))).toEqual([
+        { id: 't-pinned-1', pinned: true, pinId: 'pin-1' },
+        { id: 't-pinned-2', pinned: true, pinId: 'pin-2' },
+        { id: 't-unpinned-1', pinned: false, pinId: null },
+        { id: 't-unpinned-2', pinned: false, pinId: null }
+      ])
       expect(result.nextCursor).toBeUndefined()
     })
 
@@ -440,6 +447,281 @@ describe('TopicService', () => {
 
       const next = service.listByCursor({ cursor: result.nextCursor })
       expect(next.items.map((t) => t.id)).toEqual(['u1', 'u2'])
+    })
+  })
+
+  describe('listByCursor (flat sortBy profiles)', () => {
+    // Fixture: four topics with deliberately disagreeing orderKey and updatedAt
+    // so each profile's assertion pins its own sort column, plus one pinned row
+    // and one unlinked (assistantId NULL) row.
+    async function seedFlat() {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-1',
+        name: 'A',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 't1', name: 'Alpha', assistantId: 'asst-1', orderKey: 'a3', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'Beta', assistantId: 'asst-1', orderKey: 'a2', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'Gamma', orderKey: 'a1', createdAt: 3, updatedAt: 300 },
+        { id: 't4', name: 'Delta', orderKey: 'a0', createdAt: 4, updatedAt: 400 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: '33333333-3333-4333-8333-333333333333',
+        entityType: 'topic',
+        entityId: 't2',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+    }
+
+    it('sortBy=updatedAt returns activity order (updatedAt DESC, id ASC) with no pin section', async () => {
+      await seedFlat()
+      const result = topicService.listByCursor({ sortBy: 'updatedAt' })
+      expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't2', 't1'])
+      expect(result.items.find((topic) => topic.id === 't2')).toMatchObject({
+        pinned: true,
+        pinId: '33333333-3333-4333-8333-333333333333'
+      })
+      expect(result.items.find((topic) => topic.id === 't1')).toMatchObject({
+        pinned: false,
+        pinId: null
+      })
+      expect(result.nextCursor).toBeUndefined()
+    })
+
+    it('sortBy=orderKey returns manual order (orderKey ASC, id ASC) including pinned rows', async () => {
+      await seedFlat()
+      const result = topicService.listByCursor({ sortBy: 'orderKey' })
+      expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't2', 't1'])
+    })
+
+    it('pages a pinned-only stream by the requested business sort, not pin order', async () => {
+      await seedFlat()
+      await dbh.db.insert(pinTable).values({
+        id: '55555555-5555-4555-8555-555555555555',
+        entityType: 'topic',
+        entityId: 't4',
+        orderKey: 'a1',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const page1 = topicService.listByCursor({ sortBy: 'createdAt', pinned: true, limit: 1 })
+      const page2 = topicService.listByCursor({
+        sortBy: 'createdAt',
+        pinned: true,
+        limit: 1,
+        cursor: page1.nextCursor
+      })
+
+      expect(page1.items.map((topic) => topic.id)).toEqual(['t4'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['t2'])
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
+    it('breaks createdAt ties by id ASC across page boundaries (no skip/dup)', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'tie-a', name: 'a', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'tie-b', name: 'b', orderKey: 'a1', createdAt: 1, updatedAt: 100 },
+        { id: 'tie-c', name: 'c', orderKey: 'a2', createdAt: 1, updatedAt: 100 }
+      ])
+      const page1 = topicService.listByCursor({ sortBy: 'createdAt', limit: 2 })
+      expect(page1.items.map((t) => t.id)).toEqual(['tie-a', 'tie-b'])
+      expect(page1.nextCursor).toBeDefined()
+      const page2 = topicService.listByCursor({ sortBy: 'createdAt', limit: 2, cursor: page1.nextCursor })
+      expect(page2.items.map((t) => t.id)).toEqual(['tie-c'])
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
+    it('keeps a value cursor usable after the anchor row is deleted', async () => {
+      await seedFlat()
+      const page1 = topicService.listByCursor({ sortBy: 'updatedAt', limit: 2 })
+      expect(page1.items.map((t) => t.id)).toEqual(['t4', 't3'])
+      // Hard-delete the anchor (t3) between page requests.
+      topicService.delete('t3')
+      const page2 = topicService.listByCursor({ sortBy: 'updatedAt', limit: 2, cursor: page1.nextCursor })
+      expect(page2.items.map((t) => t.id)).toEqual(['t2', 't1'])
+    })
+
+    it('filters by concrete assistantId and by unlinked', async () => {
+      await seedFlat()
+      const owned = topicService.listByCursor({ sortBy: 'updatedAt', assistantId: 'asst-1' })
+      expect(owned.items.map((t) => t.id)).toEqual(['t2', 't1'])
+      const unlinked = topicService.listByCursor({ sortBy: 'updatedAt', assistantId: 'unlinked' })
+      expect(unlinked.items.map((t) => t.id)).toEqual(['t4', 't3'])
+    })
+
+    it('treats topics owned by a soft-deleted assistant as unlinked', async () => {
+      await seedFlat()
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-deleted',
+        name: 'Deleted',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a1',
+        deletedAt: 999
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 't5',
+        name: 'Soft-deleted owner',
+        assistantId: 'asst-deleted',
+        orderKey: 'a4',
+        createdAt: 5,
+        updatedAt: 500
+      })
+
+      const unlinked = topicService.listByCursor({ sortBy: 'updatedAt', assistantId: 'unlinked' })
+      expect(unlinked.items.map((topic) => topic.id)).toEqual(['t5', 't4', 't3'])
+    })
+
+    it('filters by pinned=true and pinned=false', async () => {
+      await seedFlat()
+      const pinned = topicService.listByCursor({ sortBy: 'updatedAt', pinned: true })
+      expect(pinned.items.map((t) => t.id)).toEqual(['t2'])
+      const unpinned = topicService.listByCursor({ sortBy: 'updatedAt', pinned: false })
+      expect(unpinned.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
+    })
+
+    it('pages the unpinned creation stream by createdAt DESC with a stable cursor', async () => {
+      await seedFlat()
+      const first = topicService.listByCursor({ sortBy: 'createdAt', pinned: false, limit: 2 })
+      const second = topicService.listByCursor({
+        sortBy: 'createdAt',
+        pinned: false,
+        limit: 2,
+        cursor: first.nextCursor
+      })
+
+      expect(first.items.map((topic) => topic.id)).toEqual(['t4', 't3'])
+      expect(second.items.map((topic) => topic.id)).toEqual(['t1'])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('filters by explicit ids and by search q together', async () => {
+      await seedFlat()
+      const byIds = topicService.listByCursor({ sortBy: 'updatedAt', ids: ['t1', 't4'] })
+      expect(byIds.items.map((t) => t.id)).toEqual(['t4', 't1'])
+      const searched = topicService.listByCursor({ sortBy: 'updatedAt', q: 'amma', ids: ['t3', 't4'] })
+      expect(searched.items.map((t) => t.id)).toEqual(['t3'])
+    })
+
+    it('excludes soft-deleted topics from flat pages', async () => {
+      await seedFlat()
+      await dbh.db.insert(topicTable).values({
+        id: 'gone',
+        name: 'gone',
+        orderKey: 'a9',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 999
+      })
+      const result = topicService.listByCursor({ sortBy: 'updatedAt' })
+      expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't2', 't1'])
+    })
+  })
+
+  describe('stats', () => {
+    async function seedStats() {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-1',
+        name: 'A',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 't1', name: 'Alpha', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'Beta', assistantId: 'asst-1', orderKey: 'a1', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'Gamma', orderKey: 'a2', createdAt: 3, updatedAt: 300 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: '44444444-4444-4444-8444-444444444444',
+        entityType: 'topic',
+        entityId: 't1',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+    }
+
+    it('returns total, pinnedCount, and byAssistant with an explicit unlinked (null) entry', async () => {
+      await seedStats()
+      const stats = topicService.stats()
+      expect(stats.total).toBe(3)
+      expect(stats.pinnedCount).toBe(1)
+      const byAssistant = [...stats.byAssistant].sort((a, b) =>
+        String(a.assistantId).localeCompare(String(b.assistantId))
+      )
+      expect(byAssistant).toEqual([
+        { assistantId: 'asst-1', count: 2, pinnedCount: 1 },
+        { assistantId: null, count: 1, pinnedCount: 0 }
+      ])
+    })
+
+    it('applies record filters (assistantId scope, search q)', async () => {
+      await seedStats()
+      expect(topicService.stats({ assistantId: 'asst-1' })).toMatchObject({ total: 2, pinnedCount: 1 })
+      expect(topicService.stats({ assistantId: 'unlinked' })).toMatchObject({ total: 1, pinnedCount: 0 })
+      expect(topicService.stats({ q: 'eta' })).toMatchObject({ total: 1, pinnedCount: 0 })
+    })
+
+    it('folds soft-deleted assistant owners into the unlinked stats entry', async () => {
+      await seedStats()
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-deleted',
+        name: 'Deleted',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a1',
+        deletedAt: 999
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 't4',
+        name: 'Soft-deleted owner',
+        assistantId: 'asst-deleted',
+        orderKey: 'a3',
+        createdAt: 4,
+        updatedAt: 400
+      })
+
+      expect(topicService.stats({ assistantId: 'unlinked' })).toMatchObject({ total: 2, pinnedCount: 0 })
+      expect(topicService.stats().byAssistant).toEqual(
+        expect.arrayContaining([
+          { assistantId: 'asst-1', count: 2, pinnedCount: 1 },
+          { assistantId: null, count: 2, pinnedCount: 0 }
+        ])
+      )
+    })
+
+    it('ignores soft-deleted rows and pin rows of other entity types', async () => {
+      await seedStats()
+      await dbh.db.insert(topicTable).values({
+        id: 'gone',
+        name: 'gone',
+        orderKey: 'a9',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 999
+      })
+      await dbh.db.insert(pinTable).values({
+        id: '55555555-5555-4555-8555-555555555555',
+        entityType: 'session',
+        entityId: 't2',
+        orderKey: 'a1',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      const stats = topicService.stats()
+      expect(stats.total).toBe(3)
+      expect(stats.pinnedCount).toBe(1)
     })
   })
 
@@ -756,6 +1038,140 @@ describe('TopicService', () => {
       expect(await getOrderedIds()).toEqual(['t2', 't1', 't3'])
     })
 
+    it('moves owner and order atomically', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+
+      topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })
+
+      expect(topicService.getById('move-a').assistantId).toBe('asst-b')
+      expect(await getOrderedIds()).toEqual(['move-b', 'move-a'])
+    })
+
+    it('rolls back owner changes when the move anchor is invalid', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-b',
+          name: 'B',
+          emoji: 'B',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(topicTable).values({
+        id: 'move-a',
+        name: 'A',
+        assistantId: 'asst-a',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      expect(() => topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'missing' } })).toThrow()
+      expect(topicService.getById('move-a').assistantId).toBe('asst-a')
+    })
+
+    it('rejects a missing assistant and leaves owner and order unchanged', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-a',
+        name: 'A',
+        emoji: 'A',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0' },
+        { id: 'move-b', name: 'B', orderKey: 'a1' }
+      ])
+
+      const error = (() => {
+        try {
+          topicService.move('move-a', { assistantId: 'asst-missing', order: { after: 'move-b' } })
+        } catch (caught) {
+          return caught
+        }
+        throw new Error('Expected move to reject a missing assistant')
+      })()
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'asst-missing' }
+      })
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+      expect(await getOrderedIds()).toEqual(['move-a', 'move-b'])
+    })
+
+    it('rejects a soft-deleted assistant as a move owner', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-a',
+          name: 'A',
+          emoji: 'A',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-deleted',
+          name: 'Deleted',
+          emoji: 'D',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          deletedAt: 999
+        }
+      ])
+      await dbh.db.insert(topicTable).values({
+        id: 'move-a',
+        name: 'A',
+        assistantId: 'asst-a',
+        orderKey: 'a0'
+      })
+
+      let error: unknown
+      try {
+        topicService.move('move-a', { assistantId: 'asst-deleted', order: { position: 'last' } })
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'asst-deleted' }
+      })
+      expect(topicService.getById('move-a')).toMatchObject({ assistantId: 'asst-a', orderKey: 'a0' })
+    })
+
     it("moves a topic to the head with position: 'first'", async () => {
       await seedThree()
       topicService.reorder('t3', { position: 'first' })
@@ -895,6 +1311,17 @@ describe('TopicService', () => {
 
       const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
       expect(rows.map((row) => row.id)).toEqual([result.id, 'existing-1', 'existing-2'])
+    })
+
+    it('anchors new topic order against active rows instead of soft-deleted rows', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'deleted-first', name: 'Deleted', orderKey: 'a0', deletedAt: 10, createdAt: 1, updatedAt: 10 },
+        { id: 'active-first', name: 'Active', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
+      ])
+
+      const result = topicService.create({ name: 'fresh' })
+
+      expect(result.orderKey).toBe(generateOrderKeyBetween(null, 'a1'))
     })
 
     it('inserts exactly one content-less virtual root and leaves activeNodeId null', async () => {

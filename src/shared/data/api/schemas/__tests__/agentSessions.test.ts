@@ -4,13 +4,74 @@ import {
   AGENT_SESSION_DELETE_MAX_IDS,
   AgentSessionMessageEntitySchema,
   AgentSessionMessagesListQuerySchema,
+  AgentSessionStatsQuerySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
+
+const WORKSPACE_ID = 'workspace-1'
+
+describe('ListAgentSessionsQuerySchema', () => {
+  const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+
+  it('accepts the legacy query shape (concrete agentId, cursor, limit — no sortBy)', () => {
+    expect(ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10 })).toEqual({
+      agentId: AGENT_ID,
+      limit: 10
+    })
+  })
+
+  it.each([
+    { q: 'x' },
+    { searchScope: 'full' },
+    { pinned: true },
+    { ids: ['s1'] },
+    { agentId: 'unlinked' },
+    { workspaceId: WORKSPACE_ID },
+    { workspaceId: 'system' }
+  ])('rejects record filter %j without sortBy', (filter) => {
+    expect(() => ListAgentSessionsQuerySchema.parse(filter)).toThrow(/require sortBy/)
+    expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', ...filter })).toMatchObject(filter)
+  })
+
+  it('accepts immutable creation order and rejects unknown values or non-uuid owner scopes', () => {
+    expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'createdAt' })).toEqual({ sortBy: 'createdAt' })
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'name' })).toThrow()
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', searchScope: 'desc' })).toThrow()
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', agentId: 'not-a-uuid' })).toThrow()
+  })
+
+  it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', [key]: 1 })).toThrow(/unrecognized/i)
+    expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
+  })
+
+  it('composes the pin band with business ordering and rejects pinOrderKey', () => {
+    expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'updatedAt', pinned: true })).toEqual({
+      sortBy: 'updatedAt',
+      pinned: true
+    })
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('AgentSessionStatsQuerySchema', () => {
+  it('rejects cursor/limit/sortBy/pinned — stats take record filters only', () => {
+    expect(() => AgentSessionStatsQuerySchema.parse({ cursor: 'x' })).toThrow()
+    expect(() => AgentSessionStatsQuerySchema.parse({ limit: 10 })).toThrow()
+    expect(() => AgentSessionStatsQuerySchema.parse({ sortBy: 'updatedAt' })).toThrow()
+    expect(() => AgentSessionStatsQuerySchema.parse({ pinned: true })).toThrow()
+  })
+
+  it.each(['ids', 'workspaceId', 'searchScope'])('rejects unused list-only filter %s', (key) => {
+    expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 'unused' })).toThrow(/unrecognized/i)
+  })
+})
 
 describe('AgentSessionMessage schemas', () => {
   const baseMessage = {
