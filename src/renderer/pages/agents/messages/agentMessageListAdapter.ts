@@ -16,6 +16,7 @@ import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tool
 import type {
   MessageGroupRuntime,
   MessageListActions,
+  MessageListItem,
   MessageListMeta,
   MessageListProviderValue,
   MessageListRuntime,
@@ -31,7 +32,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import {
   consumePendingAgentSessionImageActions,
@@ -110,6 +111,16 @@ export function useAgentMessageListProviderValue({
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
+  )
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -119,16 +130,26 @@ export function useAgentMessageListProviderValue({
       }),
     [messages, partsByMessageId]
   )
-  const messageItems = useMemo(
-    () =>
-      visibleMessages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id
-        })
-      ),
-    [assistantId, visibleMessages, topic.assistantId, topic.id]
-  )
+  const messageItems = useMemo(() => {
+    const resolvedAssistantId = assistantId ?? topic.assistantId
+    return visibleMessages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId: topic.id
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId: topic.id
+      })
+      return item
+    })
+  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
