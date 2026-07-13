@@ -9,7 +9,7 @@
 import React, { useMemo } from 'react'
 
 const COLORS = [
-  'var(--color-primary)',
+  'var(--color-control-accent)',
   'var(--color-green-500)',
   'var(--color-blue-500)',
   'var(--color-amber-500)',

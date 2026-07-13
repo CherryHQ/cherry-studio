@@ -72,7 +72,7 @@ const RecallSearchingState = () => {
 
   return (
     <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-muted">
-      <LoaderCircle className="size-5.5 animate-spin text-primary" />
+      <LoaderCircle className="size-5.5 animate-spin text-control-accent" />
       <p className="mt-2 text-sm leading-5">{t('knowledge.recall.searching')}</p>
     </div>
   )

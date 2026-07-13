@@ -334,7 +334,7 @@ describe('ProviderList', () => {
     expect(searchWrap).toContainElement(filterButton)
     expect(filterButton).toHaveClass('size-[22px]')
     expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+    expect(filterButton).not.toHaveClass('bg-accent')
   })
 
   it('hides the bottom add button when provider list content does not overflow', () => {
@@ -386,7 +386,7 @@ describe('ProviderList', () => {
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
+    expect(filterButton).toHaveClass('bg-accent')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

@@ -40,7 +40,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
       key={message.id}
       ref={messageContainerRef}
       className={cn(
-        'message flex w-full flex-col transition-colors duration-300 [&.message-highlight]:bg-primary/10 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity hover:[&_.menubar]:opacity-100',
+        'message flex w-full flex-col transition-colors duration-300 [&.message-highlight]:bg-control-accent/10 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity hover:[&_.menubar]:opacity-100',
         isAssistantMessage ? 'message-assistant' : 'message-user'
       )}
       style={{ maxWidth }}>

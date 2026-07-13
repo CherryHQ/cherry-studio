@@ -207,8 +207,9 @@ export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
 function getStatusColor(color: StatusColor): string {
   switch (color) {
     case 'primary':
+      return 'var(--color-control-accent)'
     case 'success':
-      return 'var(--color-primary)'
+      return 'var(--color-success, green)'
     case 'warning':
       return 'var(--color-warning, #faad14)'
     case 'error':

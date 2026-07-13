@@ -32,7 +32,6 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -579,8 +578,6 @@ function AgentRightPaneSurface() {
   const { state, actions, meta } = useAgentRightPane()
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const { mode, chrome } = useWindowFrame()
-  const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
   const hasFiles = meta.filesEnabled !== false
@@ -588,14 +585,9 @@ function AgentRightPaneSurface() {
   const hasStatus = meta.statusEnabled !== false
   const hasTrace = enableDeveloperMode && !!traceTopicId
 
-  // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
-  // (sub-window controls + pane toggle) so they don't overlap this header.
-  const tabListTrailing = (
-    <>
-      {isWindow ? chrome?.titleTrailing : null}
-      {(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}
-    </>
-  )
+  // Sub-window controls (pin/back-to-main) always stay outside on the title-bar glass —
+  // ConversationShell floats them at the root's top-right corner whenever the pane is open.
+  const tabListTrailing = <>{(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}</>
 
   return (
     <Shell.Tabs>
@@ -796,7 +788,7 @@ function AgentRightPaneHighlights({
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-primary transition-colors hover:bg-foreground/5">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-link transition-colors hover:bg-foreground/5">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>

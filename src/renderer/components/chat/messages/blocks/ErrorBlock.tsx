@@ -50,7 +50,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
             provider: (
-              <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
+              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />
@@ -210,7 +210,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
+        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
         style={{ color: 'var(--color-foreground-secondary)' }}>
         <ErrorMessage error={error} />
       </div>

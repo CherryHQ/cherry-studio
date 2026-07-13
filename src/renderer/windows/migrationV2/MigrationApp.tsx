@@ -57,7 +57,7 @@ const logger = loggerService.withContext('MigrationApp')
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
-  primary: 'border-primary-mute bg-primary/10 text-primary',
+  primary: 'border-control-accent/30 bg-control-accent/10 text-control-accent',
   success: 'border-success-bg-hover bg-success-bg text-success',
   warning: 'border-warning-bg-hover bg-warning-bg text-warning',
   destructive: 'border-error-border bg-error-bg text-error-text',
@@ -77,7 +77,7 @@ const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
   <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
     <div
-      className="h-full rounded-full bg-primary transition-[width] duration-300"
+      className="h-full rounded-full bg-control-accent transition-[width] duration-300"
       style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
     />
   </div>
@@ -140,7 +140,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 <span
                   className={cn(
                     '-translate-x-1/2 absolute top-1/2 left-3 h-11 w-px',
-                    done ? 'bg-primary/40' : 'bg-border'
+                    done ? 'bg-control-accent/40' : 'bg-border'
                   )}
                 />
               )}
@@ -148,7 +148,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
                   isError && 'bg-destructive text-destructive-foreground',
-                  !isError && (active || done) && 'bg-primary text-white',
+                  !isError && (active || done) && 'bg-control-accent text-control-accent-foreground',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-muted'
                 )}>
                 {isError ? (
@@ -376,7 +376,7 @@ const MigrationApp: React.FC = () => {
           <div className="space-y-6">
             <TopContent>
               <StageBadge tone="neutral">
-                <Rocket size={28} strokeWidth={1.5} />
+                <Rocket size={28} />
               </StageBadge>
               <h1 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.introduction.title')}
@@ -443,7 +443,7 @@ const MigrationApp: React.FC = () => {
           <div className="space-y-4">
             <TopContent>
               <StageBadge tone="primary">
-                <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
+                <Loader2 size={26} className="animate-spin" />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.migration.title')}</h2>
               <p className="mt-1.5 text-foreground-muted text-sm">{progressMessage}</p>
@@ -534,7 +534,7 @@ const MigrationApp: React.FC = () => {
           <div className="space-y-5">
             <TopContent>
               <StageBadge tone="destructive">
-                <AlertTriangle size={26} strokeWidth={1.5} />
+                <AlertTriangle size={26} />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.error.title')}</h2>
               <p className="mt-1.5 text-foreground-muted text-sm leading-relaxed">{t('migration.error.description')}</p>
@@ -569,7 +569,7 @@ const MigrationApp: React.FC = () => {
           <div className="mx-auto w-full max-w-115 space-y-4">
             <div className="text-center">
               <StageBadge tone="warning">
-                <AlertTriangle size={26} strokeWidth={1.5} />
+                <AlertTriangle size={26} />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">
                 {t('migration.version_incompatible.title')}
@@ -624,7 +624,7 @@ const MigrationApp: React.FC = () => {
               aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
               onClick={toggleTheme}
               className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
-              <ThemeIcon className="size-3.5" strokeWidth={1.6} />
+              <ThemeIcon className="size-3.5" />
             </Button>
           </Tooltip>
         </div>

@@ -181,7 +181,7 @@ describe('PageSidePanel', () => {
 
     it('renders a standard title with the shared title class', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} title="My Title" />)
-      expect(screen.getByText('My Title')).toHaveClass('font-semibold', 'text-base', 'text-foreground')
+      expect(screen.getByText('My Title')).toHaveClass('font-[550]', 'text-base', 'text-foreground')
     })
 
     it('renders children in body', () => {

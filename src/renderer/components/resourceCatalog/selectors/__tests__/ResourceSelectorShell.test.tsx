@@ -574,7 +574,7 @@ describe('ResourceSelectorShell', () => {
 
       expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
       expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-control-accent!')
     })
 
     it('uses neutral color on the unpin action when the pinned resource row is selected', () => {
@@ -592,7 +592,7 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
+      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-control-accent!')
     })
 
     it('uses neutral color on the pin action when the resource row is selected', () => {
@@ -610,7 +610,7 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-foreground!')
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).not.toHaveClass('text-primary!')
+      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).not.toHaveClass('text-control-accent!')
     })
 
     it('pin action is available on unpinned rows and does not select the row', () => {

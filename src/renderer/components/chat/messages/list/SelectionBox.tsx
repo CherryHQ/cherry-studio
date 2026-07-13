@@ -148,7 +148,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
   return (
     <div
-      className="pointer-events-none absolute z-100 border border-primary border-dashed bg-[rgba(0,114,245,0.1)]"
+      className="pointer-events-none absolute z-100 border border-control-accent border-dashed bg-control-accent/10"
       style={{
         left: Math.min(dragStart.x, dragCurrent.x),
         top: Math.min(dragStart.y, dragCurrent.y),
