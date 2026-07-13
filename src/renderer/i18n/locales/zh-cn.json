@@ -3268,6 +3268,7 @@
       },
       "knowledge": {
         "add": "添加知识库",
+        "create_first": "前往知识库创建",
         "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
         "doc_count": "{{count}} 文档",
         "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
@@ -3281,6 +3282,7 @@
         "title": "知识库关联"
       },
       "prompt": {
+        "copy_variable": "复制 {{variable}}",
         "create_title": "新建 Prompt",
         "dblclick_hint": "双击预览区可切回编辑",
         "desc": "系统提示词将作为该助手的上下文开头发送给模型",

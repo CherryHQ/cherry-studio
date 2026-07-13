@@ -3268,6 +3268,7 @@
       },
       "knowledge": {
         "add": "Add knowledge base",
+        "create_first": "Open Knowledge to create one",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
         "doc_count": "{{count}} docs",
         "empty_desc": "Once linked, the assistant can answer based on document content",
@@ -3281,6 +3282,7 @@
         "title": "Knowledge bases"
       },
       "prompt": {
+        "copy_variable": "Copy {{variable}}",
         "create_title": "New Prompt",
         "dblclick_hint": "Double-click the preview to switch back to edit",
         "desc": "The system prompt is sent as the opening context of the assistant",

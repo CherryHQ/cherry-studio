@@ -9,9 +9,8 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
-import { useModelById } from '@renderer/hooks/useModel'
-import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -140,14 +139,10 @@ export function ResourceCreateWizard({
   isSubmitting = false
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
-  const [globalDefaultModelId] = usePreference('chat.default_model_id')
-  const resolvedDefaultModelId = isUniqueModelId(globalDefaultModelId) ? globalDefaultModelId : null
-  const { model: globalDefaultModel } = useModelById(open ? resolvedDefaultModelId : null)
-  const selectableDefaultModelId =
-    open && globalDefaultModel?.id === resolvedDefaultModelId && (!modelFilter || modelFilter(globalDefaultModel))
-      ? resolvedDefaultModelId
-      : null
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
+  const { defaultModel } = useDefaultModel()
+  const selectableDefaultModelId =
+    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -155,10 +150,10 @@ export function ResourceCreateWizard({
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
-  // protection (overlay / Esc / X) stays locked for the entire submit, not just the
-  // window after the parent renders its loading state — otherwise a failure would write
-  // its error into an already-closed form. Subscribing to isSubmitting (not form values)
-  // keeps the shell off the field-edit re-render path the comment below relies on.
+  // protection (overlay / Esc / X / knowledge-page navigation) stays locked for the
+  // entire submit, not just the window after the parent renders its loading state —
+  // otherwise a failure would write its error into an already-closed form. Subscribing
+  // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
@@ -197,7 +192,7 @@ export function ResourceCreateWizard({
       selectableDefaultModelId !== autoSelectedModelId
     ) {
       autoSelectedDefaultModelIdRef.current = null
-      form.setValue('modelId', null)
+      form.setValue('modelId', null, { shouldDirty: false, shouldTouch: false })
       return
     }
 
@@ -209,7 +204,7 @@ export function ResourceCreateWizard({
     }
 
     autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
-    form.setValue('modelId', selectableDefaultModelId)
+    form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
   }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
@@ -357,7 +352,7 @@ export function ResourceCreateWizard({
                   <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} portalContainer={dialogContentElement} />
+                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
