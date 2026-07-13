@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
@@ -28,7 +28,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   onToggleCurrent
 }) => {
   const { t } = useTranslation()
-  const providerIcon = resolveProviderIcon(provider.id)
+  const providerIcon = useIcon(resolveProviderIconRef(provider.id))
 
   return (
     <div

@@ -164,7 +164,7 @@ const SelectionToolbar: FC = () => {
       actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
     }
 
-    void window.api?.openWebsite(actionString)
+    void ipcApi.request('system.shell.open_website', actionString)
     void ipcApi.request('selection.hide_toolbar')
   }, [])
 

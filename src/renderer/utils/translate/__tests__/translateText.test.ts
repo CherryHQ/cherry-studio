@@ -6,8 +6,8 @@ vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`
 }))
 
-// AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*');
-// `translate.open` stays on `window.api.translate` (not migrated). `ipcMock` is re-pointed
+// AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*') and
+// `translate.open` now goes through ipcApi.request('translate.open', …). `ipcMock` is re-pointed
 // at the fresh per-test mock in beforeEach.
 const { ipcMock } = vi.hoisted(() => ({
   ipcMock: {
@@ -32,7 +32,7 @@ import { translateText } from '../translateText'
  *   2. Generate a `translate:`-prefixed `streamId`
  *   3. Subscribe to `onStreamChunk` / `onStreamDone` / `onStreamError` BEFORE
  *      invoking main (so the first chunk cannot race past the listener)
- *   4. Call `window.api.translate.open({ streamId, text, targetLangCode })`
+ *   4. Call `ipcApi.request('translate.open', { streamId, text, targetLangCode })`
  *   5. Accumulate text-delta chunks, fire `onResponse`, resolve trimmed
  *      final text on done
  *   6. Abort via the `ai.stream_abort` route keyed on `streamId`
@@ -53,10 +53,6 @@ interface MockAiApi {
   onStreamError: ReturnType<typeof vi.fn>
 }
 
-interface MockTranslateApi {
-  open: ReturnType<typeof vi.fn>
-}
-
 interface MockListeners {
   chunk: Array<(data: { topicId: string; chunk: unknown }) => void>
   done: Array<(data: { topicId: string }) => void>
@@ -65,9 +61,9 @@ interface MockListeners {
 
 function createMocks(): {
   ai: MockAiApi
-  translate: MockTranslateApi
+  translateOpen: ReturnType<typeof vi.fn>
   listeners: MockListeners
-  request: (route: string, input: unknown) => unknown
+  request: ReturnType<typeof vi.fn>
   on: (event: string, cb: (p: unknown) => void) => () => void
 } {
   const listeners: MockListeners = { chunk: [], done: [], error: [] }
@@ -95,13 +91,20 @@ function createMocks(): {
       }
     })
   }
-  // Renderer generates `streamId` — echo it back so emit helpers can use it.
-  const translate: MockTranslateApi = {
-    open: vi.fn(async ({ streamId }: { streamId: string }) => ({ streamId }))
-  }
-  // ipcApi-shaped dispatchers wired to the spies above.
-  const request = (route: string, input: unknown): unknown =>
-    route === 'ai.stream_abort' ? ai.streamAbort(input) : Promise.resolve(undefined)
+  // `translate.open` behaviour — renderer generates `streamId`, echo it back so
+  // emit helpers can use it. Exposed separately so failure tests can override it.
+  const translateOpen = vi.fn(async ({ streamId }: { streamId: string }) => ({ streamId }))
+  // ipcApi.request dispatcher wired to the spies above.
+  const request = vi.fn((route: string, input: unknown): unknown => {
+    switch (route) {
+      case 'translate.open':
+        return translateOpen(input as { streamId: string })
+      case 'ai.stream_abort':
+        return ai.streamAbort(input)
+      default:
+        return Promise.resolve(undefined)
+    }
+  })
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
       case 'ai.stream_chunk':
@@ -114,14 +117,14 @@ function createMocks(): {
         return () => {}
     }
   }
-  return { ai, translate, listeners, request, on }
+  return { ai, translateOpen, listeners, request, on }
 }
 
-/** Pull the renderer-generated streamId from the latest `translate.open` call. */
-function lastStreamId(translate: MockTranslateApi): string {
-  const calls = translate.open.mock.calls
-  if (calls.length === 0) throw new Error('translate.open has not been called yet')
-  return (calls[calls.length - 1][0] as { streamId: string }).streamId
+/** Pull the renderer-generated streamId from the latest `ipcApi.request('translate.open', …)` call. */
+function lastStreamId(request: ReturnType<typeof vi.fn>): string {
+  const calls = request.mock.calls.filter(([route]) => route === 'translate.open')
+  if (calls.length === 0) throw new Error("ipcApi.request('translate.open', …) has not been called yet")
+  return (calls[calls.length - 1][1] as { streamId: string }).streamId
 }
 
 function emitChunk(listeners: MockListeners, delta: string, topicId: string) {
@@ -139,35 +142,29 @@ function emitError(listeners: MockListeners, error: { name?: string; message: st
 }
 
 /** Wait until `translate.open` has resolved — guarantees subscribers are wired. */
-async function waitForOpen(translate: MockTranslateApi) {
-  await vi.waitFor(() => expect(translate.open).toHaveBeenCalledTimes(1))
+async function waitForOpen(request: ReturnType<typeof vi.fn>) {
+  await vi.waitFor(() => expect(request).toHaveBeenCalledWith('translate.open', expect.anything()))
   // Microtask flush so the await on `open()` returns and listeners register.
   await Promise.resolve()
   await Promise.resolve()
 }
 
-let originalApi: unknown
 let mockAi: MockAiApi
-let mockTranslate: MockTranslateApi
+let mockRequest: ReturnType<typeof vi.fn>
+let mockTranslateOpen: ReturnType<typeof vi.fn>
 let mockListeners: MockListeners
 
 beforeEach(() => {
   const m = createMocks()
   mockAi = m.ai
-  mockTranslate = m.translate
+  mockRequest = m.request
+  mockTranslateOpen = m.translateOpen
   mockListeners = m.listeners
   ipcMock.request = m.request
   ipcMock.on = m.on
-  originalApi = (window as unknown as { api?: unknown }).api
-  // Only `translate` stays on window.api; the ai stream methods go through the ipcApi mock.
-  ;(window as unknown as { api: { translate: MockTranslateApi } }).api = {
-    ...((originalApi ?? {}) as object),
-    translate: mockTranslate
-  } as { translate: MockTranslateApi }
 })
 
 afterEach(() => {
-  ;(window as unknown as { api?: unknown }).api = originalApi
   vi.clearAllMocks()
 })
 
@@ -175,15 +172,15 @@ describe('translateText (main-driven streaming)', () => {
   describe('happy path', () => {
     it('passes a translate:-prefixed streamId + text + langCode to main and accumulates chunks', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
+      await waitForOpen(mockRequest)
 
-      expect(mockTranslate.open).toHaveBeenCalledWith({
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', {
         streamId: expect.stringMatching(/^translate:/),
         text: 'source',
         targetLangCode: 'en-us'
       })
 
-      const streamId = lastStreamId(mockTranslate)
+      const streamId = lastStreamId(mockRequest)
       emitChunk(mockListeners, 'Hello ', streamId)
       emitChunk(mockListeners, 'world', streamId)
       emitDone(mockListeners, streamId)
@@ -193,8 +190,8 @@ describe('translateText (main-driven streaming)', () => {
 
     it('trims trailing whitespace from the final accumulated text', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
 
       emitChunk(mockListeners, '  Hello  ', streamId)
       emitDone(mockListeners, streamId)
@@ -205,8 +202,8 @@ describe('translateText (main-driven streaming)', () => {
     it('invokes onResponse per chunk and once with isComplete=true on done', async () => {
       const onResponse = vi.fn()
       const promise = translateText('source', TARGET, onResponse)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
 
       emitChunk(mockListeners, 'Hi', streamId)
       emitChunk(mockListeners, ' there', streamId)
@@ -223,8 +220,8 @@ describe('translateText (main-driven streaming)', () => {
     it('ignores chunks routed to a different streamId', async () => {
       const onResponse = vi.fn()
       const promise = translateText('source', TARGET, onResponse)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
 
       emitChunk(mockListeners, 'unrelated', 'other-stream')
       emitChunk(mockListeners, 'mine', streamId)
@@ -239,13 +236,13 @@ describe('translateText (main-driven streaming)', () => {
   describe('target language normalisation', () => {
     it('forwards the lang code to main when given a string', async () => {
       const promise = translateText('source', parseTranslateLangCode('en-us'))
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
       emitChunk(mockListeners, 'ok', streamId)
       emitDone(mockListeners, streamId)
       await promise
 
-      expect(mockTranslate.open).toHaveBeenCalledWith({
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', {
         streamId: expect.stringMatching(/^translate:/),
         text: 'source',
         targetLangCode: 'en-us'
@@ -254,13 +251,13 @@ describe('translateText (main-driven streaming)', () => {
 
     it('extracts the lang code from a DTO before calling main', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
       emitChunk(mockListeners, 'ok', streamId)
       emitDone(mockListeners, streamId)
       await promise
 
-      expect(mockTranslate.open).toHaveBeenCalledWith({
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', {
         streamId: expect.stringMatching(/^translate:/),
         text: 'source',
         targetLangCode: TARGET.langCode
@@ -271,18 +268,18 @@ describe('translateText (main-driven streaming)', () => {
       await expect(translateText('source', 'not-a-real-code' as any)).rejects.toThrow(
         'Invalid target language: not-a-real-code'
       )
-      expect(mockTranslate.open).not.toHaveBeenCalled()
+      expect(mockRequest).not.toHaveBeenCalledWith('translate.open', expect.anything())
     })
 
     it('throws when given the "unknown" sentinel', async () => {
       await expect(translateText('source', 'unknown' as any)).rejects.toThrow('Invalid target language: unknown')
-      expect(mockTranslate.open).not.toHaveBeenCalled()
+      expect(mockRequest).not.toHaveBeenCalledWith('translate.open', expect.anything())
     })
   })
 
   describe('main-side failure', () => {
     it('rejects with the main error when translate.open throws (e.g. not configured)', async () => {
-      mockTranslate.open.mockRejectedValueOnce(new Error('t(translate.error.not_configured)'))
+      mockTranslateOpen.mockRejectedValueOnce(new Error('t(translate.error.not_configured)'))
       await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_configured)')
     })
   })
@@ -290,15 +287,15 @@ describe('translateText (main-driven streaming)', () => {
   describe('empty output', () => {
     it('rejects with translate.error.empty when no chunks arrive before done', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      emitDone(mockListeners, lastStreamId(mockTranslate))
+      await waitForOpen(mockRequest)
+      emitDone(mockListeners, lastStreamId(mockRequest))
       await expect(promise).rejects.toThrow('t(translate.error.empty)')
     })
 
     it('rejects with translate.error.empty when accumulated text is whitespace only', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
       emitChunk(mockListeners, '   \n  ', streamId)
       emitDone(mockListeners, streamId)
       await expect(promise).rejects.toThrow('t(translate.error.empty)')
@@ -308,16 +305,16 @@ describe('translateText (main-driven streaming)', () => {
   describe('stream errors', () => {
     it('rejects with the upstream error message', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      emitError(mockListeners, { name: 'Error', message: 'upstream boom' }, lastStreamId(mockTranslate))
+      await waitForOpen(mockRequest)
+      emitError(mockListeners, { name: 'Error', message: 'upstream boom' }, lastStreamId(mockRequest))
 
       await expect(promise).rejects.toThrow('upstream boom')
     })
 
     it('preserves AbortError name so callers can classify user-initiated cancels', async () => {
       const promise = translateText('source', TARGET)
-      await waitForOpen(mockTranslate)
-      emitError(mockListeners, { name: 'AbortError', message: 'stopped by user' }, lastStreamId(mockTranslate))
+      await waitForOpen(mockRequest)
+      emitError(mockListeners, { name: 'AbortError', message: 'stopped by user' }, lastStreamId(mockRequest))
 
       const err = await promise.catch((e) => e)
       expect(err).toBeInstanceOf(Error)
@@ -329,8 +326,8 @@ describe('translateText (main-driven streaming)', () => {
     it('calls streamAbort with the streamId when the signal fires mid-stream', async () => {
       const controller = new AbortController()
       const promise = translateText('source', TARGET, undefined, controller.signal)
-      await waitForOpen(mockTranslate)
-      const streamId = lastStreamId(mockTranslate)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
 
       emitChunk(mockListeners, 'partial', streamId)
       controller.abort()
@@ -348,7 +345,7 @@ describe('translateText (main-driven streaming)', () => {
       controller.abort()
 
       await expect(translateText('source', TARGET, undefined, controller.signal)).rejects.toThrow()
-      expect(mockTranslate.open).not.toHaveBeenCalled()
+      expect(mockRequest).not.toHaveBeenCalledWith('translate.open', expect.anything())
     })
   })
 })

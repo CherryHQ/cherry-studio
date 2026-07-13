@@ -15,6 +15,9 @@ const mockTabs = vi.hoisted(() => ({
   updateTab: vi.fn()
 }))
 
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () =>
     mockTabs.hasContext
@@ -39,12 +42,25 @@ const paginated = (items: MiniApp[]) => items
 const mockClearWebviewState = vi.mocked(clearWebviewState)
 const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
 
+/** Control the `system.get_ip_country` route on the ipcApi facade for region-detection tests. */
+const mockIpCountry = (result: string | Error) => {
+  mocks.request.mockImplementation((route: string) => {
+    if (route === 'system.get_ip_country') {
+      return result instanceof Error ? Promise.reject(result) : Promise.resolve(result)
+    }
+    return Promise.resolve(undefined)
+  })
+}
+
 describe('useMiniApps', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+
+    mocks.request.mockReset()
+    mockIpCountry('CN')
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
@@ -300,17 +316,17 @@ describe('useMiniApps', () => {
       await act(async () => {
         await result.current.updateCustomMiniApp('custom-app', {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: 'new-logo'
+          url: 'https://new.example.com'
         })
       })
 
+      // Logo edits go through the `mini_app.set_logo` command, not this PATCH;
+      // the tab icon still resolves from the service's returned `logo`.
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },
         body: {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: 'new-logo'
+          url: 'https://new.example.com'
         }
       })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
@@ -318,6 +334,33 @@ describe('useMiniApps', () => {
       expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
+    })
+
+    it('uses the service-resolved logoSrc as the file:// tab icon when syncing', async () => {
+      const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      // The service returns an uploaded logo pre-resolved onto `logoSrc`.
+      const updated = { ...existing, name: 'New App', logoSrc: `file:///files/${storedId}.webp` }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', {
+          name: 'New App'
+        })
+      })
+
+      expect(trigger).toHaveBeenCalledWith({
+        params: { appId: 'custom-app' },
+        body: { name: 'New App' }
+      })
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'New App',
+        icon: `file:///files/${storedId}.webp`
+      })
     })
 
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
@@ -559,13 +602,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      // Mock window.api.getIpCountry to resolve 'CN'
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockResolvedValue('CN') },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('CN')
 
       renderHook(() => useMiniApps())
 
@@ -575,15 +612,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
-
-      // Restore
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should call setDetectedRegion with Global when IP resolves to US', async () => {
@@ -591,12 +619,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockResolvedValue('US') },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('US')
 
       renderHook(() => useMiniApps())
 
@@ -605,14 +628,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should fallback to CN when IP detection rejects', async () => {
@@ -620,12 +635,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockRejectedValue(new Error('Network error')) },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry(new Error('Network error'))
 
       renderHook(() => useMiniApps())
 
@@ -634,14 +644,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should not call detectUserRegion when region is explicitly set', async () => {
@@ -649,13 +651,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const getIpCountryMock = vi.fn().mockResolvedValue('US')
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: getIpCountryMock },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('US')
 
       renderHook(() => useMiniApps())
 
@@ -664,15 +660,7 @@ describe('useMiniApps', () => {
       })
 
       // IP detection should not be called when region is explicitly set
-      expect(getIpCountryMock).not.toHaveBeenCalled()
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
+      expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
     })
   })
 
