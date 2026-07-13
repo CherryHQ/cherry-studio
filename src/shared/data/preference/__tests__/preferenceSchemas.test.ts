@@ -36,6 +36,10 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
+  it('shows the Quick Assistant tab bar entry by default', () => {
+    expect(DefaultPreferences.default['feature.quick_assistant.show_in_tab_bar']).toBe(true)
+  })
+
   it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
     const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
       { id: 'assistants', type: 'app' },

@@ -251,6 +251,7 @@ describe('AppShellTabBar', () => {
 
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
+    expect(tabStrip).toHaveClass('min-w-0', 'flex-1')
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')

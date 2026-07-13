@@ -4949,7 +4949,9 @@
       }
     },
     "tooltip": {
-      "pin": "Keep Window on Top"
+      "open": "Open Quick Assistant",
+      "pin": "Keep Window on Top",
+      "restore_main": "Back to Main Window"
     }
   },
   "restore": {
@@ -7317,6 +7319,7 @@
       "click_tray_to_show": "Click the tray icon to start",
       "enable_quick_assistant": "Enable Quick Assistant",
       "read_clipboard_at_startup": "Read clipboard at startup",
+      "show_in_tab_bar": "Show icon in the tab bar",
       "title": "Quick Assistant",
       "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
     },

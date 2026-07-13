@@ -214,8 +214,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.mainWindowRef = mainWindow
 
       const onMainVisible = () => {
-        const window = this.getQuickAssistant()
-        if (window) window.hide()
+        this.dismissQuickAssistantForMainWindow()
       }
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
@@ -360,6 +359,26 @@ export class QuickAssistantService extends BaseService implements Activatable {
     if (!window) return
 
     this.proceedShow()
+  }
+
+  /** Bring Main to the foreground and always dismiss Quick Assistant, even when pinned. */
+  public restoreMainWindow() {
+    application.get('MainWindowService').showMainWindow()
+    this.dismissQuickAssistantForMainWindow()
+  }
+
+  /** Dismiss Quick Assistant without hiding the application that Main belongs to. */
+  private dismissQuickAssistantForMainWindow() {
+    const window = this.getQuickAssistant()
+    if (!window) return
+
+    if (isWin) {
+      window.setOpacity(0)
+      window.minimize()
+      return
+    }
+
+    window.hide()
   }
 
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */

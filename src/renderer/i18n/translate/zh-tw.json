@@ -4949,7 +4949,9 @@
       }
     },
     "tooltip": {
-      "pin": "視窗置頂"
+      "open": "[to be translated]:Open Quick Assistant",
+      "pin": "視窗置頂",
+      "restore_main": "[to be translated]:Back to Main Window"
     }
   },
   "restore": {
@@ -7317,6 +7319,7 @@
       "click_tray_to_show": "點選工具列圖示啟動",
       "enable_quick_assistant": "啟用快捷助手",
       "read_clipboard_at_startup": "啟動時讀取剪貼簿",
+      "show_in_tab_bar": "在標籤列顯示圖示入口",
       "title": "快捷助手",
       "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動"
     },

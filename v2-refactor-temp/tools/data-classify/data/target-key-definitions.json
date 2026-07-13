@@ -173,6 +173,13 @@
       "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "feature.quick_assistant.show_in_tab_bar",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the Quick Assistant entry in the main window tab bar (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "feature.translate.model_id",
       "type": "string",
       "defaultValue": null,
