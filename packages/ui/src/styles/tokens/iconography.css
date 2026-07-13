@@ -1,0 +1,11 @@
+/**
+ * Iconography
+ * 图标系统 - 描边规格
+ */
+
+:root {
+  /* Default settings/UI icon outline thickness. */
+  --cs-icon-stroke: 1.6;
+  /* Thinner stroke for large display icons (empty states, dropzones, ~20px+). */
+  --cs-icon-stroke-display: 1.2;
+}

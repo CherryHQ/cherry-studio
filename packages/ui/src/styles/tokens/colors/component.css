@@ -13,6 +13,16 @@
  */
 
 :root {
+  /* Switch thumb — a white circle over either the neutral unchecked track or
+   * the user-selected theme-accent track. Mode-invariant by design. */
+  --cs-switch-thumb: var(--cs-white);
+
+  /* Badge highlight variant (New / PRO / Beta) — a bright mint treatment,
+   * deliberately distinct from the cross-component success status family. */
+  --cs-badge-highlight-border: #8fd944;
+  --cs-badge-highlight-surface: #c2ec80;
+  --cs-badge-highlight-foreground: #2e4d18;
+
   /* Window-chrome glass tuning — color literals for the macOS-vibrancy
    * (translucent-window) sidebar drop shadow and floating tab-bar tab surfaces.
    * These are window-chrome-specific glass values; geometry (offset/blur/spread)
@@ -39,6 +49,11 @@
 
 /* Dark Mode */
 .dark {
+  /* Badge highlight (dark) — deep forest invert of the light mint. */
+  --cs-badge-highlight-border: #a0d958;
+  --cs-badge-highlight-surface: #2a4514;
+  --cs-badge-highlight-foreground: #c0ec7c;
+
   /* Window-chrome glass tuning (dark) — see :root note. The sidebar drop-shadow
    * color is mode-invariant; the active surface is a white frost over the darker
    * vibrancy (kept clearly above the hover wash so the selected tab/sidebar item

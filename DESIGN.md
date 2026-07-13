@@ -18,7 +18,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 - Primary action color resolves through `var(--color-primary)`; do not introduce a separate page-local brand hue
 - Full semantic color set: `var(--color-destructive)` (red), `var(--color-success)` (green), `var(--color-warning)` (amber), `var(--color-info)` (blue)
 - Status palette pairs (base / text / bg / border, with hover + active variants) defined in `tokens/colors/status.css`
-- Border-radius scale from `var(--radius-none)` (0) to `var(--radius-round)` (9999px), 10 steps
+- Border-radius scale from `var(--radius-4xs)` (0.5px) to `var(--radius-round)` (9999px), 11 steps
 - Subtle borders via `var(--color-border)` (semi-transparent neutral) for structure, not decoration
 - Surfaces stack via color, not shadow: `var(--color-background)` → `var(--color-card)` → `var(--color-popover)`
 - 7-level shadow utility system (`--shadow-2xs` through `--shadow-2xl`)
@@ -34,7 +34,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 The color system follows one consistent rule:
 
 - **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
-- **Solid role tokens** (`--color-primary`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background. In v2, `--color-primary` is a neutral strong action color; chromatic interaction emphasis belongs to `--color-control-accent`.
+- **Solid role tokens** (`--color-primary`, `--color-theme-accent`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid color steps** — never alpha — because their identity must stay constant on any background. In v2, `--color-primary` is a neutral strong action color; the user-selected chromatic emphasis enters through `--color-theme-accent`.
 
 When you reach for a value:
 1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the existing semantic neutral token (`--color-foreground*`, `--color-border*`, `--color-secondary`, `--color-accent`, `--color-ghost-*`). Do not invent `oklch(0 0 0 / 0.x)` literals — the token already encodes the intent.
@@ -45,9 +45,15 @@ When you reach for a value:
 - **Primary Foreground**: `var(--color-primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: `var(--color-primary-hover)`
 
+### Theme Accent
+- **Theme Accent**: `var(--color-theme-accent)` (backed by the runtime input `--cs-theme-accent`) — the user-selected chromatic emphasis shared by features such as links and active controls. It is independent from neutral `--color-primary`.
+- **Theme Accent Soft**: `var(--color-theme-accent-soft)` — the same theme accent at a 60% transparent mix for tinted surfaces.
+- **Theme Accent Foreground**: `var(--color-theme-accent-foreground)` — mode-aware contrast content on a solid theme-accent fill.
+
 ### Control Accent
-- **Control Accent**: `var(--color-control-accent)` (backed by the runtime input `--cs-theme-control-accent`) — the chromatic accent for interactive controls whose on/active fill should track the user's theme color instead of the neutral primary. Used by the Switch on-state (`bg-control-accent`, loading `bg-control-accent/60!`) and followed by `--color-link`. Use this — not `var(--color-primary)` (neutral) and not a page-local brand hue — when a control needs a chromatic on/active state.
-- **Control Thumb**: `var(--color-control-thumb)` — the Switch thumb fill.
+- **Control Accent**: `var(--color-control-accent)` — a role alias of Theme Accent for interactive controls whose on/active fill should track the user's theme color. Use this alias in Switch, Slider, Checkbox, and similar controls so component intent remains explicit.
+- **Control Accent Hover / Foreground**: `var(--color-control-accent-hover)` / `var(--color-control-accent-foreground)` — control-specific state aliases derived from the Theme Accent family.
+- The Switch thumb uses the internal component slot `--color-switch-thumb`; product code outside Switch must not consume it.
 
 ### Text Colors
 - **Foreground**: `var(--color-foreground)` — primary body text
@@ -66,6 +72,7 @@ When you reach for a value:
 - **Secondary**: `var(--color-secondary)` — secondary action backgrounds
 - **Secondary Hover / Active**: `var(--color-secondary-hover)` / `var(--color-secondary-active)`
 - **Ghost Hover / Active**: `var(--color-ghost-hover)` / `var(--color-ghost-active)` — fill on hover for ghost buttons
+- **Surface Hover Subtle Solid**: `var(--color-surface-hover-subtle-solid)` — opaque low-contrast hover fill for controls that must avoid alpha overlap artifacts
 
 ### Sidebar (Distinct Spatial Zone)
 - **Sidebar**: `var(--color-sidebar)` — sidebar surface
@@ -79,6 +86,7 @@ When you reach for a value:
 - **Border Muted**: `var(--color-border-muted)` — low-emphasis dividers inside dense lists, tables, and grouped settings
 - **Border Subtle**: `var(--color-border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
 - **Border Hover / Active**: `var(--color-border-hover)` / `var(--color-border-active)`
+- **Border Foreground Muted**: `var(--color-border-foreground-muted)` — a 12% foreground-derived outline for form controls and quiet interactive containers
 - **Frame Border**: `var(--color-frame-border)` — page-level wrapping frames and stronger outer chrome
 - **Input**: `var(--color-input)` — input field borders
 - **Ring**: `var(--color-ring)` — focus ring
@@ -110,7 +118,7 @@ Defined in `tokens/colors/status.css`. Use these when a status surface needs mor
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
 
 ### Links
-Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` follows the control accent (`--cs-theme-control-accent`), i.e. the user-customizable theme color. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
+Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` aliases the user-customizable Theme Accent directly; it does not depend on the control-role alias. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
 
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:
@@ -126,7 +134,7 @@ Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades,
 
 ## 3. Typography Rules
 
-> Token values defined in `packages/ui/src/styles/tokens/typography.css`. The technical contract is the CSS variable; family-name strings appear here for human readability.
+> Typography values are defined in `packages/ui/src/styles/tokens/typography.css`; icon stroke values live in `packages/ui/src/styles/tokens/iconography.css`. The technical contract is the CSS variable; family-name strings appear here for human readability.
 
 ### Font Families
 - **Body / Heading**: `var(--font-family-body)` / `var(--font-family-heading)` → primary UI font with system-ui fallbacks. Handles functional UI text.
@@ -136,7 +144,9 @@ Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades,
 
 | Role | Token | Approx. value |
 |------|-------|--------------|
+| Body 2XS | `var(--font-size-body-2xs)` | 10px — dense counters and micro labels |
 | Body XS | `var(--font-size-body-xs)` | 12px — tags, badges, timestamps, metadata |
+| Body XS+ | `var(--font-size-body-xs-plus)` | 13px — compact body copy and setting row titles |
 | Body SM | `var(--font-size-body-sm)` | 14px — navigation, secondary labels, captions |
 | Body MD | `var(--font-size-body-md)` | 16px — standard body text, form inputs, descriptions |
 | Body LG | `var(--font-size-body-lg)` | 18px — emphasized body, sub-headings |
@@ -573,7 +583,7 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 
 ### Switch
 
-Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a brand/primary on state, matching the settings screenshots.
+Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and the user Theme Accent for its on state.
 
 **Anatomy & sizing:**
 
@@ -589,18 +599,18 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 | State | Light | Dark |
 |---|---|---|
 | Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
+| Track — on | `bg-control-accent` | `bg-control-accent` |
+| Loading | `bg-control-accent/60!` | `bg-control-accent/60!` |
+| Thumb | `bg-switch-thumb` | `bg-switch-thumb` |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
+- The thumb fill is owned by the internal `--color-switch-thumb` component slot. Do not override it from a page.
+- `loading` keeps the same control accent at 60% opacity and animates the thumb.
 - Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
 
 **Don't:**
-- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
+- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its Theme Accent on state.
 - Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
 - Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
 
@@ -654,11 +664,11 @@ When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSett
 
 ### Spacing System
 
-> Defined in `tokens/spacing.css`. The full Tailwind numeric scale (`--spacing-*`) is exposed plus semantic legacy aliases (`--cs-size-*`). In component code prefer Tailwind utilities (`p-4`, `gap-6`); in raw CSS use the tokens below.
+> The Cherry semantic source scale is defined as `--cs-size-*` in `tokens/spacing.css`. Custom public `--spacing-*` aliases are intentionally not exported because they would collide with Tailwind container names. In component code prefer Tailwind numeric utilities (`p-4`, `gap-6`); design-system-adjacent raw CSS may use the source tokens below.
 
-**Numeric scale (Tailwind-aligned, 4px base unit):**
-- 0, px (1px), 0.5 (2px), 1 (4px), 1.5 (6px), 2 (8px), 2.5 (10px), 3 (12px), 3.5 (14px), 4 (16px), 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96 — exposed as `--spacing-N`.
-- Total: 35 numeric tokens covering 0–384px including .5 micro-steps.
+**Numeric utilities (Tailwind-owned, 4px base unit):**
+- Standard classes such as `p-0`, `p-px`, `p-0.5`, `p-1`, `p-1.5`, `p-2`, and their larger steps remain available through Tailwind.
+- These classes are not Cherry variables named `--spacing-N`; do not reference such names from raw CSS.
 
 **Semantic aliases** (shorthand for component code):
 
@@ -700,11 +710,13 @@ When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSett
 
 > ⚠️ **Cherry remaps the Tailwind default radius scale.** `rounded-md` resolves to 8px (Tailwind default: 6px), `rounded-lg` to 10px (default: 8px), `rounded-xl` to 14px (default: 12px), and `rounded-3xl` to 22px (default: 24px). When copying components from shadcn examples, Tailwind tutorials, or any third-party Tailwind library, expect a 2–4px visual difference until the radius is consciously chosen against the table below.
 
-> Defined in `tokens/radius.css`. 10 levels exposed via `--radius-*`.
+> Defined in `tokens/radius.css`. 11 levels are exposed via `--radius-*`.
 
 | Token | Approx. value | Usage |
 |-------|---------------|-------|
-| `var(--radius-none)` | 0 | Square corners |
+| `var(--radius-4xs)` | 0.5px | Optical hairline rounding |
+| `var(--radius-3xs)` | 1px | Very small technical marks |
+| `var(--radius-2xs)` | 1.5px | Compact indicators |
 | `var(--radius-xs)` | 2px | Badges, tags |
 | `var(--radius-sm)` | 6px | Chips, small buttons |
 | `var(--radius-md)` | 8px | **Default** — buttons, inputs, dropdowns |
@@ -768,7 +780,7 @@ Use Tailwind border-width utilities (`border`, `border-0`, `border-2`, etc.) wit
 
 ### Stroke Width
 
-Use icon-library defaults unless a component has a documented reason to override SVG `stroke-width`.
+Use `var(--icon-stroke)` for standard settings/UI outlines and `var(--icon-stroke-display)` for larger display icons. Otherwise keep the icon-library default; component-only exceptions remain with the component.
 
 ## 8. Do's and Don'ts
 
@@ -776,7 +788,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Use calm, low-saturation chrome — reserve `var(--color-primary)` for true primary actions/selected states and semantic colors for feedback
 - Apply `var(--radius-md)` as the base button radius, `var(--radius-lg)` where the Button variant explicitly rounds itself, and `var(--radius-md)` for inputs
 - Use `var(--color-primary)` / neutral strong fills for main CTAs; do not introduce page-local brand hues
-- Let dark mode feel genuinely dark: `var(--color-background)` resolves to `#0A0A0A` with layered surfaces stacking lighter
+- Let dark mode feel genuinely dark while preserving native vibrancy: `var(--color-background)` resolves to `#151514` at 55% alpha, with layered surfaces stacking above it
 - Use `var(--color-foreground-secondary)` / `var(--color-foreground-muted)` for secondary text
 - Keep `var(--shadow-xs)` only on button variants that already carry the base shadow (`default`, `destructive`)
 - Use `*-hover` tokens or neutral hover classes according to the Button variant definition
@@ -829,10 +841,11 @@ Use icon-library defaults unless a component has a documented reason to override
 ### Quick Token Reference
 | Role | Token | Notes |
 |------|-------|-------|
-| Page background | `var(--color-background)` | `#FFFFFF` light / `#0A0A0A` dark |
+| Page background | `var(--color-background)` | `#FFFFFF` light / `#151514` at 55% alpha dark |
 | Primary text | `var(--color-foreground)` | Primary body text |
 | Secondary / muted text | `var(--color-foreground-secondary)` / `var(--color-foreground-muted)` | Helper, placeholder |
-| Primary accent | `var(--color-primary)` | Page-level primary actions, selected states, links, component accents |
+| Primary action | `var(--color-primary)` | Neutral page-level primary actions and selected states |
+| Theme accent | `var(--color-theme-accent)` | User-selected chromatic emphasis; links and active controls derive from it |
 | Destructive action | `var(--color-destructive)` | Hover: `var(--color-destructive-hover)`; Text: `var(--color-destructive-foreground)` |
 | Success / Warning / Info | `var(--color-success)` / `var(--color-warning)` / `var(--color-info)` | Single-token semantic accents |
 | Borders | `var(--color-border)` (hover/active variants available) | Neutral hairline |

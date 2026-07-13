@@ -9,12 +9,11 @@ const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
 const RUNTIME_THEME_INPUT_LINES = [
-  '/* --cs-theme-control-accent is the user-chosen accent color (overridden at runtime',
+  '/* --cs-theme-accent is the user-chosen chromatic accent (overridden at runtime',
   ' * by useUserTheme; the neutral --cs-primary is only the pre-injection default).',
-  ' * It only feeds --color-control-accent (switch/slider/etc.) and --color-link;',
-  ' * --color-primary and --color-ring stay anchored to the neutral --cs-primary so',
-  ' * inputs/selects/focus never follow the accent color. */',
-  '--cs-theme-control-accent: var(--cs-primary);'
+  ' * Feature roles such as controls and links alias this input explicitly;',
+  ' * --color-primary and --color-ring stay anchored to neutral --cs-primary. */',
+  '--cs-theme-accent: var(--cs-primary);'
 ]
 
 const COMPATIBILITY_ALIAS_LINES = [
@@ -31,11 +30,14 @@ const PRIMARY_SEMANTIC_LINES = [
   '--color-primary-hover: var(--cs-primary-hover);',
   '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
   '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
-  '--color-control-accent: var(--cs-theme-control-accent);',
+  '--color-theme-accent: var(--cs-theme-accent);',
+  '--color-theme-accent-soft: color-mix(in srgb, var(--color-theme-accent) 60%, transparent);',
+  '--color-control-accent: var(--color-theme-accent);',
   /* Derive from the public alias so advanced CSS that overrides
-   * --color-control-accent also updates its hover and link dependants. */
+   * --color-control-accent also updates its hover state. */
   '--color-control-accent-hover: color-mix(in srgb, var(--color-control-accent) 88%, var(--color-foreground));',
-  '--color-link: var(--color-control-accent);'
+  '--color-control-accent-foreground: var(--color-theme-accent-foreground);',
+  '--color-link: var(--color-theme-accent);'
 ]
 
 const SPACING_COMMENT_LINES = [
@@ -93,6 +95,7 @@ export interface ThemeContractInputs {
   componentColors: string[]
   radiusTokens: string[]
   typographyTokens: string[]
+  iconographyTokens: string[]
 }
 
 function dedupe(values: string[]): string[] {
@@ -137,6 +140,7 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
     buildSection('Typography', toDirectMappings(inputs.typographyTokens)),
+    buildSection('Iconography', toDirectMappings(inputs.iconographyTokens)),
     buildSection('Animation', ANIMATION_LINES)
   ]
 
@@ -174,14 +178,16 @@ export async function loadThemeContractInputs(stylesDir = STYLES_DIR): Promise<T
     statusColorsSource,
     componentColorsSource,
     radiusSource,
-    typographySource
+    typographySource,
+    iconographySource
   ] = await Promise.all([
     fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/semantic.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/status.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/component.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'radius.css'), 'utf8'),
-    fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8')
+    fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'iconography.css'), 'utf8')
   ])
 
   return {
@@ -190,7 +196,8 @@ export async function loadThemeContractInputs(stylesDir = STYLES_DIR): Promise<T
     statusColors: extractTokenNames(statusColorsSource),
     componentColors: extractTokenNames(componentColorsSource),
     radiusTokens: extractTokenNames(radiusSource),
-    typographyTokens: extractTokenNames(typographySource)
+    typographyTokens: extractTokenNames(typographySource),
+    iconographyTokens: extractTokenNames(iconographySource)
   }
 }
 

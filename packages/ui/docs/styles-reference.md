@@ -11,6 +11,8 @@ Runtime styles and design tokens live under `src/styles`:
 - [tokens/colors/primitive.css](../src/styles/tokens/colors/primitive.css)
 - [tokens/colors/semantic.css](../src/styles/tokens/colors/semantic.css)
 - [tokens/colors/status.css](../src/styles/tokens/colors/status.css)
+- [tokens/colors/component.css](../src/styles/tokens/colors/component.css)
+- [tokens/iconography.css](../src/styles/tokens/iconography.css)
 - [tokens/radius.css](../src/styles/tokens/radius.css)
 - [tokens/spacing.css](../src/styles/tokens/spacing.css)
 - [tokens/typography.css](../src/styles/tokens/typography.css)

@@ -148,6 +148,7 @@ describe('check-legacy-css-vars', () => {
     const content = [
       'const className = "text-(--color-text-2) bg-(--color-background-soft)"',
       'const linkStyle = { color: "var(--color-link)" }',
+      'const accentStyle = { color: "var(--color-primary-6)", background: "var(--color-primary-bg)" }',
       '// var(--color-text-1)',
       ':root {',
       '  --color-text-1: var(--color-foreground);',
@@ -157,8 +158,11 @@ describe('check-legacy-css-vars', () => {
     const result = fixLegacyVarsInContent(content)
 
     expect(result.replacements).toBe(3)
-    expect(result.content).toContain('text-(--color-foreground-secondary) bg-(--color-muted)')
-    expect(result.content).toContain('var(--color-primary)')
+    expect(result.content).toContain('text-(--color-foreground-secondary) bg-(--color-background-soft)')
+    expect(result.content).toContain('var(--color-link)')
+    expect(result.content).toContain(
+      'const accentStyle = { color: "var(--color-theme-accent)", background: "var(--color-theme-accent-soft)" }'
+    )
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--color-text-1: var(--color-foreground);')
   })

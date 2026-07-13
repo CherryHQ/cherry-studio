@@ -14,6 +14,7 @@
  * - spacing.css: Spacing and sizing
  * - radius.css: Border radius
  * - typography.css: Typography system
+ * - iconography.css: Icon stroke system
  */
 
 @import './colors/primitive.css';
@@ -23,3 +24,4 @@
 @import './spacing.css';
 @import './radius.css';
 @import './typography.css';
+@import './iconography.css';

@@ -43,36 +43,28 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 
 **Characteristics:**
 
-- ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-md`, `rounded-lg`)
+- ✅ Use generated theme utility names directly (`bg-primary`, `bg-red-500`, `rounded-lg`)
 - ✅ Colors resolve to Cherry Studio design values
-- ✅ Includes the extended spacing scale (`p-5xs` through `p-8xl`, 16 semantic sizes)
+- ✅ Keeps Tailwind's numeric spacing utilities; Cherry `--cs-size-*` source tokens remain opt-in to avoid namespace collisions
 - ✅ Includes the extended radius scale (`rounded-4xs` through `rounded-3xl`, plus `rounded-round`)
 - ⚠️ Overrides the default Tailwind theme contract for the imported app bundle
 
 **Example:**
 
 ```tsx
-<Button className="bg-primary text-red-500 p-md rounded-lg">
+<Button className="bg-primary text-red-500 p-4 rounded-lg">
   {/* bg-primary -> Cherry Studio neutral primary action color */}
   {/* text-red-500 -> Cherry Studio red-500 */}
-  {/* p-md -> semantic spacing token */}
+  {/* p-4 -> Tailwind numeric spacing */}
   {/* rounded-lg -> semantic radius token */}
 </Button>
 
 {/* Extended utility classes */}
-<div className="p-5xs">Tiny spacing (0.5rem)</div>
-<div className="p-xs">Extra small spacing (1rem)</div>
-<div className="p-sm">Small spacing (1.5rem)</div>
-<div className="p-md">Medium spacing (2.5rem)</div>
-<div className="p-lg">Large spacing (3.5rem)</div>
-<div className="p-xl">Extra large spacing (5rem)</div>
-<div className="p-8xl">Maximum spacing (15rem)</div>
-
 <div className="rounded-4xs">Tiny radius (0.03125rem)</div>
 <div className="rounded-xs">Small radius (0.125rem)</div>
 <div className="rounded-md">Medium radius (0.5rem)</div>
 <div className="rounded-xl">Large radius (0.875rem)</div>
-<div className="rounded-round">Full radius (999px)</div>
+<div className="rounded-round">Full radius (9999px)</div>
 ```
 
 #### Mode 2: Selective Token Consumption 🎯
@@ -105,7 +97,7 @@ Import only the design tokens and decide which theme mappings your app wants to 
 ```tsx
 {/* Use Cherry Studio tokens directly via CSS variables */}
 <button style={{ backgroundColor: 'var(--cs-primary)' }}>
-  Use the Cherry Studio brand color
+  Use the Cherry Studio neutral primary color
 </button>
 
 {/* Keep your original Tailwind theme untouched */}
@@ -129,7 +121,7 @@ Import only the design tokens and decide which theme mappings your app wants to 
 To avoid mixing tokens, theme mappings, and runtime overrides, use the following rules:
 
 1. `--cs-*` is the design token namespace, sourced from `tokens/*`
-2. `--color-*`, `--radius-*`, and `--font-*` are public theme contracts and should be the default choice for components and external consumers
+2. `--color-*`, `--radius-*`, `--font-*`, and `--icon-*` are public theme contracts and should be the default choice for components and external consumers
 3. `--cs-theme-*` is a runtime override input and should only be used for controlled runtime overrides
 4. `--primary` is a compatibility alias kept for shadcn / Tailwind ecosystem compatibility and should not be preferred in new code
 5. Tokens from `tokens/colors/component.css` are advanced-CSS override points, but their names are component implementation details and are not compatibility-stable

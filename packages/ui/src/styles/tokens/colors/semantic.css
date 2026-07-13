@@ -4,21 +4,15 @@
  */
 
 :root {
-  /* Theme Colors — primary is neutral (near-black light / near-white dark);
-   * the green brand scale remains only as the default control accent
-   * (switch/slider/checkbox fills derive from it). */
+  /* Theme Colors — primary is neutral (near-black light / near-white dark).
+   * The user-selected chromatic theme accent is injected separately by the
+   * renderer; this file only owns its mode-aware contrast foreground. */
   --cs-primary: var(--cs-neutral-900);
   --cs-primary-hover: var(--cs-neutral-800);
-  /* The public control-accent is seeded from the runtime --cs-theme-control-accent,
-   * and its hover derives from that public alias in theme.css. Only the foreground
-   * is kept here because it is a mode-aware contrast pair rather than a derivation
-   * of the accent color (white on light, neutral-900 on dark). */
-  --cs-control-accent-foreground: var(--cs-white);
-  /* Thumb fill for accent-toggled controls (switch / future segmented toggle):
-   * a white circle sitting on either the neutral track (unchecked) or the
-   * control-accent track (checked). Kept the same in dark mode so the thumb
-   * stays clearly visible against either track. */
-  --cs-control-thumb: var(--cs-white);
+  /* Contrast foreground paired with the runtime --cs-theme-accent input.
+   * Control-specific aliases are composed in theme.css instead of assigning
+   * control ownership to this cross-feature theme role. */
+  --cs-theme-accent-foreground: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
@@ -65,7 +59,7 @@
   /* Foreground-derived soft border for form controls (input/select etc.).
    * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
    * while still reading as quiet against neutral surfaces. */
-  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+  --cs-border-foreground-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
 
   /* Solid muted icon color — for line icons whose strokes can cross themselves
    * (RotateCcw, RefreshCw, Search, etc.). Foreground-muted uses alpha which
@@ -102,7 +96,7 @@
 
   /* Subtle hover surface, SOLID (no alpha) — for buttons/links that need a faint
    * "you're over me" tint without the cross-bg flicker that an alpha hover causes. */
-  --cs-surface-fg-subtle-solid: #f0f0ef;
+  --cs-surface-hover-subtle-solid: #f0f0ef;
 
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
@@ -130,12 +124,6 @@
   --cs-sidebar-accent-foreground: var(--cs-foreground);
   --cs-sidebar-border: var(--cs-border);
   --cs-sidebar-ring: var(--cs-ring);
-
-  /* Feature-highlight pill (Badge "highlight" variant — New / PRO / Beta tags).
-   * A bright mint accent, deliberately distinct from the success status family. */
-  --cs-highlight: #8fd944;
-  --cs-highlight-surface: #c2ec80;
-  --cs-highlight-foreground: #2e4d18;
 }
 
 /* Dark Mode */
@@ -143,8 +131,8 @@
   --cs-primary: var(--cs-neutral-100);
   --cs-primary-hover: var(--cs-neutral-200);
   --cs-primary-foreground: var(--cs-neutral-900);
-  /* control-accent (dark) — see :root note; only foreground stays as a token. */
-  --cs-control-accent-foreground: var(--cs-neutral-900);
+  /* Theme-accent contrast foreground (dark) — see :root note. */
+  --cs-theme-accent-foreground: var(--cs-neutral-900);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
   --cs-info: var(--cs-blue-400);
@@ -178,7 +166,7 @@
   --cs-frame-border-translucent: #3c3d35;
 
   /* Foreground-derived soft border (dark) — see :root note. */
-  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+  --cs-border-foreground-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
 
   /* Solid muted icon color (dark) — see :root note. */
   --cs-icon-muted: var(--cs-neutral-500);
@@ -201,9 +189,8 @@
   --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 
-  /* Sidebar glass tint (dark) — intentionally more opaque than light (70 vs 35%):
-   * over a dark wallpaper the blurred bleed-through crushes sidebar legibility,
-   * so we keep only a hint of glass. See :root note for the alpha tradeoffs. */
+  /* Sidebar glass tint (dark) — keeps the same 70% opacity as light so the
+   * blurred wallpaper cannot crush sidebar legibility. */
   --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Selected state (dark) — see :root note. */
@@ -211,10 +198,5 @@
   --cs-selected-border: #343531;
 
   /* Subtle hover surface, SOLID (dark) — see :root note. */
-  --cs-surface-fg-subtle-solid: #25262b;
-
-  /* Feature-highlight pill (dark) — deep forest invert of the light mint. */
-  --cs-highlight: #a0d958;
-  --cs-highlight-surface: #2a4514;
-  --cs-highlight-foreground: #c0ec7c;
+  --cs-surface-hover-subtle-solid: #25262b;
 }

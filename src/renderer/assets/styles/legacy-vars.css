@@ -29,7 +29,7 @@
   --color-border-mute: color-mix(in srgb, var(--color-border) 30%, transparent);
 
   --color-error: var(--color-error-base);
-  --color-primary-bg: color-mix(in srgb, var(--color-control-accent) 60%, transparent);
+  --color-primary-bg: var(--color-theme-accent-soft);
   --color-fill-secondary: var(--color-background-soft);
   --color-fill-2: var(--color-background-soft);
   --color-bg-base: var(--color-background);
@@ -69,7 +69,7 @@
   --color-gray-3: #c7c7cc;
   --color-icon-white: var(--color-black);
   --color-primary-1: var(--color-brand-50);
-  --color-primary-6: var(--color-control-accent);
+  --color-primary-6: var(--color-theme-accent);
   --color-status-success: var(--color-success);
   --color-status-error: var(--color-error);
   --color-status-warning: var(--color-warning);

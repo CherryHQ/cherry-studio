@@ -12,61 +12,15 @@ const IGNORED_FILES = new Set([
   path.join(RENDERER_DIR, 'assets/styles/legacy-vars.css')
 ])
 
-export const LEGACY_VARS = [
-  '--color-text-1',
-  '--color-text-2',
-  '--color-text-3',
-  '--color-text',
-  '--color-text-secondary',
-  '--color-text-soft',
-  '--color-text-light',
-  '--color-background-soft',
-  '--color-background-mute',
-  '--color-background-opacity',
-  '--color-border-soft',
-  '--color-border-mute',
-  '--color-error',
-  '--color-primary-bg',
-  '--color-fill-secondary',
-  '--color-fill-2',
-  '--color-bg-base',
-  '--color-bg-1',
-  '--color-code-background',
-  '--color-inline-code-background',
-  '--color-inline-code-text',
-  '--color-hover',
-  '--color-active',
-  '--color-group-background',
-  '--color-reference',
-  '--color-reference-text',
-  '--color-reference-background',
-  '--color-list-item',
-  '--color-list-item-hover',
-  '--color-highlight',
-  '--color-background-highlight',
-  '--color-background-highlight-accent',
-  '--navbar-background-mac',
-  '--navbar-background',
-  '--modal-background',
-  '--chat-background',
-  '--chat-background-user',
-  '--chat-background-assistant',
-  '--chat-text-user',
-  '--list-item-border-radius',
-  '--color-gray-1',
-  '--color-gray-2',
-  '--color-gray-3',
-  '--color-icon-white',
-  '--color-primary-1',
-  '--color-primary-6',
-  '--color-status-success',
-  '--color-status-error',
-  '--color-status-warning'
-] as const
+export const LEGACY_VARS = JSON.parse(
+  fs.readFileSync(path.join(REPO_ROOT, 'scripts/legacy-renderer-css-vars.json'), 'utf8')
+) as string[]
 
 const LEGACY_VAR_SET = new Set(LEGACY_VARS)
 const OCCURRENCE_PATTERN = new RegExp(`(${LEGACY_VARS.map(escapeRegExp).join('|')})(?![\\w-])`, 'g')
-const AUTO_FIX_REPLACEMENTS: Partial<Record<(typeof LEGACY_VARS)[number], string>> = {
+/* Auto-fix only when the replacement resolves to the exact same value.
+ * Approximate semantic migrations must stay manual so --fix cannot alter styling. */
+const AUTO_FIX_REPLACEMENTS: Partial<Record<string, string>> = {
   '--color-text-1': '--color-foreground',
   '--color-text-2': '--color-foreground-secondary',
   '--color-text-3': '--color-foreground-muted',
@@ -74,32 +28,11 @@ const AUTO_FIX_REPLACEMENTS: Partial<Record<(typeof LEGACY_VARS)[number], string
   '--color-text-secondary': '--color-foreground-secondary',
   '--color-text-soft': '--color-foreground-secondary',
   '--color-text-light': '--color-foreground',
-  '--color-background-soft': '--color-muted',
-  '--color-background-mute': '--color-accent',
-  '--color-background-opacity': '--color-background',
-  '--color-border-soft': '--color-border',
-  '--color-border-mute': '--color-border',
   '--color-error': '--color-error-base',
-  '--color-primary-bg': '--color-primary-soft',
-  '--color-fill-secondary': '--color-muted',
-  '--color-fill-2': '--color-muted',
+  '--color-primary-bg': '--color-theme-accent-soft',
   '--color-bg-base': '--color-background',
-  '--color-bg-1': '--color-muted',
-  '--color-hover': '--color-accent',
-  '--color-active': '--color-muted',
-  '--color-group-background': '--color-muted',
-  '--color-reference': '--color-primary-soft',
-  '--color-reference-text': '--color-primary',
-  '--color-reference-background': '--color-primary-soft',
-  '--color-list-item': '--color-background',
-  '--color-list-item-hover': '--color-accent',
-  '--navbar-background': '--color-background',
-  '--modal-background': '--color-card',
-  '--chat-background-user': '--color-muted',
-  '--chat-text-user': '--color-foreground',
-  '--list-item-border-radius': '--radius-lg',
-  '--color-primary-1': '--color-primary-soft',
-  '--color-primary-6': '--color-primary',
+  '--color-primary-1': '--color-brand-50',
+  '--color-primary-6': '--color-theme-accent',
   '--color-status-success': '--color-success',
   '--color-status-error': '--color-error-base',
   '--color-status-warning': '--color-warning'
@@ -189,7 +122,7 @@ export function findLegacyVarsInLine(line: string): string[] {
 
   for (const match of matches) {
     const variable = match[1]
-    if (!variable || !LEGACY_VAR_SET.has(variable as (typeof LEGACY_VARS)[number])) continue
+    if (!variable || !LEGACY_VAR_SET.has(variable)) continue
     if (isVariableDefinitionLine(line, variable)) continue
     variables.push(variable)
   }
@@ -225,7 +158,7 @@ export function fixLegacyVarsInContent(content: string): { content: string; repl
     let nextLine = line
 
     for (const variable of variables) {
-      const replacement = AUTO_FIX_REPLACEMENTS[variable as (typeof LEGACY_VARS)[number]]
+      const replacement = AUTO_FIX_REPLACEMENTS[variable]
       if (!replacement) continue
 
       const pattern = new RegExp(`${escapeRegExp(variable)}(?![\\w-])`, 'g')
