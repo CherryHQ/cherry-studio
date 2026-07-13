@@ -8,7 +8,6 @@ import type {
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'

@@ -50,7 +50,12 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         renamable: false
       }
     ],
-    fileRefSourcePolicies: [],
+    // provider_logo single-file ref (provider_logo_file_ref.sourceId → user_provider):
+    // PROVIDERS owns the sourceType so finalize #11 (FileRefSourceType coverage) passes.
+    // Logo blob staging follows the full single-file-ref backup track (follow-up).
+    fileRefSourcePolicies: [
+      { sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner', sourceTable: table('user_provider') }
+    ],
     jsonSoftReferences: [],
     // Every JSON column on user_provider/user_model is structural config — none
     // carry cross-entity soft refs (no embedded fileId / entityId). Declared here

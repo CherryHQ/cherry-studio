@@ -83,7 +83,9 @@ const contributor = (
 /** 14-domain fixture that satisfies every invariant. */
 const buildFixture = (): BackupContributor[] => [
   contributor('PREFERENCES', ['preference']),
-  contributor('PROVIDERS', ['user_provider']),
+  contributor('PROVIDERS', ['user_provider'], {
+    fileRefSourcePolicies: [{ sourceType: 'provider_logo', ownerDomain: 'PROVIDERS', resourcePolicy: 'include-with-owner' }]
+  }),
   contributor('PROMPTS', ['prompt']),
   contributor('MCP_SERVERS', ['mcp_server']),
   contributor('TAGS_GROUPS', ['tag', 'group']),
@@ -95,7 +97,9 @@ const buildFixture = (): BackupContributor[] => [
       { sourceType: 'temp_session', ownerDomain: 'excluded', resourcePolicy: 'runtime-only-exclude' }
     ]
   }),
-  contributor('MINIAPPS', ['mini_app']),
+  contributor('MINIAPPS', ['mini_app'], {
+    fileRefSourcePolicies: [{ sourceType: 'mini_app_logo', ownerDomain: 'MINIAPPS', resourcePolicy: 'include-with-owner' }]
+  }),
   contributor('SKILLS', ['agent_workspace']),
   contributor('TOPICS', ['note'], {
     fileRefSourcePolicies: [{ sourceType: 'chat_message', ownerDomain: 'TOPICS', resourcePolicy: 'include-with-owner' }]
