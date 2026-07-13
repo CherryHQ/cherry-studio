@@ -130,4 +130,18 @@ describe('processMessage model-id parsing', () => {
       createUniqueModelId('openrouter', 'anthropic/claude:beta')
     )
   })
+
+  it('uses the explicit modelString override (Gemini path) when the body carries no model', async () => {
+    const promise = processMessage({
+      // Gemini bodies have no `model`; the route passes it in from the URL path.
+      params: { contents: [] } as any,
+      modelString: 'deepseek:agent/deepseek-v4-flash',
+      inputFormat: 'gemini',
+      outputFormat: 'gemini'
+    })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts!.uniqueModelId).toBe(createUniqueModelId('deepseek', 'agent/deepseek-v4-flash'))
+    void captured.opts!.listener!.onDone({} as any)
+    await promise
+  })
 })
