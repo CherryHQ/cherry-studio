@@ -5,6 +5,7 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { ipcApi } from '@renderer/ipc'
 import { exportNote } from '@renderer/services/ExportService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -176,7 +177,7 @@ export const useNotesMenu = ({
           id: 'notes.open-outside',
           label: t('notes.open_outside'),
           icon: <FolderOpen size={14} />,
-          onSelect: () => void window.api.openPath(node.externalPath)
+          onSelect: () => void ipcApi.request('system.shell.open_path', node.externalPath)
         }
       )
 

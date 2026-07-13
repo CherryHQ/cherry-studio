@@ -462,7 +462,7 @@ export function SelectorShell({
             <div
               ref={setPanelElement}
               className={cn(
-                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover py-1 shadow-lg',
+                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover pt-1 shadow-lg',
                 SELECTOR_PANEL_ANIMATION_CLASS
               )}
               data-selector-shell-panel="true">

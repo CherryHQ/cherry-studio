@@ -172,12 +172,16 @@ describe('ChannelDetail', () => {
       }
     ]
 
+    // ChannelDetail now reads logs/statuses via ipcApi.request and subscribes via useIpcOn
+    // (ipcApi.on). Stub the IpcApi bridge: log/status queries resolve empty, events no-op.
     window.api = {
-      channel: {
-        getStatuses: vi.fn().mockResolvedValue([]),
-        onStatusChange: vi.fn().mockReturnValue(vi.fn()),
-        getLogs: vi.fn().mockResolvedValue([]),
-        onLog: vi.fn().mockReturnValue(vi.fn())
+      ipcApi: {
+        request: vi.fn((route: string) =>
+          route === 'channel.get_logs' || route === 'channel.get_statuses'
+            ? Promise.resolve([])
+            : Promise.resolve(undefined)
+        ),
+        on: vi.fn(() => () => {})
       }
     } as never
   })

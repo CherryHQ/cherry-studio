@@ -1,7 +1,5 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
-import { resolveIcon, resolveModelIcon } from '@cherrystudio/ui/icons'
-
-export type { CompoundIcon }
+import type { IconRef } from '@cherrystudio/ui/icons'
+import { resolveIconRef, resolveModelIconRef } from '@cherrystudio/ui/icons'
 
 type LogoModel = {
   id: string
@@ -10,15 +8,15 @@ type LogoModel = {
   providerId?: string
 }
 
-export function getModelLogoById(modelId: string): CompoundIcon | undefined {
-  return resolveModelIcon(modelId)
-}
-
-export function getModelLogo(model: LogoModel | undefined | null, providerId?: string): CompoundIcon | undefined {
+/**
+ * Synchronously resolve a model's logo to an IconRef (meta catalogs only —
+ * no icon components on this path). Render the component via `useIcon(ref)`.
+ */
+export function getModelLogoRef(model: LogoModel | undefined | null, providerId?: string): IconRef | undefined {
   if (!model) return undefined
   const pid = providerId ?? model.providerId ?? model.provider
   if (pid) {
-    return resolveIcon(model.id, pid) ?? resolveIcon(model.name, pid)
+    return resolveIconRef(model.id, pid) ?? resolveIconRef(model.name, pid)
   }
-  return resolveModelIcon(model.id) ?? resolveModelIcon(model.name)
+  return resolveModelIconRef(model.id) ?? resolveModelIconRef(model.name)
 }

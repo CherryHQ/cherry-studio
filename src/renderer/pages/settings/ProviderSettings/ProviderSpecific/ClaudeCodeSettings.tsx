@@ -45,7 +45,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   const handleOpenTerminal = useCallback(async () => {
     setLaunching(true)
     try {
-      const { homePath } = await window.api.getAppInfo()
+      const { homePath } = await ipcApi.request('app.get_info')
       const result = await ipcApi.request('code_cli.run', {
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,

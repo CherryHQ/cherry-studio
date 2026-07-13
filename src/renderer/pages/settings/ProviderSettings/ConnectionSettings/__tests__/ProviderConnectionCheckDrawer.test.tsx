@@ -41,20 +41,21 @@ vi.mock('@cherrystudio/ui', () => {
 })
 
 vi.mock('@renderer/utils/model', () => ({
-  getModelLogo: (model: any) => {
-    const React = require('react')
+  getModelLogoRef: (model: any) =>
+    model?.icon ? { kind: 'provider', key: model.id, meta: { id: model.id, colorPrimary: '#000' }, model } : undefined
+}))
 
-    return model?.icon
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: (ref: any) =>
+    ref
       ? {
-          Avatar: ({ size }: any) =>
-            React.createElement(
-              'span',
-              { 'data-testid': `model-icon-${model.id}`, 'data-size': size },
-              model.name.slice(0, 1)
-            )
+          Avatar: ({ size }: any) => (
+            <span data-testid={`model-icon-${ref.model.id}`} data-size={size}>
+              {ref.model.name.slice(0, 1)}
+            </span>
+          )
         }
       : undefined
-  }
 }))
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({

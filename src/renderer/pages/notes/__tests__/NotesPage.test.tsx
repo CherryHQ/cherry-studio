@@ -263,15 +263,17 @@ describe('NotesPage print payloads', () => {
     mocks.mountedEditor = 'source'
     mocks.settings.defaultEditMode = 'source'
     mocks.settings.defaultViewMode = 'edit'
-    mocks.ipcRequest.mockResolvedValue(true)
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
+      if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
+      return Promise.resolve(true)
+    })
     mocks.commandHandlers.clear()
     mocks.isActiveTab = true
     mocks.printShortcutLabel = 'Ctrl+P'
 
     Object.assign(window, {
       api: {
-        getAppInfo: vi.fn().mockResolvedValue({ notesPath: '/notes' }),
-        setEnableSpellCheck: vi.fn().mockResolvedValue(undefined),
         export: {
           toWord: vi.fn().mockResolvedValue(undefined)
         },
