@@ -237,8 +237,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    if (!(await installTool(tool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
-    await setCustomTools([...customTools, tool])
+    const discoveredRuntime = inventoryTools.find(
+      (entry) => !entry.managed && entry.name === tool.name && isRuntimeDependency(entry.tool)
+    )
+    const claimedVersion = tool.version || discoveredRuntime?.version
+    const claimedTool = claimedVersion ? { ...tool, version: claimedVersion } : tool
+    if (!(await installTool(claimedTool, { surfaceErrorDialog: true }))) throw new Error('install-failed')
+    await setCustomTools([...customTools, claimedTool])
   }
 
   // Uninstalls the mise-managed binary for both preset and custom tools; only custom tools
@@ -340,14 +345,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
           const installedVersion =
             resolution.source === 'managed' || resolution.source === 'bundled' ? resolution.version : undefined
+          const managed = inventoryTools.some((entry) => entry.name === tool.name && entry.managed)
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = resolution.source === 'managed' && isNewerVersion(latestVersion, installedVersion)
+          const hasUpdate = managed && isNewerVersion(latestVersion, installedVersion)
           const installState = installStates[tool.name]
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
+              managed={managed}
               systemPath={systemPath}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
@@ -364,16 +371,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {extraTools.map((tool) => {
           const resolution = resolutions[tool.name] ?? { source: 'none' as const }
           const runtime = isRuntimeDependency(tool.tool)
-          // Only auto-discovered inventory entries are read-only. A runtime in
-          // BinaryManager state (including a custom preference) is explicitly
-          // managed and can be updated or removed like any other managed tool.
-          const readOnly = 'managed' in tool && tool.managed === false
-          const managedInventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
-          const managed =
-            !readOnly &&
-            (resolution.source === 'managed' ||
-              ('managed' in tool && tool.managed) ||
-              managedInventoryEntry?.managed === true)
+          // Ownership comes only from BinaryManager inventory/state. A custom
+          // preference or live mise resolution alone must not make a tool manageable.
+          const inventoryEntry = inventoryTools.find((entry) => entry.name === tool.name)
+          const readOnly = inventoryEntry?.managed === false
+          const managed = inventoryEntry?.managed === true
+          const available = resolution.source !== 'none'
           const systemPath = !readOnly && resolution.source === 'system' ? resolution.path : undefined
           const resolvedPath = resolution.source === 'none' ? undefined : resolution.path
           const installedVersion =
@@ -391,6 +394,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               tool={tool}
               runtime={runtime}
               managed={managed}
+              available={available}
               readOnly={readOnly}
               systemPath={systemPath}
               installedVersion={installedVersion}
@@ -436,6 +440,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
+  managed: boolean
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
@@ -449,6 +454,7 @@ const BinaryToolPresetCard: FC<{
 }> = ({
   tool,
   source,
+  managed,
   systemPath,
   installedVersion,
   latestVersion,
@@ -515,21 +521,23 @@ const BinaryToolPresetCard: FC<{
           </div>
         </div>
 
-        {source === 'managed' && (
+        {managed && (
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
-              onClick={onUpdate}
-              disabled={installing}
-              title={t('settings.dependencies.update')}>
-              {installing ? (
-                <Loader2 className="size-3.5 motion-safe:animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-            </Button>
+            {present && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-foreground/40 hover:text-foreground"
+                onClick={onUpdate}
+                disabled={installing}
+                title={t('settings.dependencies.update')}>
+                {installing ? (
+                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -609,6 +617,7 @@ const BinaryToolPresetCard: FC<{
 const CustomToolCard: FC<{
   tool: ManagedBinary
   managed: boolean
+  available: boolean
   runtime?: boolean
   readOnly: boolean
   systemPath?: string
@@ -624,6 +633,7 @@ const CustomToolCard: FC<{
 }> = ({
   tool,
   managed,
+  available,
   runtime = false,
   readOnly,
   systemPath,
@@ -638,7 +648,7 @@ const CustomToolCard: FC<{
   onRemove
 }) => {
   const { t } = useTranslation()
-  const installed = managed || readOnly || !!systemPath
+  const installed = available
 
   return (
     <div
@@ -689,7 +699,7 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {managed && !readOnly && (
+          {managed && installed && !readOnly && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -733,7 +743,7 @@ const CustomToolCard: FC<{
         <BinaryInstallFailureRow error={installError} onShowError={() => onShowError(installError)} />
       )}
 
-      {!installed && (
+      {!installed && !readOnly && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"

@@ -315,6 +315,9 @@ describe('EnvironmentDependencies', () => {
 
   it('shows a runtime dependency as display-only (badge, no remove/update)', async () => {
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: false }])
+    ipcMocks.resolveTools.mockResolvedValue({
+      node: { source: 'managed', path: '/managed/node', version: '22.23.1' }
+    })
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -325,6 +328,9 @@ describe('EnvironmentDependencies', () => {
 
   it('treats an unrecorded runtime dependency as installed, never offering install', async () => {
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
+    ipcMocks.resolveTools.mockResolvedValue({
+      node: { source: 'managed', path: '/managed/node', version: '22.23.1' }
+    })
     render(<EnvironmentDependencies />)
 
     // Name and tool spec are both the bare string 'node' — grab the card once.
@@ -335,9 +341,33 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
+  it('keeps an unavailable auto-discovered runtime read-only without offering install', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
+    ipcMocks.resolveTools.mockResolvedValue({ node: { source: 'none' } })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findAllByText('node'))[0].closest('[role="listitem"]') as HTMLElement
+    expect(card).not.toHaveTextContent('settings.mcp.install')
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
+  it('does not infer runtime ownership from a custom preference or live resolution', async () => {
+    customToolsRef.value = [{ name: 'node', tool: 'core:node' }]
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
+    ipcMocks.resolveTools.mockResolvedValue({
+      node: { source: 'managed', path: '/managed/node', version: '22.23.1' }
+    })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('core:node')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
   it('keeps a managed runtime from the custom inventory actionable and warns before removal', async () => {
     customToolsRef.value = [{ name: 'node', tool: 'core:node' }]
     ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: true }])
+    ipcMocks.getState.mockResolvedValue({ tools: { node: { version: '22.23.1' } } })
     render(<EnvironmentDependencies />)
 
     const card = (await screen.findByText('node')).closest('[role="listitem"]') as HTMLElement
@@ -360,8 +390,26 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(await screen.findByRole('button', { name: /core:node/ }))
     fireEvent.click(screen.getByText('common.add'))
 
-    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'node', tool: 'core:node' }))
-    expect(setCustomToolsMock).toHaveBeenCalledWith([{ name: 'node', tool: 'core:node' }])
+    await waitFor(() =>
+      expect(ipcMocks.installTool).toHaveBeenCalledWith({
+        name: 'node',
+        tool: 'core:node',
+        version: '22.23.1'
+      })
+    )
+    expect(setCustomToolsMock).toHaveBeenCalledWith([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+  })
+
+  it('shows a retry instead of a false installed state when an owned tool is unavailable', async () => {
+    customToolsRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+    ipcMocks.listTools.mockResolvedValue([{ name: 'mytool', tool: 'npm:mytool', version: '1.2.3', managed: true }])
+    ipcMocks.resolveTools.mockResolvedValue({ mytool: { source: 'none' } })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('settings.mcp.install')
+    expect(within(card).queryByLabelText('settings.dependencies.openBinariesDir')).not.toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
   })
 
   it('rejects adding a tool that already exists in the inventory', async () => {
@@ -422,10 +470,24 @@ describe('EnvironmentDependencies', () => {
   it('shows an uninstall action for a mise-managed preset tool', async () => {
     // uv is mise-managed (source 'managed') → preset card exposes the uninstall button.
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     await waitFor(() => expect(screen.getAllByLabelText('settings.dependencies.remove').length).toBeGreaterThan(0))
+  })
+
+  it('keeps recovery and removal available for an owned preset whose binary is missing', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
+    ipcMocks.resolveTools.mockImplementation(async (names: string[]) =>
+      Object.fromEntries(names.map((name) => [name, { source: 'none' }]))
+    )
+    render(<EnvironmentDependencies />)
+
+    const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(uvCard).toHaveTextContent('settings.mcp.install')
+    expect(within(uvCard).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    expect(within(uvCard).queryByLabelText('settings.dependencies.openBinariesDir')).not.toBeInTheDocument()
   })
 
   it('hides the uninstall action for a bundled-only preset tool', async () => {
@@ -473,6 +535,7 @@ describe('EnvironmentDependencies', () => {
 
   it('shows update available badge when latest version is newer', async () => {
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
 
@@ -513,6 +576,7 @@ describe('EnvironmentDependencies', () => {
     vi.mocked(gt).mockReturnValue(true)
 
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
 
@@ -530,6 +594,7 @@ describe('EnvironmentDependencies', () => {
     vi.mocked(gt).mockImplementation((latest) => latest === '2.0.0')
 
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: '1.0.0', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
 
     render(<EnvironmentDependencies />)
@@ -586,6 +651,7 @@ describe('EnvironmentDependencies', () => {
 
   it('continues installing latest when update versions are not comparable semver', async () => {
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: 'nightly' } } })
+    ipcMocks.listTools.mockResolvedValue([{ name: 'uv', tool: 'uv', version: 'nightly', managed: true }])
     ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
 
     render(<EnvironmentDependencies />)

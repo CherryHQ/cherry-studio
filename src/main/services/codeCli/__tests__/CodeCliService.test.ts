@@ -297,7 +297,7 @@ describe('CodeCliService', () => {
 
     it('launches a managed npm CLI with Cherry shims first and no ambient MISE settings', async () => {
       shellEnvMock.getRawShellEnv.mockResolvedValue({
-        PATH: '/usr/local/bin:/usr/bin',
+        PATH: '/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin',
         MISE_CONFIG_FILE: '/home/me/.config/mise/config.toml',
         PRIVATE_TOKEN: 'must-not-be-exported'
       })
@@ -317,8 +317,10 @@ describe('CodeCliService', () => {
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)!
       const launchArgs = (launchCall[1] ?? []).join(' ')
       const launchEnv = launchCall[2]?.env as Record<string, string>
-      expect(launchArgs).toContain('PATH=\\"/mock/binary-data/shims:/usr/local/bin:/usr/bin\\"')
-      expect(launchArgs).toContain('MISE_DATA_DIR=\\"/mock/binary-data\\"')
+      expect(launchArgs).toContain(
+        "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+      )
+      expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
       expect(launchArgs).not.toContain('MISE_CONFIG_FILE')
       expect(launchArgs).not.toContain('PRIVATE_TOKEN')
       expect(launchArgs).not.toContain('must-not-be-exported')

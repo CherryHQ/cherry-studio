@@ -22,6 +22,7 @@ const { mockExecFileAsync, mockFs, mockPreferenceService, platformMock } = vi.ho
   mockPreferenceService: {
     get: vi.fn(),
     getMultiple: vi.fn(),
+    set: vi.fn(),
     subscribeMultipleChanges: vi.fn(() => () => {})
   }
 }))
@@ -185,6 +186,22 @@ describe('BinaryManager', () => {
         ],
         expect.any(Function)
       )
+    })
+
+    it('removes preset and Code CLI names from legacy custom-tool preferences before reconcile', async () => {
+      const service = new BinaryManager()
+      const tools = [
+        { name: 'uv', tool: 'github:astral-sh/uv' },
+        { name: 'claude', tool: 'npm:@anthropic-ai/claude-code' },
+        { name: 'mytool', tool: 'npm:mytool' }
+      ]
+      mockPreferenceService.get.mockImplementation((key: string) => (key === 'feature.binary.tools' ? tools : []))
+      const reconcile = vi.spyOn(service, 'reconcile').mockResolvedValue({ installed: [], failed: [], skipped: [] })
+
+      ;(service as any).onAllReady()
+
+      await vi.waitFor(() => expect(reconcile).toHaveBeenCalledWith([tools[2]]))
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [tools[2]])
     })
   })
 
@@ -1093,6 +1110,52 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('preserves an explicitly managed runtime when installing a package-backend tool', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { node: { tool: 'core:node', version: '20.19.4' } } })
+      )
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0' }] }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/ntn\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installTool({ name: 'ntn', tool: 'npm:ntn', version: '1.0.0' })
+
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        '/mock/mise',
+        ['use', '-g', 'core:node@20.19.4', 'npm:ntn@1.0.0'],
+        expect.objectContaining({ timeout: 900_000 })
+      )
+    })
+
+    it('does not inject a default runtime over an owned runtime whose version is unknown', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ tools: { node: { tool: 'core:node', version: '' } } }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'npm:ntn': [{ version: '1.0.0' }] }), stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/ntn\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installTool({ name: 'ntn', tool: 'npm:ntn', version: '1.0.0' })
+
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        '/mock/mise',
+        ['use', '-g', 'npm:ntn@1.0.0'],
+        expect.objectContaining({ timeout: 900_000 })
+      )
+    })
+
     it('normalizes a leading-v pin to a bare version when mise ls cannot resolve it', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1285,6 +1348,17 @@ describe('BinaryManager', () => {
       mockSuccessfulInstall('github:sharkdp/fd', 'fd')
       await service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '1.0.0' })
       expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+    })
+
+    it('publishes a failed entry when the mise backend is unavailable', async () => {
+      const service = new BinaryManager()
+
+      await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd' })).rejects.toThrow(
+        'Binary backend not available'
+      )
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: { status: 'failed', error: 'Binary backend not available' }
+      })
     })
 
     it('does not track state for a spec rejected by validation', async () => {

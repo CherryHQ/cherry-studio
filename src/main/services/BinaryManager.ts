@@ -28,6 +28,7 @@ import type {
   BinaryResolutions,
   BinaryToolInventoryEntry
 } from '@shared/types/binary'
+import { CLI_BINARY_NAMES } from '@shared/types/codeCli'
 import { Mutex } from 'async-mutex'
 import { valid as semverValid } from 'semver'
 
@@ -200,13 +201,16 @@ export class BinaryManager extends BaseService {
       )
     )
 
-    const predefinedNames = new Set(PRESETS_BINARY_TOOLS.map((t) => t.name))
+    const reservedNames = new Set([
+      ...PRESETS_BINARY_TOOLS.map((tool) => tool.name),
+      ...Object.values(CLI_BINARY_NAMES)
+    ])
     const tools = prefService.get('feature.binary.tools')
-    const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
+    const cleaned = tools.filter((tool) => !reservedNames.has(tool.name))
     if (cleaned.length < tools.length) {
       void prefService.set('feature.binary.tools', cleaned)
-      logger.info('Cleaned predefined tools from custom tools preference', {
-        removed: tools.filter((t) => predefinedNames.has(t.name)).map((t) => t.name)
+      logger.info('Cleaned reserved tools from custom tools preference', {
+        removed: tools.filter((tool) => reservedNames.has(tool.name)).map((tool) => tool.name)
       })
     }
     if (cleaned.length > 0) {
@@ -565,10 +569,25 @@ export class BinaryManager extends BaseService {
     return (await this.resolveManagedBinaryPath(toolName)) !== null
   }
 
-  private async installWithMise(tool: ManagedBinary): Promise<string> {
+  private async installWithMise(tool: ManagedBinary, state = this.loadState()): Promise<string> {
     const requested = tool.version || 'latest'
     const backend = tool.tool.split(':')[0]
-    const runtime = RUNTIME_DEPS[backend]
+    const defaultRuntime = RUNTIME_DEPS[backend]
+    const runtimeName = defaultRuntime?.split('@')[0]
+    const ownedRuntime = runtimeName
+      ? Object.values(state.tools).find((entry) => {
+          const runtimeTool = entry.tool.startsWith('core:') ? entry.tool.slice('core:'.length) : entry.tool
+          return isRuntimeDependency(entry.tool) && runtimeTool.split('@')[0] === runtimeName
+        })
+      : undefined
+    // Package backends need a runtime, but must not silently replace one the user
+    // explicitly manages. Reassert the recorded concrete version; use the default
+    // only for an unowned runtime (which remains auto-discovered/read-only).
+    const runtime = ownedRuntime
+      ? ownedRuntime.version
+        ? `${ownedRuntime.tool}@${ownedRuntime.version}`
+        : undefined
+      : defaultRuntime
     const toolSpec = `${tool.tool}@${requested}`
     const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
 
@@ -694,7 +713,7 @@ export class BinaryManager extends BaseService {
 
         try {
           logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
-          const installedVersion = await this.installWithMise(tool)
+          const installedVersion = await this.installWithMise(tool, state)
           // Symmetric with the skip path above: only record the install once the
           // binary is actually runnable, otherwise it falls through to `failed`.
           if (!(await this.isManagedBinaryReady(tool.name))) {
@@ -783,7 +802,9 @@ export class BinaryManager extends BaseService {
       return Promise.reject(err)
     }
     if (!this.miseBin) {
-      return Promise.reject(new Error('Binary backend not available'))
+      const error = new Error('Binary backend not available')
+      this.setInstallState(tool.name, { status: 'failed', error: error.message })
+      return Promise.reject(error)
     }
 
     const inFlight = this.inFlightInstalls.get(tool.name)
@@ -811,7 +832,8 @@ export class BinaryManager extends BaseService {
     this.setInstallState(tool.name, { status: 'installing' })
     try {
       const result = await this.stateMutex.runExclusive(async () => {
-        const version = await this.installWithMise(tool)
+        const state = this.loadState()
+        const version = await this.installWithMise(tool, state)
         // mise can report success while leaving the binary unrunnable (missing
         // file, AV stripped the exec bit). Verify before persisting so we never
         // record a phantom install — callers (CodeCliService, renderer toast)
@@ -819,7 +841,6 @@ export class BinaryManager extends BaseService {
         if (!(await this.isManagedBinaryReady(tool.name))) {
           throw new Error(`Tool installed but not runnable: ${tool.name}`)
         }
-        const state = this.loadState()
         state.tools[tool.name] = {
           tool: tool.tool,
           version

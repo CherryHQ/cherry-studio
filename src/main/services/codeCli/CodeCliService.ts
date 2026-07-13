@@ -448,8 +448,7 @@ export class CodeCliService extends BaseService {
 
         const envCommands = validEntries
           .map(([key, value]) => {
-            const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-            const exportCmd = `export ${key}="${sanitizedValue}"`
+            const exportCmd = `export ${key}=${posixQuote(String(value))}`
             logger.debug(`Setting env var: ${key}=<redacted>`)
             return exportCmd
           })
