@@ -1,8 +1,8 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
+import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -189,6 +189,10 @@ const MessageList = () => {
     const groupKey =
       target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
     messageListRef.current?.scrollToKey(groupKey, 'start')
+  }, [])
+
+  const scrollToOutlineElement = useCallback((element: HTMLElement) => {
+    messageListRef.current?.scrollToElement(element)
   }, [])
 
   const updateActiveMessageOutline = useCallback(() => {
@@ -452,8 +456,12 @@ const MessageList = () => {
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
   const preserveScrollAnchor =
-    latestAssistantGroupMessages?.some((message) => message.role === 'assistant' && message.status === 'pending') ??
-    false
+    latestAssistantGroupMessages?.some(
+      (message) =>
+        message.role === 'assistant' &&
+        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
+    ) ?? false
+  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   // The runtime now treats this key as the group to scroll to the viewport
   // top (rather than scrolling to the absolute bottom). User-message groups
   // are keyed by `user${msgId}` — see stableGroupedMessages.
@@ -493,6 +501,7 @@ const MessageList = () => {
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
               preserveScrollAnchor={preserveScrollAnchor}
+              keepMountedKeys={keepMountedKeys}
               showScrollToBottomButton
               scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
               topicId={topic.id}
@@ -561,7 +570,11 @@ const MessageList = () => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
+        <MessageOutline
+          message={activeOutlineMessage}
+          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+          onNavigateToElement={scrollToOutlineElement}
+        />
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation

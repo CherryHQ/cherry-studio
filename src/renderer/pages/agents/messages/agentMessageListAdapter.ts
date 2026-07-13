@@ -16,6 +16,7 @@ import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tool
 import type {
   MessageGroupRuntime,
   MessageListActions,
+  MessageListItem,
   MessageListMeta,
   MessageListProviderValue,
   MessageListRuntime,
@@ -24,13 +25,14 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import {
   consumePendingAgentSessionImageActions,
@@ -63,7 +65,6 @@ interface AgentMessageListParams {
     avatar?: string
   }
   assistantId?: string
-  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -96,7 +97,6 @@ export function useAgentMessageListProviderValue({
   partsByMessageId,
   assistantProfile,
   assistantId,
-  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -111,6 +111,16 @@ export function useAgentMessageListProviderValue({
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
+  )
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -120,17 +130,26 @@ export function useAgentMessageListProviderValue({
       }),
     [messages, partsByMessageId]
   )
-  const messageItems = useMemo(
-    () =>
-      visibleMessages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id,
-          modelFallback
-        })
-      ),
-    [assistantId, visibleMessages, modelFallback, topic.assistantId, topic.id]
-  )
+  const messageItems = useMemo(() => {
+    const resolvedAssistantId = assistantId ?? topic.assistantId
+    return visibleMessages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId: topic.id
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId: topic.id
+      })
+      return item
+    })
+  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
@@ -179,7 +198,7 @@ export function useAgentMessageListProviderValue({
   }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
-    return window.api.mcp.abortTool(toolId)
+    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(

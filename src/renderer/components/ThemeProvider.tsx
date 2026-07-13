@@ -1,9 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ThemeContext } from '@renderer/hooks/useTheme'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { useIpcOn } from '@renderer/ipc'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { PropsWithChildren } from 'react'
 import React, { useEffect, useState } from 'react'
 
@@ -24,8 +24,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
   const [language] = usePreference('app.language')
 
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(getSystemTheme)
+  // Derive the first frame from the saved theme — the entry points await the preference
+  // preload before rendering, so waiting for the sync-up effect below would commit one
+  // OS-theme frame first (a visible flash when the saved theme differs from the OS).
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(() =>
+    settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark ? settedTheme : getSystemTheme()
+  )
   const { initUserTheme } = useUserTheme()
+
+  // listen for theme updates from main process
+  useIpcOn('system.native_theme_updated', (actualTheme) => setActualTheme(actualTheme))
 
   const toggleTheme = () => {
     const nextTheme = {
@@ -55,11 +63,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
 
     initUserTheme()
-
-    // listen for theme updates from main process
-    return window.electron.ipcRenderer.on(IpcChannel.NativeThemeUpdated, (_, actualTheme: ThemeMode) => {
-      setActualTheme(actualTheme)
-    })
   }, [actualTheme, initUserTheme, language, setSettedTheme, settedTheme])
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,8 +10,6 @@ import {
   type TransformFunction,
   type TransformResult
 } from '../ComplexPreferenceMappings'
-
-const appFavorite = (id: string) => ({ type: 'app', id })
 
 describe('ComplexPreferenceMappings', () => {
   describe('type exports', () => {
@@ -96,10 +95,9 @@ describe('ComplexPreferenceMappings', () => {
       expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
-    it('should contain the code_cli_overrides mapping', () => {
+    it('should NOT migrate code_cli (fresh v2 key, v1 throwaway)', () => {
       const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
-      expect(codeToolsMapping).toBeDefined()
-      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
+      expect(codeToolsMapping).toBeUndefined()
     })
   })
 
@@ -113,7 +111,6 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('chat.web_search.default_search_keywords_provider')
-      expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
       expect(keys).toContain('topic.naming.model_id')
@@ -173,206 +170,56 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_favorites_migrate', () => {
-    it("should rewrite 'minapp' to 'mini_app' in visible favorites and add agents", () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')
-      expect(mapping).toBeDefined()
+    const canonicalSidebarFavorites = DefaultPreferences.default['ui.sidebar.favorites']
 
-      const result = mapping!.transform({
-        visible: ['assistants', 'minapp', 'translate'],
+    it('should overwrite customized legacy favorites with the canonical tabs', () => {
+      // Given
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')
+
+      // When
+      const result = mapping?.transform({
+        visible: ['assistants', 'store', 'minapp', 'translate'],
         disabled: ['minapp', 'files']
       })
 
+      // Then
       expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('mini_app'),
-          appFavorite('translate')
-        ]
+        'ui.sidebar.favorites': canonicalSidebarFavorites
       })
+      expect(result?.['ui.sidebar.favorites']).toBe(canonicalSidebarFavorites)
     })
 
-    it('should pass through other literals unchanged', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: ['assistants', 'translate', 'paintings'],
-        disabled: ['files', 'knowledge']
-      })
+    it('should overwrite disabled legacy favorites with the canonical tabs', () => {
+      // Given
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')
 
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('translate'),
-          appFavorite('paintings')
-        ]
-      })
-    })
-
-    it('should drop removed store favorite and append agents when assistants is absent', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: ['store', 'translate'],
-        disabled: []
-      })
-
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [appFavorite('translate'), appFavorite('agents')]
-      })
-    })
-
-    it('should keep agents in place when it is already visible', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: ['assistants', 'agents', 'translate'],
-        disabled: []
-      })
-
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('agents'), appFavorite('translate')]
-      })
-    })
-
-    it('should preserve the old default visible sidebar favorites', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: [
-          'assistants',
-          'store',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes',
-          'openclaw'
-        ],
-        disabled: []
-      })
-
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('paintings'),
-          appFavorite('translate'),
-          appFavorite('mini_app'),
-          appFavorite('knowledge'),
-          appFavorite('files'),
-          appFavorite('code_tools'),
-          appFavorite('notes'),
-          appFavorite('openclaw')
-        ]
-      })
-    })
-
-    it('should preserve the old default visible sidebar favorites without openclaw', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: [
-          'assistants',
-          'store',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes'
-        ],
-        disabled: []
-      })
-
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('paintings'),
-          appFavorite('translate'),
-          appFavorite('mini_app'),
-          appFavorite('knowledge'),
-          appFavorite('files'),
-          appFavorite('code_tools'),
-          appFavorite('notes')
-        ]
-      })
-    })
-
-    it('should preserve old visible sidebar favorites when invisible is non-empty', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: [
-          'assistants',
-          'store',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes'
-        ],
-        disabled: ['files']
-      })
-
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('paintings'),
-          appFavorite('translate'),
-          appFavorite('mini_app'),
-          appFavorite('knowledge'),
-          appFavorite('files'),
-          appFavorite('code_tools'),
-          appFavorite('notes')
-        ]
-      })
-    })
-
-    it('should not force agents visible when it was explicitly hidden', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
+      // When
+      const result = mapping?.transform({
         visible: ['assistants', 'translate'],
-        disabled: ['agents', 'files']
+        disabled: ['agents', 'paintings', 'knowledge']
       })
 
+      // Then
       expect(result).toEqual({
-        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('translate')]
+        'ui.sidebar.favorites': canonicalSidebarFavorites
       })
     })
 
-    it('should deduplicate migrated favorites', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-      const result = mapping.transform({
-        visible: ['assistants', 'minapp', 'mini_app', 'translate', 'translate'],
-        disabled: []
+    it('should use the canonical default tabs for missing or non-array legacy inputs', () => {
+      // Given
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')
+
+      // When / Then
+      expect(mapping?.transform({ visible: undefined, disabled: undefined })).toEqual({
+        'ui.sidebar.favorites': canonicalSidebarFavorites
       })
 
-      expect(result).toEqual({
-        'ui.sidebar.favorites': [
-          appFavorite('assistants'),
-          appFavorite('agents'),
-          appFavorite('mini_app'),
-          appFavorite('translate')
-        ]
-      })
-    })
-
-    it('should return undefined for non-array inputs without crashing', () => {
-      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
-
-      expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
-        'ui.sidebar.favorites': undefined
+      expect(mapping?.transform({ visible: null, disabled: null })).toEqual({
+        'ui.sidebar.favorites': canonicalSidebarFavorites
       })
 
-      expect(mapping.transform({ visible: null, disabled: null })).toEqual({
-        'ui.sidebar.favorites': undefined
-      })
-
-      expect(mapping.transform({})).toEqual({
-        'ui.sidebar.favorites': undefined
+      expect(mapping?.transform({})).toEqual({
+        'ui.sidebar.favorites': canonicalSidebarFavorites
       })
     })
   })

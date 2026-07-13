@@ -78,7 +78,11 @@ export const aiRequestSchemas = {
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
   'ai.check_model': defineRoute({
-    input: z.strictObject({ ...aiBaseRequestShape, timeout: z.number().optional() }),
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
     output: z.object({ latency: z.number() })
   }),
   'ai.embed_many': defineRoute({
@@ -183,4 +187,8 @@ export type AiEventSchemas = {
   'ai.stream_chunk': StreamChunkPayload
   'ai.stream_done': StreamDonePayload
   'ai.stream_error': StreamErrorPayload
+  // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
+  // window showing it should invalidate its cache.
+  'ai.topic_auto_renamed': { topicId: string }
+  'ai.agent_session_auto_renamed': { sessionId: string }
 }

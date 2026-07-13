@@ -1,0 +1,87 @@
+import { Button } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
+import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { CliIcon } from './CliIcon'
+
+export interface OwnLoginCardProps {
+  toolId: CodeCli
+  toolName: string
+  selected: boolean
+  configurable?: boolean
+  dragging?: boolean
+  onToggle: () => void
+  onConfigure?: () => void
+}
+
+/** Virtual "use your own login" row for login-capable CLI tools. Mirrors
+ * `ProviderCard` (draggable, single-select) but drops the model label. Tools
+ * whose own-login exposes tool params (`configurable`) also get a hover-revealed
+ * Configure button. */
+export const OwnLoginCard: FC<OwnLoginCardProps> = ({
+  toolId,
+  toolName,
+  selected,
+  configurable,
+  dragging,
+  onToggle,
+  onConfigure
+}) => {
+  const { t } = useTranslation()
+  const title = t('code.own_login.title', { toolName })
+
+  return (
+    <div
+      className={`group relative rounded-xl border p-3.5 transition-colors ${
+        dragging
+          ? 'border-primary/40 opacity-50'
+          : selected
+            ? 'border-primary bg-primary/5'
+            : 'border-border/40 hover:border-border hover:bg-primary/5'
+      }`}>
+      <div className="pointer-events-none relative flex items-center gap-3">
+        <GripVertical
+          size={13}
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+        />
+
+        <span aria-hidden className="shrink-0">
+          <CliIcon id={toolId} size={24} className="size-6 rounded-md border border-border/30" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-foreground text-sm">{title}</span>
+          </div>
+        </div>
+
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+          {configurable && onConfigure && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onConfigure()}
+              className="min-h-0 border-border/50 px-2.5 py-1">
+              <SquarePen size={11} />
+              {t('code.configure')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant={selected ? 'destructive' : 'default'}
+            size="sm"
+            onClick={onToggle}
+            className={`min-h-0 px-2.5 py-1 ${
+              selected ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
+            }`}>
+            {selected ? <CircleMinus size={11} /> : <Play size={11} />}
+            {selected ? t('code.disable') : t('code.enable')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

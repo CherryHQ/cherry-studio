@@ -20,6 +20,7 @@ import {
 const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
+const scrollToElement = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -35,7 +36,7 @@ vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
 }))
 
-vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
+vi.mock('@renderer/components/chat/messages/MultiSelectActionPopup', () => ({
   __esModule: true,
   default: () => null
 }))
@@ -169,6 +170,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       forceScrollToBottomKey,
       handleRef,
       items,
+      keepMountedKeys,
       onScrollContainerReady,
       preserveScrollAnchor,
       renderItem,
@@ -182,6 +184,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToBottom,
           scrollToTop,
           scrollToKey,
+          scrollToElement,
           isAtBottom: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -203,6 +206,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       return (
         <div
           data-force-scroll-key={forceScrollToBottomKey ?? ''}
+          data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
           data-preserve-scroll-anchor={String(Boolean(preserveScrollAnchor))}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
@@ -263,6 +267,7 @@ describe('MessageList', () => {
     scrollToBottom.mockClear()
     scrollToTop.mockClear()
     scrollToKey.mockClear()
+    scrollToElement.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -328,13 +333,34 @@ describe('MessageList', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
+  })
+
+  it('keeps an active success-row assistant group mounted while approval owns the turn', () => {
+    const assistant = createMessage('assistant-1', 'assistant', 'success')
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), assistant], {
+          getMessageActivityState: (message) => ({
+            isApprovalAnchor: message.id === assistant.id,
+            isProcessing: message.id === assistant.id,
+            isStreamTarget: message.id === assistant.id
+          })
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
   })
 
   it('keeps the scroll-to-bottom button enabled after assistant response completes', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'false')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', '')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
 

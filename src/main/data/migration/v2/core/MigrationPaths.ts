@@ -17,9 +17,11 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { CHERRY_HOME } from '@main/core/paths/constants'
-import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
+import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
+
+import { evaluateCandidateVersion } from './versionPolicy'
 
 const logger = loggerService.withContext('MigrationPaths')
 
@@ -80,6 +82,23 @@ export interface MigrationPathsResult {
    * When set, `paths.userData` has fallen back to the Electron default.
    */
   inaccessibleLegacyPath: string | null
+  /**
+   * Whether the FINAL resolved `paths.userData` actually contains v1 data
+   * (version.log / Chromium storage / non-empty electron-store config).
+   *
+   * Computed as a pure property of the resolved directory — NOT a side effect
+   * of "did we redirect" — so it survives boot-config short-circuits and
+   * relaunches. The engine reads it in `needsMigration()` to avoid
+   * `markCompleted()`-locking a directory that plainly holds v1 data whose
+   * markers the narrower electron-store probe misses.
+   */
+  legacyDataConfirmed: boolean
+  /**
+   * The recovered v1 data directory to surface on the introduction screen.
+   * Set only when a non-default directory was auto-selected by the fuzzy
+   * fallback (B1). Absent for exact/boot-config hits and the default path.
+   */
+  dataLocation?: string
 }
 
 /**
@@ -120,45 +139,67 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   let currentUserData = app.getPath('userData')
   let userDataChanged = false
   let inaccessibleLegacyPath: string | null = null
+  let dataLocation: string | undefined
 
-  // Check if boot-config.json already has a matching entry. If so,
-  // resolveUserDataLocation() already set the correct userData — skip
-  // legacy detection entirely.
   const exe = getNormalizedExecutablePath()
   const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
 
-  if (!bootConfigEntry) {
-    // No boot-config entry → first v2 launch for this executable.
-    // Check the legacy v1 config.json for a custom appDataPath.
-    const legacyPath = readLegacyAppDataPath(legacyConfigFile, exe)
-
-    if (legacyPath) {
-      const resolvedLegacy = path.resolve(legacyPath)
-      const resolvedCurrent = path.resolve(currentUserData)
-
-      if (resolvedLegacy !== resolvedCurrent) {
-        if (isValidDir(legacyPath)) {
-          // Redirect userData for Chromium and external consumers.
-          app.setPath('userData', legacyPath)
-          currentUserData = legacyPath
-          userDataChanged = true
-
-          // Pre-write to boot-config.json so resolveUserDataLocation()
-          // picks it up on the next launch without needing this fallback.
-          const current = bootConfigService.get('app.user_data_path') ?? {}
-          bootConfigService.set('app.user_data_path', { ...current, [exe]: legacyPath })
-          bootConfigService.flush()
-
-          logger.info('Legacy userData detected and applied', { exe, legacyPath })
-        } else {
-          // Custom path exists in config but is inaccessible.
-          inaccessibleLegacyPath = legacyPath
-          logger.warn('Legacy userData path inaccessible, falling back to default', {
-            legacyPath,
-            currentUserData
-          })
-        }
+  // ── Front gate P: split the boot-config short-circuit ──
+  //
+  // resolveUserDataLocation() (preboot) has already run: if a boot-config
+  // entry existed and was VALID, it setPath'd userData to it; if it existed
+  // but was INVALID, it silently fell through to the Electron default.
+  if (bootConfigEntry) {
+    if (isUsableDataDir(bootConfigEntry)) {
+      // Valid → current userData already IS the target. Skip legacy probing.
+      logger.info('Boot-config userData entry present and valid, skipping legacy detection', { exe })
+    } else {
+      // Present but inaccessible (unmounted drive / removed / not
+      // read-writable). Proceeding on the default would markCompleted-lock
+      // migration there; surface it so the gate shows the 3-option dialog.
+      inaccessibleLegacyPath = bootConfigEntry
+      logger.warn('Boot-config userData entry present but inaccessible', { exe, bootConfigEntry, currentUserData })
+    }
+  } else {
+    // No boot-config entry → first v2 launch for this exe. Read the legacy
+    // v1 config and select the best userData directory.
+    const entries = readLegacyEntries(legacyConfigFile, exe)
+    const decision = selectLegacyUserData({
+      currentUserData,
+      entries,
+      currentExe: exe,
+      probe: {
+        isUsableDir: isUsableDataDir,
+        hasV1Data,
+        hasValidSqlite,
+        versionOk: (dir) => evaluateCandidateVersion(dir, app.getVersion()).check.outcome !== 'block',
+        mtimeOf: dirMtime
       }
+    })
+
+    switch (decision.kind) {
+      case 'redirect': {
+        // Redirect userData for Chromium and external consumers, and pre-write
+        // boot-config so the next launch resolves it without this fallback.
+        app.setPath('userData', decision.target)
+        currentUserData = decision.target
+        userDataChanged = true
+        pinUserDataPath(decision.target)
+
+        if (decision.notice) dataLocation = decision.target
+        logger.info('Legacy userData recovered and applied', { exe, target: decision.target, notice: decision.notice })
+        break
+      }
+      case 'inaccessible':
+        inaccessibleLegacyPath = decision.path
+        logger.warn('Legacy userData path inaccessible, prompting user', { path: decision.path, currentUserData })
+        break
+      case 'keep':
+        logger.info('Current userData already V2-initialized (non-empty sqlite), keeping it')
+        break
+      case 'default':
+        // No recoverable legacy data — keep the Electron default; normal flow.
+        break
     }
   }
 
@@ -179,51 +220,182 @@ export function resolveMigrationPaths(): MigrationPathsResult {
       : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
   })
 
-  return { paths, userDataChanged, inaccessibleLegacyPath }
+  // legacyDataConfirmed is a PURE property of the FINAL userData — not a
+  // side effect of "did we redirect". This one line covers boot-config hit,
+  // redirect, and default alike, and is immune to which launch this is. The
+  // engine reads it in needsMigration() to avoid markCompleted-locking a dir
+  // that plainly holds v1 data. The inaccessible variants above fell back to
+  // an empty default, so this correctly reports false for them.
+  const legacyDataConfirmed = hasV1Data(paths.userData)
+
+  return { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation }
+}
+
+// ── Legacy userData selection ───────────────────────────────────────────
+
+/** One `{executablePath, dataPath}` record from v1 config.json's appDataPath. */
+export interface LegacyEntry {
+  executablePath: string
+  dataPath: string
+}
+
+/**
+ * Injected filesystem/version probes for `selectLegacyUserData`, so the pure
+ * selection logic is unit-testable without touching disk or Electron.
+ */
+export interface SelectionProbe {
+  /** Directory is usable: isDirectory ∧ read/write/enter (isUsableDataDir). */
+  isUsableDir(dir: string): boolean
+  /** Directory holds recognizable v1 data (version.log / Chromium storage / config keys). */
+  hasV1Data(dir: string): boolean
+  /** Directory already holds a non-empty cherrystudio.sqlite (A0 guard). */
+  hasValidSqlite(dir: string): boolean
+  /** Directory's version.log clears the v1→v2 upgrade gate. */
+  versionOk(dir: string): boolean
+  /** Directory mtime (ms) for the "most recently used" tie-break. */
+  mtimeOf(dir: string): number
+}
+
+export type SelectionResult =
+  /** A0: current userData already V2-ized — keep it, do not redirect. */
+  | { kind: 'keep' }
+  /** A1 / B1 / B2: redirect userData to `target`. `notice` = show the location on the intro screen (B1 only). */
+  | { kind: 'redirect'; target: string; notice: boolean }
+  /** A1-inaccessible / B3: a recorded custom dir is unreachable — prompt the user. */
+  | { kind: 'inaccessible'; path: string }
+  /** B4 / no-op: keep the current (default) directory and run the normal flow. */
+  | { kind: 'default' }
+
+/**
+ * Pure v1 userData selection. Decides, from the current userData plus the
+ * legacy config entries, whether to keep, redirect, prompt, or fall through.
+ *
+ * Order (first hit wins):
+ *   A0  current userData has a non-empty sqlite            → keep
+ *   A1  exact exe→dir mapping (authoritative, no fuzzing)  → redirect | inaccessible
+ *   B1  eligible (usable ∧ v1 data ∧ versionOk) dirs       → redirect newest (notice)
+ *   B2  candidate (usable ∧ v1 data) but version-blocked   → redirect newest (gate blocks)
+ *   B3  no candidate but a recorded dir is unreachable     → inaccessible
+ *   B4  nothing recoverable                                → default
+ */
+export function selectLegacyUserData(input: {
+  currentUserData: string
+  entries: LegacyEntry[]
+  currentExe: string
+  probe: SelectionProbe
+}): SelectionResult {
+  const { currentUserData, entries, currentExe, probe } = input
+
+  // A0 — never abandon an already-V2-ized current directory for a fuzzy guess.
+  if (probe.hasValidSqlite(currentUserData)) {
+    return { kind: 'keep' }
+  }
+
+  // A1 — an explicit exe→dir mapping is authoritative; short-circuit BEFORE
+  // any fuzzy fallback. Even when the mapped dir is empty or version-stale we
+  // do NOT "helpfully" recover another entry — that reintroduces the guess A1
+  // exists to prevent. migrate/block/fresh is decided downstream by the
+  // version gate + needsMigration.
+  const exactEntry = entries.find((e) => sameLocation(e.executablePath, currentExe))
+  if (exactEntry) {
+    if (!probe.isUsableDir(exactEntry.dataPath)) {
+      return { kind: 'inaccessible', path: exactEntry.dataPath }
+    }
+    return sameLocation(exactEntry.dataPath, currentUserData)
+      ? { kind: 'default' }
+      : { kind: 'redirect', target: exactEntry.dataPath, notice: false }
+  }
+
+  // B — fuzzy fallback over all candidate dirs (default ∪ entry dataPaths).
+  const dirs = dedupeLocations([currentUserData, ...entries.map((e) => e.dataPath)])
+  const candidates = dirs.filter((d) => probe.isUsableDir(d) && probe.hasV1Data(d))
+
+  // B1 — eligible dirs (also version-ok): pick the most recently used.
+  const eligible = candidates.filter((d) => probe.versionOk(d))
+  if (eligible.length > 0) {
+    const target = mostRecent(eligible, probe)
+    return sameLocation(target, currentUserData) ? { kind: 'default' } : { kind: 'redirect', target, notice: true }
+  }
+
+  // B2 — candidates exist but none is version-eligible: still redirect so the
+  // existing version gate can block using the dir's own version.log.
+  if (candidates.length > 0) {
+    const target = mostRecent(candidates, probe)
+    return sameLocation(target, currentUserData) ? { kind: 'default' } : { kind: 'redirect', target, notice: false }
+  }
+
+  // B3 — no candidate, but a recorded dir is unreachable (unmounted / removed
+  // / not read-writable). Prompt rather than silently start fresh on default.
+  const unreachable = entries
+    .map((e) => e.dataPath)
+    .find((d) => !sameLocation(d, currentUserData) && !probe.isUsableDir(d))
+  if (unreachable) {
+    return { kind: 'inaccessible', path: unreachable }
+  }
+
+  // B4 — nothing to recover.
+  return { kind: 'default' }
+}
+
+/**
+ * Pin the current executable to `userData` in boot-config so
+ * `resolveUserDataLocation()` resolves it directly on the next launch (no
+ * legacy-config fallback, no re-prompt). Shared by the redirect path and the
+ * gate's "continue on the default directory" recovery choice.
+ *
+ * Persists **strictly** (`persist()` THROWS on write failure) rather than
+ * best-effort: the next launch depends on this write, so a silent failure would
+ * relaunch into the OLD directory and loop (or make migrated data appear lost).
+ * Callers in `runV2MigrationGate()` route the throw to a fatal error dialog.
+ */
+export function pinUserDataPath(userData: string): void {
+  const exe = getNormalizedExecutablePath()
+  const current = bootConfigService.get('app.user_data_path') ?? {}
+  bootConfigService.set('app.user_data_path', { ...current, [exe]: userData })
+  bootConfigService.persist()
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────
 
 /**
- * Read the legacy v1 config.json and extract the custom userData path
- * for the current executable.
+ * Read the legacy v1 config.json and return every recorded
+ * `{executablePath, dataPath}` entry. Never throws — returns `[]` on any I/O
+ * error, parse failure, or missing field.
  *
- * Handles two historical shapes:
- *   - String: `{ "appDataPath": "/some/path" }` → returned directly
- *     (applies to all executables).
- *   - Array: `{ "appDataPath": [{ executablePath, dataPath }, ...] }` →
- *     looked up by the normalized exe path.
- *
- * Returns `null` on any I/O error, parse failure, missing field, or no
- * matching entry. Never throws.
+ * Two historical shapes:
+ *   - String `{ "appDataPath": "/path" }` (old, applies to ALL executables) →
+ *     synthesized into a single entry keyed by the CURRENT exe, so it hits the
+ *     A1 authoritative branch and preserves the "applies to all exes" meaning.
+ *   - Array `{ "appDataPath": [{ executablePath, dataPath }, ...] }` → returned
+ *     verbatim for exact-match + fuzzy enumeration.
  */
-function readLegacyAppDataPath(configFile: string, normalizedExe: string): string | null {
+export function readLegacyEntries(configFile: string, currentExe: string): LegacyEntry[] {
   let raw: string
   try {
-    if (!fs.existsSync(configFile)) return null
+    if (!fs.existsSync(configFile)) return []
     raw = fs.readFileSync(configFile, 'utf-8')
   } catch {
-    return null
+    return []
   }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return null
+    return []
   }
 
-  if (typeof parsed !== 'object' || parsed === null) return null
-
+  if (typeof parsed !== 'object' || parsed === null) return []
   const appDataPath = (parsed as Record<string, unknown>).appDataPath
 
-  // String format: applies to all executables.
+  // String form: applied to all executables → synthesize an exact entry.
   if (typeof appDataPath === 'string' && appDataPath.length > 0) {
-    return appDataPath
+    return [{ executablePath: currentExe, dataPath: appDataPath }]
   }
 
-  // Array format: look up by normalized exe path.
+  // Array form: return each well-formed entry verbatim.
   if (Array.isArray(appDataPath)) {
+    const entries: LegacyEntry[] = []
     for (const entry of appDataPath) {
       if (
         typeof entry === 'object' &&
@@ -231,26 +403,95 @@ function readLegacyAppDataPath(configFile: string, normalizedExe: string): strin
         typeof (entry as Record<string, unknown>).executablePath === 'string' &&
         typeof (entry as Record<string, unknown>).dataPath === 'string'
       ) {
-        const { executablePath, dataPath } = entry as { executablePath: string; dataPath: string }
-        if (executablePath === normalizedExe && dataPath.length > 0) {
-          return dataPath
-        }
+        const { executablePath, dataPath } = entry as LegacyEntry
+        if (dataPath.length > 0) entries.push({ executablePath, dataPath })
       }
     }
+    return entries
   }
 
-  return null
+  return []
 }
 
 /**
- * Synchronous check: directory exists and is writable.
+ * Whether a directory holds recognizable v1 data. Multi-marker on purpose:
+ * pre-1.7 directories have no version.log, so we also accept Chromium storage
+ * (IndexedDB + Local Storage) or a non-empty electron-store config.json. This
+ * lets old dirs be redirected → blocked-with-"upgrade first" instead of being
+ * mistaken for an empty dir and silently skipped.
  */
-function isValidDir(p: string): boolean {
+function hasV1Data(dir: string): boolean {
+  if (fs.existsSync(path.join(dir, 'version.log'))) return true
+  if (fs.existsSync(path.join(dir, 'IndexedDB')) && fs.existsSync(path.join(dir, 'Local Storage'))) return true
+  return configHasKeys(path.join(dir, 'config.json'))
+}
+
+/** Whether config.json parses to a non-empty object (not just `{}`). */
+function configHasKeys(configFile: string): boolean {
   try {
-    if (!fs.existsSync(p)) return false
-    fs.accessSync(p, fs.constants.W_OK)
-    return true
+    const parsed = JSON.parse(fs.readFileSync(configFile, 'utf-8'))
+    return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0
   } catch {
     return false
   }
+}
+
+/**
+ * Whether a directory already holds a *non-empty* cherrystudio.sqlite. Mirrors
+ * the DB layer's integrity gate (MigrationDbService.ensureDatabaseIntegrity,
+ * which unlinks 0-byte files): a leftover 0-byte sqlite must NOT count as
+ * V2-ized, or A0 would short-circuit fuzzy recovery only for the DB layer to
+ * delete the file moments later — locking migration on the empty default.
+ */
+function hasValidSqlite(dir: string): boolean {
+  try {
+    const stat = fs.statSync(path.join(dir, DB_NAME))
+    return stat.isFile() && stat.size > 0
+  } catch {
+    return false
+  }
+}
+
+/** Directory mtime in ms, or 0 when unreadable (for the recency tie-break). */
+function dirMtime(dir: string): number {
+  try {
+    return fs.statSync(dir).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+/** Pick the directory with the greatest mtime; ties keep the first (stable). */
+function mostRecent(dirs: string[], probe: SelectionProbe): string {
+  return dirs.reduce((best, d) => (probe.mtimeOf(d) > probe.mtimeOf(best) ? d : best))
+}
+
+/**
+ * Normalize a path for COMPARISON ONLY (dedup / exe & dir equality). Never use
+ * the result for setPath/fs — those keep the original verbatim path so Windows
+ * paths survive a POSIX test host. Resolves, strips a trailing separator, and
+ * lower-cases on Windows (case-insensitive FS).
+ */
+function normalizeForCompare(p: string): string {
+  const resolved = path.resolve(p)
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+/** Equality of two paths under comparison normalization. */
+function sameLocation(a: string, b: string): boolean {
+  return normalizeForCompare(a) === normalizeForCompare(b)
+}
+
+/** Dedupe by normalized key, preserving the first original (verbatim) path. */
+function dedupeLocations(dirs: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const d of dirs) {
+    const key = normalizeForCompare(d)
+    if (!seen.has(key)) {
+      seen.add(key)
+      out.push(d)
+    }
+  }
+  return out
 }

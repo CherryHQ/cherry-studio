@@ -9,7 +9,7 @@ import ConversationShell from '@renderer/components/chat/shell/ConversationShell
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import PromptPopup from '@renderer/components/popups/PromptPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -229,11 +229,13 @@ const Chat: FC<Props> = (props) => {
       }
       topRightTool={
         <>
-          {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+          {props.resourcePaneCount && (
+            <ResourcePaneCountButton {...props.resourcePaneCount} openBehavior="toggle-active" />
+          )}
           <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
-          <TopicRightPane.Toggle />
         </>
       }
+      showTopRightToolWhenPaneOpen
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}

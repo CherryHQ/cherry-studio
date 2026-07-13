@@ -875,8 +875,8 @@
           "label": "Bash"
         },
         "CherryConfig": {
-          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
-          "label": "[to be translated]:Agent Config"
+          "description": "Ελέγχει και διαχειρίζεται αυτήν τη ρύθμιση παράγοντα και τα κανάλια",
+          "label": "Ρύθμιση Πράκτορα"
         },
         "CherryCron": {
           "description": "Διαχειρίζεται τον ενσωματωμένο προγραμματιστή εντός της εφαρμογής",
@@ -891,8 +891,8 @@
           "label": "Αναζήτηση Γνώσης"
         },
         "CherryNotify": {
-          "description": "[to be translated]:Sends a notification through a connected channel",
-          "label": "[to be translated]:Notify"
+          "description": "Στέλνει μια ειδοποίηση μέσω ενός συνδεδεμένου καναλιού",
+          "label": "Ειδοποίηση"
         },
         "CherryWebFetch": {
           "description": "Ανάκτηση και ανάγνωση μιας ιστοσελίδας",
@@ -1870,54 +1870,205 @@
     }
   },
   "code": {
+    "add_provider_hint": "Προσθήκη παρόχου στις Ρυθμίσεις → Υπηρεσία μοντέλου",
+    "add_provider_hint_anthropic_messages": "Ρύθμιση ενός τελικού σημείου Anthropic Messages στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "add_provider_hint_gemini": "Διαμορφώστε ένα τελικό σημείο Gemini στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "add_provider_hint_openai_responses": "Ρυθμίστε ένα τελικό σημείο OpenAI Responses στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "adv": {
+      "claude": {
+        "context_column": "1M",
+        "disable_1m_context": "Απενεργοποίηση Πλαισίου 1M",
+        "disable_attribution_header": "Απενεργοποίηση Κεφαλίδας Απόδοσης",
+        "disable_auto_upgrade": "Απενεργοποίηση Αυτόματης Αναβάθμισης",
+        "disable_bundled_skills": "Απενεργοποίηση Ενσωματωμένων Δεξιοτήτων",
+        "disable_compact": "Απενεργοποίηση συμπίεσης",
+        "disable_extra_usage_command": "Απενεργοποίηση Εντολής Επιπλέον Χρήσης",
+        "disable_nonessential_traffic": "Απενεργοποίηση Μη Απαραίτητης Κυκλοφορίας",
+        "disable_terminal_title": "Απενεργοποίηση Τίτλου Τερματικού",
+        "effort_level_hint": "Επίπεδο Προσπάθειας",
+        "enable_teammates": "Ενεργοποίηση Συνεργατών Ομάδας",
+        "enable_tool_search": "Ενεργοποίηση Αναζήτησης Εργαλείων",
+        "fable_model": "Μύθος",
+        "haiku_model": "Χαϊκού",
+        "hide_attribution": "Απόκρυψη Απόδοσης AI",
+        "max_context_tokens_hint": "Μέγιστα Διαθέσιμα Tokens Συμφραζομένων",
+        "max_output_tokens_hint": "Μέγιστος Αριθμός Εξαγόμενων Tokens",
+        "model_column": "Μοντέλο Αίτησης",
+        "model_roles": "Αντιστοίχιση Ρόλων Μοντέλου",
+        "model_roles_hint": "Παράκαμψη μοντέλων που χρησιμοποιούνται για υποεργασίες παρασκηνίου (π.χ. συμπίεση, τίτλοι). Αφήστε κενό για να ακολουθήσετε το κύριο μοντέλο.",
+        "options": "Γρήγορες Επιλογές",
+        "opus_model": "Opus",
+        "permissions_allow": "Επιτρέπεται (διαχωρισμένα με κόμμα)",
+        "permissions_deny": "Αρνούμαι (διαχωρισμένα με κόμμα)",
+        "permissions_hint": "Προέγκριση ή απόρριψη μοτίβων εργαλείων. Υποστηρίζει χαρακτήρες μπαλαντέρ όπως Read(secrets-*/config.json).",
+        "role_column": "Ρόλος",
+        "sonnet_model": "Σονέτο"
+      },
+      "codex": {
+        "disable_response_storage": "Απενεργοποίηση Αποθήκευσης Απαντήσεων",
+        "goal_mode": "Ενεργοποίηση Λειτουργίας Στόχου",
+        "remote_compaction": "Ενεργοποίηση Απομακρυσμένης Συμπίεσης"
+      },
+      "gemini": {
+        "checkpointing": "Ενεργοποίηση Checkpointing",
+        "disable_usage_stats": "Απενεργοποίηση Στατιστικών Χρήσης",
+        "hide_banner": "Απόκρυψη Banner Εκκίνησης",
+        "vim_mode": "Ενεργοποίηση Λειτουργίας Vim"
+      },
+      "kimi": {
+        "disable_telemetry": "Απενεργοποίηση Τηλεμετρίας",
+        "keep_background_tasks": "Διατήρηση Εργασιών Παρασκηνίου κατά την Έξοδο",
+        "micro_compaction": "Ενεργοποίηση Μικροσυμπύκνωσης",
+        "plan_mode": "Προεπιλεγμένη Λειτουργία Σχεδίου",
+        "thinking": "Ενεργοποίηση Σκέψης"
+      },
+      "opencode": {
+        "auto_compact": "Αυτόματη Συμπύκνωση",
+        "enable_reasoning": "Ενεργοποίηση Συλλογισμού"
+      },
+      "permission_mode": "Έγκριση Άδειας",
+      "permission_modes": {
+        "accept_edits": "Αποδοχή επεξεργασιών",
+        "ask": "Ρώτα",
+        "auto": "Αυτόματο",
+        "auto_edit": "Αυτόματη Επεξεργασία",
+        "bypass_high_risk": "Παράκαμψη Δικαιωμάτων (Υψηλός Κίνδυνος)",
+        "default": "Προεπιλογή",
+        "default_allow_all": "Προεπιλογή (Να επιτρέπονται όλα)",
+        "deny": "Αρνούμαι",
+        "full_access_high_risk": "Πλήρης Πρόσβαση (Υψηλός Κίνδυνος)",
+        "manual": "Εγχειρίδιο",
+        "plan": "Σχέδιο",
+        "read_only": "Μόνο για ανάγνωση",
+        "workspace": "Χώρος εργασίας",
+        "yolo_high_risk": "YOLO (Υψηλός Κίνδυνος)"
+      },
+      "qwen": {
+        "classify_all_shell": "Ταξινόμηση Όλων των Εντολών Κελύφους",
+        "disable_auto_update": "Απενεργοποίηση Αυτόματης Ενημέρωσης",
+        "disable_usage_stats": "Απενεργοποίηση Στατιστικών Χρήσης",
+        "hide_banner": "Απόκρυψη Banner Εκκίνησης",
+        "vim_mode": "Ενεργοποίηση λειτουργίας Vim"
+      },
+      "reasoning_effort": "Προσπάθεια Συλλογισμού",
+      "reasoning_efforts": {
+        "default": "Προεπιλογή",
+        "high": "Υψηλή",
+        "low": "Χαμηλός",
+        "medium": "Μέτριο",
+        "minimal": "Ελάχιστο",
+        "xhigh": "Εξαιρετικά Υψηλό"
+      },
+      "select_placeholder": "Επιλογή…"
+    },
+    "apply_failed": "Αποτυχία εγγραφής της διαμόρφωσης CLI στο αρχείο συστήματος",
     "auto_update_to_latest": "Έλεγχος για ενημερώσεις και εγκατάσταση της τελευταίας έκδοσης",
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
+    "can_upgrade": "Διαθέσιμη αναβάθμιση",
+    "clear_config_failed": "Αποτυχία εκκαθάρισης της διαμόρφωσης CLI. Τα διαπιστευτήριά σας ενδέχεται να βρίσκονται ακόμα στα αρχεία διαμόρφωσης του εργαλείου.",
+    "cli_config": {
+      "format_failed": "Η μορφοποίηση απέτυχε. Ελέγξτε τη σύνταξη του αρχείου.",
+      "hint": "Αυτό είναι το περιεχόμενο που θα γραφτεί στο αρχείο ρυθμίσεων CLI του συστήματος. Τα κλειδιά API δεν αποθηκεύονται στις προτιμήσεις.",
+      "title": "Αρχείο Ρυθμίσεων CLI",
+      "unknown_model": "Άγνωστο μοντέλο",
+      "unknown_provider": "Άγνωστος Πάροχος"
+    },
     "cli_tool": "Εργαλείο CLI",
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "Ανοικτός Κώδικας",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "Κατάρρευση",
+    "config_json_hint": "Επικολλήστε ή επεξεργαστείτε ακατέργαστο JSON· παραμένει συγχρονισμένο με τα πεδία παραπάνω",
+    "configure": "Ρυθμίστε",
+    "configuring_provider": "Ρυθμίστε {{provider}}",
     "count_one": "{{count}} αντικείμενο",
     "count_other": "{{count}} αντικείμενα",
+    "current_config": "Τρέχων",
+    "current_config_settings": "Τρέχουσα Διαμόρφωση",
     "custom_path": "Προσαρμοσμένη διαδρομή",
     "custom_path_error": "Η ρύθμιση της προσαρμοσμένης διαδρομής τερματικού απέτυχε",
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "description": "Εκκίνηση γρήγορα πολλών εργαλείων CLI κώδικα, για αύξηση της αποδοτικότητας ανάπτυξης",
+    "disable": "Απενεργοποίηση",
+    "edit_config": "Επεξεργασία Διαμόρφωσης",
+    "enable": "Ενεργοποίηση",
+    "enabled": "Ενεργοποιημένο",
+    "endpoint_default": "Χρησιμοποιώντας τον προεπιλεγμένο πάροχο",
+    "endpoint_hint": "Endpoint / Key στο Model Service",
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
     "environment_variables": "Μεταβλητές περιβάλλοντος",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
+    "format_json": "Μορφοποίηση",
     "hero_tagline": "Διάλεξε ένα εργαλείο CLI για διαμόρφωση",
+    "install": "Εγκατάσταση",
     "install_bun": "Εγκατάσταση Bun",
+    "install_error": "Η εγκατάσταση απέτυχε",
+    "install_success": "Εγκατάσταση επιτυχής",
+    "install_tool_first": "Εγκαταστήστε πρώτα το {{toolName}} για να επιλέξετε πάροχο",
+    "installing": "Εγκατάσταση…",
     "installing_bun": "Εγκατάσταση...",
+    "latest": "Τελευταία",
     "launch": {
       "bun_required": "Παρακαλώ εγκαταστήστε πρώτα το περιβάλλον Bun πριν εκκινήσετε το εργαλείο CLI",
       "error": "Η εκκίνηση απέτυχε, παρακαλώ δοκιμάστε ξανά",
       "label": "Εκκίνηση",
       "launched": "Ξεκίνησε",
       "success": "Επιτυχής εκκίνηση",
+      "title": "Εκκίνηση {{tool}}",
       "validation_error": "Συμπληρώστε όλα τα υποχρεωτικά πεδία: εργαλείο CLI, μοντέλο και κατάλογος εργασίας"
     },
     "launching": "Εκκίνηση...",
     "model": "μοντέλο",
     "model_hint": "Επέλεξε ποιο μοντέλο AI θα χρησιμοποιήσει το εργαλείο CLI",
+    "model_hint_config": "Επιλέξτε το μοντέλο που θα χρησιμοποιηθεί",
+    "model_mode": {
+      "common": "Γενικός",
+      "detailed": "Λεπτομερής"
+    },
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
+    "model_providers": "Πάροχοι Μοντέλων",
     "model_required": "Επιλέξτε μοντέλο",
+    "model_selection": "Επιλογή Μοντέλου",
+    "more": "Περισσότερα",
+    "no_matching_providers": "Δεν υπάρχουν συμβατοί πάροχοι",
+    "no_model_for_provider": "Δεν υπάρχει διαθέσιμο μοντέλο για αυτόν τον πάροχο",
+    "no_providers_description": "Ενεργοποιήστε έναν υποστηριζόμενο πάροχο στις Ρυθμίσεις → Υπηρεσία Μοντέλου",
+    "no_providers_title": "Δεν υπάρχουν ενεργοποιημένοι πάροχοι",
+    "no_tools": "Δεν υπάρχουν διαθέσιμα εργαλεία",
+    "not_installed": "Δεν είναι εγκατεστημένο",
+    "open_provider_settings": "Άνοιγμα ρυθμίσεων παρόχου",
+    "own_login": {
+      "title": "{{toolName}} Επίσημο"
+    },
+    "providerless_hint": "Αυτό το εργαλείο πιστοποιείται μέσω της δικής του ροής σύνδεσης — απλώς επιλέξτε έναν φάκελο εργασίας και εκκινήστε το. Εκτελέστε το εργαλείο μία φορά για να συνδεθείτε.",
+    "providers": "Πάροχοι",
+    "raw_config": "Ακατέργαστη Ρύθμιση (JSON)",
+    "search_provider_placeholder": "Πάροχοι αναζήτησης…",
     "select_folder": "Επιλογή φακέλου",
+    "select_provider_before_launch": "Επιλέξτε έναν πάροχο πριν εκκινήσετε το {{toolName}}",
+    "select_tool_to_start": "Επιλέξτε ένα εργαλείο CLI από τα αριστερά για να ξεκινήσετε τη διαμόρφωση",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
     "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
-    "tool_description": {
-      "claude_code": "Το επίσημο εργαλείο γραμμής εντολών κώδικα AI της Anthropic",
-      "gemini_cli": "Επίσημη γραμμή εντολών βοηθού Gemini της Google",
-      "github_copilot_cli": "Το επίσημο συνοδευτικό εργαλείο γραμμής εντολών του GitHub Copilot",
-      "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
-      "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
-      "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
-      "qoder_cli": "Το εργαλείο κωδικοποίησης γραμμής εντολών με δυνατότητες πρακτόρων της Alibaba Qoder",
-      "qwen_code": "Το εργαλείο κωδικοποίησης CLI ανοικτού κώδικα της Alibaba Tongyi"
-    },
+    "tool_parameters": "Ρυθμίσεις Παραμέτρων",
+    "up_to_date": "Ενημερωμένο",
     "update_options": "Ενημέρωση επιλογών",
+    "upgrade": "Αναβάθμιση",
+    "upgrade_error": "Η αναβάθμιση απέτυχε",
+    "upgrade_success": "Η αναβάθμιση ολοκληρώθηκε επιτυχώς",
     "working_directory": "κατάλογος εργασίας",
     "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI"
   },
@@ -2128,6 +2279,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "Επεξεργασία Εικόνας (OpenAI)",
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
@@ -2435,9 +2587,7 @@
       "message": "Εφαρμογή στο μήνυμα"
     },
     "records": {
-      "agentSubtitle": "{{count}} εργασίες",
       "agentTitle": "Ιστορικό Πράκτορα",
-      "assistantSubtitle": "{{count}} συνομιλίες",
       "bulkDelete": "Διαγραφή Παρτίδας",
       "bulkDeleteSessions": {
         "description": "Διαγραφή {{count}} επιλεγμένης(-ών) εργασίας(-ών);",
@@ -2459,11 +2609,19 @@
         "target": "Στόχος βοηθός",
         "title": "Μετακίνηση επιλεγμένων συνομιλιών"
       },
+      "clearSearch": "Εκκαθάριση αναζήτησης",
       "empty": {
         "description": "Δεν υπάρχουν συνομιλίες για τα τρέχοντα φίλτρα.",
         "sessionsDescription": "Δεν υπάρχουν εργασίες για τα τρέχοντα φίλτρα.",
         "sessionsTitle": "Καμία εργασία",
         "title": "Καμία συνομιλία"
+      },
+      "filter": {
+        "selectAgent": "Επιλέξτε πράκτορα",
+        "selectAssistant": "Επιλέξτε βοηθό",
+        "statusLabel": "Κατάσταση",
+        "statusPlaceholder": "Επιλέξτε κατάσταση",
+        "unlinkedAssistant": "Ασύνδετος βοηθός"
       },
       "loading": {
         "description": "Φόρτωση λίστας συνομιλίας.",
@@ -2471,15 +2629,9 @@
         "sessionsTitle": "Φόρτωση εργασιών",
         "title": "Φόρτωση συνομιλιών"
       },
-      "resultCount": "{{count}} αποτελέσματα",
       "searchSession": "Αναζήτηση εργασιών...",
       "searchTopic": "Αναζήτηση συνομιλιών...",
       "shortTitle": "Ιστορία",
-      "sidebar": {
-        "searchAssistant": "Αναζήτηση βοηθών...",
-        "status": "Κατάσταση",
-        "unknownAssistant": "Ασύνδετος βοηθός"
-      },
       "status": {
         "completed": "Ολοκληρώθηκε",
         "failed": "Απέτυχε",
@@ -2487,11 +2639,10 @@
       },
       "table": {
         "actions": "Ενέργειες",
+        "conversation": "Συνομιλία",
         "emptyValue": "—",
-        "messages": "Μηνύματα",
         "session": "Εργασία",
-        "time": "Χρόνος",
-        "title": "Τίτλος"
+        "time": "Χρόνος"
       },
       "title": "Ιστορικό Συνομιλίας"
     },
@@ -2738,6 +2889,8 @@
       "chunking": "Κατάτμηση",
       "default_separator": "Αυτόματη (συνιστάται)",
       "document_count": "Καταμέτρηση Εγγράφων",
+      "download_local_embedding": "Λήψη Τοπικού Μοντέλου",
+      "download_local_embedding_failed": "Αποτυχία λήψης του τοπικού μοντέλου ενσωμάτωσης",
       "embedding_model": "Μοντέλο Ενσωμάτωσης",
       "embedding_model_select": "Επιλογή Μοντέλου",
       "file_processing": "Επεξεργασία Αρχείων",
@@ -2764,7 +2917,8 @@
       "separator_rule": "Κανόνας Διαχωριστικού",
       "smart_chunking": "Έξυπνη Τμηματοποίηση",
       "threshold": "Κατώφλι Ομοιότητας",
-      "tokens_unit": "διακριτικά"
+      "tokens_unit": "διακριτικά",
+      "use_local_embedding": "Χρήση Τοπικού Μοντέλου"
     },
     "recall": {
       "collapse": "Κατάρρευση Κομματιού",
@@ -3440,6 +3594,7 @@
     },
     "empty_url": "Αδυναμία λήψης της εικόνας, πιθανόν οι οδηγίες να περιέχουν ευαίσθητο περιεχόμενο ή απαγορευμένες λέξεις",
     "error": {
+      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Η επικάλυψη μεριδίων δεν μπορεί να είναι μεγαλύτερη από το μέγεθος του μεριδίου",
       "copy": "Η αντιγραφή απέτυχε",
       "dimension_too_large": "Το μέγεθος του περιεχομένου είναι πολύ μεγάλο",
@@ -3461,6 +3616,7 @@
         "text_extraction_failed": "Αποτυχία εξαγωγής κειμένου από {{name}}"
       },
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
+      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
       "invalid": {
         "api": {
           "host": "Μη έγκυρη διεύθυνση API",
@@ -4160,6 +4316,7 @@
       "select_provider_model": "Παρακαλώ επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο"
     },
     "gateway": {
+      "open_dashboard": "Άνοιγμα OpenClaw",
       "port": "Λιμάνι",
       "restart": "Επανεκκίνηση",
       "start": "Έναρξη πύλης",
@@ -4173,7 +4330,6 @@
       "hint": "macOS: brew install git | Windows: Κατεβάστε από το git-scm.com (βεβαιωθείτε ότι προσθέτετε το Git στο PATH κατά την εγκατάσταση)",
       "title": "Απαιτείται Git"
     },
-    "install_progress": "Πρόοδος Εγκατάστασης",
     "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
     "migration": {
       "description": "Έχει εντοπιστεί παλιά έκδοση του OpenClaw που εγκαταστάθηκε μέσω npm. Παρακαλούμε επανεγκαταστήστε για να αποκτήσετε την τελευταία επίσημη έκδοση.",
@@ -4234,7 +4390,6 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε το OpenClaw; Πατήστε OK για επιβεβαίωση.",
-    "uninstall_progress": "Πρόοδος Απεγκατάστασης",
     "uninstalled": {
       "description": "Το OpenClaw απεγκαταστάθηκε με επιτυχία.",
       "title": "Η απεγκατάσταση ολοκληρώθηκε"
@@ -4681,6 +4836,7 @@
     "jina": "Jina",
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5344,7 +5500,8 @@
       },
       "backup": {
         "skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
-        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας"
+        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
+        "v2_unavailable": "Η δημιουργία αντιγράφων ασφαλείας και η επαναφορά V2 δεν είναι ακόμη διαθέσιμες. Έρχονται σύντομα."
       },
       "clear_cache": {
         "button": "Καθαρισμός Μνήμης",
@@ -5937,6 +6094,30 @@
       "installError": "Failed to install tool",
       "installing": "Εγκατάσταση...",
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
+      "localModels": {
+        "cancel": "Ακύρωση",
+        "description": "Μοντέλα που εκτελούνται τοπικά στη συσκευή σας — κατεβάστε μία φορά, στη συνέχεια χρησιμοποιήστε τα εκτός σύνδεσης χωρίς κλειδί API.",
+        "download": "Λήψη",
+        "embedding": {
+          "name": "Τοπική Ενσωμάτωση",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
+          "inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
+          "removeFailed": "Η αφαίρεση απέτυχε. Ελέγξτε τα αρχεία καταγραφής για λεπτομέρειες."
+        },
+        "ocr": {
+          "name": "Τοπικό OCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "Αφαίρεση",
+        "status": {
+          "downloading": "Λήψη…",
+          "ready": "Έτοιμος"
+        },
+        "title": "Τοπικά Μοντέλα"
+      },
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6533,7 +6714,8 @@
         },
         "model_id": {
           "label": "ID μοντέλου",
-          "placeholder": "Απαραίτητο για παράδειγμα gpt-3.5-turbo",
+          "placeholder": "Για παράδειγμα gpt-5.5",
+          "required": "Εισαγάγετε το ID μοντέλου",
           "select": {
             "placeholder": "Επιλέξτε μοντέλο"
           },
@@ -6541,7 +6723,7 @@
         },
         "model_name": {
           "label": "Όνομα μοντέλου",
-          "placeholder": "Για παράδειγμα GPT-3.5",
+          "placeholder": "Για παράδειγμα GPT-5.5",
           "tooltip": "Για παράδειγμα GPT-4"
         },
         "supported_text_delta": {
@@ -6610,14 +6792,17 @@
       },
       "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
-      "list_title": "Model list",
+      "list_title": "Μοντέλα",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Είστε βέβαιοι ότι θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
-          "label": "Προσθήκη μοντέλων από τη λίστα"
+          "label": "Προσθήκη όλων των μοντέλων"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
+        "clean_stale_models": "Εκκαθάριση μη έγκυρων μοντέλων",
+        "clean_stale_success": "Εκκαθαρίστηκαν {{count}} μη έγκυρα μοντέλα",
+        "default_model_cannot_remove": "Το προεπιλεγμένο μοντέλο δεν μπορεί να διαγραφεί.",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6639,11 +6824,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
+        "remove_listed": "Αφαίρεση όλων των μοντέλων",
         "remove_model": "Αφαίρεση Μοντέλου",
+        "remove_skipped_default_in_use": "Παραλείφθηκαν {{count}} προεπιλεγμένα μοντέλα",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "Μη έγκυρο",
+        "stale_filter": "Μη έγκυρο",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6703,7 +6891,7 @@
         "custom_add": "Προσαρμοσμένο",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Προσθήκη"
+        "pull_short": "Λήψη λίστας μοντέλων"
       },
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
@@ -6795,6 +6983,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Προσθήκη παρόχου",
         "name": {
           "label": "Όνομα παρόχου",
           "placeholder": "π.χ. OpenAI",
@@ -7341,6 +7530,13 @@
           "doc2x": {
             "description": "Προηγμένη μηχανή αποκατάστασης αρχείων.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) που εκτελείται εντός της διεργασίας — πλήρως εκτός σύνδεσης, χωρίς κλειδί API, με αναγνώριση σε νήμα παρασκηνίου ώστε το UI να παραμένει ανταποκρινόμενο. Κατεβάστε το μοντέλο (~140MB) στις Εξαρτήσεις Περιβάλλοντος πριν την πρώτη χρήση.",
+            "name": "Τοπικό PaddleOCR",
+            "status": {
+              "local": "Εκτελείται πλήρως στη συσκευή σας"
+            }
           },
           "mineru": {
             "description": "Το εργαλείο εξαγωγής PDF υψηλής ποιότητας ανοικτού κώδικα του OpenDataLab.",

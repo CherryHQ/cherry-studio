@@ -10,7 +10,6 @@ import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
-import { IpcChannel } from '@shared/IpcChannel'
 import {
   buildFirstUserMessageTitle,
   normalizeConversationTitle,
@@ -403,11 +402,11 @@ export class TopicNamingService {
   }
 
   private notifyTopicAutoRenamed(topicId: string): void {
-    application.get('WindowManager').broadcast(IpcChannel.Topic_AutoRenamed, { topicId })
+    application.get('IpcApiService').broadcast('ai.topic_auto_renamed', { topicId })
   }
 
   private notifyAgentSessionAutoRenamed(sessionId: string): void {
-    application.get('WindowManager').broadcast(IpcChannel.AgentSession_AutoRenamed, { sessionId })
+    application.get('IpcApiService').broadcast('ai.agent_session_auto_renamed', { sessionId })
   }
 }
 
