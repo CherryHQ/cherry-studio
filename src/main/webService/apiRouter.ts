@@ -1,6 +1,8 @@
 // WebUI远程扩展，仅Win11启用，最小侵入
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { application } from '@application'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
@@ -13,9 +15,11 @@ import { providerService } from '@data/services/ProviderService'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Base64String } from '@shared/types/file'
 import type { DataRequest, HttpMethod } from '@shared/data/api/types'
-import { isNonChatModel } from '@shared/utils/model'
+import { getModelSupportedReasoningEffortOptions, isNonChatModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 import type { UIMessageChunk } from 'ai'
 import { app } from 'electron'
@@ -40,6 +44,15 @@ type WebUiApiRouteResult = {
 
 type WebUiSendMessageBody = {
   readonly text: string
+  readonly attachments: readonly WebUiSendAttachment[]
+  readonly reasoningEffort?: string
+}
+
+type WebUiSendAttachment = {
+  readonly name: string
+  readonly mediaType: string
+  readonly size: number
+  readonly dataUrl: Base64String
 }
 
 type WebUiUpdateSessionModelBody = {
@@ -99,6 +112,10 @@ const unauthorized = (): WebUiApiRouteResult => ({
 
 const dataApiPrefix = '/api/data'
 const MAX_WEBUI_MESSAGE_CHARS = 40_000
+const MAX_WEBUI_ATTACHMENT_COUNT = 5
+const MAX_WEBUI_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const MAX_WEBUI_ATTACHMENTS_BYTES = 25 * 1024 * 1024
+const MAX_WEBUI_REQUEST_BYTES = 40 * 1024 * 1024
 const webUiModelsPath = '/api/webui/models'
 const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
 const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
@@ -126,14 +143,14 @@ const toQueryRecord = (searchParams: URLSearchParams) => {
 
 const isAllowedDataApiReadPath = (path: string) => readableDataApiPatterns.some((pattern) => pattern.test(path))
 
-const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
+const readJsonBody = async (request: IncomingMessage, maxBytes = MAX_WEBUI_MESSAGE_CHARS * 4): Promise<unknown> => {
   const chunks: Buffer[] = []
   let size = 0
 
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += buffer.length
-    if (size > MAX_WEBUI_MESSAGE_CHARS * 4) {
+    if (size > maxBytes) {
       throw new Error('WebUI request body exceeds the allowed size')
     }
     chunks.push(buffer)
@@ -144,11 +161,44 @@ const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
 }
 
 const parseSendMessageBody = (value: unknown): WebUiSendMessageBody | undefined => {
-  if (!value || typeof value !== 'object' || typeof (value as { text?: unknown }).text !== 'string') return undefined
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { text?: unknown; attachments?: unknown; reasoningEffort?: unknown }
+  if (typeof candidate.text !== 'string') return undefined
 
-  const text = (value as { text: string }).text.trim()
-  if (!text || text.length > MAX_WEBUI_MESSAGE_CHARS) return undefined
-  return { text }
+  const text = candidate.text.trim()
+  if (text.length > MAX_WEBUI_MESSAGE_CHARS) return undefined
+  const rawAttachments = candidate.attachments ?? []
+  if (!Array.isArray(rawAttachments) || rawAttachments.length > MAX_WEBUI_ATTACHMENT_COUNT) return undefined
+
+  let totalBytes = 0
+  const attachments: WebUiSendAttachment[] = []
+  for (const raw of rawAttachments) {
+    if (!raw || typeof raw !== 'object') return undefined
+    const item = raw as { name?: unknown; mediaType?: unknown; size?: unknown; dataUrl?: unknown }
+    if (
+      typeof item.name !== 'string' ||
+      typeof item.mediaType !== 'string' ||
+      typeof item.size !== 'number' ||
+      typeof item.dataUrl !== 'string'
+    ) {
+      return undefined
+    }
+    const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(item.dataUrl)
+    if (!match || match[1] !== item.mediaType) return undefined
+    const estimatedBytes = Math.floor((match[2]?.length ?? 0) * 0.75)
+    if (estimatedBytes <= 0 || estimatedBytes > MAX_WEBUI_ATTACHMENT_BYTES) return undefined
+    totalBytes += estimatedBytes
+    if (totalBytes > MAX_WEBUI_ATTACHMENTS_BYTES) return undefined
+    attachments.push({
+      name: path.basename(item.name).slice(0, 255) || 'attachment',
+      mediaType: item.mediaType,
+      size: estimatedBytes,
+      dataUrl: item.dataUrl as Base64String
+    })
+  }
+  if (!text && attachments.length === 0) return undefined
+  const reasoningEffort = typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : undefined
+  return { text, attachments, ...(reasoningEffort ? { reasoningEffort } : {}) }
 }
 
 const parseUpdateSessionModelBody = (value: unknown): WebUiUpdateSessionModelBody | undefined => {
@@ -181,7 +231,10 @@ const listWebUiChatModelGroups = () => {
       {
         id: provider.id,
         name: provider.name || provider.id,
-        models: providerModels
+        models: providerModels.map((model) => ({
+          ...model,
+          reasoningOptions: getModelSupportedReasoningEffortOptions(model)
+        }))
       }
     ]
   })
@@ -420,13 +473,13 @@ export const createWebUiApiRouter = ({
       if (method !== 'POST') return methodNotAllowed(['POST'])
 
       try {
-        const body = parseSendMessageBody(await readJsonBody(request))
+        const body = parseSendMessageBody(await readJsonBody(request, MAX_WEBUI_REQUEST_BYTES))
         if (!body) {
           return {
             status: 400,
             body: {
               code: 'WEBUI_INVALID_MESSAGE',
-              message: `Message text must contain 1-${MAX_WEBUI_MESSAGE_CHARS} characters`
+              message: `A message requires text (up to ${MAX_WEBUI_MESSAGE_CHARS} characters) or a valid attachment`
             }
           }
         }
@@ -434,12 +487,50 @@ export const createWebUiApiRouter = ({
         const encodedSessionId = sendMatch[1]
         if (!encodedSessionId) throw new Error('Desktop conversation id is missing')
         const sessionId = decodeURIComponent(encodedSessionId)
-        await startAgentSessionRun({
-          sessionId,
-          userParts: [{ type: 'text', text: body.text }] as CherryMessagePart[],
-          listeners: [new WebUiStreamListener(sessionId, sseRelay)],
-          headless: false
-        })
+        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        // Browser files are promoted into Cherry's native file store before the
+        // canonical agent-session send path receives them.
+        const fileManager = application.get('FileManager')
+        const createdEntryIds: Parameters<typeof fileManager.batchPermanentDelete>[0] = []
+        try {
+          const fileParts: CherryMessagePart[] = []
+          for (const attachment of body.attachments) {
+            const entry = await fileManager.createInternalEntry({
+              source: 'bytes',
+              data: Buffer.from(attachment.dataUrl.slice(attachment.dataUrl.indexOf(',') + 1), 'base64'),
+              name: path.parse(attachment.name).name || 'attachment',
+              ext: path.extname(attachment.name).slice(1) || null
+            })
+            createdEntryIds.push(entry.id)
+            const physicalPath = fileManager.getPhysicalPath(entry.id)
+            fileParts.push(
+              withCherryMeta(
+                {
+                  type: 'file',
+                  mediaType: attachment.mediaType,
+                  url: pathToFileURL(physicalPath).toString(),
+                  filename: attachment.name
+                },
+                { fileEntryId: entry.id, fileTokenSourceId: randomUUID() }
+              ) as CherryMessagePart
+            )
+          }
+          const userParts: CherryMessagePart[] = [
+            ...(body.text ? ([{ type: 'text', text: body.text }] as CherryMessagePart[]) : []),
+            ...fileParts
+          ]
+          await startAgentSessionRun({
+            sessionId,
+            userParts,
+            listeners: [new WebUiStreamListener(sessionId, sseRelay)],
+            headless: false
+          })
+        } catch (error) {
+          if (createdEntryIds.length > 0) {
+            void fileManager.batchPermanentDelete(createdEntryIds).catch(() => undefined)
+          }
+          throw error
+        }
         sseRelay.broadcast({ event: 'sync', data: { conversationId: sessionId, reason: 'message-submitted' } })
 
         return {
