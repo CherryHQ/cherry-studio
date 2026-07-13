@@ -13,7 +13,7 @@ import {
   type AgentSessionMessageEntity
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { getMessageSnapshotAuthor, type ModelSnapshot } from '@shared/data/types/message'
+import type { ModelSnapshot } from '@shared/data/types/message'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('agentSessionExport')
@@ -45,8 +45,7 @@ function agentSessionMessageToExportView(
   modelFallback?: ModelSnapshot
 ): MessageExportView {
   // Model comes from the frozen author snapshot; snapshot-less assistant rows fall back to the live agent model.
-  const modelSnapshot =
-    getMessageSnapshotAuthor(row.messageSnapshot)?.model ?? (row.role === 'assistant' ? modelFallback : undefined)
+  const modelSnapshot = row.messageSnapshot?.model ?? (row.role === 'assistant' ? modelFallback : undefined)
 
   return {
     id: row.id,

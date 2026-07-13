@@ -67,12 +67,9 @@ describe('agentSessionExport', () => {
           id: 'assistant-with-snapshot',
           role: 'assistant',
           messageSnapshot: {
-            agent: {
-              id: 'agent-a',
-              name: 'Agent A',
-              type: 'claude-code',
-              model: { id: 'stored-model', name: 'Stored Model', provider: 'stored-provider' }
-            }
+            id: 'agent-a',
+            name: 'Agent A',
+            model: { id: 'stored-model', name: 'Stored Model', provider: 'stored-provider' }
           }
         })
       ],

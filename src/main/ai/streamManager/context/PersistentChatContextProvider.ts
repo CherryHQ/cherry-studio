@@ -41,13 +41,11 @@ function buildAssistantMessageSnapshot(
 ): MessageSnapshot | undefined {
   if (!assistant) return undefined
   return {
-    assistant: {
-      ...assistant,
-      model: {
-        id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-        name: model.name,
-        provider: model.providerId
-      }
+    ...assistant,
+    model: {
+      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+      name: model.name,
+      provider: model.providerId
     }
   }
 }

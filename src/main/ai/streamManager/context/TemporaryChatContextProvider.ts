@@ -75,7 +75,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const messageSnapshot = assistant
-      ? { assistant: { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap } }
+      ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
       : undefined
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.

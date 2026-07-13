@@ -209,10 +209,14 @@ describe('AgentSessionRuntimeService', () => {
     it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
-        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
       } as any
       const followUpSnapshot = {
-        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+        id: 'agent-1',
+        name: 'New',
+        model: { id: 'new', name: 'New', provider: 'p' }
       } as any
 
       // Turn 1 sets the entry snapshot; the follow-up queues with a fresh snapshot (agent renamed/model swapped).
@@ -232,10 +236,14 @@ describe('AgentSessionRuntimeService', () => {
     it('freezes a redirected steer-boundary continuation with the follow-up snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
-        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
       } as any
       const followUpSnapshot = {
-        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+        id: 'agent-1',
+        name: 'New',
+        model: { id: 'new', name: 'New', provider: 'p' }
       } as any
 
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), messageSnapshot: priorSnapshot })
@@ -266,10 +274,14 @@ describe('AgentSessionRuntimeService', () => {
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
-        agent: { id: 'agent-1', name: 'Old', type: 'test-runtime', model: { id: 'old', name: 'Old', provider: 'p' } }
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
       } as any
       const followUpSnapshot = {
-        agent: { id: 'agent-1', name: 'New', type: 'test-runtime', model: { id: 'new', name: 'New', provider: 'p' } }
+        id: 'agent-1',
+        name: 'New',
+        model: { id: 'new', name: 'New', provider: 'p' }
       } as any
 
       service.beginTurn({ ...baseTurnInput, messageSnapshot: priorSnapshot })

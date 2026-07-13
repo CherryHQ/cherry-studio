@@ -190,12 +190,9 @@ describe('useAgentMessageListProviderValue', () => {
           createdAt: '2026-01-01T00:00:01.000Z',
           status: 'pending',
           messageSnapshot: {
-            agent: {
-              id: 'agent-1',
-              name: 'My Agent',
-              type: 'claude-code',
-              model: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
-            }
+            id: 'agent-1',
+            name: 'My Agent',
+            model: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
           }
         }
       }

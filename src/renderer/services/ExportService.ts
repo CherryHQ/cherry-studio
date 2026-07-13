@@ -25,7 +25,6 @@ import {
   getNamingTextContent,
   getThinkingContent
 } from '@renderer/utils/message/find'
-import { getMessageSnapshotAuthor } from '@shared/data/types/message'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
@@ -202,7 +201,7 @@ const createBaseMarkdown = async (
   normalizeCitations: boolean = true
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
-  const author = getMessageSnapshotAuthor('messageSnapshot' in message ? message.messageSnapshot : undefined)
+  const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
   // Fall back to the frozen author's model when the projection didn't populate a live `model`
   // (e.g. topic exports), so the model/provider still render when those export prefs are on.
   const model = message.model ?? author?.model

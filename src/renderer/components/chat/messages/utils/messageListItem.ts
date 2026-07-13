@@ -1,13 +1,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import {
-  type CherryMessagePart,
-  type CherryUIMessage,
-  getMessageSnapshotAuthor,
-  type MessageStats,
-  type ModelSnapshot
-} from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -66,8 +60,8 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
   const messageSnapshot = metadata.messageSnapshot
-  // The producing author owns the model it ran; for snapshot-less rows fall back to the topic model.
-  const author = getMessageSnapshotAuthor(messageSnapshot)
+  // The snapshot IS the producing author (model nested); for snapshot-less rows fall back to the topic model.
+  const author = messageSnapshot
   const model = author?.model ?? (message.role === 'assistant' ? ctx.modelFallback : undefined)
   const modelId =
     metadata.modelId ??

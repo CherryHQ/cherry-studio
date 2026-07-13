@@ -73,13 +73,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // The agent owns the model it ran — snapshot the agent (with the model nested) so the
     // header shows the agent first, even after the agent is deleted.
     const messageSnapshot = {
-      agent: {
-        id: agent.id,
-        name: agent.name,
-        emoji: agent.configuration?.avatar,
-        type: agent.type,
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
-      }
+      id: agent.id,
+      name: agent.name,
+      emoji: agent.configuration?.avatar,
+      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
     }
 
     const userMessageId = uuidv7()

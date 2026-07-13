@@ -15,7 +15,10 @@ function finalMessage(text = 'done'): CherryUIMessage {
 }
 
 const SNAPSHOT: MessageSnapshot = {
-  assistant: { id: 'a1', name: 'Assistant', emoji: '🤖', model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' } }
+  id: 'a1',
+  name: 'Assistant',
+  emoji: '🤖',
+  model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
 }
 
 beforeEach(() => updateMock.mockReset())

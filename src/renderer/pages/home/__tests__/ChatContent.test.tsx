@@ -872,12 +872,10 @@ describe('ChatContent', () => {
         parentId: 'history-user',
         modelId: 'legacy-model-b',
         messageSnapshot: {
-          assistant: {
-            id: 'a1',
-            name: 'A',
-            emoji: '',
-            model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
-          }
+          id: 'a1',
+          name: 'A',
+          emoji: '',
+          model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
         },
         status: 'success',
         createdAt: '2026-01-01T00:00:02.000Z'

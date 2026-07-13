@@ -175,12 +175,9 @@ describe('AgentChatContextProvider', () => {
           status: 'pending',
           modelId: 'anthropic::claude-sonnet',
           messageSnapshot: {
-            agent: {
-              id: 'agent-1',
-              name: 'My Agent',
-              type: 'claude-code',
-              model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-            }
+            id: 'agent-1',
+            name: 'My Agent',
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
           }
         })
       })
@@ -196,12 +193,9 @@ describe('AgentChatContextProvider', () => {
       headless: false,
       traceId: 'a'.repeat(32),
       messageSnapshot: {
-        agent: {
-          id: 'agent-1',
-          name: 'My Agent',
-          type: 'claude-code',
-          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-        }
+        id: 'agent-1',
+        name: 'My Agent',
+        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
       }
     })
     expect(prepared.listeners).toEqual([
@@ -226,12 +220,9 @@ describe('AgentChatContextProvider', () => {
       {
         headless: false,
         messageSnapshot: {
-          agent: {
-            id: 'agent-1',
-            name: 'My Agent',
-            type: 'claude-code',
-            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-          }
+          id: 'agent-1',
+          name: 'My Agent',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         }
       }
     )
@@ -259,12 +250,9 @@ describe('AgentChatContextProvider', () => {
       {
         headless: true,
         messageSnapshot: {
-          agent: {
-            id: 'agent-1',
-            name: 'My Agent',
-            type: 'claude-code',
-            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-          }
+          id: 'agent-1',
+          name: 'My Agent',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         }
       }
     )

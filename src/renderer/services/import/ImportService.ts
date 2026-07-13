@@ -169,16 +169,14 @@ class ImportService {
 
     if (message.role === 'assistant' && message.model) {
       dto.messageSnapshot = {
-        assistant: {
-          id: assistant.id,
-          name: assistant.name,
-          emoji: assistant.emoji,
-          model: {
-            id: message.model.id,
-            name: message.model.name,
-            provider: message.model.provider,
-            ...(message.model.group ? { group: message.model.group } : {})
-          }
+        id: assistant.id,
+        name: assistant.name,
+        emoji: assistant.emoji,
+        model: {
+          id: message.model.id,
+          name: message.model.name,
+          provider: message.model.provider,
+          ...(message.model.group ? { group: message.model.group } : {})
         }
       }
     }

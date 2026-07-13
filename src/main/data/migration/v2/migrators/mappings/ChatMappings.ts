@@ -591,14 +591,12 @@ function buildMessageSnapshot(
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    assistant: {
-      ...assistant,
-      model: {
-        id: model.id,
-        name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-        provider: model.provider,
-        group: typeof model.group === 'string' ? model.group : undefined
-      }
+    ...assistant,
+    model: {
+      id: model.id,
+      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      provider: model.provider,
+      group: typeof model.group === 'string' ? model.group : undefined
     }
   }
 }

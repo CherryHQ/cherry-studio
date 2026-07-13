@@ -96,7 +96,8 @@ describe('importService.importConversations', () => {
     // nested) so the header survives rename/delete; user messages do not.
     expect(messageCalls[0].body.messageSnapshot).toBeUndefined()
     expect(messageCalls[1].body.messageSnapshot).toMatchObject({
-      assistant: { id: 'asst_1', model: { id: 'gpt-5', provider: 'openai' } }
+      id: 'asst_1',
+      model: { id: 'gpt-5', provider: 'openai' }
     })
 
     // Imported messages are persisted as completed.

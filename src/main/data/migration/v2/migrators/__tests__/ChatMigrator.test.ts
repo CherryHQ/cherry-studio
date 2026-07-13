@@ -146,12 +146,10 @@ describe('ChatMigrator.prepareTopicData', () => {
     const msgMap = toMsgMap(result?.messages ?? [])
     // Assistant row: frozen author identity with the model nested inside.
     expect(msgMap.get('a1')?.messageSnapshot).toEqual({
-      assistant: {
-        id: 'ast-1',
-        name: 'My Assistant',
-        emoji: '🎯',
-        model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
-      }
+      id: 'ast-1',
+      name: 'My Assistant',
+      emoji: '🎯',
+      model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
     })
     // User row: never snapshotted, even though the source message carried a model.
     expect(msgMap.get('u1')?.messageSnapshot).toBeNull()

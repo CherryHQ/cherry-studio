@@ -121,12 +121,10 @@ describe('MessageHeader', () => {
         message={createMessage('assistant', {
           model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
           messageSnapshot: {
-            assistant: {
-              id: 'a1',
-              name: 'My Assistant',
-              emoji: '🤖',
-              model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-            }
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
           }
         })}
       />
@@ -141,12 +139,9 @@ describe('MessageHeader', () => {
         message={createMessage('assistant', {
           model: { id: 'claude', name: 'Claude', provider: 'anthropic' },
           messageSnapshot: {
-            agent: {
-              id: 'ag1',
-              name: 'My Agent',
-              type: 'claude-code',
-              model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
-            }
+            id: 'ag1',
+            name: 'My Agent',
+            model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
           }
         })}
       />
