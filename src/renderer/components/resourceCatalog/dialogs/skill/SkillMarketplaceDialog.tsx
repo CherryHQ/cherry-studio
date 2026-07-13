@@ -23,7 +23,6 @@ import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onInstalled?: () => void
 }
 
 const SEARCH_SOURCES: SkillSearchSource[] = ['skills.sh', 'claude-plugins.dev', 'clawhub.ai']
@@ -31,7 +30,7 @@ const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SEARCH_DEBOUNCE_MS = 300
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
-export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Props) {
+export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
   const { results, searching, error, search, clear } = useSkillSearch()
   const { install, isInstalling } = useSkillInstall()
@@ -131,12 +130,11 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
 
         setInstalledSources((current) => new Set(current).add(result.installSource))
         toast.success(t('settings.skills.installSuccess', { name: skill.name }))
-        onInstalled?.()
       } finally {
         pendingInstallSourcesRef.current.delete(result.installSource)
       }
     },
-    [install, installedSources, isInstalling, onInstalled, t]
+    [install, installedSources, isInstalling, t]
   )
 
   const close = useCallback(

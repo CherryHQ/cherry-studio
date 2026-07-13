@@ -8,6 +8,7 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -74,20 +75,7 @@ export function AgentConversationPickerDialog({
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          }
+          body: buildCreateAgentDto(values)
         })
         setCreateDialogOpen(false)
         // Start a session with the new agent so it surfaces in the rail (a fresh agent has no session

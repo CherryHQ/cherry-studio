@@ -17,7 +17,6 @@ const {
   marketplaceDialogState,
   mcpStatusState,
   openSettingsTabMock,
-  refreshSkillsMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -56,19 +55,16 @@ const {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
-      onInstalled?: () => void
     }
   },
   marketplaceDialogState: {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
-      onInstalled?: () => void
     }
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
-  refreshSkillsMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -149,26 +145,17 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
-  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void; onInstalled?: () => void }) => {
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill/ImportSkillDialog', () => ({
+  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void }) => {
     importSkillDialogState.current = props
-    return props.open ? (
-      <button type="button" onClick={() => props.onInstalled?.()}>
-        Complete skill import
-      </button>
-    ) : null
-  },
-  SkillMarketplaceDialog: (props: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onInstalled?: () => void
-  }) => {
+    return props.open ? <div>Skill import dialog</div> : null
+  }
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill/SkillMarketplaceDialog', () => ({
+  SkillMarketplaceDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void }) => {
     marketplaceDialogState.current = props
-    return props.open ? (
-      <button type="button" onClick={() => props.onInstalled?.()}>
-        Complete marketplace install
-      </button>
-    ) : null
+    return props.open ? <div>Skill marketplace dialog</div> : null
   }
 }))
 
@@ -227,8 +214,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
         isEnabled: false
       }
     ],
-    loading: false,
-    refresh: refreshSkillsMock
+    loading: false
   })
 }))
 
@@ -556,7 +542,6 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
-  refreshSkillsMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -970,7 +955,7 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('searches and imports skills from the agent edit dialog', () => {
+  it('searches skills and opens import from the agent edit dialog', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Skills')
@@ -981,21 +966,15 @@ describe('edit dialogs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Import skill' }))
     expect(importSkillDialogState.current?.open).toBe(true)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Complete skill import' }))
-    expect(refreshSkillsMock).toHaveBeenCalledOnce()
   })
 
-  it('opens online skill search and refreshes the agent skill list after installation', () => {
+  it('opens online skill search from the agent edit dialog', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Skills')
 
     fireEvent.click(screen.getByRole('button', { name: 'Online search' }))
     expect(marketplaceDialogState.current?.open).toBe(true)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Complete marketplace install' }))
-    expect(refreshSkillsMock).toHaveBeenCalledOnce()
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {

@@ -10,8 +10,6 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Fired after successful install(s) so the parent can refetch the grid. */
-  onInstalled?: () => void
 }
 
 type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
@@ -29,16 +27,16 @@ type ImportItem = {
 }
 
 /**
- * Import-config dialog for skills — local install only (ZIP file or directory
- * containing `SKILL.md`). Marketplace search lives in 设置 → Skills; the
- * library entry intentionally keeps a tighter surface.
+ * Skill import dialog — local install only (ZIP file or directory
+ * containing `SKILL.md`). Online registry search stays in the sibling
+ * `SkillMarketplaceDialog`, keeping local and remote install flows separate.
  *
  * Drop-zone + explicit picker buttons share the same pipeline through
  * `useSkillInstall.installFromZip` / `installFromDirectory`. Cache
  * invalidation for `/skills` is handled inside the hook, so the library
  * grid refreshes automatically after each successful install.
  */
-export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
+export function ImportSkillDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
   const { installFromZip, installFromDirectory } = useSkillInstall()
 
@@ -104,8 +102,6 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
           }
         }
 
-        if (successCount > 0) onInstalled?.()
-
         if (preErrorCount === nextItems.length) {
           setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
         } else if (failedCount > 0) {
@@ -128,7 +124,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onInstalled, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
   )
 
   const createImportItem = useCallback(

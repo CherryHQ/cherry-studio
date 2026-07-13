@@ -6,22 +6,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { CapabilityStep } from '../CapabilityStep'
 
-const { importSkillDialogState, marketplaceDialogState, refreshMock } = vi.hoisted(() => ({
+const { importSkillDialogState, marketplaceDialogState } = vi.hoisted(() => ({
   importSkillDialogState: {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
-      onInstalled?: () => void
     }
   },
   marketplaceDialogState: {
     current: null as null | {
       open: boolean
       onOpenChange: (open: boolean) => void
-      onInstalled?: () => void
     }
-  },
-  refreshMock: vi.fn()
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -35,31 +32,21 @@ vi.mock('@renderer/hooks/useSkills', () => ({
       { id: 'skill-b', name: 'Beta Skill', source: 'local' },
       { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
     ],
-    loading: false,
-    refresh: refreshMock
+    loading: false
   })
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
-  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void; onInstalled?: () => void }) => {
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill/ImportSkillDialog', () => ({
+  ImportSkillDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void }) => {
     importSkillDialogState.current = props
-    return props.open ? (
-      <button type="button" onClick={() => props.onInstalled?.()}>
-        Complete skill import
-      </button>
-    ) : null
-  },
-  SkillMarketplaceDialog: (props: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onInstalled?: () => void
-  }) => {
+    return props.open ? <div>Skill import dialog</div> : null
+  }
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill/SkillMarketplaceDialog', () => ({
+  SkillMarketplaceDialog: (props: { open: boolean; onOpenChange: (open: boolean) => void }) => {
     marketplaceDialogState.current = props
-    return props.open ? (
-      <button type="button" onClick={() => props.onInstalled?.()}>
-        Complete marketplace install
-      </button>
-    ) : null
+    return props.open ? <div>Skill marketplace dialog</div> : null
   }
 }))
 
@@ -88,7 +75,6 @@ describe('CapabilityStep', () => {
   beforeEach(() => {
     importSkillDialogState.current = null
     marketplaceDialogState.current = null
-    refreshMock.mockClear()
   })
 
   it('writes selected skills through the checkbox catalog variant', async () => {
@@ -145,25 +131,19 @@ describe('CapabilityStep', () => {
     expect(builtinSkill).toBeChecked()
   })
 
-  it('opens the skill import dialog and refreshes the catalog after installation', async () => {
+  it('opens the skill import dialog', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
     await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.capability.import' }))
     expect(importSkillDialogState.current?.open).toBe(true)
-
-    await user.click(screen.getByRole('button', { name: 'Complete skill import' }))
-    expect(refreshMock).toHaveBeenCalledOnce()
   })
 
-  it('opens online skill search and refreshes the catalog after installation', async () => {
+  it('opens online skill search', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
     await user.click(screen.getByRole('button', { name: 'library.skill_add.online_search' }))
     expect(marketplaceDialogState.current?.open).toBe(true)
-
-    await user.click(screen.getByRole('button', { name: 'Complete marketplace install' }))
-    expect(refreshMock).toHaveBeenCalledOnce()
   })
 })
