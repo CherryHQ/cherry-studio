@@ -11,6 +11,7 @@
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -26,6 +27,7 @@ import { loggerService } from '@logger'
 import type { Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
@@ -34,6 +36,15 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
+import {
+  type EntityImageRef,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
+} from './utils/logoMigration'
+import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -64,6 +75,11 @@ function formatPhaseError(errorId: string, error: Error): string {
 interface LlmState {
   providers?: LegacyProvider[]
   settings?: OldLlmSettings
+}
+
+/** The provider logo slot for a given providerId (mirrors ProviderService). */
+function providerLogoSlot(providerId: string) {
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId, role: 'logo' }
 }
 
 function createModelId(providerId: string, modelId: string): UniqueModelId | null {
@@ -247,7 +263,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       presetModelId: presetModel.id,
       name: merged.name,
       description: merged.description ?? null,
-      capabilities: merged.capabilities as ModelCapability[],
+      capabilities: row.userOverrides?.includes('capabilities')
+        ? (row.capabilities ?? [])
+        : (merged.capabilities as ModelCapability[]),
       inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
       outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
       endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,
@@ -393,13 +411,45 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedProviders = 0
     let processedModels = 0
 
+    const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
+      const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
+      for (const provider of this.providers) {
+        const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
+        // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
+        // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
+        // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`
+        // — a hashed bundle path for logos over vite's 4 KB inline limit, never an `icon:` ref).
+        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo ref row
+        // (the single source of truth, logoKey nulled). A non-`data:` value is a stale build
+        // asset that no longer exists in v2 and is not a valid v2 icon ref; writing it onto
+        // logoKey verbatim renders a broken image (`ProviderAvatar` treats it as an image URL),
+        // and for a custom provider — whose id doesn't resolve in the icon catalog — that is the
+        // only logo it has. So recover the picked brand from the asset name and re-express it as
+        // a v2 `icon:<catalogKey>` ref; an unrecognized value drops to null (bundled icon by id
+        // for built-in providers, initials for custom ones).
+        const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
+        const logoFile = logo
+          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          : null
+        if (logoFile) {
+          providerLogoFiles.push(logoFile)
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        } else {
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo ? recoverV1ProviderLogoIconKey(logo) : null })
+        }
+      }
+
       ctx.db.transaction((tx) => {
         ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        const providerRowsWithoutOrderKey = this.providers.map((provider) =>
-          this.enrichProviderRow(transformProvider(provider, this.settings), provider)
-        )
+        // Insert file_entries before the ref rows (their `file_entry_id` FK
+        // needs them); the ref rows themselves go in after the owner rows exist
+        // (their `source_id` FK needs the provider), below.
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageEntryTx(tx, logoFile)
+        }
+
         const [lastProvider] = tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)
@@ -446,6 +496,12 @@ export class ProviderModelMigrator extends BaseMigrator {
           )
         }
 
+        // Owner rows now exist — insert the logo ref rows (their `source_id` FK
+        // references `user_provider.provider_id`).
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
+        }
+
         const pinRows = assignOrderKeysInSequence(
           this.pinnedModelIds.map((entityId) => ({
             entityType: 'model' as const,
@@ -456,6 +512,11 @@ export class ProviderModelMigrator extends BaseMigrator {
           tx.insert(pinTable).values(pinRows).onConflictDoNothing().run()
         }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // user_provider) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [providerLogoFileRefTable])
 
       logger.info('Execute completed', {
         processedProviders,
@@ -468,6 +529,8 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
+      // Unlink any logo WebP written before the tx failed — no orphans on retry.
+      await unlinkPreparedImages(providerLogoFiles)
       const phaseError = createPhaseError(
         `Provider/model execution failed after ${processedProviders} provider(s)`,
         error

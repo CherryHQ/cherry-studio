@@ -1,5 +1,6 @@
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { CodeCli } from '@shared/types/codeCli'
@@ -27,7 +28,8 @@ export function useConfigEditPanelBodyProps({
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const providerName = getProviderDisplayName(provider)
-  const providerIcon = resolveProviderIcon(provider.id)
+  const providerIcon = useIcon(resolveProviderIconRef(provider.id))
+  const onSettingsNavigate = useCloseBeforeAction(onClose)
 
   const {
     draft,
@@ -71,6 +73,7 @@ export function useConfigEditPanelBodyProps({
         onSelect={onModelSelect}
         filter={modelFilter}
         showTagFilter
+        onSettingsNavigate={onSettingsNavigate}
         trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
       />
     </>
@@ -83,7 +86,8 @@ export function useConfigEditPanelBodyProps({
         config: draft.config,
         onChange: onConfigChange,
         providerId: provider.id,
-        modelFilter
+        modelFilter,
+        onSettingsNavigate
       })
     : null
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot

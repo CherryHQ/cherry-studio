@@ -6,7 +6,6 @@ import MainApp from '../MainApp'
 // Cut the heavy shell import graph (AppShell → TabRouter → routeTree.gen pulls in
 // every route module); the wiring under test is the boundary around the providers.
 vi.mock('@renderer/components/layout/AppShell', () => ({ AppShell: () => null }))
-vi.mock('@renderer/hooks/useAppInit', () => ({ useAppInit: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 

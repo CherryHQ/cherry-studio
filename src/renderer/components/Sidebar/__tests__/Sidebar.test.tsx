@@ -100,19 +100,19 @@ vi.mock('@renderer/components/command', () => ({
   )
 }))
 
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogo: (logo?: string) => {
-    if (logo !== 'qwen') return undefined
-
-    const QwenLogo = ({ style, ...props }: { style?: CSSProperties }) => (
-      <svg data-testid="resolved-mini-app-logo" style={style} {...props} />
-    )
-    QwenLogo.Avatar = ({ size }: { size: number }) => (
-      <span data-size={size} data-testid="resolved-mini-app-logo-avatar" />
-    )
-    return QwenLogo
+vi.mock('@renderer/components/icons/miniAppsLogo', () => {
+  const QwenLogo = ({ style, ...props }: { style?: CSSProperties }) => (
+    <svg data-testid="resolved-mini-app-logo" style={style} {...props} />
+  )
+  QwenLogo.Avatar = ({ size }: { size: number }) => (
+    <span data-size={size} data-testid="resolved-mini-app-logo-avatar" />
+  )
+  return {
+    getMiniAppsLogoRef: (logo?: string) =>
+      logo === 'qwen' ? { kind: 'provider', key: 'qwen', meta: { id: 'qwen', colorPrimary: '#000' } } : undefined,
+    useMiniAppLogo: (logo?: string) => (logo === 'qwen' ? QwenLogo : undefined)
   }
-}))
+})
 
 // Build the type-agnostic resolved entries the real registry would produce, so the
 // presentation tests exercise the same shape without depending on app wiring.

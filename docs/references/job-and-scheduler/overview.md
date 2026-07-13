@@ -79,6 +79,39 @@ The flow can be interrupted at any point by `onStop`. Three mechanisms cooperate
 
 Handlers must be registered in the owning service's `onInit` (see [handler-authoring.md — Registration Timing](./handler-authoring.md#registration-timing)). By the time the 60-second timer fires every consumer has finished `onInit` / `onReady`, so `runStartupRecovery` sees the full handler set. Registering a handler from another service's `onAllReady` is unsafe: that hook runs in parallel with JobManager's, and any non-terminal job for an unregistered type during recovery gets treated as an orphan and cancelled.
 
+## Pause and drain (write quiesce)
+
+Serves backup restore (#16850): after the restore snapshot is taken at time T, any JobManager write to the old live DB fails the fingerprint re-check and wastes the whole restore attempt. `pause()` stops **autonomous** writes to avoid that waste; the fingerprint gate stays the correctness backstop. The restore orchestrator must NOT run as a JobManager job — a handler that pauses and drains its own manager deadlocks until timeout.
+
+```ts
+const hold = jobManager.pause('backup restore')
+const verdict = await jobManager.drainInFlight({ timeoutMs: 15_000 })
+const clean = verdict.stragglerIds.length === 0 && !verdict.startupRecoveryPending
+if (!clean) {
+  hold.dispose() // abort path ONLY — give the manager back its autonomy
+  return abortRestoreAttempt()
+}
+await createSnapshot()
+// Happy path: NEVER dispose. The release pass writes to the old live DB
+// (promotion, markFired, catch-up enqueues) — post-snapshot that fails the
+// fingerprint re-check and voids the attempt. The hold stands until the
+// process relaunches into the restored DB (a lost hold fails closed).
+```
+
+| Rule | Detail |
+|---|---|
+| No `resume()` | Release = dispose your own hold. Holds are refcounted; the last dispose runs the compensation pass: any outstanding recovery settles FIRST — an internal release barrier keeps autonomous fires/claims frozen until it does (interval chains and croner timers would otherwise resume the moment the holds are gone and race the flow's stale-snapshot catch-up) — then delayed promotion + dispatch, suppressed-once re-arm, croner resume. A lost hold fails closed — paused until relaunch. |
+| Drain precondition | Caller must hold a live pause hold. Without one the verdict is a point-in-time snapshot (warn, no throw) and MUST NOT gate a DB snapshot. |
+| Clean verdict | `stragglerIds` empty **and** `startupRecoveryPending === false`. The deferred startup recovery is a JM-internal writer that is not a job, so it gets its own verdict field — never fake ids in `stragglerIds`. `true` means the flow is still blocked inside a step; a flow that short-circuited at a step boundary writes nothing more and reports `false` (the remainder is release's debt). |
+| Timeout | `drainInFlight` never rejects. Stragglers are **not** aborted — an abort settles them as `cancelled` into the snapshot and they would never re-run after a restore; left `running`, startup recovery applies the handler strategy. Orchestrator rule: any drain timeout → abort the restore attempt. |
+| No error surface | No API throws because of a pause; there is no pause-related error code. |
+
+**Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
+
+**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` + `markFired`; `true` still means "row persisted").
+
+Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
+
 ## Why DB-driven and not in-memory queue?
 
 We considered BullMQ / bee-queue / better-queue / agenda / graphile-worker / bree etc. and selected this design because:

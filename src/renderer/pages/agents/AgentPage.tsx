@@ -36,6 +36,7 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -57,7 +58,7 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
+import { AgentCreateDialog } from './components/AgentCreateDialog'
 import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
@@ -225,7 +226,7 @@ const AgentPage = () => {
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
-  const [agentPickerOpen, setAgentPickerOpen] = useState(false)
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -385,9 +386,9 @@ const AgentPage = () => {
   }, [isActiveTab, activeSession, activeSessionSource, setLastUsedSessionId])
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
     return () => {
-      void window.api.window.resetMinimumSize()
+      void ipcApi.request('window.main.reset_minimum_size')
     }
   }, [])
 
@@ -602,9 +603,9 @@ const AgentPage = () => {
     async (agentId: string) => {
       if (isCreatingEmptySessionRef.current) return
       isCreatingEmptySessionRef.current = true
-      // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
+      // Close the dialog first so the session/state churn below doesn't refresh it while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
-      setAgentPickerOpen(false)
+      setAgentCreateOpen(false)
       try {
         // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
         // fresh workspace below only when it has to create one.
@@ -644,7 +645,7 @@ const AgentPage = () => {
           )
         }
       } catch (err) {
-        logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
+        logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingEmptySessionRef.current = false
@@ -892,7 +893,7 @@ const AgentPage = () => {
         activeAgentId={activeResourceAgentId}
         agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
-          setAgentPickerOpen(true)
+          setAgentCreateOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={openHistoryRecords}
@@ -912,7 +913,7 @@ const AgentPage = () => {
         agentSessionsSource={agentSessionsSource}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
-          setAgentPickerOpen(true)
+          setAgentCreateOpen(true)
         }}
         historyRecordsActive={historyRecordsActive}
         revealRequest={sessionRevealRequest}
@@ -1042,15 +1043,11 @@ const AgentPage = () => {
           />
         )}
       </div>
-      {isClassicSessionLayout && (
-        <AgentConversationPickerDialog
-          open={agentPickerOpen}
-          onOpenChange={setAgentPickerOpen}
-          agents={agents}
-          agentsLoading={isAgentsLoading}
-          onSelect={handleAgentConversationSelect}
-        />
-      )}
+      <AgentCreateDialog
+        open={agentCreateOpen}
+        onOpenChange={setAgentCreateOpen}
+        onCreated={handleAgentConversationSelect}
+      />
     </Container>
   )
 }

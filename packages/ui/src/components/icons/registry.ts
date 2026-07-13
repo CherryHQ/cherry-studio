@@ -1,6 +1,6 @@
-import { MODEL_ICON_CATALOG, type ModelIconKey } from './models/catalog'
-import { PROVIDER_ICON_CATALOG, type ProviderIconKey } from './providers/catalog'
-import type { CompoundIcon } from './types'
+import { MODEL_ICON_META_CATALOG, type ModelIconKey } from './models/meta-catalog'
+import { PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from './providers/meta-catalog'
+import type { IconMeta } from './types'
 
 // NOTE: the vendor-level regex below duplicate `@cherrystudio/provider-registry`'s
 // `VENDOR_PATTERNS` (anthropic, gemini, gemma, grok, doubao, hunyuan, kimi, zhipu,
@@ -215,44 +215,70 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   cherryai: 'cherryin'
 }
 
-/** Resolve a dedicated model icon by matching modelId against MODEL_ICON_PATTERNS */
-export function resolveModelIcon(modelId: string): CompoundIcon | undefined {
+/**
+ * Synchronous handle for an icon: which catalog it lives in, its key, and its
+ * meta. Resolving a ref touches only the (light) meta catalogs — the actual
+ * component loads asynchronously via `loadIcon` / `useIcon`.
+ */
+export type IconRef =
+  | { kind: 'provider'; key: ProviderIconKey; meta: IconMeta }
+  | { kind: 'model'; key: ModelIconKey; meta: IconMeta }
+
+function providerRef(key: string): IconRef | undefined {
+  const meta = (PROVIDER_ICON_META_CATALOG as Record<string, IconMeta>)[key]
+  return meta ? { kind: 'provider', key: key as ProviderIconKey, meta } : undefined
+}
+
+function modelRef(key: string): IconRef | undefined {
+  const meta = (MODEL_ICON_META_CATALOG as Record<string, IconMeta>)[key]
+  return meta ? { kind: 'model', key: key as ModelIconKey, meta } : undefined
+}
+
+/** Exact-key ref constructor — no alias or pattern logic; keys are compile-time checked. */
+export function providerIconRef(key: ProviderIconKey): IconRef {
+  return { kind: 'provider', key, meta: PROVIDER_ICON_META_CATALOG[key] }
+}
+
+/** Exact-key ref constructor — no alias or pattern logic; keys are compile-time checked. */
+export function modelIconRef(key: ModelIconKey): IconRef {
+  return { kind: 'model', key, meta: MODEL_ICON_META_CATALOG[key] }
+}
+
+/** Resolve a dedicated model icon ref by matching modelId against MODEL_ICON_PATTERNS */
+export function resolveModelIconRef(modelId: string): IconRef | undefined {
   if (!modelId) return undefined
   for (const [regex, catalogKey] of MODEL_ICON_PATTERNS) {
     if (regex.test(modelId)) {
-      return MODEL_ICON_CATALOG[catalogKey as ModelIconKey]
+      return modelRef(catalogKey)
     }
   }
   return undefined
 }
 
-/** Resolve a provider icon by matching modelId against MODEL_TO_PROVIDER_PATTERNS */
-export function resolveModelToProviderIcon(modelId: string): CompoundIcon | undefined {
+/** Resolve a provider icon ref by matching modelId against MODEL_TO_PROVIDER_PATTERNS */
+export function resolveModelToProviderIconRef(modelId: string): IconRef | undefined {
   if (!modelId) return undefined
   for (const [regex, catalogKey] of MODEL_TO_PROVIDER_PATTERNS) {
     if (regex.test(modelId)) {
-      return PROVIDER_ICON_CATALOG[catalogKey as ProviderIconKey]
+      return providerRef(catalogKey)
     }
   }
   return undefined
 }
 
-/** Resolve a provider icon by provider ID (with alias support, model icon fallback) */
-export function resolveProviderIcon(providerId: string): CompoundIcon | undefined {
+/** Resolve a provider icon ref by provider ID (with alias support, model icon fallback) */
+export function resolveProviderIconRef(providerId: string): IconRef | undefined {
   if (!providerId) return undefined
   const key = PROVIDER_ID_ALIASES[providerId] ?? providerId
-  return (
-    (PROVIDER_ICON_CATALOG as Record<string, CompoundIcon>)[key] ??
-    (MODEL_ICON_CATALOG as Record<string, CompoundIcon>)[key]
-  )
+  return providerRef(key) ?? modelRef(key)
 }
 
 /**
- * Resolve icon with full fallback chain:
+ * Resolve an icon ref with full fallback chain:
  *  1. Model-specific icon (MODEL_ICON_PATTERNS regex on modelId)
  *  2. Provider icon inferred from modelId (MODEL_TO_PROVIDER_PATTERNS regex)
  *  3. Provider icon by providerId (exact match + aliases)
  */
-export function resolveIcon(modelId: string, providerId: string): CompoundIcon | undefined {
-  return resolveModelIcon(modelId) ?? resolveModelToProviderIcon(modelId) ?? resolveProviderIcon(providerId)
+export function resolveIconRef(modelId: string, providerId: string): IconRef | undefined {
+  return resolveModelIconRef(modelId) ?? resolveModelToProviderIconRef(modelId) ?? resolveProviderIconRef(providerId)
 }

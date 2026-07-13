@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -395,7 +395,7 @@ export function TabsProvider({
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+      void ipcApi.request('tab.detach', {
         ...tab,
         url: resolveSidebarAppTabEntryUrl(tab)
       })
@@ -440,17 +440,7 @@ export function TabsProvider({
   )
 
   // Listen for tab attach requests (from Main Process)
-  useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const handleAttachRequest = (_event: any, tabData: Tab) => {
-      attachTab(tabData)
-    }
-
-    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
-
-    return removeAttachRequest
-  }, [attachTab])
+  useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
   /**
    * Get the currently active tab

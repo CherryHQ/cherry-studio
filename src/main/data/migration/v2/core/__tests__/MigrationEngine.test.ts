@@ -1,3 +1,4 @@
+import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
@@ -254,5 +255,30 @@ describe('MigrationEngine', () => {
     expect(transactionFn).toHaveBeenCalledTimes(1)
     expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
     expect(db).not.toHaveProperty('delete')
+  })
+
+  it('includes the provider/mini-app logo ref tables in the clear set (retry safety)', async () => {
+    // Migration runs with foreign_keys OFF, so clearing owner / file_entry rows does
+    // NOT cascade to the logo ref rows — they must be cleared explicitly, else a
+    // retry collides with the unique (source_id) index and can never recover.
+    const deletedTables: unknown[] = []
+    const db = {
+      select: vi.fn(() => ({ from: vi.fn(() => ({ get: vi.fn(() => ({ count: 0 })) })) })),
+      transaction: vi.fn((fn: (tx: unknown) => void) =>
+        fn({
+          delete: (table: unknown) => {
+            deletedTables.push(table)
+            return { run: vi.fn() }
+          }
+        })
+      )
+    }
+    ;(engine as any).migrationDb = { getDb: vi.fn(() => db), close: vi.fn() }
+    vi.mocked((engine as any).verifyAndClearNewTables).mockRestore()
+
+    await (engine as any).verifyAndClearNewTables()
+
+    expect(deletedTables).toContain(providerLogoFileRefTable)
+    expect(deletedTables).toContain(miniAppLogoFileRefTable)
   })
 })

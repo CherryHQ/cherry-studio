@@ -1,13 +1,15 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
+const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useQuery: vi.fn()
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
 
 import { useSkillMutationsById } from '../skillAdapter'
 
@@ -15,17 +17,7 @@ describe('skillAdapter mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
-
-    vi.stubGlobal('api', {
-      skill: {
-        uninstall: uninstallSkillMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    skillMocks.request.mockResolvedValue({ success: true, data: undefined })
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
@@ -35,7 +27,7 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -47,7 +39,7 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 })

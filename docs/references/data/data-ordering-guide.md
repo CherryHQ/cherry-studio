@@ -2,6 +2,8 @@
 
 Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
 
+Provider enablement is transition-aware: `PATCH /providers/:providerId` moves a provider to the first position in the same transaction only when `isEnabled` changes from `false` to `true`. Redundant `true` updates preserve the user's existing order, while explicit reorder requests continue to use the canonical order routes.
+
 Every sortable resource stores its position as a string `order_key` column. A reorder is always **relative** against an anchor (another row's id, or a `first` / `last` sentinel), never an absolute index. The server computes a new key between neighbours in one transaction; the renderer optimistically reorders its local cache and revalidates on completion.
 
 ## Quickstart — The Four Layers
