@@ -239,6 +239,60 @@ describe('listModels — openAIFetcher (official OpenAI provider, audio/video fi
   })
 })
 
+describe('listModels — anthropicFetcher (x-api-key + anthropic-version transport)', () => {
+  function makeAnthropicProvider() {
+    return makeProvider({
+      id: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+  }
+
+  it('hits /v1/models with x-api-key + anthropic-version, never Authorization: Bearer', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-ant-secret')
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'claude-opus-4-8', display_name: 'Claude Opus 4.8' }] }
+    })
+
+    const models = await listModels(makeAnthropicProvider())
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    expect(call.url).toBe('https://api.anthropic.com/v1/models?limit=1000')
+    expect(call.headers['x-api-key']).toBe('sk-ant-secret')
+    expect(call.headers['anthropic-version']).toBe('2023-06-01')
+    expect(call.headers.Authorization).toBeUndefined()
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe('claude-opus-4-8')
+    expect(models[0].name).toBe('Claude Opus 4.8')
+    expect(models[0].ownedBy).toBe('anthropic')
+  })
+
+  it('routes copied Anthropic providers (uuid id + presetProviderId) through the Anthropic fetcher (REGRESSION)', async () => {
+    const copied = makeProvider({
+      id: 'a1b2c3d4-e5f6-7089-1234-56789abcdef0',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'claude-opus-4-8' }, { id: 'claude-opus-4-8' }] }
+    })
+
+    const models = await listModels(copied)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: Record<string, string> }
+    expect(call.headers['anthropic-version']).toBe('2023-06-01')
+    // dedup keeps a single entry for the repeated id
+    expect(models.map((m) => m.apiModelId)).toEqual(['claude-opus-4-8'])
+  })
+})
+
 describe('listModels — copilotFetcher (preset-aware routing)', () => {
   it('routes copied Copilot providers (uuid id + presetProviderId) through the Copilot fetcher and its audio filter (REGRESSION)', async () => {
     const copiedCopilotProvider = makeProvider({
@@ -324,24 +378,6 @@ describe('listModels — copied preset provider routing', () => {
     })
     expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
   })
-
-  it.each(['anthropic', 'aws-bedrock'] as const)(
-    'does not use the OpenAI-compatible fallback for a copied %s provider',
-    async (presetProviderId) => {
-      const provider = makeProvider({
-        id: `copied-${presetProviderId}`,
-        presetProviderId,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
-        }
-      })
-
-      await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow(
-        `Provider does not support model listing: copied-${presetProviderId}`
-      )
-      expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('listModels — newApiFetcher endpoint types', () => {

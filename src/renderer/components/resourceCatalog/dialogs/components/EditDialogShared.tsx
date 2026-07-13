@@ -15,6 +15,9 @@ import {
   MenuItem,
   MenuList,
   NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Scrollbar,
   submenuItemClassName,
   Tabs,
@@ -23,12 +26,14 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +44,8 @@ import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './Dialo
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
 const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start data-[state=active]:!shadow-none')
+
+const logger = loggerService.withContext('EditDialogShared')
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -218,14 +225,21 @@ type KnowledgeBaseFieldValues = FieldValues & {
 export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
-  formLabel = true
+  formLabel = true,
+  disabled = false,
+  onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  disabled?: boolean
+  onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
+  const { data, isLoading } = useQuery('/knowledge-bases', {
+    query: { limit: 100 },
+    swrOptions: { revalidateOnFocus: true }
+  })
   const bases = useMemo(() => data?.items ?? [], [data])
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
@@ -274,11 +288,23 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               triggerLabel={t('library.config.knowledge.add')}
               searchPlaceholder={t('library.config.knowledge.search')}
               emptyLabel={t('library.config.knowledge.no_more')}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               align="end"
               triggerPosition="end"
               triggerClassName="border border-border bg-transparent"
               portalContainer={portalContainer}
+              footer={
+                onOpenKnowledgePage ? (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    onClick={onOpenKnowledgePage}>
+                    <ArrowUpRight size={14} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
+                  </button>
+                ) : null
+              }
             />
           </div>
           {linkedItems.length === 0 ? (
@@ -304,6 +330,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    disabled={disabled}
                     onClick={() => remove(kb.id)}
                     aria-label={t('library.config.knowledge.remove_aria')}
                     className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
@@ -694,7 +721,7 @@ export function CompactModelField({
             </div>
           </DialogModelFrame>
           {description ? <FormDescription className="text-xs">{description}</FormDescription> : null}
-          {name === 'modelId' && value && !modelLabels[name] ? (
+          {name === 'modelId' && value && !modelLabels[name] && !selectedModel ? (
             <FormDescription className="text-xs">
               {t('library.config.basic.model_not_found', { id: value })}
             </FormDescription>
@@ -708,41 +735,53 @@ export function CompactModelField({
 
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
-  const content = (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <div className="font-medium text-neutral-50 text-xs">{t('library.config.prompt.variables_title')}</div>
-        <div className="text-neutral-300 text-xs leading-relaxed">
-          {t('library.config.prompt.variables_description')}
-        </div>
-      </div>
-      <div className="rounded-md border border-neutral-700/70 bg-neutral-800/70 px-2 py-1.5 text-neutral-200 text-xs">
-        {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
-      </div>
-      <div>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs">
-          {PROMPT_VARIABLES.map((variable) => (
-            <div key={variable.name} className="contents">
-              <span className="text-neutral-50">{variable.name}</span>
-              <span className="font-sans">{t(variable.i18n)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
+  const copyVariable = (variable: string) => {
+    navigator.clipboard
+      .writeText(variable)
+      .then(() => toast.success(t('message.copy.success')))
+      .catch((error) => {
+        logger.warn('Failed to copy prompt variable to clipboard', error as Error)
+      })
+  }
   return (
-    <NormalTooltip
-      content={content}
-      delayDuration={300}
-      align="start"
-      sideOffset={4}
-      contentProps={{
-        portalContainer,
-        className: 'w-80 p-3'
-      }}>
-      <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
-    </NormalTooltip>
+    <Popover>
+      <PopoverTrigger asChild>
+        <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+      </PopoverTrigger>
+      <PopoverContent
+        portalContainer={portalContainer}
+        align="center"
+        sideOffset={0}
+        aria-label={t('library.config.prompt.variables_title')}
+        className="w-80 p-3">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
+            <div className="text-foreground-secondary text-xs leading-relaxed">
+              {t('library.config.prompt.variables_description')}
+            </div>
+          </div>
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-foreground-secondary text-xs">
+            {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
+          </div>
+          <div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-foreground-secondary text-xs">
+              {PROMPT_VARIABLES.map((variable) => (
+                <div key={variable.name} className="contents">
+                  <button
+                    type="button"
+                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
+                    onClick={() => copyVariable(variable.name)}>
+                    {variable.name}
+                  </button>
+                  <span className="font-sans">{t(variable.i18n)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

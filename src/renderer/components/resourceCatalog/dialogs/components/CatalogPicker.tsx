@@ -16,7 +16,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Plus } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CatalogItem {
@@ -158,6 +158,7 @@ export const AddCatalogPopover: FC<{
   emptyLabel: string
   disabled?: boolean
   align?: 'start' | 'end'
+  footer?: ReactNode
   triggerClassName?: string
   triggerPosition?: 'start' | 'end'
   portalContainer?: HTMLElement | null
@@ -170,12 +171,19 @@ export const AddCatalogPopover: FC<{
   emptyLabel,
   disabled,
   align = 'end',
+  footer,
   triggerClassName,
   triggerPosition = 'end',
   portalContainer
 }) => {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (!disabled) return
+    setOpen(false)
+    setSearch('')
+  }, [disabled])
 
   const options = useMemo(() => {
     return items
@@ -201,6 +209,7 @@ export const AddCatalogPopover: FC<{
   }, [options, search])
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled && nextOpen) return
     setOpen(nextOpen)
     if (!nextOpen) setSearch('')
   }
@@ -230,6 +239,7 @@ export const AddCatalogPopover: FC<{
           <CommandInput
             value={search}
             onValueChange={setSearch}
+            disabled={disabled}
             placeholder={searchPlaceholder}
             wrapperClassName="mx-2 mt-2 mb-1 h-7 rounded-full border-[0.5px] border-border-subtle px-2.5"
             className="h-7 text-xs placeholder:text-muted-foreground/40"
@@ -243,10 +253,10 @@ export const AddCatalogPopover: FC<{
                   <CommandItem
                     key={option.value}
                     value={option.value}
-                    disabled={option.disabled}
+                    disabled={disabled || option.disabled}
                     className="rounded-md"
                     onSelect={() => {
-                      if (option.item.pickable === false) return
+                      if (disabled || option.item.pickable === false) return
                       onAdd(option.value)
                       handleOpenChange(false)
                     }}>
@@ -264,6 +274,7 @@ export const AddCatalogPopover: FC<{
             )}
           </CommandList>
         </Command>
+        {footer ? <div className="overflow-hidden rounded-b-md border-border border-t bg-popover">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   )

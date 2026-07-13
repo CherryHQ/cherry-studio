@@ -42,6 +42,7 @@ export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
             placeholder={t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+            autoFocus
           />
         </FormItem>
       )}

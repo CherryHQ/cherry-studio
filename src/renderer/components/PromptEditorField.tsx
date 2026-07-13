@@ -26,6 +26,7 @@ interface PromptEditorFieldProps {
   resetPreviewKey?: unknown
   minHeight?: string
   maxHeight?: string
+  autoFocus?: boolean
 }
 
 export function PromptEditorField({
@@ -40,7 +41,8 @@ export function PromptEditorField({
   previewValue,
   resetPreviewKey,
   minHeight = '200px',
-  maxHeight = '50vh'
+  maxHeight = '50vh',
+  autoFocus = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const previewId = useId()
@@ -119,6 +121,7 @@ export function PromptEditorField({
               theme={activeCmTheme}
               fontSize={fontSize - 1}
               value={value}
+              autoFocus={autoFocus}
               language="markdown"
               onChange={handleChange}
               expanded={false}

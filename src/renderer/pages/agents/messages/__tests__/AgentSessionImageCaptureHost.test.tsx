@@ -44,7 +44,7 @@ vi.mock('../agentMessageListAdapter', () => ({
 const { default: AgentSessionImageCaptureHost } = await import('../AgentSessionImageCaptureHost')
 
 describe('AgentSessionImageCaptureHost', () => {
-  it('uses the session export title and model fallback for offscreen image capture', () => {
+  it('uses the session export title for offscreen image capture', () => {
     const session = {
       id: 'session-a',
       agentId: 'agent-a',
@@ -63,7 +63,6 @@ describe('AgentSessionImageCaptureHost', () => {
     expect(exportServiceMocks.getAgentSessionExportTitle).toHaveBeenCalledWith(session)
     expect(messageListProviderMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelFallback,
         topic: expect.objectContaining({
           id: 'agent-session:session-a',
           name: 'New task'

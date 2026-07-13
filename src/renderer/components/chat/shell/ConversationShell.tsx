@@ -18,6 +18,7 @@ export interface ConversationShellProps {
   panePosition?: ChatPanePosition
   topBar?: ReactNode
   topRightTool?: ReactNode
+  showTopRightToolWhenPaneOpen?: boolean
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -40,6 +41,7 @@ export default function ConversationShell({
   panePosition,
   topBar,
   topRightTool,
+  showTopRightToolWhenPaneOpen = false,
   center,
   sidePanel,
   centerOverlay,
@@ -65,7 +67,8 @@ export default function ConversationShell({
         leftPaneOpen={leftPaneOpen}
         leading={chrome?.titleLeading}
         trailing={chrome?.titleTrailing}
-        topRightTool={topRightTool}>
+        topRightTool={topRightTool}
+        showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
         {topBar}
       </ConversationShellTopBar>
     ) : (
@@ -110,6 +113,7 @@ type TopBarProps = {
   leading?: ReactNode
   trailing?: ReactNode
   topRightTool?: ReactNode
+  showTopRightToolWhenPaneOpen: boolean
   children?: ReactNode
 }
 
@@ -119,6 +123,7 @@ const ConversationShellTopBar = ({
   leading,
   trailing,
   topRightTool,
+  showTopRightToolWhenPaneOpen,
   children
 }: TopBarProps) => {
   const shellState = useOptionalShellState()
@@ -126,8 +131,9 @@ const ConversationShellTopBar = ({
   const open = shellState?.open ?? false
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
   const shouldReserveTrafficLightInset = isWindow && isMac && !leftPaneOpen
-  const shouldShowTopRightTool = !open && !maximized && Boolean(trailing || topRightTool)
-  const shouldReserveRightInset = !open && !maximized && (isWindow || shouldShowTopRightTool)
+  const shouldShowTopRightTool =
+    !maximized && (!open || showTopRightToolWhenPaneOpen) && Boolean(trailing || topRightTool)
+  const shouldReserveRightInset = !maximized && ((!open && isWindow) || shouldShowTopRightTool)
   return (
     <div
       data-conversation-shell-topbar

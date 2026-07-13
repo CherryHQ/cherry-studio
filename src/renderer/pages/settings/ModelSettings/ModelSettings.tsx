@@ -24,7 +24,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
+import type { ComponentProps, FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -61,7 +61,7 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, c
   </SettingRow>
 )
 
-interface ModelSelectorTriggerProps {
+interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
   model?: Model
   providers: Provider[]
   placeholder: string
@@ -85,17 +85,29 @@ const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueMode
 
 const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
 
-const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({ model, providers, placeholder, compact }) => {
+const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
+  model,
+  providers,
+  placeholder,
+  compact,
+  className,
+  ...props
+}) => {
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
   const icon = useIcon(model ? resolveIconRef(getModelIdentifier(model), model.providerId) : undefined)
 
   return (
     <Button
+      {...props}
       type="button"
       variant="outline"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn(
+        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+        compact ? 'h-9' : 'h-7.5',
+        className
+      )}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />

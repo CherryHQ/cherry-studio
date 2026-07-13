@@ -1190,6 +1190,7 @@
           "official": "https://cloud.tencent.com/product/tokenhub"
         }
       },
+      "modelListSource": "registry",
       "name": "TokenHub"
     },
     {
@@ -1268,6 +1269,7 @@
           "official": "https://aws.amazon.com/bedrock/"
         }
       },
+      "modelListSource": "registry",
       "name": "AWS Bedrock"
     },
     {
@@ -1453,5 +1455,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4b6940ba3a873ad9"
+  "version": "88fadfc88b8f4da7"
 }

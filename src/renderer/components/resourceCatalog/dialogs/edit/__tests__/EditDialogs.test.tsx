@@ -538,10 +538,10 @@ function expectHelpTrigger(label: string, description: string) {
   expect(screen.queryByText(description)).not.toBeInTheDocument()
 }
 
-async function expectVariablesHelpOnHover() {
+async function expectVariablesHelpOnOpen() {
   const trigger = screen.getByRole('button', { name: 'System variables' })
   expect(trigger).toHaveClass('size-4')
-  fireEvent.pointerMove(trigger, { pointerType: 'mouse' })
+  fireEvent.click(trigger)
   await waitFor(() => {
     expect(
       screen.getAllByText(
@@ -685,7 +685,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    await expectVariablesHelpOnHover()
+    await expectVariablesHelpOnOpen()
     expect(screen.getByText('Instructions')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
@@ -796,7 +796,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    await expectVariablesHelpOnHover()
+    await expectVariablesHelpOnOpen()
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))

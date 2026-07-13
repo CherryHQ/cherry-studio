@@ -1,7 +1,7 @@
 import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
+import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
 
 const t = ((key: string) => key) as TopicActionContext['t']
 
@@ -32,6 +32,7 @@ const topic: Topic = {
 
 function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): TopicActionContext {
   return {
+    assistantMoveTargets: [],
     exportMenuOptions,
     isActiveInCurrentTab: false,
     isRenaming: false,
@@ -81,5 +82,53 @@ describe('topic context menu actions', () => {
 
     const exportAction = actions.find((action) => action.id === 'topic.export')
     expect(exportAction?.children.map((action) => action.id)).not.toContain('topic.export.image')
+  })
+
+  it('runs a move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+
+    const actions = resolveTopicMenuActions(context)
+    const moveAction = actions.find((action) => action.id === 'topic.move-to-assistant')
+
+    expect(moveAction?.label).toBe('chat.topics.move_to')
+    expect(moveAction?.children.map((action) => action.label)).toEqual(['Assistant B'])
+
+    await executeTopicMenuAction(moveAction!.children[0], context)
+
+    expect(onMoveToAssistant).toHaveBeenCalledWith(topic, 'assistant-b')
+  })
+
+  it('does not run a stale move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+    const staleAction = moveAction!.children[0]
+
+    const currentContext = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-c', name: 'Assistant C' }],
+      onMoveToAssistant
+    })
+
+    await expect(executeTopicMenuAction(staleAction, currentContext)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not run a move-to-assistant submenu action for the current assistant', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-a', name: 'Assistant A' }],
+      onMoveToAssistant
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
+
+    await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
+    expect(onMoveToAssistant).not.toHaveBeenCalled()
   })
 })
