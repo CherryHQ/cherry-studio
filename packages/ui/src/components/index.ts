@@ -124,7 +124,7 @@ export {
 } from './composites/image-preview'
 // MenuList
 export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/menu-list'
-export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/menu-list'
+export { MenuDivider, MenuItem, menuItemVariants, MenuList, submenuItemClassName } from './composites/menu-list'
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList

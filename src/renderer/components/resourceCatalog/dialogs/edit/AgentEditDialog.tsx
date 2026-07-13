@@ -33,7 +33,7 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -49,7 +49,8 @@ import {
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 
@@ -250,8 +251,11 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
@@ -274,11 +278,10 @@ function AgentEditDialogContent({
     setActiveTab('basic')
   }, [activeTab, leafTabIds])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
@@ -288,28 +291,41 @@ function AgentEditDialogContent({
     try {
       updated = await updateAgent(pending.payload)
     } catch (error) {
-      logger.error('Failed to save agent edit dialog', error as Error, { agentId: resource.id })
+      logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       return
     }
 
-    onOpenChange(false)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /agents/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
   })
+
+  // Flush a still-pending debounced change when the dialog closes so a quick
+  // edit-then-close never loses the last keystroke.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && canPersist) void persist()
+    onOpenChange(next)
+  }
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}

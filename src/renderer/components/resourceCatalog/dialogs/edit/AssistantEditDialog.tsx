@@ -50,7 +50,8 @@ import {
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { TagSelector } from '../components/TagSelector'
@@ -207,8 +208,11 @@ function AssistantEditDialogContent({
     [t]
   )
 
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
@@ -217,11 +221,10 @@ function AssistantEditDialogContent({
     setModelLabels(modelLabelsForAssistant(resource))
   }, [defaultValues, form, open, resource])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
     if (!pending) return
 
@@ -234,29 +237,42 @@ function AssistantEditDialogContent({
         ...(pending.tagsChanged ? { tagIds: (await ensureTags(pending.tagNames)).map((tag) => tag.id) } : {})
       })
     } catch (error) {
-      logger.error('Failed to save assistant edit dialog', error as Error, { assistantId: resource.id })
+      logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       return
     }
 
-    onOpenChange(false)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
     }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
   })
+
+  // Flush a still-pending debounced change when the dialog closes so a quick
+  // edit-then-close never loses the last keystroke.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && canPersist) void persist()
+    onOpenChange(next)
+  }
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
       groupPresentation="inline"
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
@@ -340,6 +356,7 @@ function AssistantBasicFields({
           setEmojiPickerOpen={setEmojiPickerOpen}
           fallback="💬"
           portalContainer={portalContainer}
+          size="sm"
         />
         <TextInputField
           form={form}

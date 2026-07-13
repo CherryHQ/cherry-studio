@@ -3,8 +3,8 @@ export const settingsSubmenuScrollClassName =
 
 export const settingsSubmenuListClassName = 'flex flex-col gap-0.5 px-2.5 pb-2.5 [box-sizing:border-box]'
 
-export const settingsSubmenuItemClassName =
-  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground'
+// Single source of truth lives in @cherrystudio/ui (shared with the resource edit-dialog rail).
+export { submenuItemClassName as settingsSubmenuItemClassName } from '@cherrystudio/ui'
 
 export const settingsSubmenuItemLabelClassName = 'group-data-[active=true]:font-medium'
 

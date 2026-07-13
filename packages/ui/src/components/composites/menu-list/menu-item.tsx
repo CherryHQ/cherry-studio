@@ -40,6 +40,11 @@ const menuItemVariants = cva(
   }
 )
 
+// Shared preset for MenuItem used as a vertical submenu / nav item (settings sidebar,
+// resource edit-dialog rail) — single source of truth so those surfaces stay identical.
+const submenuItemClassName =
+  'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground'
+
 type MenuItemProps = React.ComponentProps<'button'> &
   VariantProps<typeof menuItemVariants> & {
     icon?: React.ReactNode
@@ -147,5 +152,5 @@ MenuDivider.displayName = 'MenuDivider'
 // Exports
 // ---------------------------------------------------------------------------
 
-export { MenuDivider, MenuItem, menuItemVariants, MenuList }
+export { MenuDivider, MenuItem, menuItemVariants, MenuList, submenuItemClassName }
 export type { MenuDividerProps, MenuItemProps, MenuListProps }

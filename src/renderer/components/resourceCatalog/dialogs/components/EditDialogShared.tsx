@@ -12,9 +12,11 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  MenuItem,
   MenuList,
   NormalTooltip,
   Scrollbar,
+  submenuItemClassName,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -33,6 +35,10 @@ import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+
+// Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
+// MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
+const railTabItemClassName = cn(submenuItemClassName, 'flex-none justify-start')
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
@@ -76,16 +82,7 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
   { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
 ]
 
-// Mirrors the standalone settings window nav items (settingsSubmenuItemClassName).
-const EDIT_DIALOG_TAB_TRIGGER_CLASS =
-  'h-7.5 w-full flex-none justify-start rounded-lg border-transparent bg-transparent px-2.5 text-left font-normal text-foreground/80 text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground data-[state=active]:!bg-selected data-[state=active]:!font-medium data-[state=active]:!text-foreground data-[state=active]:!shadow-(--shadow-selected-outline)'
-
-const EDIT_DIALOG_GROUP_BUTTON_CLASS =
-  'flex h-7.5 w-full items-center justify-start rounded-lg bg-transparent px-2.5 text-left font-normal text-foreground/80 text-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-
-const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
-
-export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '380px'
+export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '500px'
 export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '50vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
@@ -104,6 +101,45 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
   Object.entries(patch).forEach(([key, value]) => {
     form.setValue(key as never, value as never, { shouldDirty: true })
   })
+}
+
+/**
+ * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
+ * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
+ * of quiet. `changeKey === null` means nothing to save. A ref guards against
+ * overlapping in-flight saves.
+ */
+export function useDebouncedAutoSave({
+  enabled,
+  changeKey,
+  onSave,
+  delay = 500
+}: {
+  enabled: boolean
+  changeKey: string | null
+  onSave: () => void | Promise<void>
+  delay?: number
+}) {
+  const onSaveRef = useRef(onSave)
+  const savingRef = useRef(false)
+
+  useEffect(() => {
+    onSaveRef.current = onSave
+  })
+
+  useEffect(() => {
+    if (!enabled || changeKey === null) return
+    const handle = setTimeout(async () => {
+      if (savingRef.current) return
+      savingRef.current = true
+      try {
+        await onSaveRef.current()
+      } finally {
+        savingRef.current = false
+      }
+    }, delay)
+    return () => clearTimeout(handle)
+  }, [enabled, changeKey, delay])
 }
 
 const HelpIconButton = ({
@@ -287,13 +323,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
 
 export function EditDialogShell<TValues extends FieldValues>({
   activeTab,
-  canSave,
   children,
   form,
-  isSubmitting,
   onActiveTabChange,
   onOpenChange,
-  onSubmit,
   open,
   rootError,
   setDialogContentElement,
@@ -303,22 +336,18 @@ export function EditDialogShell<TValues extends FieldValues>({
   groupPresentation = 'grouped'
 }: {
   activeTab: string
-  canSave: boolean
   children: ReactNode
   form: UseFormReturn<TValues>
   groupExpansion?: EditDialogGroupExpansion
   groupPresentation?: EditDialogGroupPresentation
-  isSubmitting: boolean
   onActiveTabChange: (tab: string) => void
   onOpenChange: (open: boolean) => void
-  onSubmit: () => void
   open: boolean
   rootError?: string
   setDialogContentElement: (element: HTMLDivElement | null) => void
   tabs: EditDialogTab[]
   title: string
 }) {
-  const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
     getDefaultExpandedGroupIds(tabs, groupExpansion)
@@ -343,11 +372,6 @@ export function EditDialogShell<TValues extends FieldValues>({
     })
   }, [activeTab, tabs])
 
-  const handleClose = (nextOpen: boolean) => {
-    if (isSubmitting) return
-    onOpenChange(nextOpen)
-  }
-
   const handleTabValueChange = (value: string) => {
     onActiveTabChange(resolveTabValue(tabs, value))
   }
@@ -365,27 +389,25 @@ export function EditDialogShell<TValues extends FieldValues>({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
-        closeOnOverlayClick={!isSubmitting}
-        className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200"
-        onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
+        className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200">
         <Form {...form}>
           {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
               transform makes it the containing block for portaled fixed poppers (model selector),
               so overflow-hidden on DialogContent would clip them. */}
           <form
             id="resource-edit-dialog-form"
-            onSubmit={onSubmit}
+            onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             <Tabs
               value={activeTab}
               onValueChange={handleTabValueChange}
               orientation="vertical"
               className="min-h-0 flex-1 gap-0 overflow-hidden">
-              {/* Mirrors the standalone settings window shell: sidebar-tinted rail + hairline divider. */}
-              <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px] bg-sidebar">
+              {/* White rail matching the settings-page nav: hairline divider, no sidebar tint. */}
+              <div className="flex w-40 shrink-0 flex-col border-border border-r-[0.5px]">
                 {/* px-5 lines the title up with the nav item text (TabsList p-2.5 + item px-2.5). */}
                 <DialogTitle className="px-5 pt-4 text-sm">{title}</DialogTitle>
                 <TabsList
@@ -396,8 +418,12 @@ export function EditDialogShell<TValues extends FieldValues>({
                       const hasChildren = Boolean(tab.children?.length)
                       if (hasChildren && groupPresentation === 'inline') {
                         return tab.children?.map((child) => (
-                          <TabsTrigger key={child.id} value={child.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                            <span className="min-w-0 flex-1 truncate text-left">{child.label}</span>
+                          <TabsTrigger key={child.id} value={child.id} asChild>
+                            <MenuItem
+                              label={child.label}
+                              active={activeTab === child.id}
+                              className={railTabItemClassName}
+                            />
                           </TabsTrigger>
                         ))
                       }
@@ -407,33 +433,38 @@ export function EditDialogShell<TValues extends FieldValues>({
                       return (
                         <div key={tab.id} className="grid gap-1">
                           {hasChildren ? (
-                            <button
-                              type="button"
+                            <MenuItem
+                              label={tab.label}
                               aria-expanded={groupExpanded}
-                              data-expanded={groupExpanded || undefined}
-                              className={EDIT_DIALOG_GROUP_BUTTON_CLASS}
-                              onClick={() => toggleTabGroup(tab.id)}>
-                              <span className="min-w-0 flex-1 truncate text-left">{tab.label}</span>
-                              <ChevronDown
-                                size={13}
-                                strokeWidth={1.8}
-                                className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
-                                data-expanded={groupExpanded || undefined}
-                              />
-                            </button>
+                              onClick={() => toggleTabGroup(tab.id)}
+                              className={submenuItemClassName}
+                              suffix={
+                                <ChevronDown
+                                  size={13}
+                                  strokeWidth={1.8}
+                                  className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
+                                  data-expanded={groupExpanded || undefined}
+                                />
+                              }
+                            />
                           ) : (
-                            <TabsTrigger value={tab.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
-                              <span className="min-w-0 flex-1 truncate text-left">{tab.label}</span>
+                            <TabsTrigger value={tab.id} asChild>
+                              <MenuItem
+                                label={tab.label}
+                                active={activeTab === tab.id}
+                                className={railTabItemClassName}
+                              />
                             </TabsTrigger>
                           )}
                           {hasChildren && groupExpanded ? (
                             <div className="grid gap-1">
                               {tab.children?.map((child) => (
-                                <TabsTrigger
-                                  key={child.id}
-                                  value={child.id}
-                                  className={EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS}>
-                                  <span className="min-w-0 truncate">{child.label}</span>
+                                <TabsTrigger key={child.id} value={child.id} asChild>
+                                  <MenuItem
+                                    label={child.label}
+                                    active={activeTab === child.id}
+                                    className={railTabItemClassName}
+                                  />
                                 </TabsTrigger>
                               ))}
                             </div>
@@ -452,18 +483,12 @@ export function EditDialogShell<TValues extends FieldValues>({
                   {children}
                 </Scrollbar>
 
-                <DialogFooter className="flex-row items-center justify-between px-5 pb-4">
+                {/* Live-save has no Save/Cancel; the header close (X) persists on the way out.
+                    Footer is just a reserved-height row for the save error, if any. */}
+                <DialogFooter className="flex-row items-center px-5 pb-4">
                   <p className="min-h-4 flex-1 text-destructive text-xs" aria-live="polite">
                     {rootError ?? ''}
                   </p>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                    <Button type="submit" disabled={!canSave} loading={isSubmitting}>
-                      {t('common.save')}
-                    </Button>
-                  </div>
                 </DialogFooter>
               </div>
             </Tabs>

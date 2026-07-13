@@ -209,6 +209,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
+          'common.close': 'Close',
           'common.delete': 'Delete',
           'common.description': 'Description',
           'common.edit': 'Edit',
@@ -556,8 +557,6 @@ describe('edit dialogs', () => {
     expect(screen.getByText(/Old Model/)).toBeInTheDocument()
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -581,8 +580,6 @@ describe('edit dialogs', () => {
     expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
 
     fireEvent.click(clearButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -598,8 +595,6 @@ describe('edit dialogs', () => {
 
     openTagSelect()
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
@@ -615,8 +610,6 @@ describe('edit dialogs', () => {
     const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
     expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
@@ -663,8 +656,6 @@ describe('edit dialogs', () => {
     selectTab('Basic')
     fireEvent.click(screen.getByRole('button', { name: 'Model' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -746,8 +737,6 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Max tool calls', 'Caps tool loops.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -827,8 +816,6 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
@@ -864,15 +851,14 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
-  it('queues agent skill toggles until the edit dialog is saved', async () => {
+  it('auto-saves agent skill toggles after a debounce', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Skills')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    // Not persisted synchronously — the debounce is still pending.
     expect(updateAgentMock).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
@@ -939,8 +925,6 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
@@ -952,21 +936,23 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={onSaved} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(screen.queryByText('Save failed')).not.toBeInTheDocument()
   })
 
-  it('closes after a successful save', async () => {
+  it('flushes a pending change and closes when the dialog is closed', async () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ name: 'Updated Assistant' })
+      })
+    )
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })
