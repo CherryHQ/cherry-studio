@@ -252,7 +252,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     id: 'tiangong-ai',
     name: 'Tiangong AI',
     nameKey: 'miniApps.tiangong-ai',
-    logo: 'tng',
+    logo: 'skywork',
     url: 'https://www.tiangong.cn/',
     bordered: true,
     supportedRegions: ['CN']

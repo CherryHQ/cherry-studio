@@ -34,7 +34,7 @@ function Tabs({
 const tabsListVariants = cva('inline-flex items-center justify-center', {
   variants: {
     variant: {
-      default: 'bg-muted text-muted-foreground h-9 w-fit rounded-lg p-[3px]',
+      default: 'bg-muted text-muted-foreground h-7 w-fit rounded-lg p-[2px]',
       line: 'bg-transparent gap-4 justify-start border-b-0 p-0',
       underline: 'bg-transparent gap-0 justify-start border-b-0 p-0',
       workflow: 'bg-transparent gap-3 justify-start border-b-0 p-0'
@@ -75,7 +75,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 const tabsTriggerVariants = cva(
   [
-    'inline-flex items-center justify-center whitespace-nowrap text-sm font-medium',
+    'inline-flex items-center justify-center whitespace-nowrap text-xs font-normal',
     'disabled:pointer-events-none disabled:opacity-50',
     'transition-all',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
@@ -84,10 +84,10 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default: [
-          'h-[calc(100%-1px)] flex-1 gap-1.5 px-2 py-1 rounded-md',
+          'h-[calc(100%-1px)] flex-1 gap-1 px-2 py-0.5 rounded-md',
           'text-foreground border border-transparent',
           'dark:text-muted-foreground',
-          'focus-visible:ring-[3px] focus-visible:outline-1 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring',
+          'focus-visible:ring-[1px] focus-visible:outline-1 focus-visible:border-ring focus-visible:ring-ring/35 focus-visible:outline-ring',
           'data-[state=active]:bg-background data-[state=active]:shadow-sm',
           'dark:data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30'
         ],
@@ -95,9 +95,9 @@ const tabsTriggerVariants = cva(
           'relative gap-2 px-2 py-2',
           'font-normal text-muted-foreground hover:text-foreground',
           'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          'data-[state=active]:text-primary',
+          'data-[state=active]:text-control-accent',
           'after:absolute after:rounded-full after:bg-transparent',
-          'data-[state=active]:after:bg-primary'
+          'data-[state=active]:after:bg-control-accent'
         ],
         underline: [
           'relative gap-1.5 px-2.5 py-2',
@@ -105,7 +105,7 @@ const tabsTriggerVariants = cva(
           'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           'data-[state=active]:text-foreground',
           'after:absolute after:rounded-none after:bg-transparent',
-          'data-[state=active]:after:bg-primary'
+          'data-[state=active]:after:bg-control-accent'
         ],
         workflow: [
           'relative gap-1.5 px-1 py-1.5 text-sm font-normal',
@@ -134,8 +134,8 @@ const tabsTriggerVariants = cva(
         variant: 'line',
         orientation: 'vertical',
         class: [
-          'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
-          'hover:text-primary hover:bg-primary/10'
+          'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-control-accent',
+          'hover:text-control-accent hover:bg-control-accent/10'
         ]
       },
       {

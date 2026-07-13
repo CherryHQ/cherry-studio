@@ -15,7 +15,7 @@ interface CopyButtonProps {
 const CopyButton: FC<CopyButtonProps> = ({ tooltip, label, size = 14, className = '', ...props }) => {
   const button = (
     <div
-      className={`flex flex-row items-center gap-1 cursor-pointer text-gray-600 dark:text-gray-400 transition-colors duration-200 hover:text-blue-600 dark:hover:text-blue-400 ${className}`}
+      className={`flex flex-row items-center gap-1 cursor-pointer text-foreground-secondary transition-colors duration-200 hover:text-foreground ${className}`}
       {...props}>
       <Copy size={size} className="transition-colors duration-200" />
       {label && <span style={{ fontSize: `${size}px` }}>{label}</span>}

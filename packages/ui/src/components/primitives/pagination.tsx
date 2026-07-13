@@ -40,8 +40,8 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
           variant: isActive ? 'outline' : 'ghost',
           size
         }),
-        'text-foreground hover:text-primary hover:shadow-none hover:bg-primary/10 rounded-md',
-        isActive && 'bg-background text-primary',
+        'text-foreground hover:text-control-accent hover:shadow-none hover:bg-control-accent/10 rounded-md',
+        isActive && 'bg-background text-control-accent',
         className
       )}
       {...props}

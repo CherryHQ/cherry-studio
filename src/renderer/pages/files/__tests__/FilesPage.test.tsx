@@ -7,7 +7,7 @@ import type { FileEntry } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -492,7 +492,7 @@ describe('FilesPage file operations', () => {
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
-    fireEvent.click(screen.getByText(/files.delete.label/))
+    fireEvent.click(screen.getByRole('button', { name: 'files.delete.label (2)' }))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
@@ -518,14 +518,14 @@ describe('FilesPage file operations', () => {
     selectFileAt(0)
     selectFileAt(1)
 
-    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.delete.label (2)' })).toBeInTheDocument()
   })
 
-  it('starts rename from the visible row action button', () => {
+  it('starts rename from the row action menu', () => {
     vi.useFakeTimers()
     renderFilesPage()
 
-    fireEvent.click(screen.getByLabelText('files.rename'))
+    fireEvent.click(screen.getByRole('button', { name: 'files.rename' }))
 
     const input = screen.getByDisplayValue('report.md') as HTMLInputElement
     act(() => {
@@ -641,14 +641,14 @@ describe('FilesPage file operations', () => {
     expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
     expect(screen.getByText('files.permanent_delete_confirm.title')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('files.permanent_delete'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'files.permanent_delete' }))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
     })
   })
 
-  it('restores a trashed file from the context menu', () => {
+  it('restores a trashed file from the row action menu', () => {
     mockUseInfiniteQuery.mockImplementation((_path, options) => ({
       pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
       isLoading: false,
@@ -663,8 +663,7 @@ describe('FilesPage file operations', () => {
     render(<FilesPage />)
 
     fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
+    fireEvent.click(screen.getByRole('button', { name: 'files.restore' }))
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [trashedEntry.id] })
   })
@@ -692,8 +691,7 @@ describe('FilesPage file operations', () => {
     render(<FilesPage />)
 
     fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
+    fireEvent.click(screen.getByRole('button', { name: 'files.restore' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
@@ -721,8 +719,7 @@ describe('FilesPage file operations', () => {
     render(<FilesPage />)
 
     fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.contextMenu(screen.getByText('trashed.txt'))
-    fireEvent.click(screen.getByText('files.restore'))
+    fireEvent.click(screen.getByRole('button', { name: 'files.restore' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('files.error.restore_failed')
@@ -920,14 +917,11 @@ describe('FilesPage file operations', () => {
 
     expect(await screen.findByText('external.txt')).toBeInTheDocument()
     expect(screen.getByText('files.missing')).toBeInTheDocument()
-    expect(screen.queryByLabelText('files.open')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.rename')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.show_in_folder')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
 
-    fireEvent.contextMenu(screen.getByText('external.txt'))
-    expect(screen.queryByText('files.rename')).not.toBeInTheDocument()
-    expect(screen.queryByText('files.show_in_folder')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('files.remove_from_library'))
+    fireEvent.click(screen.getByRole('button', { name: 'files.remove_from_library' }))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })

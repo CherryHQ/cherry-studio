@@ -187,13 +187,13 @@ export function GlobalSearchRow({
       onMouseEnter={onMouseEnter}
       onClick={onOpen}
       className={cn(
-        'mx-5 flex h-[48px] w-[calc(100%-2.5rem)] items-center gap-2.5 rounded-[12px] px-3 text-left transition-colors',
+        'mx-5 flex h-[40px] w-[calc(100%-2.5rem)] items-center gap-2.5 rounded-[12px] px-3 text-left transition-colors',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       {emoji ? (
-        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="mr-0 bg-muted/50" />
+        <EmojiIcon emoji={emoji} size={28} fontSize={15} className="mr-0 bg-muted/50" />
       ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
           <Icon className="size-4" />
         </span>
       )}

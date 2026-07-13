@@ -58,7 +58,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toHaveClass('right-1.5')
+    expect(container.querySelector('span[aria-hidden].bg-success')).toHaveClass('rounded-full')
   })
 
   it('reserves a trailing slot when enabled-state dot is shown', () => {
@@ -74,7 +74,7 @@ describe('ProviderListItem', () => {
     const row = container.querySelector('[data-testid="provider-list-item-silicon-flow"]')
 
     expect(row?.children).toHaveLength(2)
-    expect(row?.lastElementChild).toHaveClass('size-2', 'shrink-0')
+    expect(row?.lastElementChild).toHaveClass('size-5', 'shrink-0')
   })
 
   it('reserves a trailing slot when row actions can appear', () => {
@@ -94,7 +94,7 @@ describe('ProviderListItem', () => {
     expect(row?.lastElementChild).toHaveClass('size-5', 'shrink-0')
   })
 
-  it('keeps a compact trailing slot for enabled rows even when row actions can appear', () => {
+  it('shares one centered trailing slot between the dot and row actions', () => {
     const { container } = render(
       <ProviderListItem
         provider={{ ...provider, isEnabled: true }}
@@ -107,8 +107,8 @@ describe('ProviderListItem', () => {
 
     const row = container.querySelector('[data-testid="provider-list-item-silicon-flow"]')
 
-    expect(row?.lastElementChild).toHaveClass('size-2', 'shrink-0')
-    expect(screen.getByTestId('provider-list-menu-silicon-flow')).toHaveClass('size-5')
+    expect(row?.lastElementChild).toHaveClass('size-5', 'shrink-0')
+    expect(screen.getByTestId('provider-list-menu-silicon-flow')).toHaveClass('absolute', 'inset-0')
   })
 
   it('wraps the row action with renderMenuButton when provided', () => {

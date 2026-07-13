@@ -54,7 +54,7 @@ function PageSidePanel({
   footerClassName,
   closeButtonClassName
 }: PageSidePanelProps) {
-  const standardTitle = title ? <span className="font-semibold text-base text-foreground">{title}</span> : null
+  const standardTitle = title ? <span className="font-[550] text-base text-foreground">{title}</span> : null
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()

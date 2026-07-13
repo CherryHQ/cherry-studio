@@ -95,7 +95,12 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
               {t('settings.provider.claude_code.logged_in_detail')}
             </div>
           </div>
-          <Button variant="secondary" size="sm" disabled={checking} onClick={() => void checkLogin()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-success hover:bg-success-bg-hover hover:text-success"
+            disabled={checking}
+            onClick={() => void checkLogin()}>
             <RefreshCw className="size-4" />
             {t('settings.provider.claude_code.recheck')}
           </Button>

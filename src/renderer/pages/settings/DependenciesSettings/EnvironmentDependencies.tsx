@@ -8,7 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input
+  Input,
+  SettingsPageHeader
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
@@ -23,12 +24,11 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
   Download,
-  ExternalLink,
   FolderOpen,
   Loader2,
+  PackageCheck,
   Plus,
   RefreshCw,
-  SquareArrowOutUpRight,
   Terminal,
   Trash2,
   TriangleAlert
@@ -235,26 +235,28 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground/50 hover:text-foreground"
-            onClick={() => void fetchLatestVersions(true)}
-            disabled={checkingUpdates}
-            title={t('settings.dependencies.checkUpdates')}>
-            {checkingUpdates ? (
-              <Loader2 className="size-3 motion-safe:animate-spin" />
-            ) : (
-              <RefreshCw className="size-3" />
-            )}
-          </Button>
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
-      </div>
+      <SettingsPageHeader
+        icon={<PackageCheck />}
+        title={
+          <>
+            {t('settings.dependencies.title')} <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground/50 hover:text-foreground"
+              onClick={() => void fetchLatestVersions(true)}
+              disabled={checkingUpdates}
+              title={t('settings.dependencies.checkUpdates')}>
+              {checkingUpdates ? (
+                <Loader2 className="size-3 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </Button>
+          </>
+        }
+        description={t('settings.dependencies.description')}
+      />
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
@@ -274,7 +276,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-              onOpenPath={() => openToolDir(tool.name)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
           )
@@ -348,9 +349,8 @@ const BinaryToolPresetCard: FC<{
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
-  onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onRemove }) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
@@ -359,14 +359,10 @@ const BinaryToolPresetCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border-muted bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-xl',
-              present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-            )}>
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
             <ToolIcon icon={tool.icon} />
           </div>
           <div className="min-w-0">
@@ -432,35 +428,6 @@ const BinaryToolPresetCard: FC<{
       <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
         {description}
       </p>
-
-      <div className="mt-3 flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
-          <ExternalLink className="size-3 shrink-0" />
-          <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
-        </button>
-        {tool.homepage && (
-          <button
-            type="button"
-            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3 shrink-0" />
-            <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
-          </button>
-        )}
-        {present && (
-          <button
-            type="button"
-            onClick={onOpenPath}
-            aria-label={t('settings.dependencies.openBinariesDir')}
-            title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
-            <FolderOpen className="size-3" />
-          </button>
-        )}
-      </div>
 
       {source !== 'managed' && (
         <div className="mt-3 border-border border-t pt-3">

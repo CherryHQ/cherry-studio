@@ -984,7 +984,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-10 rounded-[20px] border-border-subtle bg-muted/20 pr-12 pl-12 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
           />
           {query && (
             <button
@@ -1089,7 +1089,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               estimateItemSize={(item) => {
                 if (item.kind === 'message-parent') return 32
                 if (item.kind === 'message') return 44
-                return 52
+                return 44
               }}
               estimateGroupFooterSize={() => 36}
               className="pt-1 pb-2"
@@ -1136,7 +1136,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             {shouldShowRecentHint && (
               <GlobalSearchRecentHint
                 label={t('globalSearch.recent_hint')}
-                offset={4 + 28 + selectableItems.length * 52 + 8}
+                offset={4 + 28 + selectableItems.length * 44 + 8}
               />
             )}
           </div>
