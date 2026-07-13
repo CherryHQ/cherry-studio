@@ -1008,12 +1008,15 @@ const ChatComposerInner = ({
   // live composer, then drop it from the queue. Mirrors `restoreEditableMessageDraft`.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+      skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => item.payload.knowledgeBaseIds?.includes(base.id)))
     },
-    [allKnowledgeBases, setFiles, setSelectedKnowledgeBases, setText]
+    [allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
   )
 
   const buildEditedMessageParts = useCallback(

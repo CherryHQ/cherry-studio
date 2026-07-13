@@ -1175,11 +1175,13 @@ const AgentComposerInner = ({
   // it from the queue. Agent editor tokens derive from `files` + `selectedSkills`, so set those.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
     },
-    [setFiles, setText]
+    [resetHistoryIndex, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
