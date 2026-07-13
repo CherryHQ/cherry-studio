@@ -51,13 +51,20 @@ import {
   type OffsetPaginationResponse,
   type PaginationResponse
 } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
+
+import {
+  DATA_API_CURSOR_RESOURCES,
+  type DataApiCursorResource,
+  publishDataApiCursorRevision,
+  useDataApiCursorRevision
+} from './useDataApiCursorRevision'
 
 const logger = loggerService.withContext('useDataApi')
 
@@ -85,6 +92,38 @@ const DEFAULT_SWR_OPTIONS = {
 
 /** Stable empty-array constant so `items` identity doesn't churn while data is undefined. */
 const EMPTY_ITEMS: readonly never[] = Object.freeze([])
+
+/**
+ * Cursor pages cannot be safely patched after local writes that may change
+ * ordering. Bump only the two list resources owned by this feature; this is a
+ * Renderer-local revision and deliberately has no IPC/cross-window behavior.
+ */
+function publishLocalCursorResets(patterns: readonly string[]): DataApiCursorResource[] {
+  const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
+  const resetResources: DataApiCursorResource[] = []
+  for (const resource of DATA_API_CURSOR_RESOURCES) {
+    if (!normalizedPatterns.has(resource)) continue
+    publishDataApiCursorRevision(resource)
+    resetResources.push(resource)
+  }
+  return resetResources
+}
+
+function expandLocalListRefreshPatterns(patterns: readonly string[]): string[] {
+  const expanded = new Set(patterns)
+  const normalizedPatterns = new Set(patterns.map((pattern) => pattern.replace(/\/\*$/, '')))
+
+  if (normalizedPatterns.has('/topics')) {
+    expanded.add('/topics/stats')
+    expanded.add('/topics/latest')
+  }
+  if (normalizedPatterns.has('/agent-sessions')) {
+    expanded.add('/agent-sessions/stats')
+    expanded.add('/agent-sessions/latest')
+  }
+
+  return [...expanded]
+}
 
 // ============================================================================
 // Hook Result Types
@@ -553,7 +592,8 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           try {
             const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
             if (keys.length > 0) {
-              await invalidatePathPatterns(cache, globalMutate, keys)
+              const resetResources = publishLocalCursorResets(keys)
+              await invalidatePathPatterns(cache, globalMutate, expandLocalListRefreshPatterns(keys), resetResources)
             }
           } catch (refreshErr) {
             logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
@@ -627,12 +667,14 @@ export function useInvalidateCache() {
   const invalidate = useCallback(
     async (keys?: string | string[] | boolean): Promise<void> => {
       if (keys === true || keys === undefined) {
+        for (const resource of DATA_API_CURSOR_RESOURCES) publishDataApiCursorRevision(resource)
         await mutate(() => true)
         return
       }
       if (keys === false) return
       const patterns = typeof keys === 'string' ? [keys] : keys
-      await invalidatePathPatterns(cache, mutate, patterns)
+      const resetResources = publishLocalCursorResets(patterns)
+      await invalidatePathPatterns(cache, mutate, expandLocalListRefreshPatterns(patterns), resetResources)
     },
     [cache, mutate]
   )
@@ -788,6 +830,7 @@ export function useWriteCache() {
  * @param options.query - Additional query parameters (cursor/limit are managed internally)
  * @param options.limit - Items per page (default: 10)
  * @param options.enabled - Set to false to disable fetching (default: true)
+ * @param options.resetOnLocalWrite - Renderer-local resource revision that rebuilds the cursor chain
  * @param options.swrOptions - Override SWR infinite configuration
  * @returns Infinite query result with full pages, pagination controls, and loading states
  *
@@ -828,12 +871,19 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     limit?: number
     /** Set to false to disable fetching (default: true) */
     enabled?: boolean
+    /** Rebuild from page one after a local write touches this resource */
+    resetOnLocalWrite?: DataApiCursorResource
     /** Override SWR infinite configuration */
     swrOptions?: SWRInfiniteConfiguration
   }
 ): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+  const resetOnLocalWrite = options?.resetOnLocalWrite
+  const cursorRevision = useDataApiCursorRevision(resetOnLocalWrite)
+  const revisionToken = resetOnLocalWrite ? `${resetOnLocalWrite}:${cursorRevision}` : undefined
+  const { cache } = useSWRConfig()
+  const committedRevisionTokenRef = useRef(revisionToken)
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
@@ -854,23 +904,48 @@ export function useInfiniteQuery<TPath extends ApiPath>(
         ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
       }
 
-      return [resolvedPath, paginationQuery] as [string, typeof paginationQuery]
+      return revisionToken
+        ? ([resolvedPath, paginationQuery, revisionToken] as [string, typeof paginationQuery, string])
+        : ([resolvedPath, paginationQuery] as [string, typeof paginationQuery])
     },
-    [resolvedPath, options?.query, limit, enabled]
+    [resolvedPath, options?.query, limit, enabled, revisionToken]
   )
 
-  const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
-      ResponseForPath<TPath, 'GET'>
-    >
+  const infiniteFetcher = async (key: [string, Record<string, unknown>, string?]) => {
+    const response = (await getFetcher(
+      key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]
+    )) as ResponseForPath<TPath, 'GET'>
+    const requestRevisionToken = key[2]
+    if (requestRevisionToken && requestRevisionToken !== committedRevisionTokenRef.current) {
+      // SWR writes page/meta cache state after the fetcher resolves. Defer the
+      // eviction so a retired in-flight family cannot reinsert itself.
+      setTimeout(() => {
+        if (requestRevisionToken !== committedRevisionTokenRef.current) {
+          evictInfiniteRevisionFamily(cache, requestRevisionToken)
+        }
+      }, 0)
+    }
+    return response
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
     ...DEFAULT_SWR_OPTIONS,
-    ...options?.swrOptions
+    ...options?.swrOptions,
+    ...(resetOnLocalWrite ? { keepPreviousData: false } : {})
   })
 
   const { error, isLoading, isValidating, mutate, setSize } = swrResult
+
+  useLayoutEffect(() => {
+    if (resetOnLocalWrite && revisionToken) {
+      reconcileInfiniteRevisionFamilies(cache, resetOnLocalWrite, revisionToken)
+    }
+    if (committedRevisionTokenRef.current === revisionToken) return
+    const previousRevisionToken = committedRevisionTokenRef.current
+    committedRevisionTokenRef.current = revisionToken
+    if (previousRevisionToken) evictInfiniteRevisionFamily(cache, previousRevisionToken)
+    void setSize(1)
+  }, [cache, resetOnLocalWrite, revisionToken, setSize])
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
@@ -1266,6 +1341,58 @@ function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
 // a string is `JSON.stringify(s)`. So an infinite cache key whose first-page
 // key is `[path, query]` looks like `'$inf$@"<path>",<rest>,'`.
 const INFINITE_PREFIX = '$inf$'
+const INFINITE_REVISION_MARKER_PREFIX = '$data-api-infinite-revision$'
+
+const infiniteRevisionMarkerKey = (revisionToken: string): string =>
+  `${INFINITE_REVISION_MARKER_PREFIX}${revisionToken}`
+
+function isRevisionTokenForResource(token: string, resource: DataApiCursorResource): boolean {
+  const prefix = `${resource}:`
+  if (!token.startsWith(prefix)) return false
+  const revision = token.slice(prefix.length)
+  return revision !== '' && /^\d+$/.test(revision)
+}
+
+/**
+ * Remove every SWR-infinite cache entry whose key belongs to one retired
+ * local cursor revision. Both the `$inf$` metadata key and each serialized
+ * page key end with the JSON-encoded third tuple slot (`revisionToken`).
+ * Matching the full suffix keeps the next revision and ordinary two-slot
+ * infinite keys intact.
+ */
+function evictInfiniteRevisionFamily(cache: Cache, revisionToken: string): void {
+  const tokenSuffix = `${JSON.stringify(revisionToken)},`
+  for (const key of [...cache.keys()]) {
+    if (
+      typeof key === 'string' &&
+      (key.startsWith(INFINITE_PREFIX) || key.startsWith('@')) &&
+      key.endsWith(tokenSuffix)
+    ) {
+      cache.delete(key)
+    }
+  }
+  cache.delete(infiniteRevisionMarkerKey(revisionToken))
+}
+
+/**
+ * First-mount reconciliation for local writes that happened while no hook was
+ * mounted. Markers are cache-local, so only retired families for the requested
+ * resource are removed; the current token and other resource families remain.
+ */
+function reconcileInfiniteRevisionFamilies(
+  cache: Cache,
+  resource: DataApiCursorResource,
+  currentRevisionToken: string
+): void {
+  for (const key of [...cache.keys()]) {
+    if (typeof key !== 'string' || !key.startsWith(INFINITE_REVISION_MARKER_PREFIX)) continue
+    const token = key.slice(INFINITE_REVISION_MARKER_PREFIX.length)
+    if (token !== currentRevisionToken && isRevisionTokenForResource(token, resource)) {
+      evictInfiniteRevisionFamily(cache, token)
+    }
+  }
+  cache.set(infiniteRevisionMarkerKey(currentRevisionToken), { data: currentRevisionToken })
+}
 
 /**
  * Extract the API path from an SWR infinite cache key string.
@@ -1338,9 +1465,18 @@ function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
  *
  * @internal
  */
-async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator, patterns: string[]): Promise<void> {
+async function invalidatePathPatterns(
+  cache: Cache,
+  globalMutate: ScopedMutator,
+  patterns: string[],
+  skipInfinitePaths: readonly string[] = []
+): Promise<void> {
   await globalMutate(createMultiKeyMatcher(patterns))
-  const infiniteKeys = findMatchingInfiniteKeys(cache, patterns)
+  const skippedPaths = new Set(skipInfinitePaths)
+  const infiniteKeys = findMatchingInfiniteKeys(cache, patterns).filter((key) => {
+    const path = extractInfinitePath(key)
+    return path === undefined || !skippedPaths.has(path)
+  })
   if (infiniteKeys.length > 0) {
     await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
   }
@@ -1401,6 +1537,12 @@ export const __testing = {
   },
   get findMatchingInfiniteKeys() {
     return findMatchingInfiniteKeys
+  },
+  get evictInfiniteRevisionFamily() {
+    return evictInfiniteRevisionFamily
+  },
+  get reconcileInfiniteRevisionFamilies() {
+    return reconcileInfiniteRevisionFamilies
   },
   get invalidatePathPatterns() {
     return invalidatePathPatterns
