@@ -14,13 +14,11 @@ import {
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
-import type { GetAgentResponse } from '@renderer/types/agent'
-import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
@@ -103,7 +101,6 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  fallbackSnapshot?: ModelSnapshot
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -114,7 +111,6 @@ export interface AgentChatRuntimeState {
 
 interface UseAgentChatRuntimeStateParams {
   session: AgentSessionEntity
-  activeAgent: GetAgentResponse | undefined
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -122,7 +118,6 @@ interface UseAgentChatRuntimeStateParams {
 
 export function useAgentChatRuntimeState({
   session,
-  activeAgent,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
@@ -178,11 +173,6 @@ export function useAgentChatRuntimeState({
       chat.setMessages((current) => current.filter((message) => message.id !== messageId))
     },
     [chat, deleteSessionMessage]
-  )
-
-  const fallbackSnapshot = useMemo(
-    () => getAgentModelFallbackSnapshot({ model: activeAgent?.model, modelName: activeAgent?.modelName }),
-    [activeAgent?.model, activeAgent?.modelName]
   )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
@@ -312,7 +302,6 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    fallbackSnapshot,
     isPending,
     stop: chat.stop,
     sendMessage,
