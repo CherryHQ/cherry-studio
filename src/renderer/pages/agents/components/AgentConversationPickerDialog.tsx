@@ -81,6 +81,8 @@ export function AgentConversationPickerDialog({
             planModel: values.modelId,
             smallModel: values.modelId,
             description: values.description,
+            instructions: values.prompt,
+            skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
               permission_mode: 'bypassPermissions'

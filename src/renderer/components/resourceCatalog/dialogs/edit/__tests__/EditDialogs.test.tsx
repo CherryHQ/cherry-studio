@@ -1048,6 +1048,50 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
+  it('keeps the assistant draft and active tab when the same resource refreshes', () => {
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const { rerender } = render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={onSaved} />
+    )
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Assistant' } })
+    selectTab('Prompt')
+
+    rerender(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, name: 'Refreshed Assistant', updatedAt: '2024-01-02T00:00:00.000Z' }}
+        onOpenChange={onOpenChange}
+        onSaved={onSaved}
+      />
+    )
+
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Name')).toHaveValue('Draft Assistant')
+  })
+
+  it('keeps the agent draft and active tab when the same resource refreshes', () => {
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const { rerender } = render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Agent' } })
+    selectTab('Prompt')
+
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, name: 'Refreshed Agent', updatedAt: '2024-01-02T00:00:00.000Z' }}
+        onOpenChange={onOpenChange}
+        onSaved={onSaved}
+      />
+    )
+
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
+  })
+
   it('keeps the dialog open and shows an error when save fails', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()

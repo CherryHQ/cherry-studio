@@ -24,6 +24,17 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => ['provider::default-model', vi.fn()]
 }))
 
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: () => ({
+    model: {
+      id: 'provider::default-model',
+      providerId: 'provider',
+      name: 'Default Model',
+      capabilities: []
+    }
+  })
+}))
+
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
 vi.mock('../steps/BasicInfoStep', () => ({
   BasicInfoStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (

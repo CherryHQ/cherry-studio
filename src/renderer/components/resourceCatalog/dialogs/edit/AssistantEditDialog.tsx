@@ -180,6 +180,7 @@ function AssistantEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const initializedResourceIdRef = useRef<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -208,8 +209,15 @@ function AssistantEditDialogContent({
     [t]
   )
 
+  // Cache refresh can replace `resource` before the controlled dialog closes.
+  // Initialize once per open resource id so that refresh cannot flash the initial form.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedResourceIdRef.current = null
+      return
+    }
+    if (initializedResourceIdRef.current === resource.id) return
+    initializedResourceIdRef.current = resource.id
 
     form.reset(defaultValues)
     form.clearErrors()

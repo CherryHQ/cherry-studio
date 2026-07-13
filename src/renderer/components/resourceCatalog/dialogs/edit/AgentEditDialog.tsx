@@ -36,7 +36,7 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Download, Search, Sparkles, Wrench } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -210,6 +210,7 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
+  const initializedResourceIdRef = useRef<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -257,8 +258,15 @@ function AgentEditDialogContent({
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
+  // Cache refresh can replace `resource` before the controlled dialog closes.
+  // Initialize once per open resource id so that refresh cannot flash the initial form.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedResourceIdRef.current = null
+      return
+    }
+    if (initializedResourceIdRef.current === resource.id) return
+    initializedResourceIdRef.current = resource.id
 
     form.reset(defaultValues)
     form.clearErrors()

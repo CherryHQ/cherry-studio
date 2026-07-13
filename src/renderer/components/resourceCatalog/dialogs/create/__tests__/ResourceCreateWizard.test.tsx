@@ -10,6 +10,17 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => ['provider::default-model', vi.fn()]
 }))
 
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: () => ({
+    model: {
+      id: 'provider::default-model',
+      providerId: 'provider',
+      name: 'Default Model',
+      capabilities: []
+    }
+  })
+}))
+
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; PersonaStep fills the prompt.
@@ -74,6 +85,39 @@ describe('ResourceCreateWizard', () => {
       knowledgeBaseIds: [],
       skillIds: []
     })
+  })
+
+  it('does not use the global default model when it is excluded by the model filter', async () => {
+    const user = userEvent.setup()
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+  })
+
+  it('removes an auto-selected default model if the model filter later excludes it', async () => {
+    const user = userEvent.setup()
+    let defaultModelAllowed = true
+    const modelFilter = () => defaultModelAllowed
+    const props = {
+      kind: 'agent' as const,
+      open: true,
+      onOpenChange: vi.fn(),
+      onSubmit: vi.fn(),
+      modelFilter
+    }
+    const { rerender } = render(<ResourceCreateWizard {...props} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    defaultModelAllowed = false
+    rerender(<ResourceCreateWizard {...props} />)
+
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
   })
 
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {

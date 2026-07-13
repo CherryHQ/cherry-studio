@@ -10,9 +10,10 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
-import { isUniqueModelId, type Model } from '@shared/data/types/model'
+import { useModelById } from '@renderer/hooks/useModel'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -140,8 +141,14 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const [globalDefaultModelId] = usePreference('chat.default_model_id')
-  const defaultModelId = isUniqueModelId(globalDefaultModelId) ? globalDefaultModelId : null
+  const resolvedDefaultModelId = isUniqueModelId(globalDefaultModelId) ? globalDefaultModelId : null
+  const { model: globalDefaultModel } = useModelById(open ? resolvedDefaultModelId : null)
+  const selectableDefaultModelId =
+    open && globalDefaultModel?.id === resolvedDefaultModelId && (!modelFilter || modelFilter(globalDefaultModel))
+      ? resolvedDefaultModelId
+      : null
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
+  const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
 
@@ -165,17 +172,43 @@ export function ResourceCreateWizard({
 
   useEffect(() => {
     if (!open) return
+    autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
   }, [form, kind, open])
 
-  // Preference hydration may finish after the dialog opens. Seed only an empty
-  // model field so the async value never replaces a model the user selected.
+  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // empty field, and retract only a value that this effect auto-selected if it
+  // later falls outside the active model filter.
   useEffect(() => {
-    if (!open || !defaultModelId || form.getValues('modelId')) return
-    form.setValue('modelId', defaultModelId)
-  }, [defaultModelId, form, kind, open])
+    if (!open) {
+      autoSelectedDefaultModelIdRef.current = null
+      return
+    }
+
+    const currentModelId = form.getValues('modelId')
+    const autoSelectedModelId = autoSelectedDefaultModelIdRef.current
+    if (
+      autoSelectedModelId &&
+      currentModelId === autoSelectedModelId &&
+      selectableDefaultModelId !== autoSelectedModelId
+    ) {
+      autoSelectedDefaultModelIdRef.current = null
+      form.setValue('modelId', null)
+      return
+    }
+
+    if (currentModelId || !selectableDefaultModelId) {
+      if (autoSelectedModelId && currentModelId !== autoSelectedModelId) {
+        autoSelectedDefaultModelIdRef.current = null
+      }
+      return
+    }
+
+    autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
+    form.setValue('modelId', selectableDefaultModelId)
+  }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 
