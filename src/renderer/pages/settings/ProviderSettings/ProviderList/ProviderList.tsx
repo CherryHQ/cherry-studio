@@ -34,12 +34,12 @@ export interface ProviderListProps {
 export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models: allModels } = useModels()
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
-  const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
@@ -275,7 +275,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   return (
-    <aside className={`${providerListClasses.shell}`}>
+    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
       <ProviderListSearchField
         value={searchText}
         disabled={dragging}
@@ -284,9 +284,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
           <ProviderListHeaderFilterMenu
             filterMode={filterMode}
             disabled={dragging}
-            triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
             onFilterChange={setFilterMode}
+            className={providerListClasses.searchInlineAddButton}
           />
         }
       />
