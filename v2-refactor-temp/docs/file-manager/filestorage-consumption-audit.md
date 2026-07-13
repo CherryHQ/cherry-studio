@@ -1,6 +1,6 @@
 # FileStorage（v1）消费方式审计 — 取缔 vs 照搬
 
-> ⛔ **BLOCKED（2026-07-04）**：审计暴露出一个**必须先解决的类型重构前置项**——"绝对路径"类型（`FilePath` / `AbsolutePathSchema`）未统一（无 branded + 运行时校验的单一表示），详见 **§7**。本文档的 Reroute/Abolish 改写全部把路径喂进 `FilePathHandle` / `read` / `write`，在类型统一前落地只会把现有 `as` cast 技术债从 3 处扩散到几十个消费者。**消费者迁移工作暂停，待类型重构完成后继续。**
+> ℹ️ **已知债务（决定于 2026-07-13，非阻塞）**："绝对路径"类型（`FilePath` / `AbsolutePathSchema`）尚未统一（无 branded + 运行时校验的单一表示），详见 **§7**。**决定：迁移不为此阻塞**——路径边界先用 `as FilePath` cast 凑合，类型统一作为后续清理项（改动集中、成批易清）。原为阻塞项，现下调。
 
 > **本文档覆盖**：Group B1（`src/main/ipc.ts` 里由 v1 `FileStorage` 支撑的 **25 条 legacy channel**）的**每个生产消费者**，判定其消费方式在 v2 是 **照搬重接 / 取缔重设计 / 缠绕延后**，并给出改写草图。
 >
@@ -277,13 +277,13 @@ Notes 的结构性操作把「外部文件树」当模型直接裸操作 `fs`，
 - **Defer（Notes）**：10 条 + `write` 内容支——命运绑定 Notes→entry 系统决策，本轮不动；但 sanitize 抽纯函数、`deleteExternal*` 的 trash 语义可先决策（§4.4）。
 - **需求方待决**：§0.1 路由现状（哪些单项 route 值得新增 vs 复用 batch）+ §5 四个语义缺口（temp-file 归宿①、read 抽取②、getMetadata 探针③、trashItem④）——不定这些，改写无法定稿。
 
-**建议推进顺序**：**⛔ 先做绝对路径类型重构（§7，当前阻塞项）** → 补齐单项 IpcApi 路由（§0.1，schema+handler，其路径类型用重构后的统一类型）→ Reroute 批（§3）→ P1/P4 Abolish（改写机械，依赖 `file.get_metadata`）→ 决策 §5 缺口 → P2/P5 Abolish（依赖缺口①）→ Notes 专项（Defer 桶，独立 PR）。
+**建议推进顺序**：补齐单项 IpcApi 路由（§0.1，schema+handler；路径入参/出参先用 `as FilePath` cast，见 §7）→ Reroute 批（§3）→ P1/P4 Abolish（改写机械，依赖 `file.get_metadata`）→ 决策 §5 缺口 → P2/P5 Abolish（依赖缺口①）→ Notes 专项（Defer 桶，独立 PR）。绝对路径类型统一（§7）作为后续清理项，**不阻塞上述任何一步**。
 
 ---
 
-## 7. ⛔ 阻塞项：绝对路径类型未统一（须先做类型重构）
+## 7. 已知债务：绝对路径类型未统一（后续清理，非阻塞）
 
-> **状态：BLOCKING（2026-07-04 起）**。在类型重构完成前，本项阻塞 §3 Reroute 批与 §2 Abolish 改写的落地——二者全部把路径喂进 `FilePathHandle` / `read` / `write`。**当前消费者迁移工作暂停。**
+> **状态：已知债务，非阻塞（决定于 2026-07-13）**。原为阻塞项，现决定**不为此暂停迁移**——路径边界先用 `as FilePath` cast，类型统一作为后续清理项。保留本节分析作为清理依据。
 
 ### 7.1 现象
 
@@ -307,15 +307,15 @@ Notes 的结构性操作把「外部文件树」当模型直接裸操作 `fs`，
 
 即：`select`/`save` 只是**症状**；病根是 `FilePath`（类型侧、无 brand）与 `AbsolutePathSchema`（校验侧、infer 出 `string`）是两个东西，全 API 靠 `as` 缝合。补 `FilePath` 到 select/save 只会多加 cast，治标不治本。
 
-### 7.3 为什么必须先做（阻塞理由）
+### 7.3 代价与决定（原阻塞理由）
 
-本文档改写全部围绕 `FilePathHandle` / `read` / `write` 的路径入参与 `select`/`save`/`getPhysicalPath` 的路径出参。若在类型未统一前落地：
+本文档改写全部围绕 `FilePathHandle` / `read` / `write` 的路径入参与 `select`/`save`/`getPhysicalPath` 的路径出参。在类型未统一前落地的代价：
 
-- 每处 `select→handle`、`get_metadata({kind:'path'})`、`write({kind:'path'})` 都要补 `as FilePath`；
-- 把现有 3 处 `as`-cast 技术债**扩散到几十个消费者**；
-- §0.1 待新增的单项 route（`file.select`/`save`/`read`/`write`/`get_metadata`）的 schema 现在就要定路径类型——定错则全部返工。
+- 每处 `select→handle`、`get_metadata({kind:'path'})`、`write({kind:'path'})` 要补 `as FilePath`；
+- 现有 3 处 `as`-cast 会扩散到几十个消费者；
+- §0.1 待新增单项 route 的 schema 路径类型沿用现状（`AbsolutePathSchema` 输出 `string` + 类型侧 `as FilePath`）。
 
-因此类型重构是迁移的**前置条件**，不是可并行项。
+**决定（2026-07-13）**：接受上述代价，**不为此阻塞迁移**——`as FilePath` cast 改动集中、后续统一时可成批清理。
 
 ### 7.4 修复方向（重构目标）
 
@@ -326,7 +326,7 @@ Notes 的结构性操作把「外部文件树」当模型直接裸操作 `fs`，
 - brand 是编译期的，过 IPC 仍是普通 string，校验在 IPC 边界由同一 schema 完成——闭环；
 - 顺带消化 `handle.ts:59-60` 两个 TODO（no `as` cast + FileHandle brand）。
 
-**完成后**：picked path → `FilePathHandle` **零 cast**，本文档改写草图方可定稿落地。
+**清理完成后**：picked path → `FilePathHandle` **零 cast**，迁移期铺开的 `as FilePath` 成批移除。
 
 ### 7.5 影响面（重构预计触及）
 
