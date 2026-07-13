@@ -1798,6 +1798,41 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'error'])
     })
 
+    it('maintains disjoint active and failed agent-session indexes across retries', async () => {
+      const topicId = 'agent-session:session-runtime-index'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'p::m',
+        request: req(topicId),
+        listeners: [new FakeListener('l:agent-session')]
+      })
+
+      expect(sharedCacheStore.get('agent.session.stream.status_ids')).toEqual({
+        activeIds: ['session-runtime-index'],
+        failedIds: []
+      })
+
+      await mgr.onExecutionError(topicId, 'p::m', error('boom'))
+      expect(sharedCacheStore.get('agent.session.stream.status_ids')).toEqual({
+        activeIds: [],
+        failedIds: ['session-runtime-index']
+      })
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'p::m',
+        request: req(topicId),
+        listeners: [new FakeListener('l:agent-session-retry')]
+      })
+      expect(sharedCacheStore.get('agent.session.stream.status_ids')).toEqual({
+        activeIds: ['session-runtime-index'],
+        failedIds: []
+      })
+
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(sharedCacheStore.get('agent.session.stream.status_ids')).toEqual({ activeIds: [], failedIds: [] })
+    })
+
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
       startSingle(mgr, {
         topicId: 't',
