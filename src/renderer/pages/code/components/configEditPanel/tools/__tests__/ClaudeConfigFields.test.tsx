@@ -213,17 +213,19 @@ describe('ClaudeConfigFields', () => {
     expect(onChange).toHaveBeenCalledWith({ effortLevel: 'high' })
   })
 
-  it('orders role model selectors as Fable, Opus, Sonnet, Haiku', () => {
+  it('orders role model selectors as Fable, Opus, Sonnet, Haiku, Subagent', () => {
     renderFields()
 
     const fable = screen.getByText('code.adv.claude.fable_model')
     const opus = screen.getByText('code.adv.claude.opus_model')
     const sonnet = screen.getByText('code.adv.claude.sonnet_model')
     const haiku = screen.getByText('code.adv.claude.haiku_model')
+    const subagent = screen.getByText('code.adv.claude.subagent_model')
 
     expectBefore(fable, opus)
     expectBefore(opus, sonnet)
     expectBefore(sonnet, haiku)
+    expectBefore(haiku, subagent)
   })
 
   it('renders role model selectors directly without hint text or table headers', () => {
@@ -244,9 +246,11 @@ describe('ClaudeConfigFields', () => {
       '',
       '',
       '',
+      '',
       ''
     ])
     expect(screen.getAllByTestId('model-selector-trigger').map((trigger) => trigger.textContent)).toEqual([
+      'settings.models.empty',
       'settings.models.empty',
       'settings.models.empty',
       'settings.models.empty',
@@ -327,7 +331,7 @@ describe('ClaudeConfigFields', () => {
         .getAllByTestId('role-model-selector')
         .slice(1)
         .map((selector) => selector.dataset.value)
-    ).toEqual(['', '', ''])
+    ).toEqual(['', '', '', ''])
   })
 
   it('writes a raw model id override when the user selects a different role model', () => {
@@ -343,6 +347,18 @@ describe('ClaudeConfigFields', () => {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
       }
+    })
+  })
+
+  it('writes a Subagent model without a display-name companion key', () => {
+    const { onChange } = renderFields()
+
+    const subagentRow = screen.getByText('code.adv.claude.subagent_model').closest('div')
+    expect(subagentRow).not.toBeNull()
+    fireEvent.click(within(subagentRow as HTMLElement).getByText('select role model'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-4-1' }
     })
   })
 })

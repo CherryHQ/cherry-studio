@@ -649,6 +649,24 @@ describe('writeCliConfigDraft', () => {
       })
     })
 
+    it('writes OpenCode model limits from Cherry model metadata', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ contextWindow: 65536, maxOutputTokens: 8192 })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      expect(JSON.parse(opencodeWrite().content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+        context: 65536,
+        output: 8192
+      })
+    })
+
     it('enables anthropic thinking when reasoning is on', async () => {
       mockGet({
         '/providers/anthropic': () => anthropicProvider,

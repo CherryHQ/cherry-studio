@@ -24,6 +24,25 @@ describe('buildOpenCodeConfig', () => {
       headers: { 'X-Title': 'Cherry Studio' }
     })
   })
+
+  it('adds model context and output limits from model metadata', () => {
+    const result = buildOpenCodeConfig(
+      {},
+      { id: 'deepseek', name: 'DeepSeek' },
+      {
+        npm: '@ai-sdk/openai-compatible',
+        providerType: 'openai-compatible',
+        endpointType: 'openai-chat-completions'
+      },
+      { apiKey: 'sk-test', baseUrl: 'https://api.example.com/v1', model: 'deepseek-chat' },
+      { contextWindow: 65536, maxOutputTokens: 8192 }
+    )
+
+    expect(result.provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+      context: 65536,
+      output: 8192
+    })
+  })
 })
 
 describe('buildQwenConfig', () => {

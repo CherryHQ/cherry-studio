@@ -154,6 +154,20 @@ describe('updateCliConfigDraftConfig', () => {
     })
   })
 
+  it('preserves OpenCode model limits during a config-only update', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const config = JSON.parse(files[0].content)
+    config.provider['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
+    files[0].content = JSON.stringify(config)
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    expect(JSON.parse(updated[0].content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+      context: 65536,
+      output: 8192
+    })
+  })
+
   it('returns the files unchanged when there is no managed connection', () => {
     const files: CliConfigFileDraft[] = [
       { target: 'codex-config' as CliConfigTarget, label: '', path: '', language: 'toml', content: '' }

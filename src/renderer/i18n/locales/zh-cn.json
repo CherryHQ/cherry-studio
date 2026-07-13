@@ -1902,7 +1902,8 @@
         "permissions_deny": "拒绝（逗号分隔）",
         "permissions_hint": "预授权或拒绝工具模式。支持通配符，如 Read(secrets-*/config.json)。",
         "role_column": "角色",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "禁用响应存储",

@@ -395,7 +395,18 @@ describe('OpenClawService gateway status state machine', () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
-      const model = createModel()
+      const model = createModel({
+        contextWindow: 128000,
+        maxOutputTokens: 16384,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        inputModalities: ['text', 'image'],
+        pricing: {
+          input: { perMillionTokens: 2 },
+          output: { perMillionTokens: 8 },
+          cacheRead: { perMillionTokens: 0.2 },
+          cacheWrite: { perMillionTokens: 2.5 }
+        }
+      })
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
       vi.mocked(modelService.list).mockResolvedValue([model])
       vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
@@ -410,7 +421,17 @@ describe('OpenClawService gateway status state machine', () => {
           apiKey: 'sk-test',
           apiHost: 'https://api.openai.com',
           anthropicApiHost: undefined,
-          models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
+          models: [
+            expect.objectContaining({
+              id: 'gpt-4o',
+              endpoint_type: 'openai',
+              contextWindow: 128000,
+              maxTokens: 16384,
+              reasoning: true,
+              input: ['text', 'image'],
+              cost: { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5 }
+            })
+          ]
         }),
         expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
       )
@@ -788,6 +809,54 @@ describe('OpenClawService gateway status state machine', () => {
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
       expect(written.models.providers['cherry-openai']).toMatchObject({ apiKey: 'sk-test' })
       expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
+    })
+
+    it('writes provider headers and model metadata while keeping hand-edited values authoritative', async () => {
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({
+          models: {
+            providers: {
+              'cherry-openai': {
+                models: [{ id: 'gpt-4o', name: 'Old', contextWindow: 200000, maxTokens: 32000 }]
+              }
+            }
+          }
+        })
+      )
+      const provider = {
+        ...legacyProvider,
+        headers: { 'User-Agent': 'Cherry Studio' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            maxTokens: 16384,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      } as any
+
+      await service.syncProviderConfig(provider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toMatchObject({
+        headers: { 'User-Agent': 'Cherry Studio' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 200000,
+            maxTokens: 32000,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      })
     })
   })
 

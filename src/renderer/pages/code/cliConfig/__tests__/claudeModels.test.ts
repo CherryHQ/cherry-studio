@@ -22,6 +22,7 @@ describe('stripClaudeOneMMarker', () => {
 describe('hasClaudeDetailedModels', () => {
   it('detects any populated detailed-model role', () => {
     expect(hasClaudeDetailedModels({ env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku' } })).toBe(true)
+    expect(hasClaudeDetailedModels({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet' } })).toBe(true)
   })
 
   it('ignores empty, whitespace-only, and marker-only values', () => {
@@ -37,6 +38,7 @@ describe('stripClaudeDetailedModels', () => {
       env: {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'Fable',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet',
         USER_ENV: 'keep'
       },
       permissions: { defaultMode: 'plan' }
