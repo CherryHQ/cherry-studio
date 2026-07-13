@@ -380,7 +380,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -1343,8 +1343,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "name": "Default Assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1754,7 +1754,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
@@ -3267,6 +3267,7 @@
       },
       "knowledge": {
         "add": "Add knowledge base",
+        "create_first": "Open Knowledge to create one",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
         "doc_count": "{{count}} docs",
         "empty_desc": "Once linked, the assistant can answer based on document content",
@@ -3280,6 +3281,7 @@
         "title": "Knowledge bases"
       },
       "prompt": {
+        "copy_variable": "Copy {{variable}}",
         "create_title": "New Prompt",
         "dblclick_hint": "Double-click the preview to switch back to edit",
         "desc": "The system prompt is sent as the opening context of the assistant",
@@ -4036,6 +4038,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },
@@ -5534,75 +5537,6 @@
         "siyuan": "Export to SiYuan Note",
         "title": "Export Menu",
         "yuque": "Export to Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Select backup file"
-        },
-        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
-        "file": {
-          "button": "Export to file",
-          "content": "Export data as a backup file that can be imported on mobile via file.",
-          "export_failed": "Export failed",
-          "export_success": "Export successful",
-          "title": "Export as file"
-        },
-        "lan": {
-          "button": "Start Transfer",
-          "connected": "Connected",
-          "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
-          "device_list_title": "Local network devices",
-          "discovered_devices": "Discovered devices",
-          "error": {
-            "file_too_large": "File too large, maximum 500MB supported",
-            "init_failed": "Initialization failed",
-            "invalid_file_type": "Only ZIP files are supported",
-            "no_file": "No file selected",
-            "no_ip": "Unable to get IP address",
-            "not_connected": "Please complete handshake first",
-            "send_failed": "Failed to send file"
-          },
-          "file_transfer": {
-            "cancelled": "Transfer cancelled",
-            "failed": "File transfer failed: {{message}}",
-            "progress": "Sending... {{progress}}%",
-            "success": "File sent successfully"
-          },
-          "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake failed: {{message}}",
-            "in_progress": "Handshaking...",
-            "success": "Handshake completed with {{device}}",
-            "test_message_received": "Received pong from {{device}}",
-            "test_message_sent": "Sent hello world test payload"
-          },
-          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "IP addresses",
-          "last_seen": "Last seen at {{time}}",
-          "metadata": "Metadata",
-          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "No LAN peers found yet",
-          "scan_devices": "Scan devices",
-          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
-          "send_file": "Send File",
-          "status": {
-            "completed": "Transfer completed",
-            "connected": "Connected",
-            "connecting": "Connecting...",
-            "disconnected": "Disconnected",
-            "error": "Connection error",
-            "initializing": "Initializing connection...",
-            "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%"
-          },
-          "status_badge_idle": "Idle",
-          "status_badge_scanning": "Scanning",
-          "stop_scan": "Stop scan",
-          "title": "LAN transmission",
-          "transfer_progress": "Transfer progress"
-        },
-        "title": "Export to phone"
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",

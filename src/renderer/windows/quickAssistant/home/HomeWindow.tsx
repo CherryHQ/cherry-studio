@@ -16,7 +16,7 @@ import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
@@ -214,29 +214,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return out
   }, [chatMessages, allAssistants, liveAssistants, isPending])
 
-  const quickAssistantModelSnapshot = useMemo<ModelSnapshot | undefined>(
-    () =>
-      currentModel
-        ? {
-            id: currentModel.id,
-            name: currentModel.name,
-            provider: currentModel.providerId,
-            ...(currentModel.group && { group: currentModel.group })
-          }
-        : undefined,
-    [currentModel]
-  )
-
   const messageItems = useMemo(
     () =>
       displayMessages.map((message) =>
         toMessageListItem(message, {
           assistantId: currentAssistant?.id,
-          topicId: temporaryTopicId ?? '',
-          modelFallback: quickAssistantModelSnapshot
+          topicId: temporaryTopicId ?? ''
         })
       ),
-    [currentAssistant?.id, displayMessages, quickAssistantModelSnapshot, temporaryTopicId]
+    [currentAssistant?.id, displayMessages, temporaryTopicId]
   )
 
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])

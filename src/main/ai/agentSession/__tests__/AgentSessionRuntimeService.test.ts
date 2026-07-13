@@ -206,6 +206,113 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
     })
 
+    it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
+      } as any
+      const followUpSnapshot = {
+        id: 'agent-1',
+        name: 'New',
+        // Model matches the entry's running model — no mid-queue model switch here, so the drain-time
+        // reconcile is a no-op and the frozen author (name 'New') is preserved verbatim.
+        model: { id: 'claude-sonnet-4-5', name: 'New', provider: 'claude-code' }
+      } as any
+
+      // Turn 1 sets the entry snapshot; the follow-up queues with a fresh snapshot (agent renamed/model swapped).
+      service.beginTurn({ ...baseTurnInput, messageSnapshot: priorSnapshot })
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // The queued turn's assistant placeholder freezes the enqueue-time author, not the stale entry snapshot.
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+      expect(getEntry(service).pendingSnapshots?.has('user-2')).toBe(false)
+    })
+
+    it('freezes a redirected steer-boundary continuation with the follow-up snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
+      } as any
+      const followUpSnapshot = {
+        id: 'agent-1',
+        name: 'New',
+        // Model matches the entry's running model — no mid-queue model switch here, so the drain-time
+        // reconcile is a no-op and the frozen author (name 'New') is preserved verbatim.
+        model: { id: 'claude-sonnet-4-5', name: 'New', provider: 'claude-code' }
+      } as any
+
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), messageSnapshot: priorSnapshot })
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.connection = connection
+      entry.connectionModelId = baseTurnInput.modelId
+
+      // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
+      // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      expect(connection.redirect).toHaveBeenCalled()
+      expect(entry.pendingTurns).toEqual([])
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+      service.closeSession('session-1')
+    })
+
+    it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
+      const service = new AgentSessionRuntimeService()
+      const priorSnapshot = {
+        id: 'agent-1',
+        name: 'Old',
+        model: { id: 'old', name: 'Old', provider: 'p' }
+      } as any
+      const followUpSnapshot = {
+        id: 'agent-1',
+        name: 'New',
+        // Model matches the entry's running model — no mid-queue model switch here, so the drain-time
+        // reconcile is a no-op and the frozen author (name 'New') is preserved verbatim.
+        model: { id: 'claude-sonnet-4-5', name: 'New', provider: 'claude-code' }
+      } as any
+
+      service.beginTurn({ ...baseTurnInput, messageSnapshot: priorSnapshot })
+      const entry = getEntry(service)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.connection = connection
+      entry.connectionModelId = baseTurnInput.modelId
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      expect(connection.redirect).toHaveBeenCalled()
+
+      // Turn ended before the steer landed → requeued; the requeued turn must still freeze the follow-up snapshot.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-undelivered',
+        inputs: [{ message: userMessage('user-2') }]
+      })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const assistantSaves = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+    })
+
     it('opens an unmarked queued busy follow-up as interactive', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
@@ -2168,6 +2275,52 @@ describe('AgentSessionRuntimeService', () => {
         modelId: switchedModelId
       })
     )
+  })
+
+  it('reconciles a queued follow-up snapshot to the model that runs after a mid-queue model edit', async () => {
+    const service = new AgentSessionRuntimeService()
+    // Submit-time snapshot: author + the model as it was when the follow-up was queued.
+    const followUpSnapshot = {
+      id: 'agent-1',
+      name: 'My Agent',
+      emoji: '🤖',
+      model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+    } as any
+
+    service.beginTurn(baseTurnInput)
+    service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+
+    // User switches the agent model before the queued follow-up drains — the runtime runs the LATEST model.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId, modelName: 'Claude Opus' }
+    )
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: switchedModelId,
+      modelName: 'Claude Opus'
+    })
+
+    service.markTurnTerminal('session-1', 'success')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const assistantSave = mocks.saveMessage.mock.calls
+      .map((call) => call[0].message)
+      .filter((m: any) => m.role === 'assistant')
+      .at(-1)
+
+    // Row modelId, the started runtime model, and the snapshot's nested model all agree on the new model;
+    // the frozen author (name/emoji) is preserved.
+    expect(assistantSave?.modelId).toBe(switchedModelId)
+    expect(assistantSave?.messageSnapshot).toEqual({
+      id: 'agent-1',
+      name: 'My Agent',
+      emoji: '🤖',
+      model: { id: 'claude-opus-4-5', name: 'Claude Opus', provider: 'claude-code' }
+    })
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
   })
 
   it('does not drain a queued turn onto a stale deleted model; surfaces an error and settles', async () => {

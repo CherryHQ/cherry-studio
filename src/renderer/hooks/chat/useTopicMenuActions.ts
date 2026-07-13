@@ -3,7 +3,8 @@ import {
   executeTopicMenuAction,
   resolveTopicMenuActions,
   type TopicActionContext,
-  type TopicExportMenuOptions
+  type TopicExportMenuOptions,
+  type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
@@ -28,6 +29,7 @@ import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
@@ -39,6 +41,8 @@ export interface TopicMenuActionOptions {
   onCopyImage?: TopicMenuHandler
   onDelete: TopicMenuHandler
   onExportImage?: TopicMenuHandler
+  assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
+  onMoveToAssistant?: TopicMoveToAssistantHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
@@ -55,11 +59,13 @@ export function createTopicActionContext({
   isActiveInCurrentTab,
   isRenaming,
   notesPath,
+  assistantMoveTargets = [],
   onAutoRename,
   onClearMessages,
   onCopyImage,
   onDelete,
   onExportImage,
+  onMoveToAssistant,
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
@@ -108,6 +114,8 @@ export function createTopicActionContext({
       const markdown = await topicToMarkdown(topic)
       void exportMarkdownToYuque(topic.name, markdown)
     },
+    assistantMoveTargets: assistantMoveTargets.filter((target) => target.id !== topic.assistantId),
+    onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -189,11 +197,13 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     isActiveInCurrentTab,
     isRenaming,
     notesPath,
+    assistantMoveTargets,
     onAutoRename,
     onClearMessages,
     onCopyImage,
     onDelete,
     onExportImage,
+    onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
@@ -211,11 +221,13 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         isActiveInCurrentTab,
         isRenaming,
         notesPath,
+        assistantMoveTargets,
         onAutoRename,
         onClearMessages,
         onCopyImage,
         onDelete,
         onExportImage,
+        onMoveToAssistant,
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
@@ -231,11 +243,13 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       isActiveInCurrentTab,
       isRenaming,
       notesPath,
+      assistantMoveTargets,
       onAutoRename,
       onClearMessages,
       onCopyImage,
       onDelete,
       onExportImage,
+      onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
