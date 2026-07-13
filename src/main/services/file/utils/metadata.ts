@@ -1,4 +1,5 @@
 import { stat as fsStat } from '@main/utils/file'
+import { getFileType } from '@main/utils/file/metadata'
 import type { FilePath, PhysicalFileMetadata } from '@shared/types/file'
 import mime from 'mime'
 
@@ -15,12 +16,17 @@ export async function getMetadataByPath(path: FilePath): Promise<PhysicalFileMet
   if (s.isDirectory) {
     return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
   }
+  // Extension-derived type, with a content sniff upgrading extension-unknown
+  // files to text (see `@main/utils/file/metadata`). Every per-type enrichment
+  // field (width/height/pageCount/encoding) is optional, so this base object is
+  // a valid `PhysicalFileMetadata` for whichever `type` getFileType returns —
+  // the cast just tells TS which discriminated member without listing them all.
   return {
     kind: 'file',
-    type: 'other',
+    type: await getFileType(path),
     size: s.size,
     createdAt: s.createdAt || s.modifiedAt,
     modifiedAt: s.modifiedAt,
     mime: mime.getType(path) ?? 'application/octet-stream'
-  }
+  } as PhysicalFileMetadata
 }

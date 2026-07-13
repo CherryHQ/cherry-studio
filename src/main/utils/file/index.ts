@@ -10,7 +10,7 @@
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).
  * - `./metadata` — content-derived classification (`getFileType(path)`,
- *   `isTextFile`, `mimeToExt`).
+ *   `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isUnderInternalStorage`,
  *   `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
@@ -73,7 +73,7 @@ export {
   stat,
   write
 } from './fs'
-export { getFileType, isTextFile, mimeToExt } from './metadata'
+export { getFileType, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

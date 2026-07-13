@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { FilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { getFileType, isTextByContent, isTextFile, mimeToExt } from '../metadata'
+import { getFileType, isTextByContent, mimeToExt } from '../metadata'
 
 // A chunk of UTF-8 text long enough for chardet to detect with high confidence.
 const TEXT_SAMPLE = '这是一段自定义格式的纯文本内容，长度足够让编码检测有信心地判定为文本。\n'.repeat(4)
@@ -77,34 +77,6 @@ describe('isTextByContent', () => {
 
   it('returns false (does not throw) for a missing file', async () => {
     expect(await isTextByContent(path.join(tmp, 'nope') as FilePath)).toBe(false)
-  })
-})
-
-describe('isTextFile', () => {
-  let tmp: string
-  beforeEach(async () => {
-    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-meta-test-'))
-  })
-  afterEach(async () => {
-    await rm(tmp, { recursive: true, force: true })
-  })
-
-  it('returns true for known text extensions', async () => {
-    const f = path.join(tmp, 'note.txt')
-    await writeFile(f, 'plain text')
-    expect(await isTextFile(f as FilePath)).toBe(true)
-  })
-
-  it('returns false for image extensions', async () => {
-    const f = path.join(tmp, 'pic.png')
-    await writeFile(f, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-    expect(await isTextFile(f as FilePath)).toBe(false)
-  })
-
-  it('returns true for an extension-less text file (content sniff)', async () => {
-    const f = path.join(tmp, 'readme')
-    await writeFile(f, TEXT_SAMPLE)
-    expect(await isTextFile(f as FilePath)).toBe(true)
   })
 })
 

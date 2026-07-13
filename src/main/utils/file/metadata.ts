@@ -53,11 +53,6 @@ export async function getFileType(target: FilePath): Promise<FileType> {
   return fileType === FILE_TYPE.OTHER && (await isTextByContent(target)) ? FILE_TYPE.TEXT : fileType
 }
 
-/** Check if a file is a text file (by extension, or content sniff for unknown extensions). */
-export async function isTextFile(target: FilePath): Promise<boolean> {
-  return (await getFileType(target)) === FILE_TYPE.TEXT
-}
-
 /** Map MIME type to file extension (without leading dot). Returns undefined if unknown. */
 export function mimeToExt(mimeType: string): string | undefined {
   const ext = mime.getExtension(mimeType)

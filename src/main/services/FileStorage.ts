@@ -12,7 +12,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
-import { getFileType, isTextByContent } from '@main/utils/file/metadata'
+import { getFileType } from '@main/utils/file/metadata'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
@@ -1015,12 +1015,6 @@ class FileStorage {
   public getFilePathById(file: FileMetadata): string {
     return path.join(this.storageDir, file.id + file.ext)
   }
-
-  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    return this._isTextFile(filePath)
-  }
-
-  private _isTextFile = async (filePath: string): Promise<boolean> => isTextByContent(filePath as FilePath)
 
   public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
     try {
