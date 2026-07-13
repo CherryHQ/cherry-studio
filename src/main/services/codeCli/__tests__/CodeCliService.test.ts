@@ -301,6 +301,31 @@ describe('CodeCliService', () => {
       expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })
 
+    it('preserves a pinned owned intent when lazily recovering a missing CLI', async () => {
+      const intent = { name: 'claude', tool: 'claude', requestedVersion: '1.0.0' }
+      binaryManagerMock.getToolSnapshots
+        .mockResolvedValueOnce({
+          claude: { name: 'claude', intent, availability: { source: 'none' } }
+        })
+        .mockResolvedValueOnce({
+          claude: {
+            name: 'claude',
+            intent,
+            availability: { source: 'mise', tool: 'claude', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+          }
+        })
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(binaryManagerMock.installTool).toHaveBeenCalledWith({ intent })
+    })
+
     it('launches a managed npm CLI with Cherry shims first and no ambient MISE settings', async () => {
       shellEnvMock.getRawShellEnv.mockResolvedValue({
         PATH: '/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin',

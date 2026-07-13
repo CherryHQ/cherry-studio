@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { toast } from '@renderer/services/toast'
+import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import { CLI_BINARY_NAMES } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
 import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
@@ -28,18 +29,19 @@ export function useBinaryActions() {
       toolId: CodeCli,
       setBusy: Dispatch<SetStateAction<Set<string>>>,
       messages: { successKey: string; logLabel: string },
-      version?: string
+      intent?: BinaryManifestEntry,
+      targetVersion?: string
     ) => {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
         const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
         if (cliPreset) {
           await ipcApi.request('binary.install_tool', {
-            intent: {
+            intent: intent ?? {
               name: CLI_BINARY_NAMES[toolId],
               tool: cliPreset.miseTool
             },
-            ...(version ? { targetVersion: version } : {})
+            ...(targetVersion ? { targetVersion } : {})
           })
           toast.success(t(messages.successKey))
         }
@@ -57,16 +59,21 @@ export function useBinaryActions() {
   )
 
   const install = useCallback(
-    (toolId: CodeCli) =>
-      runInstallTool(toolId, setInstallingTools, {
-        successKey: 'code.install_success',
-        logLabel: 'Failed to install:'
-      }),
+    (toolId: CodeCli, intent?: BinaryManifestEntry) =>
+      runInstallTool(
+        toolId,
+        setInstallingTools,
+        {
+          successKey: 'code.install_success',
+          logLabel: 'Failed to install:'
+        },
+        intent
+      ),
     [runInstallTool]
   )
 
   const upgrade = useCallback(
-    (toolId: CodeCli, latestVersion?: string) =>
+    (toolId: CodeCli, latestVersion?: string, intent?: BinaryManifestEntry) =>
       runInstallTool(
         toolId,
         setUpgradingTools,
@@ -74,6 +81,7 @@ export function useBinaryActions() {
           successKey: 'code.upgrade_success',
           logLabel: 'Failed to upgrade:'
         },
+        intent,
         latestVersion
       ),
     [runInstallTool]

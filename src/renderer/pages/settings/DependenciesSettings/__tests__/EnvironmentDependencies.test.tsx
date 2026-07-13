@@ -277,6 +277,29 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
+  it('renders a failed custom install from operation intent and lets the user retry without ownership', async () => {
+    setSnapshots({
+      mytool: {
+        name: 'mytool',
+        availability: { source: 'none' },
+        operation: {
+          status: 'failed',
+          action: 'install',
+          error: 'offline',
+          intent: { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+        }
+      }
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    expect(card).toHaveTextContent('npm:mytool')
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+    fireEvent.click(within(card).getByText('common.retry'))
+    expect(ipcMocks.installTool).toHaveBeenCalledWith({
+      intent: { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
+    })
+  })
+
   it('excludes Code CLI snapshots from the dependency grid', async () => {
     setSnapshots({
       claude: miseSnapshot('claude', 'claude'),

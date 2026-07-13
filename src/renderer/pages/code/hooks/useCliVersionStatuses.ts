@@ -24,12 +24,15 @@ const isNewerVersion = (latest?: string, installed?: string): boolean => {
 const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
   const availability = snapshot?.availability ?? { source: 'none' as const }
   const operation = snapshot?.operation
-  const owned = !!snapshot?.intent
+  const intent = snapshot?.intent
+  const owned = !!intent
+  const intentField = intent ? { intent } : {}
   if (availability.source === 'mise') {
     return {
       installed: true,
       source: 'mise',
       owned,
+      ...intentField,
       current: availability.version,
       latest,
       canUpgrade: owned && isNewerVersion(latest, availability.version),
@@ -41,6 +44,7 @@ const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, 
       installed: true,
       source: 'bundled',
       owned,
+      ...intentField,
       current: availability.version,
       canUpgrade: false,
       ...(operation ? { operation } : {})
@@ -51,12 +55,20 @@ const buildStatus = (toolId: CodeCli, snapshot: BinaryToolSnapshot | undefined, 
       installed: true,
       source: 'system',
       owned,
+      ...intentField,
       systemPath: availability.path,
       canUpgrade: false,
       ...(operation ? { operation } : {})
     }
   }
-  return { installed: false, source: 'none', owned, canUpgrade: false, ...(operation ? { operation } : {}) }
+  return {
+    installed: false,
+    source: 'none',
+    owned,
+    ...intentField,
+    canUpgrade: false,
+    ...(operation ? { operation } : {})
+  }
 }
 
 /** Availability and managed upgrade status for every CLI tool. */
@@ -78,6 +90,9 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
       })
       if (cancelled || !snapshots) return
 
+      for (const toolId of tools) {
+        if (!snapshots[CLI_BINARY_NAMES[toolId]]?.intent) delete latestRef.current[toolId]
+      }
       const hasManagedCli = tools.some((toolId) => {
         const snapshot = snapshots[CLI_BINARY_NAMES[toolId]]
         return snapshot?.intent && snapshot.availability.source === 'mise'
@@ -88,7 +103,17 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
           logger.error('Failed to read latest-version cache', error as Error)
           return {}
         })
-        if (Object.keys(latestVersions).length === 0 && availabilityRevision === 0) {
+        const needsLatest = tools.some((toolId) => {
+          const binaryName = CLI_BINARY_NAMES[toolId]
+          const snapshot = snapshots[binaryName]
+          return (
+            !!snapshot?.intent &&
+            snapshot.availability.source === 'mise' &&
+            !latestVersions[binaryName] &&
+            !latestRef.current[toolId]
+          )
+        })
+        if (needsLatest) {
           latestVersions = await ipcApi.request('binary.get_latest_versions', true).catch((error) => {
             logger.error('Failed to get latest binary versions', error as Error)
             return {}

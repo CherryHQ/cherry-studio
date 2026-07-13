@@ -353,6 +353,7 @@ describe('BinaryManager', () => {
 
   describe('manifest transitions', () => {
     it('does not install managed tools during startup', async () => {
+      manifestRef.value = [{ name: 'fd', tool: 'fd' }]
       const service = new BinaryManager()
       ;(service as any).onAllReady()
 
@@ -376,6 +377,14 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@latest'])
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'fd', tool: 'fd' }])
       expect(manifestRef.value).toEqual([])
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+        fd: {
+          status: 'failed',
+          action: 'install',
+          error: 'preference write failed',
+          intent: { name: 'fd', tool: 'fd' }
+        }
+      })
     })
   })
 
@@ -483,6 +492,17 @@ describe('BinaryManager', () => {
         ...(entry.version ? { requestedVersion: entry.version } : {})
       }))
     }
+
+    it('does not uninstall a tool without manifest ownership', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      await service.removeTool('fd')
+
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
 
     it('uninstalls a managed runtime and clears its manifest intent after confirming absence', async () => {
       const service = new BinaryManager()

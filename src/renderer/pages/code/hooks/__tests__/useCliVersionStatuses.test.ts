@@ -151,6 +151,44 @@ describe('useCliVersionStatuses', () => {
     expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({ latest: 'nightly', canUpgrade: false })
   })
 
+  it('fetches latest versions when an availability event introduces a newly owned CLI', async () => {
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(false))
+
+    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockResolvedValueOnce({ claude: '1.1.0' })
+    act(() => {
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
+    })
+
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it('refreshes latest versions after an owned CLI is removed and reinstalled', async () => {
+    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
+    ipcMocks.latestVersions.mockResolvedValue({ claude: '1.1.0' })
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.latest).toBe('1.1.0'))
+
+    setSnapshots({})
+    act(() => {
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
+    })
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.owned).toBe(false))
+
+    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.2.0') })
+    ipcMocks.latestVersions.mockReset().mockResolvedValueOnce({}).mockResolvedValueOnce({ claude: '1.3.0' })
+    act(() => {
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
+    })
+
+    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.latest).toBe('1.3.0'))
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
+    expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
+  })
+
   it('preserves other tools latest-version hints after one tool changes', async () => {
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0'), codex: miseSnapshot('codex', 'codex', '2.0.0') })
     ipcMocks.latestVersions.mockResolvedValue({ claude: '1.1.0', codex: '2.1.0' })

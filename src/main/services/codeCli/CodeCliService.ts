@@ -374,12 +374,13 @@ export class CodeCliService extends BaseService {
     // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
     // install when no currently available source can execute the CLI.
     const binaryManager = application.get('BinaryManager')
-    let availability = (await binaryManager.getToolSnapshots([executableName]))[executableName].availability
+    let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
+    let { availability } = snapshot
 
     if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await binaryManager.installTool({ intent: spec })
+        await binaryManager.installTool({ intent: snapshot.intent ?? spec })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -387,7 +388,8 @@ export class CodeCliService extends BaseService {
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
 
-      availability = (await binaryManager.getToolSnapshots([executableName]))[executableName].availability
+      snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
+      availability = snapshot.availability
       if (availability.source === 'none') {
         const message = `${cliTool} is not available after install`
         logger.error(message)

@@ -104,8 +104,15 @@ type ToolSource = BinaryAvailability['source']
 // management surface (the Code CLI page) — keep them out of this inventory.
 const CODE_CLI_BINARIES = new Set<string>(Object.values(CLI_BINARY_NAMES))
 
+const getInstallRecoveryIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry | undefined =>
+  snapshot.operation?.status === 'failed' && snapshot.operation.action === 'install'
+    ? snapshot.operation.intent
+    : undefined
+
 const toManifestIntent = (snapshot: BinaryToolSnapshot): BinaryManifestEntry => {
   if (snapshot.intent) return snapshot.intent
+  const recoveryIntent = getInstallRecoveryIntent(snapshot)
+  if (recoveryIntent) return recoveryIntent
   return {
     name: snapshot.name,
     tool: snapshot.availability.source === 'mise' ? snapshot.availability.tool : snapshot.name
@@ -199,6 +206,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         (snapshot) =>
           !CODE_CLI_BINARIES.has(snapshot.name) &&
           (snapshot.intent ||
+            getInstallRecoveryIntent(snapshot) ||
             (snapshot.availability.source === 'mise' && isRuntimeDependency(snapshot.availability.tool)))
       ),
     [snapshots]
@@ -372,9 +380,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         })}
         {extraTools.map((snapshot) => {
           const { availability } = snapshot
-          const toolSpec = snapshot.intent?.tool ?? (availability.source === 'mise' ? availability.tool : snapshot.name)
+          const recoveryIntent = getInstallRecoveryIntent(snapshot)
+          const toolSpec =
+            snapshot.intent?.tool ??
+            recoveryIntent?.tool ??
+            (availability.source === 'mise' ? availability.tool : snapshot.name)
           const runtime = isRuntimeDependency(toolSpec)
-          const readOnly = !snapshot.intent
+          const readOnly = !snapshot.intent && !recoveryIntent
           const owned = !!snapshot.intent
           const available = availability.source !== 'none'
           const systemPath = !readOnly && availability.source === 'system' ? availability.path : undefined
@@ -639,7 +651,10 @@ const CustomToolCard: FC<{
   onRemove
 }) => {
   const { t } = useTranslation()
-  const toolSpec = tool.intent?.tool ?? (tool.availability.source === 'mise' ? tool.availability.tool : tool.name)
+  const toolSpec =
+    tool.intent?.tool ??
+    getInstallRecoveryIntent(tool)?.tool ??
+    (tool.availability.source === 'mise' ? tool.availability.tool : tool.name)
   const installed = available
   const installing = operation?.status === 'installing'
   const removing = operation?.status === 'removing'

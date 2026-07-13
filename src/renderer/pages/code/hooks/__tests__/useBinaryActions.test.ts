@@ -44,15 +44,19 @@ describe('useBinaryActions', () => {
     expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
 
-  it('upgrades a CLI tool by pinning the detected latest version', async () => {
+  it('preserves durable intent while using the detected latest version as a one-shot target', async () => {
     const { result } = renderHook(() => useBinaryActions())
 
     await act(async () => {
-      await result.current.upgrade(CodeCli.CLAUDE_CODE, '1.2.3')
+      await result.current.upgrade(CodeCli.CLAUDE_CODE, '1.2.3', {
+        name: 'claude',
+        tool: 'claude',
+        requestedVersion: '1.0.0'
+      })
     })
 
     expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
-      intent: { name: 'claude', tool: 'claude' },
+      intent: { name: 'claude', tool: 'claude', requestedVersion: '1.0.0' },
       targetVersion: '1.2.3'
     })
     expect(toast.success).toHaveBeenCalledWith('code.upgrade_success')
