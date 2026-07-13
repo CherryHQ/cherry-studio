@@ -462,6 +462,19 @@ describe('XlsxGrid — keyboard selection', () => {
     expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'A1' }))
   })
 
+  it('does not move into visual padding beyond the used range', () => {
+    const onSelectCell = vi.fn()
+    render(
+      <XlsxGrid sheet={model.sheets[1]} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    for (let index = 0; index < 6; index++) fireEvent.keyDown(scroll, { key: 'ArrowDown' })
+    for (let index = 0; index < 4; index++) fireEvent.keyDown(scroll, { key: 'ArrowRight' })
+
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'B3' }))
+  })
+
   it('selects the current cursor cell on Enter', () => {
     const onSelectCell = vi.fn()
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
@@ -480,12 +493,19 @@ describe('XlsxGrid — grid semantics', () => {
     showHeaderRange()
   })
 
-  it('exposes the focusable scroll container as a grid with row/col counts', () => {
+  it('exposes the focusable scroll container as a grid with used-range row/col counts', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
     const grid = screen.getByRole('grid')
     expect(grid).toHaveAttribute('tabindex', '0')
-    expect(grid).toHaveAttribute('aria-rowcount')
-    expect(grid).toHaveAttribute('aria-colcount')
+    expect(grid).toHaveAttribute('aria-rowcount', String(salesSheet.rowCount))
+    expect(grid).toHaveAttribute('aria-colcount', String(salesSheet.colCount))
+  })
+
+  it('keeps visual padding outside the semantic grid', () => {
+    render(<XlsxGrid sheet={model.sheets[1]} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    expect(screen.getAllByRole('row')).toHaveLength(model.sheets[1].rowCount)
+    expect(screen.getAllByRole('gridcell')).toHaveLength(model.sheets[1].rowCount * model.sheets[1].colCount)
   })
 
   it('wraps cells in rows and exposes 1-based row/col indices on gridcells', () => {

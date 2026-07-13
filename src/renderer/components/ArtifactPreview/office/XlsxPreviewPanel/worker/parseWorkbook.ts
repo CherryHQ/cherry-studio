@@ -493,6 +493,9 @@ class StyleTable {
 
   intern(style: CellStyle | undefined): number | undefined {
     if (!style) return undefined
+    // buildCellStyle inserts fields in a fixed order. Keep JSON.stringify so this key cannot drift from optional
+    // CellStyle fields; parser row/column caps bound the accepted per-cell serialization cost.
+    // TODO(#16957): replace it only if a collision-safe key demonstrates a meaningful parse-time improvement.
     const key = JSON.stringify(style)
     const existing = this.map.get(key)
     if (existing !== undefined) return existing
@@ -530,6 +533,9 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
     modified = true
   }
   if (!modified) return original
+  // JSZip has no in-place entry rewrite: changing any drawing regenerates the package. The 256 MiB declared-size
+  // preflight bounds well-formed inputs; avoiding this temporary peak requires a ZIP writer that can copy raw entries.
+  // TODO(#16959): preserve unaffected compressed entries or remove this workaround through an upstream ExcelJS fix.
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 

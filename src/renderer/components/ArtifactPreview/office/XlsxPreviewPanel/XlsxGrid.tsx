@@ -289,20 +289,23 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const [selected, setSelected] = useState<{ row: number; col: number } | null>(null)
   const [viewport, setViewport] = useState<ViewportRect>({ top: 0, left: 0, bottom: 0, right: 0 })
 
-  // Displayed rows/columns are the larger of the used range and the default-sized cells needed to fill the viewport.
+  // Visual padding fills the viewport and leaves a small blank scroll area. It is decorative: ARIA and keyboard
+  // navigation stay within the parsed used range reported by sheet.rowCount/sheet.colCount.
   const viewportHeight = viewport.bottom - viewport.top
   const viewportWidth = viewport.right - viewport.left
-  const rowCount = Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
-  const colCount = Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
+  const renderedRowCount =
+    Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
+  const renderedColCount =
+    Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
 
   // Layout always uses zoom=1; scaling is applied to the whole content layer so elements do not reflow.
   const rowLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, 1),
-    [rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx]
+    () => buildAxisLayout(renderedRowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, 1),
+    [renderedRowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx]
   )
   const colLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, 1),
-    [colCount, sheet.defaultColWidthPx, sheet.colWidthsPx]
+    () => buildAxisLayout(renderedColCount, sheet.defaultColWidthPx, sheet.colWidthsPx, 1),
+    [renderedColCount, sheet.defaultColWidthPx, sheet.colWidthsPx]
   )
 
   // Header sizes in the scroll coordinate space. Everything inside the transformed layer uses zoom=1 coordinates.
@@ -311,7 +314,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const zoomTransform: React.CSSProperties = { transform: `scale(${zoom})`, transformOrigin: 'top left' }
 
   const rowVirtualizer = useVirtualizer({
-    count: rowCount,
+    count: renderedRowCount,
     getScrollElement: () => scrollElRef.current,
     // Virtualization works in scroll coordinates, with sizes multiplied by zoom. Render coordinates come from layouts.
     estimateSize: (index) => rowLayout.sizes[index] * zoom,
@@ -319,7 +322,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   })
   const colVirtualizer = useVirtualizer({
     horizontal: true,
-    count: colCount,
+    count: renderedColCount,
     getScrollElement: () => scrollElRef.current,
     estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
@@ -376,7 +379,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
 
   // Index only the virtualized viewport intersection. Expanding every merge across the full sheet could itself be
   // unbounded, while this map stays O(visible cells) and makes the render loop's lookup O(1).
-  const mergeKeyStride = colCount + 1
+  const mergeKeyStride = renderedColCount + 1
   const visibleMergeByCell = useMemo(() => {
     const index = new Map<number, SheetRenderModel['merges'][number]>()
     const firstRow = (virtualRows[0]?.index ?? 0) + 1
@@ -454,13 +457,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       else if (dRow < 0) nextRow = selected.row - 1
       if (dCol > 0) nextCol = (merge?.right ?? selected.col) + 1
       else if (dCol < 0) nextCol = selected.col - 1
-      nextRow = Math.min(Math.max(nextRow, 1), rowCount)
-      nextCol = Math.min(Math.max(nextCol, 1), colCount)
+      nextRow = Math.min(Math.max(nextRow, 1), sheet.rowCount)
+      nextCol = Math.min(Math.max(nextCol, 1), sheet.colCount)
       selectCell(nextRow, nextCol)
       rowVirtualizer.scrollToIndex(nextRow - 1)
       colVirtualizer.scrollToIndex(nextCol - 1)
     },
-    [selected, findMerge, rowCount, colCount, selectCell, rowVirtualizer, colVirtualizer]
+    [selected, findMerge, sheet.rowCount, sheet.colCount, selectCell, rowVirtualizer, colVirtualizer]
   )
 
   const handleKeyDown = useCallback(
@@ -525,8 +528,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       role="grid"
       aria-label={sheet.name}
       aria-readonly
-      aria-rowcount={rowCount}
-      aria-colcount={colCount}
+      aria-rowcount={sheet.rowCount}
+      aria-colcount={sheet.colCount}
       tabIndex={0}>
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
         {/* Column header (sticky top): A, B, C... The box is positioned in scroll coordinates; content is scaled. */}
@@ -580,27 +583,34 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           <div className="absolute">
             {virtualRows.map((vr) => {
               const row = vr.index + 1
+              const isSemanticRow = row <= sheet.rowCount
               return (
-                <div key={vr.key} role="row" aria-rowindex={row}>
+                <div
+                  key={vr.key}
+                  role={isSemanticRow ? 'row' : undefined}
+                  aria-hidden={isSemanticRow ? undefined : true}
+                  aria-rowindex={isSemanticRow ? row : undefined}>
                   {virtualCols.map((vc) => {
                     const col = vc.index + 1
+                    const isSemanticCell = isSemanticRow && col <= sheet.colCount
                     const merge = visibleMergeByCell.get(row * mergeKeyStride + col)
                     const isMaster = merge !== undefined && merge.top === row && merge.left === col
                     const isCovered = merge !== undefined && !isMaster
+                    const exposesGridCell = isSemanticCell && !isCovered
                     const cell = merge ? undefined : getCell(row, col)
                     const style = merge ? undefined : getStyle(cell)
                     const isSelected = !isCovered && selected?.row === row && selected?.col === col
                     return (
                       <div
                         key={vc.key}
-                        onClick={() => selectCell(row, col)}
-                        role={isCovered ? undefined : 'gridcell'}
-                        aria-hidden={isCovered || undefined}
-                        aria-colindex={isCovered ? undefined : col}
-                        aria-selected={isCovered ? undefined : isSelected}
-                        aria-colspan={isMaster ? merge.right - merge.left + 1 : undefined}
-                        aria-rowspan={isMaster ? merge.bottom - merge.top + 1 : undefined}
-                        aria-label={isMaster ? getCell(row, col)?.text || undefined : undefined}>
+                        onClick={isSemanticCell ? () => selectCell(row, col) : undefined}
+                        role={exposesGridCell ? 'gridcell' : undefined}
+                        aria-hidden={exposesGridCell ? undefined : true}
+                        aria-colindex={exposesGridCell ? col : undefined}
+                        aria-selected={exposesGridCell ? isSelected : undefined}
+                        aria-colspan={isMaster && exposesGridCell ? merge.right - merge.left + 1 : undefined}
+                        aria-rowspan={isMaster && exposesGridCell ? merge.bottom - merge.top + 1 : undefined}
+                        aria-label={isMaster && exposesGridCell ? getCell(row, col)?.text || undefined : undefined}>
                         <CellView
                           cell={cell}
                           style={style}

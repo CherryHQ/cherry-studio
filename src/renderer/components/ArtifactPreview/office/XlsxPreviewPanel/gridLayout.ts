@@ -69,6 +69,9 @@ export const buildAxisLayout = (
   overrides: Record<number, number>,
   zoom: number
 ): AxisLayout => {
+  // Full arrays make virtualizer sizing and merge-offset lookups O(1) on the scroll path. Parser limits cap the used
+  // range at 200k rows/500 columns (plus small viewport padding), so the bounded sheet-switch cost is accepted for now.
+  // TODO(#16958): adopt a lower-allocation representation only if it improves end-to-end performance.
   const sizes = new Array<number>(count)
   const offsets = new Array<number>(count)
   let offset = 0
