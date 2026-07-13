@@ -4,6 +4,7 @@ import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   gatewayExpectedModel,
+  gatewayModelIdFromAddress,
   getClaudeContextModelId,
   safeCreateUniqueModelId,
   sanitizeCliConfigBlob,
@@ -304,7 +305,17 @@ export function useConfigDraftController({
         cliTool,
         extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
       )
-      if (connection && !connectionMatchesProvider(connection, current.modelId)) {
+      // In gateway mode the committed modelId must be a real UniqueModelId (the synthetic gateway
+      // provider owns no models). When none is selected yet, reverse-resolve the raw file's gateway
+      // address so a hand-edited model resolves to a real model instead of being silently dropped.
+      const resolvedModelId =
+        gateway && !current.modelId ? gatewayModelIdFromAddress(connection?.model, models) : current.modelId
+      // Foreign when the raw connection doesn't match, or (gateway) when it names a model we can't
+      // resolve to an enabled one — either way persist the files verbatim rather than committing a
+      // managed draft with no model, which the submit path would silently discard.
+      const isForeign =
+        !!connection && (!connectionMatchesProvider(connection, resolvedModelId) || (gateway && !resolvedModelId))
+      if (isForeign) {
         commitDraft({
           ...current,
           config: nextConfig,
@@ -316,14 +327,12 @@ export function useConfigDraftController({
       } else {
         commitDraft({
           ...current,
-          // connection.model is parsed from a user-edited raw file; fall back to
-          // the current model when it cannot form a valid unique id. In gateway
-          // mode that parsed model is a gateway address ("providerId:apiModelId"),
-          // not a model of the synthetic provider — recombining it with
-          // provider.id would corrupt the stored UniqueModelId, and a matching
-          // connection already proves it addresses the current model, so keep it.
+          // connection.model is parsed from a user-edited raw file; fall back to the current model
+          // when it cannot form a valid unique id. In gateway mode use the reverse-resolved id (the
+          // parsed value is a gateway address "providerId:apiModelId", not a model of the synthetic
+          // provider — recombining it with provider.id would corrupt the stored UniqueModelId).
           modelId: gateway
-            ? current.modelId
+            ? resolvedModelId
             : connection?.model
               ? (safeCreateUniqueModelId(provider.id, connection.model) ?? current.modelId)
               : current.modelId,
@@ -335,7 +344,7 @@ export function useConfigDraftController({
         })
       }
     },
-    [cliTool, connectionMatchesProvider, commitDraft, provider.id, gateway]
+    [cliTool, connectionMatchesProvider, commitDraft, provider.id, gateway, models]
   )
 
   const handleSubmit = useCallback(async () => {

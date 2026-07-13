@@ -3,8 +3,9 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatGatewayModelId } from '@shared/types/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -87,13 +88,19 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     // Deduplicate by the gateway-addressable id ("providerId:modelId").
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
+      const provider = providers.find((p) => p.id === model.providerId)
+      // External-CLI providers (e.g. claude-code) authenticate via their own CLI login, not an
+      // app-side key, so the proxy's AI-SDK path cannot call them — never advertise their models
+      // even though they pass the routable-model predicate (matches the renderer picker's exclusion).
+      if (provider && isExternalCliProvider(provider)) {
+        continue
+      }
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
       if (!isGatewayRoutableModel(model)) {
         continue
       }
 
-      const provider = providers.find((p) => p.id === model.providerId)
       const apiModel = transformModelToOpenAi(model, provider)
       if (!uniqueModels.has(apiModel.id)) {
         uniqueModels.set(apiModel.id, apiModel)

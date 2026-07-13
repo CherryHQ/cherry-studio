@@ -1,5 +1,5 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { formatGatewayModelId } from '@shared/types/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { describe, expect, it } from 'vitest'
 
 /** The gateway proxy's parse side (proxyStream.ts): split on the FIRST ':'. */

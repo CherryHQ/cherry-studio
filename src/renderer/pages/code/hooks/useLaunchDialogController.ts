@@ -1,3 +1,4 @@
+import { useModels } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -8,7 +9,13 @@ import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolveCliConfigApplyContext, writeCliConfigDraft } from '../cliConfig'
+import {
+  extractConnectionFromCliConfigDraft,
+  gatewayExpectedModel,
+  readCliConfigFiles,
+  resolveCliConfigApplyContext,
+  writeCliConfigDraft
+} from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
@@ -57,6 +64,7 @@ export function useLaunchDialogController({
 }: UseLaunchDialogControllerOptions): LaunchDialogController {
   const { t } = useTranslation()
   const availableTerminals = useAvailableTerminals()
+  const { models } = useModels({ enabled: true })
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
 
@@ -131,13 +139,33 @@ export function useLaunchDialogController({
       // CLI never launches against a dead endpoint or a stale key.
       if (enabledProvider && isApiGatewayProviderId(enabledProvider.id) && apiGatewayProvider) {
         const apiKey = await apiGatewayProvider.ensureReady()
-        await writeCliConfigDraft({
-          cliTool: selectedCliTool,
-          modelId: cliConfigContext.modelId,
-          configBlob: currentProviderConfig?.config,
-          writePrimaryModel: cliConfigContext.writePrimaryModel,
-          gateway: { provider: apiGatewayProvider.provider, apiKey }
-        })
+        // Respect a foreign/raw config the user saved via the advanced editor: if the on-disk model
+        // no longer matches the preferred model, the config was hand-edited — launch it as-is (like
+        // real providers) instead of rebuilding from preference and clobbering it. A managed config
+        // (model still matches) is still rewritten, to refresh a stale key/port.
+        let isForeignConfig = false
+        try {
+          const files = await readCliConfigFiles(selectedCliTool)
+          const onDiskModel = extractConnectionFromCliConfigDraft(selectedCliTool, files)?.model
+          const expectedModel = gatewayExpectedModel(
+            cliConfigContext.modelId,
+            models.find((m) => m.id === cliConfigContext.modelId)?.apiModelId
+          )
+          isForeignConfig = !!onDiskModel && !!expectedModel && onDiskModel !== expectedModel
+        } catch (err) {
+          // The foreign-detection read is a non-essential optimization; on failure fall back to the
+          // safe default (rewrite, matching pre-gateway behavior) rather than aborting a valid launch.
+          logger.warn('Failed to read CLI config for gateway foreign-detection; rewriting', err as Error)
+        }
+        if (!isForeignConfig) {
+          await writeCliConfigDraft({
+            cliTool: selectedCliTool,
+            modelId: cliConfigContext.modelId,
+            configBlob: currentProviderConfig?.config,
+            writePrimaryModel: cliConfigContext.writePrimaryModel,
+            gateway: { provider: apiGatewayProvider.provider, apiKey }
+          })
+        }
       }
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
@@ -167,6 +195,7 @@ export function useLaunchDialogController({
     selectedCliTool,
     effectiveTerminal,
     apiGatewayProvider,
+    models,
     setCurrentProvider,
     t
   ])

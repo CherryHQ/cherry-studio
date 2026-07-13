@@ -19,7 +19,7 @@ export {
 } from './draft'
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
-export { gatewayExpectedModel } from './gatewayModel'
+export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {
   CLAUDE_PERMISSION_MODES,

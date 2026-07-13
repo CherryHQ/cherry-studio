@@ -292,11 +292,12 @@ export function useConfigPanelController({
   const handleOwnLoginSubmit = useCallback(
     async (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => {
       const sanitizedConfig = sanitizeCliConfigBlob(selectedCliTool, values.config)
-      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: null, config: sanitizedConfig })
-      logger.info('Updated own-login config', { toolId: selectedCliTool })
 
-      // Re-apply to the CLI config file when own login is the active selection. Hand-edited raw
-      // files (if any) are written verbatim; otherwise the file is rebuilt from the tool params.
+      // Write the CLI file BEFORE persisting the preference when own login is active: if the disk
+      // write fails, the preference stays unchanged so OwnLoginConfigPanel keeps its baseline and
+      // the dialog remains dirty/retryable. Persisting first would reset that baseline (the panel
+      // recomputes initialConfig from the prop), disabling Save even though the file is stale.
+      // Hand-edited raw files (if any) are written verbatim; otherwise the file is rebuilt.
       if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
         try {
           await writeOwnLoginCliConfigDraft({
@@ -304,13 +305,18 @@ export function useConfigPanelController({
             configBlob: sanitizedConfig,
             files: values.cliConfigFiles
           })
-          setCurrentCliConfigConnection(null)
         } catch (err) {
           // Rethrow so the submitting dialog treats the save as failed and keeps the
           // user's draft (it owns the failure toast) instead of silently closing.
           logger.error('Failed to inject own-login config on edit:', err as Error)
           throw err
         }
+      }
+
+      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: null, config: sanitizedConfig })
+      logger.info('Updated own-login config', { toolId: selectedCliTool })
+      if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
+        setCurrentCliConfigConnection(null)
       }
     },
     [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection]

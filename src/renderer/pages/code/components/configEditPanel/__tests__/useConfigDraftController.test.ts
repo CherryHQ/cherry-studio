@@ -168,12 +168,14 @@ describe('useConfigDraftController (cherry gateway)', () => {
     }
   ]
 
-  function renderGatewayController() {
+  function renderGatewayController(
+    providerConfig: { modelId: UniqueModelId | null } = { modelId: 'deepseek::deepseek-chat' }
+  ) {
     return renderHook(() =>
       useConfigDraftController({
         cliTool: CodeCli.CLAUDE_CODE,
         provider: gatewayProvider,
-        providerConfig: { modelId: 'deepseek::deepseek-chat' },
+        providerConfig,
         isCurrentProvider: true,
         apiKeys: [{ id: 'gateway', key: 'cs-sk-gateway', isEnabled: true }],
         gateway,
@@ -218,6 +220,44 @@ describe('useConfigDraftController (cherry gateway)', () => {
     // synthetic provider id into a corrupt "cherry:api-gateway::…" UniqueModelId.
     expect(result.current.draft.mode).toBe('managed')
     expect(result.current.draft.modelId).toBe('deepseek::deepseek-chat')
+  })
+
+  // Reviewer A1: with no model selected yet, a raw edit whose gateway address resolves to an
+  // enabled model must become a managed draft carrying that real UniqueModelId — otherwise the
+  // submit path drops the edit (no cliConfigModelId → parent returns while the dialog closes).
+  it('reverse-resolves a model-less gateway raw edit to the real modelId', async () => {
+    const { result } = renderGatewayController({ modelId: null })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => result.current.onCliConfigFilesChange(gatewayRawFiles))
+
+    expect(result.current.draft.mode).toBe('managed')
+    expect(result.current.draft.modelId).toBe('deepseek::deepseek-chat')
+  })
+
+  // When the raw address can't be resolved to an enabled model, the edit must still be preserved:
+  // persist it verbatim as a foreign draft (cliConfigOnly) instead of silently discarding it.
+  it('keeps a model-less gateway raw edit as foreign when the model cannot be resolved', async () => {
+    mocks.extractConnectionFromCliConfigDraft.mockReturnValue({
+      baseUrl: GATEWAY_BASE_URL,
+      apiKey: 'cs-sk-gateway',
+      model: 'deepseek:ghost-model'
+    })
+    const { result } = renderGatewayController({ modelId: null })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => result.current.onCliConfigFilesChange(gatewayRawFiles))
+
+    expect(result.current.draft.mode).toBe('foreign')
+    expect(result.current.draft.files).toEqual(gatewayRawFiles)
   })
 })
 

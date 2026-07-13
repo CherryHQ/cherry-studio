@@ -7,8 +7,8 @@ import { providerService } from '@data/services/ProviderService'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatGatewayModelId } from '@shared/types/apiGateway'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import {
   isExternalCliProvider,
   isGeminiProvider,

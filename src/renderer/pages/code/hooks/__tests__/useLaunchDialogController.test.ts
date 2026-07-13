@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
   availableTerminals: [] as { id: string; name: string }[],
   requestMock: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
-  writeCliConfigDraft: vi.fn()
+  writeCliConfigDraft: vi.fn(),
+  readCliConfigFiles: vi.fn(),
+  extractConnectionFromCliConfigDraft: vi.fn(),
+  gatewayExpectedModel: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -33,7 +40,10 @@ vi.mock('react-i18next', () => ({
 // at the non-existent hooks/cliConfig and silently mock nothing.
 vi.mock('../../cliConfig', () => ({
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext,
-  writeCliConfigDraft: mocks.writeCliConfigDraft
+  writeCliConfigDraft: mocks.writeCliConfigDraft,
+  readCliConfigFiles: mocks.readCliConfigFiles,
+  extractConnectionFromCliConfigDraft: mocks.extractConnectionFromCliConfigDraft,
+  gatewayExpectedModel: mocks.gatewayExpectedModel
 }))
 
 vi.mock('../useAvailableTerminals', () => ({
@@ -179,6 +189,10 @@ describe('useLaunchDialogController', () => {
         rawModelId: 'deepseek-chat',
         writePrimaryModel: true
       })
+      // Default: no on-disk config to read back → treated as managed (rewrite proceeds).
+      mocks.readCliConfigFiles.mockResolvedValue([])
+      mocks.extractConnectionFromCliConfigDraft.mockReturnValue(null)
+      mocks.gatewayExpectedModel.mockReturnValue('deepseek:deepseek-chat')
     })
 
     it('re-verifies the gateway and rewrites the config with the fresh key before running', async () => {
@@ -218,6 +232,43 @@ describe('useLaunchDialogController', () => {
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
       expect(result.current.launching).toBe(false)
+    })
+
+    // Reviewer A1: the user can save a foreign/raw gateway config (a different model) via the
+    // advanced editor. Launch must NOT rebuild from the preferred model and clobber it — it verifies
+    // the gateway is up, then launches the on-disk config as-is (like a real provider).
+    it('does not rewrite a foreign on-disk gateway config, but still verifies and runs', async () => {
+      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      // On disk the user saved a different model than the preferred one.
+      mocks.readCliConfigFiles.mockResolvedValue([{ target: 'claude-settings', content: '{}' }])
+      mocks.extractConnectionFromCliConfigDraft.mockReturnValue({ model: 'deepseek:deepseek-reasoner' })
+      mocks.gatewayExpectedModel.mockReturnValue('deepseek:deepseek-chat')
+      const { result } = renderGatewayLaunch(ensureReady)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(ensureReady).toHaveBeenCalledTimes(1)
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
+    })
+
+    // Foreign-detection is a non-essential optimization: if the on-disk config can't be read
+    // (permissions/IPC error), fall back to rewriting (pre-gateway behavior) rather than aborting.
+    it('rewrites and launches when the foreign-detection read fails', async () => {
+      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      mocks.readCliConfigFiles.mockRejectedValue(new Error('EACCES: permission denied'))
+      const { result } = renderGatewayLaunch(ensureReady)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledTimes(1)
+      expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
     })
 
     it('does not touch the gateway for a real-provider launch', async () => {

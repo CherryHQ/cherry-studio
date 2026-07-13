@@ -271,7 +271,10 @@ describe('useConfigPanelController', () => {
 
     // Same single-owner failure contract as the provider panel: a failed own-login injection must
     // reject so OwnLoginConfigPanel keeps the dialog (and the user's edits) open instead of closing.
-    it('propagates an own-login injection failure to the submitting dialog', async () => {
+    // Reviewer A3: the preference must NOT be persisted when the disk write fails — otherwise the
+    // panel recomputes its baseline from the new prop, `isConfigDirty` collapses to false, and Save
+    // is disabled, so the user can't retry the write directly.
+    it('propagates an own-login injection failure and leaves the preference unpersisted (retryable)', async () => {
       const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
       mocks.writeOwnLoginCliConfigDraft.mockReset()
       mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
@@ -284,6 +287,8 @@ describe('useConfigPanelController', () => {
       await expect(
         result.current.ownLoginConfigPanelProps!.onSubmit({ config: { effortLevel: 'high' } })
       ).rejects.toThrow('settings write failed')
+      // Write is attempted before the preference is persisted, so a failure aborts before upsert.
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
     })
 
