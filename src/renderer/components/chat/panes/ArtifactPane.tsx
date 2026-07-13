@@ -658,19 +658,14 @@ export function ArtifactPaneView({
         data-testid="artifact-file-preview-overlay"
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
-        className={cn(
-          'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-            ? 'overflow-hidden'
-            : 'overflow-auto'
-        )}>
-        <div className="flex shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 py-2">
+        className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+        <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {refreshButton}
             <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            {refreshButton}
             <Tooltip content={t('agent.preview_pane.close')} delay={800}>
               <Button
                 type="button"
@@ -684,7 +679,13 @@ export function ArtifactPaneView({
             </Tooltip>
           </div>
         </div>
-        <div className="min-h-0 flex-1">
+        <div
+          className={cn(
+            'min-h-0 flex-1',
+            isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
+              ? 'overflow-hidden'
+              : 'overflow-auto'
+          )}>
           <ArtifactFilePreview
             workspacePath={overlaySelection.workspacePath}
             filePath={overlaySelection.filePath}
