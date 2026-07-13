@@ -214,8 +214,11 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-normal text-xs leading-none"
-        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        style={{
+          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+        }}>
         {tab.title}
       </span>
       {/* Right-side close button — only on wide tabs */}
