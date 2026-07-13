@@ -97,6 +97,78 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     expect(msgs).toHaveLength(1)
   })
 
+  it('pairs parallel same-name id-less calls 1:1 by document order (no cross-contamination)', () => {
+    // Gemini 1.5/2.0/2.5 `generateContent` often omits ids; two `get_weather`
+    // calls in one round must each keep their OWN response, not both read the last.
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { functionCall: { name: 'get_weather', args: { city: 'Tokyo' } } },
+              { functionCall: { name: 'get_weather', args: { city: 'Paris' } } }
+            ]
+          },
+          {
+            role: 'user',
+            parts: [
+              { functionResponse: { name: 'get_weather', response: { temp: 'sunny' } } },
+              { functionResponse: { name: 'get_weather', response: { temp: 'rainy' } } }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].parts[0]).toMatchObject({
+      type: 'dynamic-tool',
+      state: 'output-available',
+      input: { city: 'Tokyo' },
+      output: JSON.stringify({ temp: 'sunny' })
+    })
+    expect(msgs[0].parts[1]).toMatchObject({
+      type: 'dynamic-tool',
+      state: 'output-available',
+      input: { city: 'Paris' },
+      output: JSON.stringify({ temp: 'rainy' })
+    })
+  })
+
+  it('pairs calls to responses by explicit id regardless of response order (Gemini 3)', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { functionCall: { id: 'c1', name: 'get_weather', args: { city: 'Tokyo' } } },
+              { functionCall: { id: 'c2', name: 'get_weather', args: { city: 'Paris' } } }
+            ]
+          },
+          {
+            role: 'user',
+            parts: [
+              // Responses deliberately reversed — id pairing must ignore position.
+              { functionResponse: { id: 'c2', name: 'get_weather', response: { temp: 'rainy' } } },
+              { functionResponse: { id: 'c1', name: 'get_weather', response: { temp: 'sunny' } } }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({
+      toolCallId: 'c1',
+      input: { city: 'Tokyo' },
+      output: JSON.stringify({ temp: 'sunny' })
+    })
+    expect(msgs[0].parts[1]).toMatchObject({
+      toolCallId: 'c2',
+      input: { city: 'Paris' },
+      output: JSON.stringify({ temp: 'rainy' })
+    })
+  })
+
   it('emits an input-available tool part when the call has no response yet', () => {
     const msgs = converter.toUIMessages(
       request({ contents: [{ role: 'model', parts: [{ functionCall: { name: 'search', args: { q: 'x' } } }] }] })

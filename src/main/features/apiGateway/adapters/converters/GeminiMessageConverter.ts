@@ -120,6 +120,25 @@ function functionResponseToOutput(response: GeminiFunctionResponse['response']):
   return JSON.stringify(response)
 }
 
+/** Function responses grouped for pairing: by explicit id, and per-name FIFO queues for id-less payloads. */
+interface CollectedToolResponses {
+  byId: Map<string, string>
+  queuesByName: Map<string, string[]>
+}
+
+/**
+ * Resolve — and consume — the tool output for a Gemini `functionCall`. Prefers the
+ * explicit id (unique per Gemini 3); for id-less payloads (Gemini 1.5/2.0/2.5)
+ * falls back to a per-name FIFO queue so parallel same-name calls each take their
+ * own response in document order instead of every one reading the last response.
+ * Returns `undefined` when no matching response exists yet (call awaiting result).
+ */
+function takeToolOutput(call: GeminiFunctionCall, responses: CollectedToolResponses): string | undefined {
+  if (call.id !== undefined) return responses.byId.get(call.id)
+  if (call.name !== undefined) return responses.queuesByName.get(call.name)?.shift()
+  return undefined
+}
+
 /**
  * Recursively lower-case a Gemini `Schema`'s UPPERCASE `type` enums (`STRING`,
  * `OBJECT`, …) into the JSON Schema vocabulary `jsonSchemaToZod` expects. Modern
@@ -161,8 +180,9 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
    * `systemInstruction` becomes a leading `role: 'system'` message.
    * `functionResponse` parts are folded into the matching assistant
    * `functionCall`'s `dynamic-tool` part so `convertToModelMessages`
-   * reconstructs the call/result pair coherently. Gemini function calls carry no
-   * stable id in the older wire shape, so calls and responses are matched by name.
+   * reconstructs the call/result pair coherently. Calls and responses are paired by
+   * their explicit id when present (Gemini 3); id-less payloads (Gemini 1.5/2.0/2.5)
+   * fall back to a per-name FIFO queue so parallel same-name calls stay paired 1:1.
    */
   toUIMessages(params: GeminiGenerateContentRequest): CherryUIMessage[] {
     const messages: CherryUIMessage[] = []
@@ -174,15 +194,23 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
 
     const contents = Array.isArray(params.contents) ? params.contents : []
 
-    // Match function responses back to their calls. Prefer the explicit id;
-    // fall back to the function name (older Gemini payloads omit ids).
-    const toolResultOutputs = new Map<string, string>()
+    // Match function responses back to their calls. Responses with an explicit id
+    // are keyed by it; id-less responses (older Gemini payloads) are queued per
+    // name in document order so same-name parallel calls consume them FIFO instead
+    // of colliding on a single name key (later response overwriting the earlier).
+    const toolResponses: CollectedToolResponses = { byId: new Map(), queuesByName: new Map() }
     for (const content of contents) {
       if (!Array.isArray(content.parts)) continue
       for (const part of content.parts) {
-        if (part.functionResponse) {
-          const key = part.functionResponse.id ?? part.functionResponse.name
-          if (key) toolResultOutputs.set(key, functionResponseToOutput(part.functionResponse.response))
+        const functionResponse = part.functionResponse
+        if (!functionResponse) continue
+        const output = functionResponseToOutput(functionResponse.response)
+        if (functionResponse.id !== undefined) {
+          toolResponses.byId.set(functionResponse.id, output)
+        } else if (functionResponse.name !== undefined) {
+          const queue = toolResponses.queuesByName.get(functionResponse.name)
+          if (queue) queue.push(output)
+          else toolResponses.queuesByName.set(functionResponse.name, [output])
         }
       }
     }
@@ -220,17 +248,12 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
         } else if (part.functionCall) {
           const toolName = part.functionCall.name ?? 'unknown'
           const toolCallId = part.functionCall.id ?? `${toolName}-${toolCallSeq++}`
-          const resultKey = part.functionCall.id ?? part.functionCall.name
-          const hasResult = resultKey !== undefined && toolResultOutputs.has(resultKey)
+          const output = takeToolOutput(part.functionCall, toolResponses)
           const base = { type: 'dynamic-tool' as const, toolName, toolCallId }
-          const toolPart: DynamicToolUIPart = hasResult
-            ? {
-                ...base,
-                state: 'output-available',
-                input: part.functionCall.args ?? {},
-                output: toolResultOutputs.get(resultKey)
-              }
-            : { ...base, state: 'input-available', input: part.functionCall.args ?? {} }
+          const toolPart: DynamicToolUIPart =
+            output !== undefined
+              ? { ...base, state: 'output-available', input: part.functionCall.args ?? {}, output }
+              : { ...base, state: 'input-available', input: part.functionCall.args ?? {} }
           parts.push(toolPart)
         }
         // functionResponse parts are absorbed into the matching functionCall part above.
