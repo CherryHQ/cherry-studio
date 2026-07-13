@@ -5,7 +5,13 @@ const MineruDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="18.98 18.98 82.05 82.05"
+      {...props}>
       <path
         fill={`url(#${iconId}-minerudark__a)`}
         d="M92.4468 25.9253C92.4468 28.8755 90.0366 31.2672 87.0635 31.2672C84.0905 31.2672 81.6807 28.8755 81.6807 25.9253C81.6807 22.9751 84.0905 20.5835 87.0635 20.5835C90.0366 20.5835 92.4468 22.9751 92.4468 25.9253Z"

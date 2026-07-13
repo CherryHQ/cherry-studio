@@ -232,6 +232,9 @@ jobs:
       - name: Provider Registry Package Test
         run: pnpm test:provider-registry
 
+      - name: UI Package Test
+        run: pnpm test:pkg:ui
+
       - name: Scripts Test
         run: pnpm test:scripts
 

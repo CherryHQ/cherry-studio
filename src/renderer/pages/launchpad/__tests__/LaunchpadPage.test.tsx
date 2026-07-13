@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  SegmentedControl: () => null,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
     const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]

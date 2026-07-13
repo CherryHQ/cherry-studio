@@ -25,7 +25,7 @@ const useGenerateImageToolController = (context) => {
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.generate_image', ['generate image']),
         disabledReason: t('chat.input.generate_image_not_supported'),
-        icon: <Image size={18} />,
+        icon: <Image className="text-foreground" />,
         active: enabled && isSupported,
         disabled: !isSupported,
         action: handleToggle

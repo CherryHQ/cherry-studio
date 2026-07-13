@@ -1,17 +1,15 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import type { OptionItem } from '../../form/baseConfigItem'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 import { resolveOptions } from '../resolveOptions'
 
-const MAX_THUMB = 14
-const MIN_THUMB = 6
-const DEFAULT_COLUMNS = 3
+const MAX_THUMB = 12
+const MIN_THUMB = 5
 
 const chipClass = {
-  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-1 text-[11px] leading-tight transition-all',
-  active: 'bg-secondary-active text-foreground ring-1 ring-[var(--color-border-active)]',
-  inactive: 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground',
+  base: 'flex min-h-9 min-w-11 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border border-border px-2 py-1.5 text-[11px] leading-tight transition-all',
+  active: 'bg-accent text-foreground',
+  inactive: 'text-muted-foreground hover:bg-accent hover:text-foreground',
   disabled: 'cursor-not-allowed opacity-50'
 }
 
@@ -48,8 +46,7 @@ function splitParens(label: string): { head: string; inner: string } {
  *
  *  - Pure aspect-ratio enum (`ASPECT_X_Y` from `supports.aspectRatio`,
  *    or bare `X:Y` / `X_Y`) → `X:Y`. Prevents the raw enum from
- *    leaking into the UI ("ASPECT_1_1") and keeps the chip width
- *    bounded so the grid follows the parent container.
+ *    leaking into the UI ("ASPECT_1_1") and keeps the chip compact.
  *  - Label with parenthesized pixel dims like `"1:1 (1024×1024)"` →
  *    use the head (`"1:1"`).
  *  - Pixel-size value `WxH` → `W×H` (formatted with U+00D7).
@@ -82,7 +79,10 @@ function RatioShape({ ratio, selected }: { ratio: Dim; selected: boolean }) {
 
   return (
     <span
-      className={cn('inline-block rounded-[2px] border border-current transition-all', !selected && 'opacity-40')}
+      className={cn(
+        'inline-block rounded-[2px] border-[0.5px] border-current transition-all',
+        !selected && 'opacity-70'
+      )}
       style={{ width: w, height: h }}
     />
   )
@@ -100,23 +100,6 @@ function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
   )
 }
 
-/**
- * Pick a column count that keeps every chip readable. The sidebar's fixed
- * width can't accommodate three 9-char labels (`1280×1280`) — minmax(0, 1fr)
- * columns shrink and the chip text overflows / truncates. Drop to 2 cols
- * when any derived label is at least 8 chars. Aspect-ratio chips (`1:1`)
- * stay at 3 cols since their labels are short.
- */
-function autoColumns(options: OptionItem[], explicit: number | undefined): number {
-  if (explicit) return explicit
-  let longest = 0
-  for (const option of options) {
-    const label = deriveChipLabel(String(option.label ?? option.value), String(option.value))
-    if (label.length > longest) longest = label.length
-  }
-  return longest >= 8 ? 2 : DEFAULT_COLUMNS
-}
-
 export default function SizeChipsField({
   item,
   fieldKey,
@@ -128,10 +111,9 @@ export default function SizeChipsField({
 }: PaintingFieldComponentProps) {
   const options = resolveOptions(item, painting, translate)
   const value = currentValue == null ? '' : String(currentValue)
-  const columns = autoColumns(options, item.columns)
 
   return (
-    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+    <div className="flex flex-wrap gap-1.5">
       {options.map((option) => {
         const optionValue = String(option.value)
         const label = option.label || optionValue

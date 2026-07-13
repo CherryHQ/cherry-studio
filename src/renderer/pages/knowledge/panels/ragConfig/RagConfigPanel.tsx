@@ -230,7 +230,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
           {/* Chunking knobs are set-and-forget internals, so they live under a
               collapsed "Advanced" section to keep the essentials on top. */}
           <Accordion type="single" collapsible>
-            <AccordionItem value="advanced" className="border-border-subtle last:border-b">
+            <AccordionItem value="advanced" className="border-0 first:border-t-0">
               <AccordionTrigger>{t('common.advanced_settings')}</AccordionTrigger>
               <AccordionContent className="flex flex-col gap-4">
                 <ChunkingSection
@@ -273,7 +273,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         </Button>
         <Button
           type="button"
-          variant="emphasis"
+          variant="default"
           loading={isLoading || isFetchingDimensions || isEnabling}
           disabled={!canSubmit}
           onClick={handleSave}>

@@ -76,7 +76,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
         tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
-        icon: <Paperclip />,
+        icon: <Paperclip className="text-foreground" />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
         disabled,
         action: ({ inputAdapter }) => {

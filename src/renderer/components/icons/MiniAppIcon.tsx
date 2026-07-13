@@ -1,9 +1,15 @@
-import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import {
+  getMiniAppLogoScale,
+  getMiniAppsLogoRef,
+  isMiniAppLogoFullBleed,
+  useMiniAppLogo
+} from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
 interface Props {
-  app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
+  app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background' | 'bordered'>
   /** `avatar` keeps the bordered Avatar chrome; `plain` strips it from icon logos; `bare` also strips it from image logos. */
   appearance?: 'avatar' | 'plain' | 'bare'
   size?: number
@@ -30,22 +36,46 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
         />
       )
     }
-    if (appearance === 'plain' || appearance === 'bare') {
+    if (appearance === 'plain') {
+      // Plate artwork fills the tile edge-to-edge without chrome (v1 rendered logos
+      // full-bleed and clipped them with the tile radius); everything else shows the
+      // logo scaled and centered inside a hairline tile.
+      if (isMiniAppLogoFullBleed(app.logo)) {
+        return (
+          <span
+            className="flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[24%]"
+            style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}>
+            {/* 108% bleed swallows the ~2% transparent margin cropped viewBoxes still carry. */}
+            <Icon
+              aria-label={app.name || 'MiniApp Icon'}
+              className="shrink-0"
+              style={{ width: '108%', height: '108%' }}
+            />
+          </span>
+        )
+      }
       return (
         <span
-          className="flex shrink-0 items-center justify-center"
-          style={{
-            width: `${size}px`,
-            height: `${size}px`,
-            userSelect: 'none',
-            ...style
-          }}>
+          className="flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[24%] border border-border-subtle"
+          style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}>
           <Icon
             aria-label={app.name || 'MiniApp Icon'}
-            className="select-none"
-            style={{ width: `${size}px`, height: `${size}px` }}
+            style={{
+              width: `${getMiniAppLogoScale(app.logo) * 100}%`,
+              height: `${getMiniAppLogoScale(app.logo) * 100}%`
+            }}
           />
         </span>
+      )
+    }
+    if (appearance === 'bare') {
+      // `bare` (tiny sidebar icons) always renders the raw icon.
+      return (
+        <Icon
+          aria-label={app.name || 'MiniApp Icon'}
+          className="shrink-0 select-none overflow-hidden rounded-[24%]"
+          style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
+        />
       )
     }
 
@@ -68,7 +98,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
     return (
       <img
         src={src}
-        className="select-none rounded-2xl border border-border"
+        className={cn('select-none rounded-2xl', app.bordered && 'border border-border')}
         style={{
           width: `${size}px`,
           height: `${size}px`,

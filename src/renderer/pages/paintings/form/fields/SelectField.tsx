@@ -26,9 +26,7 @@ export default function SelectField({
 
   return (
     <Select disabled={disabled} value={value} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>
-      <SelectTrigger
-        aria-label={item.title ? translate(item.title) : fieldKey}
-        className="h-auto w-full justify-between gap-2 rounded-[8px] bg-secondary px-2.5 py-1.5 text-xs hover:bg-secondary-hover">
+      <SelectTrigger size="sm" aria-label={item.title ? translate(item.title) : fieldKey} className="w-full">
         <SelectValue placeholder={item.title ? translate(item.title) : fieldKey} />
       </SelectTrigger>
       <SelectContent>

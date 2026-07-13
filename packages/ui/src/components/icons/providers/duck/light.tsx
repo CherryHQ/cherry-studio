@@ -5,7 +5,13 @@ const DuckLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="none"
+      viewBox="15.25 15.25 89.51 89.51"
+      {...props}>
       <g clipPath={`url(#${iconId}-ducklight__a)`}>
         <path
           fill="#DE5833"

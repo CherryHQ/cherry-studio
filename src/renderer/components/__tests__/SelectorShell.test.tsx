@@ -23,6 +23,14 @@ vi.mock('@cherrystudio/ui', () => ({
   Input: ({ ref, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
     <input ref={ref} {...props} />
   ),
+  InputGroup: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  InputGroupAddon: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  InputGroupInput: ({
+    ref,
+    ...props
+  }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
+    <input ref={ref} {...props} />
+  ),
   PortalContainerProvider: ({ children, container }: { children: ReactNode; container: HTMLElement | null }) => {
     portalContainerMock.current = container
     return <>{children}</>

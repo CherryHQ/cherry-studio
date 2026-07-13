@@ -11,7 +11,7 @@ const DolaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="20.99 17.8 78.03 81.22"
       {...props}>
       <g clipPath={`url(#${iconId}-dolalight__a)`}>
         <path fill={`url(#${iconId}-dolalight__b)`} d="M15 15H105V105H15z" />

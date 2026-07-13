@@ -18,13 +18,6 @@ const logger = loggerService.withContext('CherryInOauth')
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
 
-export const getAvatarInitials = (name: string): string => {
-  if (!name) return '??'
-  const trimmed = name.trim()
-  if (trimmed.length <= 2) return trimmed.toUpperCase()
-  return trimmed.slice(0, 2).toUpperCase()
-}
-
 interface CherryInOauthProps {
   providerId: string
 }
@@ -188,7 +181,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
               </div>
             </div>
-            <Button variant="emphasis" onClick={handleOAuthLogin}>
+            <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={handleOAuthLogin}>
               {t('settings.provider.oauth.cherryIn.login_button')}
             </Button>
           </div>
@@ -208,9 +201,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       <div className={oauthCardClasses.shellLoggedIn}>
         <div className={oauthCardClasses.loggedInRow}>
           <div className={oauthCardClasses.profileMeta}>
-            <div className={oauthCardClasses.avatarSm}>
-              <span>{getAvatarInitials(profileName)}</span>
-            </div>
+            <Cherryin.Avatar shape="circle" size={40} />
             <div className={oauthCardClasses.nameBlock}>
               <div className={oauthCardClasses.nameRow}>
                 <div className={oauthCardClasses.loggedInName}>{profileName}</div>

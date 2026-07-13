@@ -37,8 +37,8 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/components/icons/LogoAvatar', () => ({
-  default: () => <div data-testid="logo-avatar" />
+vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
+  default: () => <div data-testid="mini-app-icon" />
 }))
 
 vi.mock('@renderer/components/icons/SvgIcon', () => ({

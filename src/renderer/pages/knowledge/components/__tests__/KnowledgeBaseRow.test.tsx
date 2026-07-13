@@ -135,11 +135,11 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-md', 'bg-secondary')
-    expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
+    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-lg', 'bg-secondary')
+    expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-normal')
   })
 
-  it('does not render a hover more button; actions are only reachable via right-click', () => {
+  it('renders a hover more button alongside the right-click context menu', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase()}
@@ -153,10 +153,10 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
   })
 
-  it('lets long names use the full row width now that no trailing button is reserved', () => {
+  it('reserves a trailing column for the more button while keeping long names truncated', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
@@ -170,7 +170,7 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).not.toHaveClass(
+    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).toHaveClass(
       'grid-cols-[minmax(0,1fr)_1.75rem]'
     )
     expect(screen.getByText('A very long knowledge base name that should stay within the text column')).toHaveClass(

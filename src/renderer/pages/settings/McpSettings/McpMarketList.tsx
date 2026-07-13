@@ -86,7 +86,7 @@ const McpMarketList: FC = () => {
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
             <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
-                <resource.logo.Avatar size={18} shape="rounded" />
+                <resource.logo.Avatar size={24} shape="rounded" />
               ) : (
                 <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
               )}
@@ -122,7 +122,7 @@ const MarketCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const MarketIconWrap = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex h-5 w-5 shrink-0 items-center justify-center', className)} {...props} />
+  <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center', className)} {...props} />
 )
 
 const MarketContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -134,7 +134,7 @@ const MarketHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'d
 )
 
 const MarketLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
-  <img className={cn('h-4.5 w-4.5 rounded object-cover', className)} {...props} />
+  <img className={cn('h-6 w-6 rounded object-cover', className)} {...props} />
 )
 
 const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

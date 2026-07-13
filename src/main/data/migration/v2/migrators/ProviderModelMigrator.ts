@@ -267,9 +267,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       presetModelId: presetModel.id,
       name: merged.name,
       description: merged.description ?? null,
-      capabilities: row.userOverrides?.includes('capabilities')
-        ? (row.capabilities ?? [])
-        : (merged.capabilities as ModelCapability[]),
+      capabilities: merged.capabilities as ModelCapability[],
       inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
       outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
       endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,

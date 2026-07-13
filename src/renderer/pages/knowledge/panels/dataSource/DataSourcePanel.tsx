@@ -21,7 +21,6 @@ export interface DataSourcePanelProps {
   hasMore?: boolean
   isLoadingMore?: boolean
   onLoadMore?: () => void
-  updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
@@ -48,9 +47,9 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
                 type="button"
                 variant="outline"
                 size="lg"
-                className="h-9 w-24 rounded-lg px-3 font-medium"
+                className="h-8 w-20 rounded-lg px-3 font-medium"
                 onClick={() => onAddSource(source.value)}>
-                <Icon className="size-4 text-foreground-secondary" />
+                <Icon className="size-4" />
                 {t(source.labelKey)}
               </Button>
             )
@@ -68,7 +67,6 @@ const DataSourcePanel = ({
   hasMore = false,
   isLoadingMore = false,
   onLoadMore = () => undefined,
-  updatedAt,
   onAdd,
   onItemClick,
   onDelete,
@@ -154,17 +152,17 @@ const DataSourcePanel = ({
     <KnowledgePanelShell
       headerClassName="shrink-0 px-3 pt-1"
       header={
-        <div className="border-border-muted border-b pb-3">
-          <DataSourcePanelHeader
-            total={total}
-            loadedCount={items.length}
-            selectedCount={selectedIds.size}
-            updatedAt={updatedAt}
-            onBulkReindex={handleBulkReindex}
-            onBulkDelete={() => setIsBulkDeleteOpen(true)}
-            onAdd={handleAddSource}
-          />
-        </div>
+        selectedIds.size > 0 ? (
+          <div className="border-border-muted border-b pb-3">
+            <DataSourcePanelHeader
+              total={total}
+              loadedCount={items.length}
+              selectedCount={selectedIds.size}
+              onBulkReindex={handleBulkReindex}
+              onBulkDelete={() => setIsBulkDeleteOpen(true)}
+            />
+          </div>
+        ) : undefined
       }>
       <div className="flex min-h-0 flex-1 flex-col">
         {!isLoading && items.length === 0 ? (

@@ -28,7 +28,6 @@ interface ModelSelectorCommonProps {
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
-  onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
 }
 
