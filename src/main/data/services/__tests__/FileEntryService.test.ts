@@ -12,7 +12,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -1540,7 +1540,7 @@ describe('FileEntryService', () => {
         origin: 'external',
         name: 'e',
         ext: 'txt',
-        externalPath: '/abs/orphan.txt' as FilePath
+        externalPath: '/abs/orphan.txt' as AbsoluteFilePath
       })
 
       const externalsOnly = fileEntryService.findUnreferenced({ origin: 'external' })

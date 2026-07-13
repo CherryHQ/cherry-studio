@@ -38,7 +38,7 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
   const ext = entry.ext
   const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
   // `FileInfoSchema.parse` validates the shape and returns the exact `FileInfo`
-  // type (including the branded `FilePath` on `path`) — no `as FileInfo` cast
+  // type (including the branded `AbsoluteFilePath` on `path`) — no `as FileInfo` cast
   // needed.
   return FileInfoSchema.parse({
     path: physicalPath,

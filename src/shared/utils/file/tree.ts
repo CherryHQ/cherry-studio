@@ -20,7 +20,7 @@
  * see directory-tree.md §9.
  */
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import * as z from 'zod'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ export interface TreeMutationPushPayload {
   readonly event: TreeMutationEvent
 }
 
-export type TreeRootPath = FilePath | string
+export type TreeRootPath = AbsoluteFilePath | string
 
 // ─── Class hierarchy (shared between main and renderer) ─────────────────────
 

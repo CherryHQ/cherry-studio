@@ -38,7 +38,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { type FilePath, FilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
 import { danglingCache } from './danglingCache'
@@ -57,17 +57,17 @@ const logger = loggerService.withContext('file/watcher')
  * chokidar reports those on dedicated channels.
  */
 export type WatcherEvent =
-  | { readonly kind: 'add'; readonly path: FilePath }
-  | { readonly kind: 'addDir'; readonly path: FilePath }
-  | { readonly kind: 'unlink'; readonly path: FilePath }
-  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
-  | { readonly kind: 'change'; readonly path: FilePath }
+  | { readonly kind: 'add'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'addDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlink'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'change'; readonly path: AbsoluteFilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }
 
 export type WatcherListener = (event: WatcherEvent) => void
 
-/** Internal shape before FilePath validation. */
+/** Internal shape before AbsoluteFilePath validation. */
 type RawWatcherPathEvent = {
   readonly kind: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'
   readonly path: string
@@ -93,7 +93,7 @@ export interface CreateDirectoryWatcherOptions {
   /** Maximum recursion depth when `recursive` is enabled. `undefined` keeps chokidar's default unlimited depth. */
   readonly maxDepth?: number
   /** Custom ignore predicate. Built-in ignores (`.DS_Store`, `Thumbs.db`, etc.) always apply. */
-  readonly ignore?: (path: FilePath) => boolean
+  readonly ignore?: (path: AbsoluteFilePath) => boolean
   /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
   readonly stabilityThresholdMs?: number
 }
@@ -104,12 +104,12 @@ const BUILTIN_IGNORE_BASENAMES = new Set(['.DS_Store', '.localized', 'Thumbs.db'
 class DirectoryWatcherImpl implements DirectoryWatcher {
   private fsw: FSWatcher
   private readonly emitter = new Emitter<WatcherEvent>()
-  private readonly root: FilePath
+  private readonly root: AbsoluteFilePath
   private readonly opts: CreateDirectoryWatcherOptions
   private usingPolling = false
   private closed = false
 
-  constructor(root: FilePath, opts: CreateDirectoryWatcherOptions = {}) {
+  constructor(root: AbsoluteFilePath, opts: CreateDirectoryWatcherOptions = {}) {
     this.root = root
     this.opts = opts
     this.fsw = this.createWatcher(false)
@@ -175,12 +175,12 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
   /**
    * Validate a path emitted by chokidar. chokidar's public types only promise
    * `string`, but in our configuration (absolute root, no `cwd`) the emitted
-   * paths should always satisfy `FilePathSchema`. This helper turns that
+   * paths should always satisfy `AbsoluteFilePathSchema`. This helper turns that
    * assumption into a checked invariant and returns `null` for any unexpected
    * value so callers can drop or ignore it safely.
    */
-  private parseChokidarPath(raw: string): FilePath | null {
-    const result = FilePathSchema.safeParse(raw)
+  private parseChokidarPath(raw: string): AbsoluteFilePath | null {
+    const result = AbsoluteFilePathSchema.safeParse(raw)
     return result.success ? result.data : null
   }
 
@@ -190,8 +190,8 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * not mirrored — the file is still present; only mtime drift, which the
    * cache doesn't track.
    *
-   * FilePath validation happens here, at the boundary between chokidar's
-   * `string` events and the FilePath-typed consumers (`DanglingCache`,
+   * AbsoluteFilePath validation happens here, at the boundary between chokidar's
+   * `string` events and the AbsoluteFilePath-typed consumers (`DanglingCache`,
    * `WatcherEvent` subscribers). Invalid paths are logged and dropped.
    *
    * DanglingCache's reverse index is keyed **byte-faithful**: it is populated
@@ -214,7 +214,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     if (this.closed) return
     const path = this.parseChokidarPath(ev.path)
     if (!path) {
-      logger.warn('chokidar emitted a path that does not satisfy FilePathSchema', { path: ev.path })
+      logger.warn('chokidar emitted a path that does not satisfy AbsoluteFilePathSchema', { path: ev.path })
       return
     }
     if (ev.kind === 'add' || ev.kind === 'unlink') {
@@ -244,6 +244,6 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
  * `danglingCache.onFsEvent` so external-entry presence tracking is updated
  * regardless of whether the watcher's own subscriber consumes those events.
  */
-export function createDirectoryWatcher(root: FilePath, opts?: CreateDirectoryWatcherOptions): DirectoryWatcher {
+export function createDirectoryWatcher(root: AbsoluteFilePath, opts?: CreateDirectoryWatcherOptions): DirectoryWatcher {
   return new DirectoryWatcherImpl(root, opts)
 }

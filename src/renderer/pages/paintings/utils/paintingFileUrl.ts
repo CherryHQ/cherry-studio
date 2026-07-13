@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
-import { FilePathSchema, type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
 
 const logger = loggerService.withContext('paintingFileUrl')
@@ -14,7 +14,7 @@ type PaintingFileUrlSource = Pick<FileMetadata, 'path' | 'ext'>
  */
 export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString | undefined {
   if (!file.path) return undefined
-  const parsedPath = FilePathSchema.safeParse(file.path)
+  const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
   if (!parsedPath.success) {
     logger.warn('getPaintingFileUrl: non-canonical/invalid painting path', { path: file.path })
     return undefined

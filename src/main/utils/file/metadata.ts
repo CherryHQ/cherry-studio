@@ -8,18 +8,18 @@
 
 import path from 'node:path'
 
-import { FILE_TYPE, type FilePath, type FileType } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
 /** Detect file type from extension. Buffer-sniff fallback deferred (no consumer yet). */
-export async function getFileType(target: FilePath): Promise<FileType> {
+export async function getFileType(target: AbsoluteFilePath): Promise<FileType> {
   const ext = path.extname(target)
   return getFileTypeByExt(ext)
 }
 
 /** Check if a file is a text file. Extension-based; buffer-sniff fallback deferred to 1b.2. */
-export async function isTextFile(target: FilePath): Promise<boolean> {
+export async function isTextFile(target: AbsoluteFilePath): Promise<boolean> {
   return (await getFileType(target)) === FILE_TYPE.TEXT
 }
 

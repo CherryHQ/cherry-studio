@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from '../handle'
@@ -12,36 +12,36 @@ describe('createFileEntryHandle', () => {
 
 describe('createFilePathHandle — runtime validation', () => {
   it('accepts POSIX absolute paths', () => {
-    const h = createFilePathHandle('/Users/me/doc.pdf' as FilePath)
+    const h = createFilePathHandle('/Users/me/doc.pdf' as AbsoluteFilePath)
     expect(h).toEqual({ kind: 'path', path: '/Users/me/doc.pdf' })
   })
 
   it('accepts Windows absolute paths', () => {
-    const h = createFilePathHandle('C:\\Users\\me\\doc.pdf' as FilePath)
+    const h = createFilePathHandle('C:\\Users\\me\\doc.pdf' as AbsoluteFilePath)
     expect(h.kind).toBe('path')
     expect(h.path).toBe('C:\\Users\\me\\doc.pdf')
   })
 
   it('rejects empty string', () => {
-    expect(() => createFilePathHandle('' as FilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('' as AbsoluteFilePath)).toThrow(TypeError)
   })
 
   it('rejects non-string input', () => {
-    expect(() => createFilePathHandle(123 as unknown as FilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle(123 as unknown as AbsoluteFilePath)).toThrow(TypeError)
   })
 
   it('rejects relative paths', () => {
-    expect(() => createFilePathHandle('./doc.pdf' as FilePath)).toThrow(TypeError)
-    expect(() => createFilePathHandle('doc.pdf' as FilePath)).toThrow(TypeError)
-    expect(() => createFilePathHandle('../doc.pdf' as FilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('./doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('../doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
   })
 
   it('rejects file:// URLs (use FileUrlString instead)', () => {
-    expect(() => createFilePathHandle('file:///Users/me/doc.pdf' as FilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('file:///Users/me/doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
   })
 
   it('rejects null bytes', () => {
-    expect(() => createFilePathHandle('/tmp/doc\0.pdf' as FilePath)).toThrow(TypeError)
+    expect(() => createFilePathHandle('/tmp/doc\0.pdf' as AbsoluteFilePath)).toThrow(TypeError)
   })
 })
 
@@ -53,7 +53,7 @@ describe('handle type guards', () => {
   })
 
   it('isFilePathHandle narrows to the path variant', () => {
-    const h = createFilePathHandle('/tmp/x' as FilePath)
+    const h = createFilePathHandle('/tmp/x' as AbsoluteFilePath)
     expect(isFilePathHandle(h)).toBe(true)
     expect(isFileEntryHandle(h)).toBe(false)
   })

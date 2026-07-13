@@ -12,9 +12,9 @@ import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
+  AbsoluteFilePath,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
   GetPhysicalPathIpcParams,
   PhysicalFileMetadata
 } from '@shared/types/file'
@@ -131,7 +131,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams): Promise<FileEntry> =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
-    getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<FilePath> =>
+    getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
     permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),

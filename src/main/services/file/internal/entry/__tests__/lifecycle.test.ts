@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -77,7 +77,7 @@ describe('internal/entry/lifecycle', () => {
   async function makeExternal(): Promise<FileEntryId> {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
-    const e = await ensureExternal(deps, { externalPath: file as FilePath })
+    const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
     return e.id
   }
 
@@ -124,10 +124,10 @@ describe('internal/entry/lifecycle', () => {
       const id = await makeInternal()
       const entry = fileEntryService.getById(id)
       const physical = path.join(filesDir, `${id}.${entry.ext}`)
-      expect(await exists(physical as FilePath)).toBe(true)
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
       await permanentDelete(deps, id)
       expect(fileEntryService.findById(id)).toBeNull()
-      expect(await exists(physical as FilePath)).toBe(false)
+      expect(await exists(physical as AbsoluteFilePath)).toBe(false)
     })
 
     it('removes DB row but leaves user file untouched for external entries', async () => {

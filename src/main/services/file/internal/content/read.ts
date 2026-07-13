@@ -1,5 +1,5 @@
 /**
- * Read content from a managed FileEntry or a raw FilePath.
+ * Read content from a managed FileEntry or a raw AbsoluteFilePath.
  *
  * Pure functions taking FileManagerDeps as the first argument — call sites
  * are FileManager methods + IPC dispatchers. ENOENT on an external entry
@@ -9,7 +9,7 @@
 
 import { read as fsRead, stat as fsStat } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import mime from 'mime'
 
 import type { FileVersion, ReadResult } from '../../FileManager'
@@ -48,14 +48,14 @@ export async function read(
 
 export async function readByPath(
   _deps: FileManagerDeps,
-  target: FilePath,
+  target: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   return readResolved(target, options)
 }
 
 async function readResolved(
-  physicalPath: FilePath,
+  physicalPath: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   const s = await fsStat(physicalPath)

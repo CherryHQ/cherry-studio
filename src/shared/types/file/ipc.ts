@@ -35,10 +35,10 @@
 
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
+import type { AbsoluteFilePath, Base64String, DirectoryListOptions, PhysicalFileMetadata, UrlString } from './common'
 import type { OrphanReport } from './sweep'
 
-export type { DirectoryListOptions, FilePath } from './common'
+export type { AbsoluteFilePath, DirectoryListOptions } from './common'
 
 // ─── Version ───
 
@@ -86,7 +86,7 @@ export type CreateInternalEntryIpcParams =
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
-      path: FilePath
+      path: AbsoluteFilePath
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
@@ -120,8 +120,8 @@ export type CreateInternalEntryIpcParams =
  *
  * ## Canonicalization
  *
- * `externalPath` is typed as `FilePath` at this IPC boundary — shape-validated
- * only (absolute form, no null bytes; see `FilePathSchema`), NOT canonicalized.
+ * `externalPath` is typed as `AbsoluteFilePath` at this IPC boundary — shape-validated
+ * only (absolute form, no null bytes; see `AbsoluteFilePathSchema`), NOT canonicalized.
  * Canonicalization into the stored `CanonicalFilePath` form (byte-faithful
  * lexical cleanup: resolve segments, strip trailing separator, drive-letter
  * upcase — NOT Unicode-normalized) happens inside `ensureExternalEntry`, via
@@ -136,7 +136,7 @@ export type CreateInternalEntryIpcParams =
  * resolution — which is why it stays a main-side concern.
  */
 export type EnsureExternalEntryIpcParams = {
-  externalPath: FilePath
+  externalPath: AbsoluteFilePath
 }
 
 /** Params for resolving the absolute filesystem path of a single FileEntry. */
@@ -521,13 +521,13 @@ export interface FileIpcApi {
    * List contents of an arbitrary directory.
    * @phase 2 — not yet wired
    */
-  listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
+  listDirectory(dirPath: AbsoluteFilePath, options?: DirectoryListOptions): Promise<string[]>
 
   /**
    * Check if a directory is non-empty.
    * @phase 2 — not yet wired
    */
-  isNotEmptyDir(dirPath: FilePath): Promise<boolean>
+  isNotEmptyDir(dirPath: AbsoluteFilePath): Promise<boolean>
 
   // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
@@ -537,7 +537,7 @@ export interface FileIpcApi {
   //
   // For the `file://` URL that used to be served via `includeUrl`, callers
   // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
-  // in `@shared/utils/file/url` — a pure formatting layer over the `FilePath`
+  // in `@shared/utils/file/url` — a pure formatting layer over the `AbsoluteFilePath`
   // returned by `getPhysicalPath`, so it needs no IPC of its own.
   //
   // Each method has a single-item and a batch form. Prefer the batch form when
@@ -598,11 +598,11 @@ export interface FileIpcApi {
    *   through File IPC so version / dangling / FS invariants stay consistent.
    *
    * Enforced **by convention** (code review gate); the type system cannot
-   * prevent a renderer from misusing a `FilePath` string.
+   * prevent a renderer from misusing an `AbsoluteFilePath` string.
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_GetPhysicalPath` → `FileManager.registerIpcHandlers`)
    */
-  getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
+  getPhysicalPath(params: { id: FileEntryId }): Promise<AbsoluteFilePath>
 
   /**
    * Batch form of `getPhysicalPath`. Each requested id appears in the result
@@ -610,7 +610,7 @@ export interface FileIpcApi {
    *
    * @phase 2 — wired for Files page as IpcApi route `file.batch_get_physical_paths`.
    */
-  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, AbsoluteFilePath>>
 
   // ─── K. Orphan Sweep ───
   //

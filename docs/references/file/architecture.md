@@ -72,7 +72,7 @@ File Module (src/main/services/file/)
 │
 │
 ├── utils/                ← file-module path/API helpers (not raw FS primitives)
-│     ├── pathResolver.ts       — FileEntry → physical FilePath resolution + external canonicalization
+│     ├── pathResolver.ts       — FileEntry → physical AbsoluteFilePath resolution + external canonicalization
 │     └── metadata.ts           — path-arm PhysicalFileMetadata projection for File IPC dispatch
 │
 ├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
@@ -232,7 +232,7 @@ Default to the narrowest type that covers the need. "When in doubt, `FileHandle`
 |--------------------------------------------------------------------------------------------|------------------------------------------|
 | Doesn't care which subsystem is in the loop; just operates on a file                       | `FileHandle` ⭐ default for IPC          |
 | Only to call a FileManager lifecycle op (trash, restore, permanentDelete, …)               | `FileEntryId`                            |
-| Only to hand a path to an ops-level FS function                                            | `FilePath`                               |
+| Only to hand a path to an ops-level FS function                                            | `AbsoluteFilePath`                               |
 | The entry row's fields (UI management panel, origin-aware rendering, ref creation)         | `FileEntry`                              |
 | A resolved on-disk descriptor for pure content processing                                  | `FileInfo` (typically a return type)     |
 
@@ -299,7 +299,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | Method | Description |
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
-| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first validates the path shape via `FilePathSchema` (shape-only, no rewrite), then `ensureExternalEntry` canonicalizes it to the byte-faithful lexical form via the `canonicalizeFilePath()` factory (see `canonicalize.ts`) before matching; reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
+| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first validates the path shape via `AbsoluteFilePathSchema` (shape-only, no rewrite), then `ensureExternalEntry` canonicalizes it to the byte-faithful lexical form via the `canonicalizeFilePath()` factory (see `canonicalize.ts`) before matching; reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
 | `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
@@ -310,9 +310,9 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 **How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 file MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
 
-**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
+**How to obtain a `file://` URL for rendering**: compose it in-process from the `AbsoluteFilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
-**Operations accepting only FilePath**:
+**Operations accepting only AbsoluteFilePath**:
 
 | Method | Description |
 |---|---|
@@ -517,7 +517,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 | Ref counts per entry                         | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)                  |
 | Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
 | Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
-| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/url`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
+| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/url`), composed in-process from the `AbsoluteFilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
 | Live `size` / `mtime` for external           | File IPC `getMetadata(handle)` (single) / `batchGetMetadata({ items })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
@@ -529,7 +529,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 **Safety conventions for raw path / URL**:
 
 - **`getPhysicalPath` — NOT intended for**: caching as a stable identifier (storage layout may change); string-concat into shell commands without independent sanitization; bypassing FileManager for writes. Use `entry.id` when identity is all you need.
-- **`toSafeFileUrl` — scoped capability**: the danger-file wrap defends only HTML rendering contexts (`<img src>` / `<video src>` / `<embed>`), not arbitrary string concatenation. Don't compose this URL into command-line args or subprocess arguments — pass the raw `FilePath` from `getPhysicalPath` instead.
+- **`toSafeFileUrl` — scoped capability**: the danger-file wrap defends only HTML rendering contexts (`<img src>` / `<video src>` / `<embed>`), not arbitrary string concatenation. Don't compose this URL into command-line args or subprocess arguments — pass the raw `AbsoluteFilePath` from `getPhysicalPath` instead.
 - Both are bound **by convention**; the type system cannot prevent misuse of a `string`. Code review should verify each call site against the intended uses listed here.
 
 ### 4.1.1.1 Main Is SoT for Path Resolution

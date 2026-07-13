@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
@@ -115,7 +115,7 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
 
 function getFilePreviewUrl(file: ComposerAttachment | undefined) {
   if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
-  const parsedPath = FilePathSchema.safeParse(file.path)
+  const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
   if (!parsedPath.success) {
     logger.warn('getFilePreviewUrl: non-canonical/invalid attachment path', { path: file.path })
     return undefined

@@ -3,7 +3,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { type FilePath, FilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -202,7 +202,7 @@ describe('internal/entry/create.createInternal', () => {
     it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
       const file = path.join(tmp, 'ext-new.txt')
       await writeFile(file, 'hello')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
       expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
       expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
     })
@@ -210,11 +210,11 @@ describe('internal/entry/create.createInternal', () => {
     it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
       const file = path.join(tmp, 'ext-reuse.txt')
       await writeFile(file, 'hello')
-      await ensureExternal(deps, { externalPath: file as FilePath })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
       vi.mocked(deps.danglingCache.addEntry).mockClear()
       vi.mocked(deps.danglingCache.onFsEvent).mockClear()
       // Second call resolves to the already-inserted row.
-      await ensureExternal(deps, { externalPath: file as FilePath })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
       expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
       expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
     })
@@ -229,7 +229,7 @@ describe('internal/entry/create.createInternal', () => {
       vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce(() => {
         throw probeErr
       })
-      await expect(ensureExternal(deps, { externalPath: file as FilePath })).rejects.toBe(probeErr)
+      await expect(ensureExternal(deps, { externalPath: file as AbsoluteFilePath })).rejects.toBe(probeErr)
     })
   })
 
@@ -242,7 +242,7 @@ describe('internal/entry/create.createInternal', () => {
       // observation seeded on insert is 'missing' — i.e. a subsequent
       // `danglingCache.check(entry)` resolves to 'missing'.
       const missing = path.join(tmp, 'never-written.pdf')
-      const entry = await ensureExternal(deps, { externalPath: missing as FilePath })
+      const entry = await ensureExternal(deps, { externalPath: missing as AbsoluteFilePath })
       if (entry.origin !== 'external') throw new Error('expected external entry')
       expect(entry.externalPath).toBe(missing)
       expect(entry.name).toBe('never-written')
@@ -263,7 +263,7 @@ describe('internal/entry/create.createInternal', () => {
       const guarded = path.join(tmp, 'guarded.txt')
       const statErr = Object.assign(new Error('permission denied'), { code: 'EACCES' })
       vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
-      await expect(ensureExternal(deps, { externalPath: guarded as FilePath })).rejects.toBe(statErr)
+      await expect(ensureExternal(deps, { externalPath: guarded as AbsoluteFilePath })).rejects.toBe(statErr)
       // No entry inserted, no cache observation recorded on the fail-loud path.
       expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
       expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
@@ -293,8 +293,8 @@ describe('internal/entry/create.createInternal', () => {
         // exact miss, finds the first as a case-insensitive peer, realpaths
         // both to the same string, and returns the existing entry.
         await writeFile(upper, 'x')
-        const first = await ensureExternal(deps, { externalPath: upper as FilePath })
-        const second = await ensureExternal(deps, { externalPath: lower as FilePath })
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath })
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath })
         expect(second.id).toBe(first.id)
       }
     )
@@ -306,8 +306,10 @@ describe('internal/entry/create.createInternal', () => {
         const lower = path.join(tmp, 'collide.txt')
         await writeFile(upper, 'A')
         await writeFile(lower, 'a')
-        await ensureExternal(deps, { externalPath: upper as FilePath })
-        await expect(ensureExternal(deps, { externalPath: lower as FilePath })).rejects.toThrow(/case-collision/i)
+        await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath })
+        await expect(ensureExternal(deps, { externalPath: lower as AbsoluteFilePath })).rejects.toThrow(
+          /case-collision/i
+        )
       }
     )
 
@@ -337,7 +339,9 @@ describe('internal/entry/create.createInternal', () => {
           createdAt: Date.now(),
           updatedAt: Date.now()
         })
-        await expect(ensureExternal(deps, { externalPath: realFile as FilePath })).rejects.toThrow(/case-collision/i)
+        await expect(ensureExternal(deps, { externalPath: realFile as AbsoluteFilePath })).rejects.toThrow(
+          /case-collision/i
+        )
       }
     )
   })
@@ -359,7 +363,7 @@ describe('internal/entry/create.createInternal', () => {
 
       const file = path.join(tmp, `${nfdName}.txt`)
       await writeFile(file, 'x')
-      const entry = await ensureExternal(deps, { externalPath: FilePathSchema.parse(file) })
+      const entry = await ensureExternal(deps, { externalPath: AbsoluteFilePathSchema.parse(file) })
 
       if (entry.origin !== 'external') throw new Error('expected external entry')
       // The stored externalPath is byte-faithful — the exact NFD bytes we passed,

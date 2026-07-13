@@ -16,7 +16,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
-import { type FilePath, FilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -37,7 +37,7 @@ const logger = loggerService.withContext('internal/entry/create')
  * EACCES / EBUSY / EIO equally with ENOENT — exactly the class of failure
  * `fs.errno-warn.test.ts` was built to guard against.
  */
-async function bestEffortCleanup(physical: FilePath, context: string): Promise<void> {
+async function bestEffortCleanup(physical: AbsoluteFilePath, context: string): Promise<void> {
   try {
     await fsRemove(physical)
   } catch (cleanupErr) {
@@ -55,7 +55,7 @@ async function bestEffortCleanup(physical: FilePath, context: string): Promise<v
 interface NormalisedSource {
   name: string
   ext: string | null
-  writeTo(target: FilePath): Promise<void>
+  writeTo(target: AbsoluteFilePath): Promise<void>
 }
 
 const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
@@ -139,7 +139,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const source = normaliseSource(params)
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
-  const physical = FilePathSchema.parse(application.getPath('feature.files.data', filename))
+  const physical = AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', filename))
   await source.writeTo(physical)
   let stats
   try {
@@ -165,7 +165,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 
 /**
  * Ensure an entry exists for a user-provided absolute path. Pure upsert keyed
- * by the canonical form of `params.externalPath`: `FilePathSchema` at the IPC
+ * by the canonical form of `params.externalPath`: `AbsoluteFilePathSchema` at the IPC
  * boundary validates shape only, so this function canonicalizes the input via
  * `canonicalizeFilePath` and derives every downstream value (lookup, dedup,
  * name/ext projection, persisted `externalPath`) from that `CanonicalFilePath`.
@@ -297,7 +297,7 @@ function defaultNameFromPath(p: string): string {
  *
  * Returns the matching peer, or `null` when no peer is the same FS entity.
  */
-async function resolveCaseCollisionPeer(newCanonical: FilePath, peers: FileEntry[]): Promise<FileEntry | null> {
+async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: FileEntry[]): Promise<FileEntry | null> {
   // The caller's `fsStat(newCanonical)` already succeeded a moment ago, so a
   // realpath failure here means the file was raced away or a symlink target
   // became unreachable between calls. We let the error propagate unchanged

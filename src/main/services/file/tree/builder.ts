@@ -26,7 +26,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import {
   type DirectoryTreeOptions,
   type SerializedTreeNode,
@@ -189,7 +189,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
-    const paths = await searchListDirectory(this.rootPath as FilePath, {
+    const paths = await searchListDirectory(this.rootPath as AbsoluteFilePath, {
       recursive: true,
       maxDepth: this.options.maxDepth,
       includeHidden: this.options.includeHidden,
@@ -254,12 +254,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // at "one Ignore.ignores() call per entry".
     const predicate = this.ignorePredicate
     const watcherIgnore = predicate
-      ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
+      ? (((p: AbsoluteFilePath) => predicate(normalizePath(p))) as (path: AbsoluteFilePath) => boolean)
       : undefined
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
 
-    const watcher = createDirectoryWatcher(this.rootPath as FilePath, {
+    const watcher = createDirectoryWatcher(this.rootPath as AbsoluteFilePath, {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,

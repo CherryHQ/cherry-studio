@@ -39,7 +39,7 @@ describe('getPathStatus', () => {
     await expect(getPathStatus('   ')).resolves.toEqual({ ok: false, reason: 'missing' })
   })
 
-  it('reports missing for a non-absolute path (fails FilePathSchema, not inaccessible)', async () => {
+  it('reports missing for a non-absolute path (fails AbsoluteFilePathSchema, not inaccessible)', async () => {
     await expect(getPathStatus('relative/path')).resolves.toEqual({ ok: false, reason: 'missing' })
   })
 })

@@ -11,7 +11,7 @@ import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -57,7 +57,7 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
 function fileMetadataToHandle(file: FileMetadata): FileHandle {
   if (file.path) {
     try {
-      return createFilePathHandle(FilePathSchema.parse(file.path))
+      return createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
     } catch {
       // Fall back to the entry id for legacy FileMetadata whose path is not an
       // absolute filesystem path. The IPC schema is still the authority.
@@ -142,7 +142,7 @@ export function useMessageLeafCapabilities({
 
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
-      const parsedPath = file.path ? FilePathSchema.safeParse(file.path) : undefined
+      const parsedPath = file.path ? AbsoluteFilePathSchema.safeParse(file.path) : undefined
       if (parsedPath && !parsedPath.success) {
         logger.warn('getFileView: non-canonical/invalid attachment path', { fileId: file.id, path: file.path })
       }

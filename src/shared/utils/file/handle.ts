@@ -1,5 +1,5 @@
 import type { FileEntryHandle, FileEntryId, FileHandle, FilePathHandle } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 /**
  * Wrap a FileEntry ID as a `FileEntryHandle`.
@@ -19,8 +19,8 @@ export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
  *
  * ## Runtime validation
  *
- * The `FilePath` template-literal type (`` `/${string}` | `${string}:\\${string}` ``)
- * is a compile-time hint, but untyped entry points (IPC payloads, `as FilePath`
+ * The `AbsoluteFilePath` template-literal type (`` `/${string}` | `${string}:\\${string}` ``)
+ * is a compile-time hint, but untyped entry points (IPC payloads, `as AbsoluteFilePath`
  * casts, renderer-side dynamic construction) can bypass it. This factory runs
  * a cheap runtime check so a bad path fails at wrap time rather than surfacing
  * as a confusing failure inside `@main/utils/file/fs.read` / FileManager several layers down.
@@ -35,7 +35,7 @@ export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
  *
  * @throws {TypeError} When `path` is not a non-empty absolute filesystem path.
  */
-export function createFilePathHandle(path: FilePath): FilePathHandle {
+export function createFilePathHandle(path: AbsoluteFilePath): FilePathHandle {
   if (typeof path !== 'string' || path.length === 0) {
     throw new TypeError('createFilePathHandle: path must be a non-empty string')
   }

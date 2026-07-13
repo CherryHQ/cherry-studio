@@ -33,7 +33,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import { type FilePath, FilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file'
 
 // ─── Danger extension policy ───
 
@@ -141,7 +141,7 @@ export function isDangerExt(ext: string | null | undefined): boolean {
 // ─── Path formatting ───
 
 /**
- * Cross-platform dirname on a `FilePath` — no `node:path` dependency, so it
+ * Cross-platform dirname on an `AbsoluteFilePath` — no `node:path` dependency, so it
  * works in renderer bundles. Treats both `/` and `\` as separators.
  *
  * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
@@ -150,17 +150,17 @@ export function isDangerExt(ext: string | null | undefined): boolean {
  *
  * The Windows-drive-root case (`C:\payload.exe`) needs the same treatment:
  * slicing off just the separator would leave a bare `C:`, which
- * `FilePathSchema` rejects as non-absolute (it requires the trailing
+ * `AbsoluteFilePathSchema` rejects as non-absolute (it requires the trailing
  * separator to recognize a drive letter as a root). Keep the separator so
  * the result stays a valid, canonical drive root (`C:\`).
  */
-function dirnameSimple(absolutePath: FilePath): FilePath {
+function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
   if (sepIdx > 0) {
     const dir = absolutePath.slice(0, sepIdx)
-    return FilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
+    return AbsoluteFilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
   }
-  if (sepIdx === 0) return FilePathSchema.parse('/')
+  if (sepIdx === 0) return AbsoluteFilePathSchema.parse('/')
   return absolutePath
 }
 
@@ -178,7 +178,7 @@ function dirnameSimple(absolutePath: FilePath): FilePath {
  * @param absolutePath Absolute filesystem path (Unix or Windows form).
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
-export function toFileUrl(absolutePath: FilePath): FileUrlString {
+export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
   let normalized: string = absolutePath.replace(/\\/g, '/')
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
@@ -225,13 +225,13 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
  * associations on hover / drag / double-click of the rendered element.
  *
  * **Scope**: HTML rendering contexts only. Do NOT compose this URL into
- * command-line arguments or subprocess args — use the raw `FilePath` from
+ * command-line arguments or subprocess args — use the raw `AbsoluteFilePath` from
  * File IPC `getPhysicalPath` for those cases.
  *
  * @param absolutePath Absolute filesystem path (from `getPhysicalPath` IPC).
  * @param ext File extension, with or without leading dot, or `null`.
  */
-export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
+export function toSafeFileUrl(absolutePath: AbsoluteFilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
   return toFileUrl(effectivePath)
 }

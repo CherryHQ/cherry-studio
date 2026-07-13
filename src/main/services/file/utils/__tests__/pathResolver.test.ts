@@ -8,7 +8,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { PathResolvableEntry } from '../pathResolver'
 import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
@@ -51,7 +51,7 @@ describe('resolvePhysicalPath', () => {
         id: '019606a0-0000-7000-8000-000000000001',
         origin: 'external',
         ext: 'md',
-        externalPath: '/Users/me/notes/readme.md' as FilePath
+        externalPath: '/Users/me/notes/readme.md' as AbsoluteFilePath
       }
       expect(resolvePhysicalPath(entry)).toBe('/Users/me/notes/readme.md')
     })

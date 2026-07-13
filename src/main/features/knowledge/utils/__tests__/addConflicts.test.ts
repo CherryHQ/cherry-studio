@@ -1,5 +1,5 @@
 import type { KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { resolveKnowledgeAddConflicts } from '../addConflicts'
@@ -18,7 +18,7 @@ const existingItem = (id: string, partial: Pick<KnowledgeItem, 'type' | 'data'>)
 
 const fileInput = (source: string): KnowledgeAddItemInput => ({
   type: 'file',
-  data: { source, path: source as FilePath }
+  data: { source, path: source as AbsoluteFilePath }
 })
 const urlInput = (url: string): KnowledgeAddItemInput => ({ type: 'url', data: { source: url, url } })
 const noteInput = (content: string): KnowledgeAddItemInput => ({ type: 'note', data: { source: 'note', content } })

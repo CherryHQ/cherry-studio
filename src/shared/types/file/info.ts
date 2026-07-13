@@ -58,7 +58,7 @@
 
 import * as z from 'zod'
 
-import { FilePathSchema, FileTypeSchema } from './common'
+import { AbsoluteFilePathSchema, FileTypeSchema } from './common'
 
 /**
  * Zod schema for `FileInfo`. Branded so consumers cannot construct a raw
@@ -73,10 +73,10 @@ import { FilePathSchema, FileTypeSchema } from './common'
 export const FileInfoSchema = z
   .strictObject({
     /**
-     * Absolute filesystem path. Shape-validated and branded `FilePath` by
-     * `FilePathSchema` — anything that survives is safe to feed to `fs` APIs.
+     * Absolute filesystem path. Shape-validated and branded `AbsoluteFilePath` by
+     * `AbsoluteFilePathSchema` — anything that survives is safe to feed to `fs` APIs.
      */
-    path: FilePathSchema,
+    path: AbsoluteFilePathSchema,
     /** Basename without extension. */
     name: z.string(),
     /** Extension without leading dot, or `null` for extensionless files. */
@@ -102,7 +102,7 @@ export const FileInfoSchema = z
  *      pageCount, etc.).
  *
  * Inferred from `FileInfoSchema`; the schema is the source of truth. `path`
- * already carries the `FilePath` brand via `FilePathSchema`, so no `Omit`
+ * already carries the `AbsoluteFilePath` brand via `AbsoluteFilePathSchema`, so no `Omit`
  * hack is needed to retype it.
  */
 export type FileInfo = z.infer<typeof FileInfoSchema>

@@ -7,7 +7,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import { type FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -131,14 +131,14 @@ describe('FileManager (integration)', () => {
     })
 
     // Canonical lookup
-    const found = await fm.findByExternalPath(FilePathSchema.parse(`${file}/`)) // trailing slash → canonicalize strips
+    const found = await fm.findByExternalPath(AbsoluteFilePathSchema.parse(`${file}/`)) // trailing slash → canonicalize strips
     expect(found?.id).toBe(id)
 
     // Byte-faithful lookup: canonicalization does NOT Unicode-normalize, so an
     // NFD synthesis of this ASCII path is byte-identical and matches the stored
     // (byte-faithful) row exactly.
     const nfdFile = file.normalize('NFD')
-    const foundNfc = await fm.findByExternalPath(FilePathSchema.parse(nfdFile))
+    const foundNfc = await fm.findByExternalPath(AbsoluteFilePathSchema.parse(nfdFile))
     expect(foundNfc?.id).toBe(id)
 
     // Content hash works for external entries
@@ -602,7 +602,7 @@ describe('FileManager (integration)', () => {
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0].sourceRef).toBe(guarded)
     // The missing path produced a real external row whose dangling state is 'missing'.
-    const missingEntry = await fm.findByExternalPath(FilePathSchema.parse(missing))
+    const missingEntry = await fm.findByExternalPath(AbsoluteFilePathSchema.parse(missing))
     if (!missingEntry) throw new Error('expected a dangling entry for the missing path')
     expect(await fm.getDanglingState({ id: missingEntry.id })).toBe('missing')
     // Exactly one external row for `same`; the EACCES fault left no row.

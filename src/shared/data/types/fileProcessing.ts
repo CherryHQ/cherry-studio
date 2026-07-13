@@ -1,4 +1,4 @@
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
@@ -15,7 +15,7 @@ export const FileProcessingFileArtifactSchema = z
   .object({
     kind: z.literal('file'),
     format: z.literal('markdown'),
-    path: FilePathSchema
+    path: AbsoluteFilePathSchema
   })
   .strict()
 
@@ -25,7 +25,9 @@ export const FileProcessingArtifactSchema = z.discriminatedUnion('kind', [
 ])
 export type FileProcessingArtifact = z.infer<typeof FileProcessingArtifactSchema>
 
-export const FileProcessingOutputTargetSchema = z.object({ kind: z.literal('path'), path: FilePathSchema }).strict()
+export const FileProcessingOutputTargetSchema = z
+  .object({ kind: z.literal('path'), path: AbsoluteFilePathSchema })
+  .strict()
 export type FileProcessingOutputTarget = z.infer<typeof FileProcessingOutputTargetSchema>
 
 export const FileProcessingJobOutputSchema = z

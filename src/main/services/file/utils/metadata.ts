@@ -1,5 +1,5 @@
 import { stat as fsStat } from '@main/utils/file'
-import type { FilePath, PhysicalFileMetadata } from '@shared/types/file'
+import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import mime from 'mime'
 
 /**
@@ -10,7 +10,7 @@ import mime from 'mime'
  * deliberately has no FileEntry/DanglingCache side effects. Entry-aware callers
  * should use `FileManager.getMetadata(entryId)` instead.
  */
-export async function getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+export async function getMetadataByPath(path: AbsoluteFilePath): Promise<PhysicalFileMetadata> {
   const s = await fsStat(path)
   if (s.isDirectory) {
     return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }

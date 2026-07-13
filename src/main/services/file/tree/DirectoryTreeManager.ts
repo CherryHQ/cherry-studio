@@ -28,7 +28,7 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
@@ -45,7 +45,7 @@ import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 // next to the handlers, matching the FileManager / DataApi convention where
 // leaf schemas live in shared and per-channel param schemas live in main.
 const TreeCreateParamsSchema = z.strictObject({
-  rootPath: FilePathSchema,
+  rootPath: AbsoluteFilePathSchema,
   options: DirectoryTreeOptionsSchema.optional()
 })
 
@@ -53,8 +53,8 @@ const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
 
 const TreeRenameParamsSchema = z.strictObject({
   treeId: z.string().min(1),
-  oldPath: FilePathSchema,
-  newPath: FilePathSchema
+  oldPath: AbsoluteFilePathSchema,
+  newPath: AbsoluteFilePathSchema
 })
 
 /**

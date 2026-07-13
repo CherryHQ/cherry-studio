@@ -57,7 +57,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 **Stored form of `externalPath` — byte-faithful**: `externalPath` is persisted **exactly as the OS handed it to us**, with only reachability-safe lexical cleanup (null-byte reject, `./`/`../`/repeated-separator collapse, trailing-separator trim). It is **not** Unicode-normalized, so the stored string always reaches the real file on every filesystem — including normalization-*sensitive* ones (Linux ext4/btrfs) where an NFC-rewritten path would not exist on disk (see [Rejected: Unicode (NFC) normalization](#rejected-unicode-nfc-normalization-of-externalpath) below). Uniqueness is therefore **byte-exact plus case-fold** only: the `lower()` functional index catches identical and case-different paths; it deliberately does not fold Unicode forms.
 
-**Compile-time enforcement via the `FilePath` brand**: `FilePathSchema.parse()` returns a branded `FilePath` (Zod brand, zero runtime cost; see `src/shared/types/file/common.ts`), and the external-entry lookup/write surfaces (`findByExternalPath`, `setExternalPathAndName`) accept the narrower `CanonicalFilePath` produced by the `canonicalizeFilePath()` factory. Every DB read/write surface that filters by `externalPath` MUST accept the branded type, not a plain `string`, so a caller cannot pass an unvalidated raw path and silently miss all matches. (`FilePathSchema` only *validates the absolute-path shape* — it does not mutate the value; see [FilePath vs CanonicalFilePath](../../../src/shared/types/file/common.ts).)
+**Compile-time enforcement via the `AbsoluteFilePath` brand**: `AbsoluteFilePathSchema.parse()` returns a branded `AbsoluteFilePath` (Zod brand, zero runtime cost; see `src/shared/types/file/common.ts`), and the external-entry lookup/write surfaces (`findByExternalPath`, `setExternalPathAndName`) accept the narrower `CanonicalFilePath` produced by the `canonicalizeFilePath()` factory. Every DB read/write surface that filters by `externalPath` MUST accept the branded type, not a plain `string`, so a caller cannot pass an unvalidated raw path and silently miss all matches. (`AbsoluteFilePathSchema` only *validates the absolute-path shape* — it does not mutate the value; see [AbsoluteFilePath vs CanonicalFilePath](../../../src/shared/types/file/common.ts).)
 
 | Source | Natively canonical | Relies on normalization to disambiguate |
 |---|---|---|
@@ -333,7 +333,7 @@ updated to match the code, not the other way around.
 private dispatchHandle<T>(
   handle: FileHandle,
   byEntry: (entryId: FileEntryId) => Promise<T>,
-  byPath: (path: FilePath) => Promise<T>
+  byPath: (path: AbsoluteFilePath) => Promise<T>
 ): Promise<T> {
   switch (handle.kind) {
     case 'entry': return byEntry(handle.entryId)
@@ -677,7 +677,7 @@ Query: `WHERE deletedAt < now() - retentionMs` → batch permanentDelete.
 |---|---|
 | unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the next user-triggered orphan sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
-| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `FilePathSchema.parse(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
+| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `AbsoluteFilePathSchema.parse(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
 | **Two entries for the same file** | **Case** differences (macOS APFS, Windows NTFS): rejected at INSERT by the DB `lower()` functional unique index plus the `fs.realpath`-based reuse-or-throw probe in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). **Unicode (NFD ↔ NFC)** differences: deliberately **not** deduped — `externalPath` is stored byte-faithful, and the rare, cosmetic macOS case is accepted rather than break reachability on Linux (see §1.2 "Rejected: Unicode (NFC) normalization of `externalPath`"). |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
@@ -777,11 +777,11 @@ to the same change that lands the first `onRename` consumer (see §8.3).
 
 ```typescript
 export type WatcherEvent =
-  | { readonly kind: 'add'; readonly path: FilePath }
-  | { readonly kind: 'addDir'; readonly path: FilePath }
-  | { readonly kind: 'unlink'; readonly path: FilePath }
-  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
-  | { readonly kind: 'change'; readonly path: FilePath }
+  | { readonly kind: 'add'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'addDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlink'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'change'; readonly path: AbsoluteFilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }
 
@@ -798,13 +798,13 @@ export interface CreateDirectoryWatcherOptions {
   /** Recurse into subdirectories. Default: true. */
   readonly recursive?: boolean
   /** Custom ignore predicate. Built-in OS-junk ignores always apply. */
-  readonly ignore?: (path: FilePath) => boolean
+  readonly ignore?: (path: AbsoluteFilePath) => boolean
   /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
   readonly stabilityThresholdMs?: number
 }
 
 export function createDirectoryWatcher(
-  path: FilePath,
+  path: AbsoluteFilePath,
   opts?: CreateDirectoryWatcherOptions
 ): Promise<DirectoryWatcher>
 ```

@@ -19,7 +19,7 @@ import {
 } from '@shared/data/types/knowledge'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
@@ -1053,8 +1053,8 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, 'raw', relativePath)
       try {
-        await ensureDir(FilePathSchema.parse(path.dirname(destPath)))
-        await copy(FilePathSchema.parse(sourcePath), FilePathSchema.parse(destPath))
+        await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+        await copy(AbsoluteFilePathSchema.parse(sourcePath), AbsoluteFilePathSchema.parse(destPath))
       } catch (error) {
         this.recordWarning(
           `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${

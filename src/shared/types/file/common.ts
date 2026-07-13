@@ -29,21 +29,21 @@ export type FileType = z.infer<typeof FileTypeSchema>
 // ─── Content Source Types ───
 
 /**
- * Absolute filesystem path validated by `FilePathSchema`. Validates the path
+ * Absolute filesystem path validated by `AbsoluteFilePathSchema`. Validates the path
  * SHAPE only — absolute form, no null bytes — and does NOT canonicalize:
- * `FilePathSchema.parse(x)` returns `x` unchanged (the path exactly as given).
+ * `AbsoluteFilePathSchema.parse(x)` returns `x` unchanged (the path exactly as given).
  *
  * The canonical form of a path (byte-faithful lexical resolve: segment-resolve
  * + trailing-separator strip + drive-letter upcase, NOT Unicode-normalized) is
  * a distinct `CanonicalFilePath` produced by `canonicalizeFilePath()`
  * (`@shared/utils/file/canonicalize`); it is applied explicitly at the
- * external-path persistence / lookup boundary, not on every `FilePath` parse.
+ * external-path persistence / lookup boundary, not on every `AbsoluteFilePath` parse.
  *
  * The `z.brand` is a phantom brand — zero runtime cost, dropped on IPC
- * serialization; receivers re-assert via `FilePathSchema.parse()` at the
+ * serialization; receivers re-assert via `AbsoluteFilePathSchema.parse()` at the
  * trusted boundary. Construction:
- * - Production: `FilePathSchema.parse(raw)` / `.safeParse(raw)`
- * - Tests / fixtures: `'…' as FilePath` for readability
+ * - Production: `AbsoluteFilePathSchema.parse(raw)` / `.safeParse(raw)`
+ * - Tests / fixtures: `'…' as AbsoluteFilePath` for readability
  *
  * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms.
  * Rejects `file://` URLs.
@@ -52,17 +52,17 @@ export type FileType = z.infer<typeof FileTypeSchema>
  * by the absolute-shape refine above — they match neither the POSIX `/` form
  * nor the Windows `X:[/\\]` drive-letter form.
  */
-export const FilePathSchema = z
+export const AbsoluteFilePathSchema = z
   .string()
   .min(1)
   .refine((s) => !s.includes('\0'), 'must not contain null bytes')
   .refine((s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s), 'must be an absolute filesystem path')
-  .brand<'FilePath'>()
+  .brand<'AbsoluteFilePath'>()
 
-export type FilePath = z.infer<typeof FilePathSchema>
+export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>
 
 /**
- * `CanonicalFilePath` — a `FilePath` additionally proven canonical — is defined
+ * `CanonicalFilePath` — an `AbsoluteFilePath` additionally proven canonical — is defined
  * in `@shared/utils/file/canonicalize` (co-located with its schema and the
  * `canonicalizeFilePath()` factory, which is the only place that can build both
  * the value and its brand). It is not re-exported here.
@@ -105,7 +105,7 @@ export const SafeExtSchema = z
  * Runtime validation required — the template-literal pattern only provides a
  * type-level hint. Produced by the shared pure helper
  * `toSafeFileUrl(path, ext)` (in `@shared/utils/file/url`), which composes an
- * absolute `FilePath` (obtained from File IPC `getPhysicalPath` /
+ * absolute `AbsoluteFilePath` (obtained from File IPC `getPhysicalPath` /
  * `batchGetPhysicalPaths`) with a danger-file safety wrap (for
  * `.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc., the URL points at the
  * containing directory instead of the file).
@@ -116,11 +116,11 @@ export const SafeExtSchema = z
  * The safety wrap is scoped to HTML rendering contexts (`<img src>` /
  * `<video src>` / `<embed>`); it is **not** a general-purpose path-safety
  * primitive — don't compose this value into shell commands or subprocess args.
- * Use the raw `FilePath` from `getPhysicalPath` for those cases.
+ * Use the raw `AbsoluteFilePath` from `getPhysicalPath` for those cases.
  */
 export type FileUrlString = `file://${string}`
 
-export type FileContent = FilePath | Base64String | UrlString | Uint8Array
+export type FileContent = AbsoluteFilePath | Base64String | UrlString | Uint8Array
 
 // ─── Physical File Metadata ───
 
@@ -194,6 +194,6 @@ export interface DirectoryListOptions {
 
 /** A listed directory entry with its kind, so callers don't need a follow-up `isDirectory` per path. */
 export interface DirectoryEntry {
-  path: FilePath
+  path: AbsoluteFilePath
   isDirectory: boolean
 }

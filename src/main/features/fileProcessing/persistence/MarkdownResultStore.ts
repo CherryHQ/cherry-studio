@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile } from '@main/utils/file'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { net } from 'electron'
 
 import { readMarkdownFromResponseZip } from './resultPersistence'
@@ -28,9 +28,9 @@ class MarkdownResultStore {
   async persistResultToPath(options: {
     jobId: string
     result: MarkdownPersistencePayload
-    path: FilePath
+    path: AbsoluteFilePath
     signal?: AbortSignal
-  }): Promise<FilePath> {
+  }): Promise<AbsoluteFilePath> {
     try {
       const data = await this.resolveMarkdownBytes(options)
       await atomicWriteFile(options.path, data)

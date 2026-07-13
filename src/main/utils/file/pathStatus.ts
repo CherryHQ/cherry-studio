@@ -1,4 +1,4 @@
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { stat } from './fs'
 
@@ -27,11 +27,11 @@ export async function getPathStatus(path: string): Promise<PathStatus> {
   }
 
   // Parse OUTSIDE the try: a non-absolute / relative / `~` / `file://` input
-  // fails `FilePathSchema` with a ZodError (no `.code`), which would otherwise
+  // fails `AbsoluteFilePathSchema` with a ZodError (no `.code`), which would otherwise
   // fall into the `catch` below and be misclassified as `inaccessible`. Such
   // an input can never resolve to a real path, so it gets the same `missing`
   // verdict as an ENOENT.
-  const parsed = FilePathSchema.safeParse(path)
+  const parsed = AbsoluteFilePathSchema.safeParse(path)
   if (!parsed.success) {
     return { ok: false, reason: 'missing' }
   }

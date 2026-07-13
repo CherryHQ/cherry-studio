@@ -108,8 +108,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import type { FilePath } from '@shared/types/file'
-import { FilePathSchema, SafeExtSchema } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
 import { CanonicalFilePathSchema } from '@shared/utils/file'
 import * as z from 'zod'
 
@@ -311,7 +311,7 @@ export type DanglingState = z.infer<typeof DanglingStateSchema>
  * the file's ownership or registration status:
  * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the entry
  *   system (FileManager, versionCache, DanglingCache, …).
- * - `FilePathHandle` carries an absolute `FilePath` — the call bypasses the
+ * - `FilePathHandle` carries an absolute `AbsoluteFilePath` — the call bypasses the
  *   entry system and hits `@main/utils/file/*` directly.
  *
  * The same physical file can be referenced by either form (with different
@@ -329,7 +329,7 @@ export type FileEntryHandle = {
 
 export type FilePathHandle = {
   readonly kind: 'path'
-  readonly path: FilePath
+  readonly path: AbsoluteFilePath
 }
 
 export type FileHandle = FileEntryHandle | FilePathHandle
@@ -347,7 +347,7 @@ export const FileEntryHandleSchema = z.strictObject({
 
 export const FilePathHandleSchema = z.strictObject({
   kind: z.literal('path'),
-  path: FilePathSchema
+  path: AbsoluteFilePathSchema
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])

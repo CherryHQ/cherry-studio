@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -87,7 +87,7 @@ describe('internal/entry/copy', () => {
   it('copies an external source into a fresh internal entry', async () => {
     const ext = path.join(tmp, 'ext.txt')
     await writeFile(ext, 'external-content')
-    const src = await ensureExternal(deps, { externalPath: ext as FilePath })
+    const src = await ensureExternal(deps, { externalPath: ext as AbsoluteFilePath })
     const dst = await copy(deps, { id: src.id })
     expect(dst.origin).toBe('internal')
     const dstPhysical = path.join(filesDir, `${dst.id}.txt`)

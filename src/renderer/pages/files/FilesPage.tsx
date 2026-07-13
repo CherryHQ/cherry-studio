@@ -22,7 +22,7 @@ import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FileType } from '@shared/types/file'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 import { MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
@@ -124,7 +124,7 @@ async function requestBatchedInternalEntryCreates(paths: readonly string[]): Pro
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path: FilePathSchema.parse(path) }))
+        items: chunk.map((path) => ({ source: 'path' as const, path: AbsoluteFilePathSchema.parse(path) }))
       })
     )
   )

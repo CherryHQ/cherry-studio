@@ -19,7 +19,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 import { AlertCircle, FileText, FolderOpen, RotateCw, Sparkles, X } from 'lucide-react'
 import {
@@ -318,7 +318,7 @@ export function ArtifactFilePreview({
   // Image: binary but renderable via `<img>`; bypass isText / size gating.
   if (isImageFile(filePath)) {
     const base = joinPath(workspacePath, filePath)
-    const parsedBase = FilePathSchema.safeParse(base)
+    const parsedBase = AbsoluteFilePathSchema.safeParse(base)
     if (!parsedBase.success && !warnedArtifactBasePaths.has(base)) {
       warnedArtifactBasePaths.add(base)
       logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
@@ -409,7 +409,7 @@ export function ArtifactFilePreview({
 
   if (isHtmlFile(filePath)) {
     const htmlBasePath = joinPath(workspacePath, filePath)
-    const parsedBase = FilePathSchema.safeParse(htmlBasePath)
+    const parsedBase = AbsoluteFilePathSchema.safeParse(htmlBasePath)
     if (!parsedBase.success && !warnedArtifactBasePaths.has(htmlBasePath)) {
       warnedArtifactBasePaths.add(htmlBasePath)
       logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {

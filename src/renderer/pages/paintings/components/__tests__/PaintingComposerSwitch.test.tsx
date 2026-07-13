@@ -1,6 +1,6 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,8 +59,8 @@ describe('PaintingComposer painting switch', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        getPhysicalPath: vi.fn(async ({ id }: { id: string }) => `/p/${id}.png` as FilePath),
-        createInternalEntry: vi.fn(async ({ path }: { path: FilePath }) => makeEntry(path))
+        getPhysicalPath: vi.fn(async ({ id }: { id: string }) => `/p/${id}.png` as AbsoluteFilePath),
+        createInternalEntry: vi.fn(async ({ path }: { path: AbsoluteFilePath }) => makeEntry(path))
       }
     } as typeof window.api
   })

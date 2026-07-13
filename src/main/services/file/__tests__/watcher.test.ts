@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -70,16 +70,16 @@ describe('createDirectoryWatcher', () => {
   })
 
   it('emits "ready" after the initial scan', async () => {
-    const w = createDirectoryWatcher(dir as FilePath)
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
     await waitForReady(w)
     await w.close()
   })
 
   it('emits "add" for newly created files and writes "present" into DanglingCache', async () => {
-    const target = path.join(dir, 'note.txt') as FilePath
+    const target = path.join(dir, 'note.txt') as AbsoluteFilePath
     danglingCache.addEntry('e-w-add' as FileEntryId, target)
 
-    const w = createDirectoryWatcher(dir as FilePath)
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
     await waitForReady(w)
     await writeFile(target, 'hello')
     const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
@@ -101,12 +101,12 @@ describe('createDirectoryWatcher', () => {
   })
 
   it('emits "unlink" for removed files and writes "missing" into DanglingCache', async () => {
-    const target = path.join(dir, 'gone.txt') as FilePath
+    const target = path.join(dir, 'gone.txt') as AbsoluteFilePath
     await writeFile(target, 'soon-to-go')
     danglingCache.addEntry('e-w-unlink' as FileEntryId, target)
     danglingCache.onFsEvent(target, 'present')
 
-    const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
     await rm(target)
     const ev = await waitForEvent(w, (e) => e.kind === 'unlink' && e.path === target)
@@ -128,12 +128,12 @@ describe('createDirectoryWatcher', () => {
   })
 
   it('emits "change" when a watched file is modified in place', async () => {
-    const target = path.join(dir, 'mut.txt') as FilePath
+    const target = path.join(dir, 'mut.txt') as AbsoluteFilePath
 
     // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
     // deterministic across busy CI hosts; stability=0 was flaky on macOS
     // FSEvents when many tests share tmpdir traffic.
-    const w = createDirectoryWatcher(dir as FilePath)
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
     await waitForReady(w)
 
     // First write registers the file (fires 'add'); second write fires 'change'.
@@ -148,7 +148,7 @@ describe('createDirectoryWatcher', () => {
   })
 
   it('suppresses .DS_Store events via the built-in ignore set', async () => {
-    const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
     const seen: WatcherEvent[] = []
     w.onEvent((e) => seen.push(e))
@@ -162,14 +162,14 @@ describe('createDirectoryWatcher', () => {
     const nestedDir = path.join(dir, 'nested')
     await mkdir(nestedDir)
 
-    const w = createDirectoryWatcher(dir as FilePath, { maxDepth: 0, stabilityThresholdMs: 0 })
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { maxDepth: 0, stabilityThresholdMs: 0 })
     await waitForReady(w)
 
     const seen: WatcherEvent[] = []
     const off = w.onEvent((e) => seen.push(e))
 
-    const rootFile = path.join(dir, 'root.txt') as FilePath
-    const nestedFile = path.join(nestedDir, 'nested.txt') as FilePath
+    const rootFile = path.join(dir, 'root.txt') as AbsoluteFilePath
+    const nestedFile = path.join(nestedDir, 'nested.txt') as AbsoluteFilePath
     const rootAdd = waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile)
     await writeFile(rootFile, 'root')
     await rootAdd
@@ -197,14 +197,14 @@ describe('createDirectoryWatcher', () => {
       const nfc = 'qu\u00E9.txt' // q, u, e-precomposed -> NFC
       expect(nfd).not.toBe(nfc) // byte-distinct strings reaching us at runtime
 
-      const writtenPath = path.join(dir, nfd) as FilePath
+      const writtenPath = path.join(dir, nfd) as AbsoluteFilePath
 
       // DanglingCache's reverse index is populated by `ensureExternalEntry`,
       // whose `externalPath` is now stored byte-faithful (no NFC). Mirror that
       // by registering the entry under the exact NFD bytes on disk.
       danglingCache.addEntry('e-w-nfd' as FileEntryId, writtenPath)
 
-      const w = createDirectoryWatcher(dir as FilePath)
+      const w = createDirectoryWatcher(dir as AbsoluteFilePath)
       await waitForReady(w)
       await writeFile(writtenPath, 'hello')
       const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'), 30_000)
@@ -232,7 +232,7 @@ describe('createDirectoryWatcher', () => {
   )
 
   it('close() is idempotent and stops further event delivery', async () => {
-    const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
+    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
     await w.close()
     await w.close() // idempotent

@@ -125,7 +125,7 @@ export interface FileEntryService {
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
    * no row matches. The `CanonicalFilePath` brand forces callers through
-   * `canonicalizeFilePath()` at compile time — raw `string` / bare `FilePath`
+   * `canonicalizeFilePath()` at compile time — raw `string` / bare `AbsoluteFilePath`
    * values are not assignable here, which prevents the "caller forgot to
    * canonicalize" class of bug that would silently miss all matches.
    */

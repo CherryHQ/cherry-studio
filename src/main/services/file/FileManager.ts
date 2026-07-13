@@ -137,15 +137,15 @@ import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/
 import { FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
+  AbsoluteFilePath,
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import { FilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import * as z from 'zod'
@@ -232,7 +232,7 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: FilePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -243,7 +243,7 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: FilePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsoluteFilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -574,7 +574,7 @@ export interface IFileManager {
   getUrl(id: FileEntryId): FileUrlString
 
   /** Resolve an entry to its absolute filesystem path. */
-  getPhysicalPath(id: FileEntryId): FilePath
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath
 
   // ─── Dangling state ───
 
@@ -685,7 +685,7 @@ export class FileManager extends BaseService implements IFileManager {
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
     // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
     // brand-as-doc convention intact while letting runtime validation (Zod)
     // remain the actual gate — same pattern used by every other IPC handler
@@ -829,7 +829,7 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(path: FilePath): Promise<FileEntry | null> {
+  async findByExternalPath(path: AbsoluteFilePath): Promise<FileEntry | null> {
     return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
@@ -898,7 +898,7 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
-  getPhysicalPath(id: FileEntryId): FilePath {
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath {
     const entry = this.deps.fileEntryService.getById(id)
     return resolvePhysicalPath(entry)
   }
@@ -921,7 +921,7 @@ export class FileManager extends BaseService implements IFileManager {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
     // in-memory memo keys on the branded `externalPath` directly — no re-parse,
-    // trusting the already-validated `FilePath` param. Byte-identical inputs
+    // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
     // dedup here; any canonically-equal-but-byte-different pair still coalesces
     // one level down (`ensureExternalEntry` canonicalizes and hits the DB
     // upsert). Both items end up in `succeeded` even though only one DB insert

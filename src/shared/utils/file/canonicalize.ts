@@ -6,8 +6,8 @@
  * `CanonicalFilePath` brand + `CanonicalFilePathSchema`, the
  * `isCanonicalFilePath` predicate, and the `canonicalizeFilePath` factory. The
  * schema is defined HERE, not in `types/file/common`, because it needs both
- * `FilePathSchema` and the algorithm — and only `utils → types` avoids an
- * import cycle. `FilePath` (`@shared/types/file/common`) is shape-validated
+ * `AbsoluteFilePathSchema` and the algorithm — and only `utils → types` avoids an
+ * import cycle. `AbsoluteFilePath` (`@shared/types/file/common`) is shape-validated
  * only — it does NOT canonicalize on parse. Canonicalization is applied
  * explicitly via `canonicalizeFilePath`, which produces the `CanonicalFilePath`
  * sub-brand, at the external-path persistence / lookup boundary.
@@ -43,7 +43,7 @@
  * "Residual normalization discipline"`.
  */
 
-import { FilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type * as z from 'zod'
 
 function canonicalizeAbsolutePath(raw: string): string {
@@ -71,9 +71,9 @@ export function isCanonicalFilePath(p: string): boolean {
 }
 
 /**
- * Zod schema + brand for `CanonicalFilePath`, mirroring how `FilePathSchema`
- * defines `FilePath` (both are `z.infer`-derived from their schema). Reuses
- * `FilePathSchema` for the absolute-shape refine, then ASSERTS byte-faithful
+ * Zod schema + brand for `CanonicalFilePath`, mirroring how `AbsoluteFilePathSchema`
+ * defines `AbsoluteFilePath` (both are `z.infer`-derived from their schema). Reuses
+ * `AbsoluteFilePathSchema` for the absolute-shape refine, then ASSERTS byte-faithful
  * canonical form (via `isCanonicalFilePath`) and brands.
  *
  * `parse()` is assert-only, NOT repairing: it returns an already-canonical
@@ -82,18 +82,18 @@ export function isCanonicalFilePath(p: string): boolean {
  * To canonicalize a raw path, use `canonicalizeFilePath` (which repairs, then
  * brands through this schema).
  */
-export const CanonicalFilePathSchema = FilePathSchema.refine(
+export const CanonicalFilePathSchema = AbsoluteFilePathSchema.refine(
   isCanonicalFilePath,
   'must be in byte-faithful canonical form (produce it via canonicalizeFilePath)'
 ).brand<'CanonicalFilePath'>()
 
 /**
- * A `FilePath` additionally proven canonical — the byte-faithful, lexically
+ * An `AbsoluteFilePath` additionally proven canonical — the byte-faithful, lexically
  * resolved form (segment-resolve + trailing-strip + Windows drive-upcase), NOT
  * Unicode-normalized. This is the form persisted in `file_entry.externalPath`
  * and used as the dedup / lookup key. Inferred from `CanonicalFilePathSchema`,
- * so its definition style matches `FilePath`. A `CanonicalFilePath` IS a
- * `FilePath`, accepted anywhere a `FilePath` is.
+ * so its definition style matches `AbsoluteFilePath`. A `CanonicalFilePath` IS a
+ * `AbsoluteFilePath`, accepted anywhere an `AbsoluteFilePath` is.
  */
 export type CanonicalFilePath = z.infer<typeof CanonicalFilePathSchema>
 

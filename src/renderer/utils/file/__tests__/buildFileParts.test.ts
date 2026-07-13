@@ -69,7 +69,7 @@ describe('buildFilePartsForAttachments', () => {
   })
 
   it('rejects the whole batch when an attachment path is non-absolute (send flow surfaces it)', async () => {
-    // A non-absolute path fails `FilePathSchema.parse`, which rejects the
+    // A non-absolute path fails `AbsoluteFilePathSchema.parse`, which rejects the
     // Promise.all batch rather than silently dropping the attachment — the
     // caller's send-flow try/catch turns that into a toast + keep-editing.
     const goodAttachment = attachment()
