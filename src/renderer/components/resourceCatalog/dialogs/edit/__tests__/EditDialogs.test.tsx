@@ -1174,6 +1174,67 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
+  it('saves refreshed assistant fields instead of stale ones after a same-id refresh', async () => {
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />
+    )
+
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'User edited prompt' } })
+
+    rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          description: 'Refreshed assistant description',
+          updatedAt: '2024-01-02T00:00:00.000Z'
+        }}
+        onOpenChange={onOpenChange}
+        onSaved={vi.fn()}
+      />
+    )
+
+    // Pristine fields absorb the refresh; the user's edit survives.
+    expect(screen.getByLabelText('Description')).toHaveValue('Refreshed assistant description')
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('User edited prompt')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          prompt: 'User edited prompt',
+          description: 'Refreshed assistant description'
+        })
+      })
+    )
+  })
+
+  it('does not write refreshed agent fields back after a same-id refresh', async () => {
+    const { rerender } = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
+
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, description: 'Refreshed agent description', updatedAt: '2024-01-02T00:00:00.000Z' }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('Description')).toHaveValue('Refreshed agent description')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    const body = updateAgentMock.mock.calls[0][0].body
+    expect(body).toMatchObject({ name: 'Renamed Agent' })
+    expect(body).not.toHaveProperty('description')
+  })
+
   it('keeps the dialog open and shows an error when save fails', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()

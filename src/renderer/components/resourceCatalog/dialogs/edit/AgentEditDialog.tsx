@@ -255,12 +255,25 @@ function AgentEditDialogContent({
 
   // Cache refresh can replace `resource` before the controlled dialog closes.
   // Initialize once per open resource id so that refresh cannot flash the initial form.
+  // A same-id refresh instead merges the fresh values into pristine fields (dirty
+  // fields keep the user's edits) so that saving cannot write stale data back over
+  // the refresh; `saveIntent` diffs against the refreshed resource, so merged fields
+  // stay out of the PATCH. `skillIds` is excluded: its baseline comes from the
+  // installed-skills query, not `resource`.
   useEffect(() => {
     if (!open) {
       initializedResourceIdRef.current = null
       return
     }
-    if (initializedResourceIdRef.current === resource.id) return
+    if (initializedResourceIdRef.current === resource.id) {
+      if (!form.formState.isSubmitting) {
+        form.reset(
+          { ...defaultValues, skillIds: form.getValues('skillIds') },
+          { keepDirtyValues: true, keepErrors: true }
+        )
+      }
+      return
+    }
     initializedResourceIdRef.current = resource.id
 
     form.reset(defaultValues)
