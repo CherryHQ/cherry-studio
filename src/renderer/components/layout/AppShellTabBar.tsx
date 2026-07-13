@@ -7,7 +7,7 @@ import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
@@ -46,7 +46,7 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
+const Separator = () => <div className="mx-0.5 h-3.5 w-0.5 shrink-0 rounded-full bg-border/50" />
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -83,7 +83,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
+          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag] [&_svg]:text-current',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
@@ -186,8 +186,8 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
+        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag] [&_svg]:text-current',
+        showRightClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
@@ -214,11 +214,8 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
-        style={{
-          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
-        }}>
+        className="text-(length:--font-size-body-xs) min-w-0 flex-1 truncate text-left font-normal leading-none"
+        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
       {/* Right-side close button — only on wide tabs */}
@@ -386,14 +383,15 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+              'border border-[var(--color-tabbar-glass-border)] bg-[var(--color-tabbar-glass-surface)] text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_var(--color-tabbar-glass-shadow)]',
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
+              'text-foreground/80 hover:bg-[var(--color-tabbar-glass-hover)] hover:text-sidebar-foreground dark:hover:text-sidebar-foreground'
           }
         : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            activeClass:
+              'bg-selected text-sidebar-foreground shadow-(--shadow-selected-outline) dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+              'text-foreground/80 hover:bg-accent hover:text-sidebar-foreground dark:hover:text-sidebar-foreground'
           },
     [isMacTransparentWindow]
   )
@@ -542,41 +540,43 @@ export const AppShellTabBar = ({
           {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
 
           {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
-          {normalTabs.map((tab) => {
+          {normalTabs.map((tab, index) => {
             const caps = getTabCapabilities(tab, tabContext)
             return (
-              <TabRightClickMenu
-                key={tab.id}
-                isPinned={false}
-                capabilities={caps}
-                onMoveToFirst={() => handleMoveToFirst(tab.id)}
-                onTogglePin={() => handlePinToggle(tab.id)}
-                onDetach={() => detachTab?.(tab.id)}
-                onClose={() => closeTab(tab.id)}>
-                <NormalTabButton
-                  tab={tab}
-                  isActive={tab.id === activeTabId}
-                  onSelect={() => handleSelectTab(tab)}
-                  onClose={() => closeTab(tab.id)}
-                  showClose={caps.close}
-                  tone={tabTone}
-                  drag={{
-                    isDragging: isDragging(tab.id),
-                    isGhost: isGhost(tab.id),
-                    noTransition,
-                    translateX: getTranslateX(tab.id, 'normal'),
-                    onPointerDown:
-                      caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
-                  }}
-                  tabRef={(el) => {
-                    if (el) {
-                      tabRefs.current.set(tab.id, el)
-                    } else {
-                      tabRefs.current.delete(tab.id)
-                    }
-                  }}
-                />
-              </TabRightClickMenu>
+              <Fragment key={tab.id}>
+                {index > 0 && tab.id !== activeTabId && normalTabs[index - 1].id !== activeTabId && <Separator />}
+                <TabRightClickMenu
+                  isPinned={false}
+                  capabilities={caps}
+                  onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                  onTogglePin={() => handlePinToggle(tab.id)}
+                  onDetach={() => detachTab?.(tab.id)}
+                  onClose={() => closeTab(tab.id)}>
+                  <NormalTabButton
+                    tab={tab}
+                    isActive={tab.id === activeTabId}
+                    onSelect={() => handleSelectTab(tab)}
+                    onClose={() => closeTab(tab.id)}
+                    showClose={caps.close}
+                    tone={tabTone}
+                    drag={{
+                      isDragging: isDragging(tab.id),
+                      isGhost: isGhost(tab.id),
+                      noTransition,
+                      translateX: getTranslateX(tab.id, 'normal'),
+                      onPointerDown:
+                        caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                    }}
+                    tabRef={(el) => {
+                      if (el) {
+                        tabRefs.current.set(tab.id, el)
+                      } else {
+                        tabRefs.current.delete(tab.id)
+                      }
+                    }}
+                  />
+                </TabRightClickMenu>
+              </Fragment>
             )
           })}
 
@@ -587,7 +587,7 @@ export const AppShellTabBar = ({
               aria-label={t('title.launchpad')}
               onClick={handleOpenLaunchpad}
               className={cn(
-                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-lg border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
                 isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}>
               <Plus size={14} />

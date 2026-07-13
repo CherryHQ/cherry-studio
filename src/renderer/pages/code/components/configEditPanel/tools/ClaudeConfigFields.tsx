@@ -90,7 +90,6 @@ export interface ClaudeConfigFieldsProps {
   section?: 'all' | 'basic' | 'advanced'
   providerId?: string
   modelFilter?: (model: Model) => boolean
-  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -138,8 +137,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   onChange,
   section = 'all',
   providerId,
-  modelFilter,
-  onSettingsNavigate
+  modelFilter
 }) => {
   const { t } = useTranslation()
   const [showAllToggles, setShowAllToggles] = useState(false)
@@ -281,7 +279,6 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   value={toProviderModelId(providerId, roleModelId)}
                   placeholder={t('settings.models.empty')}
                   filter={modelFilter}
-                  onSettingsNavigate={onSettingsNavigate}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId)
                     updateModelRole(field, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
@@ -315,9 +312,8 @@ const ClaudeRoleModelSelector: FC<{
   value?: UniqueModelId
   placeholder: string
   filter?: (model: Model) => boolean
-  onSettingsNavigate?: (navigate: () => void) => void
   onSelect: (modelId: UniqueModelId | undefined) => void
-}> = ({ value, placeholder, filter, onSettingsNavigate, onSelect }) => {
+}> = ({ value, placeholder, filter, onSelect }) => {
   return (
     <div className="min-w-0 flex-1">
       <ModelSelector
@@ -327,7 +323,6 @@ const ClaudeRoleModelSelector: FC<{
         onSelect={onSelect}
         filter={filter}
         showTagFilter
-        onSettingsNavigate={onSettingsNavigate}
         trigger={<ModelSelectorTrigger value={value} placeholder={placeholder} />}
       />
     </div>

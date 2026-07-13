@@ -108,7 +108,7 @@ describe('ProviderHeader', () => {
     expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
   })
 
-  it('links the provider name to the official website without showing the logo or docs icon', () => {
+  it('links the provider name to the official website and shows the docs shortcut without the logo', () => {
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
       officialWebsite: 'https://openai.com/',
@@ -123,7 +123,8 @@ describe('ProviderHeader', () => {
     expect(officialLinks).toHaveLength(1)
     expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
     expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'OpenAI · common.docs' })).not.toBeInTheDocument()
+    const docsLink = screen.getByRole('link', { name: 'OpenAI · common.docs' })
+    expect(docsLink).toHaveAttribute('href', 'https://platform.openai.com/docs')
     expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
   })
 

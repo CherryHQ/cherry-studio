@@ -5,13 +5,8 @@
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildRuntimeEndpointConfigs,
-  endpointImpliedCapability,
-  inferAdapterFamily,
-  lookupRegistryModel
-} from '../registry-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '../schemas/enums'
+import { buildRuntimeEndpointConfigs, inferAdapterFamily, lookupRegistryModel } from '../registry-utils'
+import { ENDPOINT_TYPE } from '../schemas/enums'
 import type { ModelConfig } from '../schemas/model'
 import type { RegistryEndpointConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
@@ -246,29 +241,5 @@ describe('inferAdapterFamily', () => {
     // Both schemas have adapterFamily — the function only needs to peek that
     // one field so the input type is structural.
     expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { adapterFamily: 'groq' })).toBe('groq')
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// endpointImpliedCapability
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('endpointImpliedCapability', () => {
-  it('maps capability-exclusive endpoints to their capability', () => {
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.JINA_RERANK)).toBe(MODEL_CAPABILITY.RERANK)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toBe(MODEL_CAPABILITY.EMBEDDING)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
-  })
-
-  it('returns undefined for general-purpose chat endpoints', () => {
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBeUndefined()
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBeUndefined()
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBeUndefined()
-  })
-
-  it('returns undefined when no endpoint is given', () => {
-    expect(endpointImpliedCapability(undefined)).toBeUndefined()
-    expect(endpointImpliedCapability(null)).toBeUndefined()
   })
 })

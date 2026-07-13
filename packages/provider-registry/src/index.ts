@@ -65,7 +65,6 @@ export { normalizeModelId } from './utils/normalize'
 export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
 export {
   buildRuntimeEndpointConfigs,
-  endpointImpliedCapability,
   inferAdapterFamily,
   lookupRegistryModel,
   lookupRegistryProvider

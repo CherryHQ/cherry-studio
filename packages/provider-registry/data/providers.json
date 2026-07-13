@@ -1248,7 +1248,6 @@
           "official": "https://www.voyageai.com/"
         }
       },
-      "modelListSource": "registry",
       "name": "VoyageAI"
     },
     {
@@ -1453,5 +1452,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4b6940ba3a873ad9"
+  "version": "92482a2571d2ff1e"
 }

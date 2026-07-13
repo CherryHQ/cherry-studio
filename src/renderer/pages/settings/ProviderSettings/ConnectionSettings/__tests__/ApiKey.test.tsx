@@ -10,6 +10,7 @@ const useProviderMetaMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
   InputGroup: ({ children }: any) => <div>{children}</div>,
   InputGroupAddon: ({ children }: any) => <span>{children}</span>,
   InputGroupInput: (props: any) => <input {...props} />,
@@ -17,7 +18,8 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args),
+  useProviderAuthConfig: () => ({ data: undefined })
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
@@ -42,7 +44,7 @@ describe('ApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', name: 'OpenAI', apiKeys: [] }
     })
     useProviderMetaMock.mockReturnValue({
       isApiKeyFieldVisible: true,
@@ -68,7 +70,7 @@ describe('ApiKey', () => {
   it('allows the check button for no-key providers without an API key', () => {
     const onOpenConnectionCheck = vi.fn()
     useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama' }
+      provider: { id: 'ollama', name: 'Ollama', apiKeys: [] }
     })
 
     render(

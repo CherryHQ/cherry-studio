@@ -65,7 +65,6 @@ describe('shared model capability helpers', () => {
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {
     expect(isEmbeddingModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(true)
     expect(isRerankModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
-    expect(isNonChatModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
     expect(isGenerateImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
   })
 

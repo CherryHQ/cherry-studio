@@ -113,6 +113,8 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       return []
     }
 
+    // System (built-in) providers expose only the Anthropic cache section, not the
+    // user-editable API feature toggles — restore the visibility gate dropped in v2.
     const visibility = getProviderApiOptionsVisibility(provider)
     if (!visibility.showApiFeatureSettings) {
       return []

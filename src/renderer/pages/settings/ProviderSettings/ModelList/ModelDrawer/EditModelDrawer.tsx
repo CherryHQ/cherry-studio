@@ -304,8 +304,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   aria-label={t('message.copied')}
                   className={fieldClasses.inputActionButton}
                   onClick={() => {
@@ -313,7 +314,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     toast.success(t('message.copied'))
                   }}>
                   <CopyIcon size={14} />
-                </button>
+                </Button>
               }
               onModelIdChange={(value) => {
                 setName(value)
@@ -346,13 +347,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
-              <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
-                />
+              <div>
+                <div className="text-(length:--font-size-body-xs) mb-2 px-1 font-medium text-foreground">
+                  {t('settings.models.add.section.capabilities')}
+                </div>
+                <div className={drawerClasses.sectionCard}>
+                  <ModelCapabilityToggles
+                    selectedCaps={selectedCaps}
+                    hasUserModified={hasUserModified}
+                    onToggle={handleToggleCapability}
+                    onReset={handleResetCapabilities}
+                  />
+                </div>
               </div>
 
               <div className={drawerClasses.sectionCard}>
@@ -393,9 +399,15 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 </div>
               </div>
 
-              <div className={drawerClasses.sectionCard}>
-                <ProviderField title={t('models.price.currency')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.inlineRow}>
+              <div>
+                <div className="text-(length:--font-size-body-xs) mb-2 px-1 font-medium text-foreground">
+                  {t('settings.models.add.section.pricing')}
+                </div>
+                <div className={drawerClasses.sectionCard}>
+                  <ProviderField
+                    title={t('models.price.currency')}
+                    layout="horizontal"
+                    titleClassName={drawerClasses.fieldTitle}>
                     <Select
                       value={currencySymbol}
                       onValueChange={(nextValue) => {
@@ -406,10 +418,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         setCurrencySymbol(nextValue)
                         autoSave({ currencySymbol: nextValue })
                       }}>
-                      <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
+                      <SelectTrigger aria-label={t('models.price.currency')}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className={drawerClasses.selectContent}>
+                      <SelectContent className="provider-settings-default-scope">
                         {MODEL_DRAWER_CURRENCY_SYMBOLS.map((symbol) => (
                           <SelectItem key={symbol} value={symbol}>
                             {symbol}
@@ -417,50 +429,56 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                </ProviderField>
+                  </ProviderField>
 
-                <ProviderField title={t('models.price.input')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.responsiveValueRow}>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      aria-label={t('models.price.input')}
-                      value={inputPrice}
-                      placeholder="0.00"
-                      className={drawerClasses.input}
-                      onChange={(event) => {
-                        setInputPrice(event.target.value)
-                      }}
-                      onBlur={() => autoSave({ inputPrice })}
-                    />
-                    <span className={drawerClasses.valueSuffix}>
-                      {currentCurrency} / {t('models.price.million_tokens')}
-                    </span>
-                  </div>
-                </ProviderField>
+                  <ProviderField
+                    title={t('models.price.input')}
+                    layout="horizontal"
+                    titleClassName={drawerClasses.fieldTitle}>
+                    <div className={drawerClasses.responsiveValueRow}>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-label={t('models.price.input')}
+                        value={inputPrice}
+                        placeholder="0.00"
+                        className={drawerClasses.input}
+                        onChange={(event) => {
+                          setInputPrice(event.target.value)
+                        }}
+                        onBlur={() => autoSave({ inputPrice })}
+                      />
+                      <span className={drawerClasses.valueSuffix}>
+                        {currentCurrency} / {t('models.price.million_tokens')}
+                      </span>
+                    </div>
+                  </ProviderField>
 
-                <ProviderField title={t('models.price.output')} titleClassName={drawerClasses.fieldTitle}>
-                  <div className={drawerClasses.responsiveValueRow}>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      aria-label={t('models.price.output')}
-                      value={outputPrice}
-                      placeholder="0.00"
-                      className={drawerClasses.input}
-                      onChange={(event) => {
-                        setOutputPrice(event.target.value)
-                      }}
-                      onBlur={() => autoSave({ outputPrice })}
-                    />
-                    <span className={drawerClasses.valueSuffix}>
-                      {currentCurrency} / {t('models.price.million_tokens')}
-                    </span>
-                  </div>
-                </ProviderField>
+                  <ProviderField
+                    title={t('models.price.output')}
+                    layout="horizontal"
+                    titleClassName={drawerClasses.fieldTitle}>
+                    <div className={drawerClasses.responsiveValueRow}>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        aria-label={t('models.price.output')}
+                        value={outputPrice}
+                        placeholder="0.00"
+                        className={drawerClasses.input}
+                        onChange={(event) => {
+                          setOutputPrice(event.target.value)
+                        }}
+                        onBlur={() => autoSave({ outputPrice })}
+                      />
+                      <span className={drawerClasses.valueSuffix}>
+                        {currentCurrency} / {t('models.price.million_tokens')}
+                      </span>
+                    </div>
+                  </ProviderField>
+                </div>
               </div>
             </div>
           </ProviderSection>
