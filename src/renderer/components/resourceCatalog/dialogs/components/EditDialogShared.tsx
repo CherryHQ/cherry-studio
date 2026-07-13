@@ -199,7 +199,10 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   onOpenKnowledgePage?: () => void
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
+  const { data, isLoading } = useQuery('/knowledge-bases', {
+    query: { limit: 100 },
+    swrOptions: { revalidateOnFocus: true }
+  })
   const bases = useMemo(() => data?.items ?? [], [data])
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
