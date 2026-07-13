@@ -14,6 +14,7 @@ import '@main/data/bootConfig'
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
+import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
@@ -38,6 +39,11 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // Backup-restore gate: swap in a staged restored DB (if any) before the v2
+  // migration gate reads the DB. Never throws; on any failure the old DB
+  // stays live and the app starts normally.
+  await runBackupRestoreGate()
+
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
   if (migrationResult === 'handled') return

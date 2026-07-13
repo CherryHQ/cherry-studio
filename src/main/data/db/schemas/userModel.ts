@@ -38,6 +38,7 @@ import { userProviderTable } from './userProvider'
 export const REGISTRY_ENRICHABLE_FIELDS = [
   'name',
   'description',
+  'group',
   'capabilities',
   'inputModalities',
   'outputModalities',

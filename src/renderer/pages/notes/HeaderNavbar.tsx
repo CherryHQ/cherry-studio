@@ -17,7 +17,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
-import ContentPopup from '@renderer/components/Popups/ContentPopup'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCommandHandler, useResolvedCommand } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -104,7 +104,7 @@ const HeaderNavbar = ({
         return
       }
       const fileName = activeNode.name.replace('.md', '')
-      await window.api.export.toWord(content, fileName)
+      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
       logger.error('Failed to export to Word:', error as Error)
       toast.error(t('notes.export_to_word_failed'))

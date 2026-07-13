@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   showSearchPopup: vi.fn()
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
   }
@@ -42,7 +42,8 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogo: () => undefined
+  getMiniAppsLogoRef: () => undefined,
+  useMiniAppLogo: () => undefined
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -74,6 +75,7 @@ vi.mock('../ShellTabBarActions', async () => {
 })
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
     t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key)
   })

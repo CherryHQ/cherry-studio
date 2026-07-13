@@ -1,6 +1,5 @@
-import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
@@ -210,15 +209,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleSubmitEditor = useCallback(
     async (providerInput: SubmitProviderEditorParams) => {
-      const result = await submitEditor(providerInput)
-
-      if (result.notice === 'create-logo-save-failed') {
-        toast.error(t('message.error.save_provider_logo'))
-      } else if (result.notice === 'update-logo-save-failed') {
-        toast.error(t('message.error.update_provider_logo'))
-      }
+      // Logo now saves atomically with the provider row, so any failure rejects
+      // here and is surfaced by the drawer's submit catch — no separate notice.
+      await submitEditor(providerInput)
     },
-    [submitEditor, t]
+    [submitEditor]
   )
 
   const handleDeleteProvider = useCallback(
@@ -260,22 +255,27 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }
 
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+  const addProviderButton = (
+    <div className={providerListClasses.addWrap}>
+      <button
+        type="button"
+        aria-label={t('settings.provider.add.button_title')}
+        disabled={dragging}
+        onClick={startAdd}
+        className={providerListClasses.addButton}>
+        <span aria-hidden className={providerListClasses.addButtonLeadingSpacer} />
+        <span className={providerListClasses.addButtonContent}>
+          <span className={providerListClasses.addButtonIconSlot}>
+            <Plus size={14} strokeWidth={2.5} />
+          </span>
+          <span>{t('settings.provider.add.button_title')}</span>
+        </span>
+      </button>
+    </div>
+  )
 
   return (
     <aside className={`${providerListClasses.shell}`}>
-      <PageHeader
-        title={t('settings.provider.title')}
-        action={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
-            disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.headerAddButton}>
-            <Plus size={16} strokeWidth={2.5} />
-          </button>
-        }
-      />
       <ProviderListSearchField
         value={searchText}
         disabled={dragging}
@@ -302,6 +302,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         onReorderError={handleReorderError}
+        addButton={addProviderButton}
         renderItem={renderProviderItem}
       />
       <ProviderEditorDrawer

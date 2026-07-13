@@ -7,6 +7,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { WebDavConfig } from '@shared/types/backup'
@@ -147,7 +148,7 @@ export async function backupToNutstore({
 
   let deviceType = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
   } catch (error) {
     logger.error('[backupToNutstore] Failed to get device type:', error as Error)
   }

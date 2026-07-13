@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
@@ -85,10 +85,10 @@ const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueMode
 
 const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
 
-const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: ModelSelectorTriggerProps) => {
+const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({ model, providers, placeholder, compact }) => {
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = model ? resolveIcon(getModelIdentifier(model), model.providerId) : undefined
+  const icon = useIcon(model ? resolveIconRef(getModelIdentifier(model), model.providerId) : undefined)
 
   return (
     <Button
@@ -125,7 +125,9 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
-    trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
+    trigger={
+      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+    }
   />
 )
 

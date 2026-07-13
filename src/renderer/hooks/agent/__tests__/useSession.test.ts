@@ -10,12 +10,23 @@ import {
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActiveSession, useAgentSessionAutoRenameSync, useSessions, useUpdateSession } from '../useSession'
+import {
+  useActiveSession,
+  useAgentSessionAutoRenameSync,
+  useLatestSession,
+  useSessions,
+  useUpdateSession
+} from '../useSession'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const mockUseIpcOn = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  useIpcOn: mockUseIpcOn
 }))
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
@@ -104,9 +115,14 @@ describe('useActiveSession', () => {
       isLoading: true
     })
 
-    const { result } = renderHook(() =>
-      useActiveSession({ activeSessionId: 'temp-session-1', setActiveSessionId, pendingSession })
+    const { result, rerender } = renderHook(
+      ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
+      { initialProps: { activeSessionId: null as string | null } }
     )
+
+    act(() => result.current.setActiveSession(pendingSession))
+    expect(setActiveSessionId).toHaveBeenCalledWith('temp-session-1')
+    rerender({ activeSessionId: 'temp-session-1' })
 
     expect(result.current.session).toBe(pendingSession)
     expect(result.current.sessionSource).toBe('pending')
@@ -121,12 +137,45 @@ describe('useActiveSession', () => {
       isLoading: false
     })
 
-    const { result } = renderHook(() =>
-      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, pendingSession })
+    const { result, rerender } = renderHook(
+      ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
+      { initialProps: { activeSessionId: null as string | null } }
     )
+
+    act(() => result.current.setActiveSession(pendingSession))
+    rerender({ activeSessionId: 'session-1' })
 
     expect(result.current.session).toBe(querySession)
     expect(result.current.sessionSource).toBe('query')
+  })
+
+  it('ignores a pending session left over from a previous active id', () => {
+    const pendingSession = createSession({ id: 'temp-session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      isLoading: false
+    })
+
+    const { result, rerender } = renderHook(
+      ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
+      { initialProps: { activeSessionId: 'temp-session-1' as string | null } }
+    )
+
+    act(() => result.current.setActiveSession(pendingSession))
+    // Move to an unrelated id without touching pending: the stale pending must not resolve.
+    rerender({ activeSessionId: 'session-9' })
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('clearActiveSession clears the active id', () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', { data: undefined, isLoading: false })
+
+    const { result } = renderHook(() => useActiveSession({ activeSessionId: 'session-1', setActiveSessionId }))
+
+    act(() => result.current.clearActiveSession())
+    expect(setActiveSessionId).toHaveBeenCalledWith(null)
   })
 })
 
@@ -401,6 +450,25 @@ describe('useSessions', () => {
   })
 })
 
+describe('useLatestSession', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('keeps first-entry restore gated while cached latest session is revalidating', () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/latest', {
+      data: { session: createSession({ id: 'session-latest' }) } as never,
+      isRefreshing: true
+    })
+
+    const { result } = renderHook(() => useLatestSession())
+
+    expect(result.current.latestSession?.id).toBe('session-latest')
+    expect(result.current.isLoading).toBe(true)
+  })
+})
+
 describe('useUpdateSession', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
@@ -581,32 +649,23 @@ describe('useAgentSessionAutoRenameSync', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
-    ;(window as unknown as { api?: unknown }).api = undefined
   })
 
   it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
-    const unsubscribe = vi.fn()
     let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
-    const onAutoRenamed = vi.fn((callback: (payload: { sessionId: string }) => void) => {
-      emitAutoRenamed = callback
-      return unsubscribe
+    mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
+      if (event === 'ai.agent_session_auto_renamed') emitAutoRenamed = handler
     })
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
-    ;(window as unknown as { api: { agentSession: { onAutoRenamed: typeof onAutoRenamed } } }).api = {
-      agentSession: { onAutoRenamed }
-    }
 
-    const { unmount } = renderHook(() => useAgentSessionAutoRenameSync())
+    renderHook(() => useAgentSessionAutoRenameSync())
 
-    expect(onAutoRenamed).toHaveBeenCalledOnce()
+    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent_session_auto_renamed', expect.any(Function))
     act(() => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
 
     expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
-
-    unmount()
-    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

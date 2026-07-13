@@ -5,6 +5,7 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { ExternalAppId } from '../../types/externalApp'
+import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -32,6 +33,13 @@ export type McpRuntimeStatus = {
   lastCheckedAt: number
   lastError?: string
 }
+
+/**
+ * MCP registry "available servers" fetched per marketplace provider, keyed by
+ * provider key. Re-fetchable network data, so it lives in persist cache rather
+ * than Preference/DataApi.
+ */
+export type McpAvailableServers = Record<string, McpServer[]>
 
 /**
  * Tab type for browser-like tabs

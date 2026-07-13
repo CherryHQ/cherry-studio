@@ -1,8 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
-import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import {
   SettingDivider,
   SettingGroup,
@@ -13,6 +10,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -23,7 +21,10 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
+import { LanTransferPopup } from './LanTransferPopup'
+import RestorePopup from './RestorePopup'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
@@ -56,7 +57,7 @@ const BasicDataSettings: React.FC = () => {
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   useEffect(() => {
-    void window.api.getAppInfo().then(setAppInfo)
+    void ipcApi.request('app.get_info').then(setAppInfo)
     void window.api.getCacheSize().then(setCacheSize)
   }, [])
 
@@ -222,7 +223,7 @@ const BasicDataSettings: React.FC = () => {
       await window.api.setAppDataPath(newPath)
       toast.success(t('settings.data.app_data.path_changed_without_copy'))
 
-      setAppInfo(await window.api.getAppInfo())
+      setAppInfo(await ipcApi.request('app.get_info'))
 
       setTimeoutTimer(
         'showMigrationConfirmModal_2',
@@ -324,7 +325,7 @@ const BasicDataSettings: React.FC = () => {
       const newDataPath = await window.api.getDataPathFromArgs()
       if (!newDataPath) return
 
-      const originalPath = (await window.api.getAppInfo())?.appDataPath
+      const originalPath = (await ipcApi.request('app.get_info'))?.appDataPath
       if (!originalPath) return
 
       const title = (
@@ -350,7 +351,7 @@ const BasicDataSettings: React.FC = () => {
       try {
         await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
-        setAppInfo(await window.api.getAppInfo())
+        setAppInfo(await ipcApi.request('app.get_info'))
 
         setTimeoutTimer(
           'handleDataMigration',
@@ -385,9 +386,9 @@ const BasicDataSettings: React.FC = () => {
     if (!path) return
     if (path?.endsWith('log')) {
       const dirPath = path.split(/[/\\]/).slice(0, -1).join('/')
-      void window.api.openPath(dirPath)
+      void ipcApi.request('system.shell.open_path', dirPath)
     } else {
-      void window.api.openPath(path)
+      void ipcApi.request('system.shell.open_path', path)
     }
   }
 

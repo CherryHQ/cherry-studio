@@ -19,24 +19,25 @@ import {
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import {
   type AgentSessionExportOptions,
   agentSessionToMarkdown,
@@ -58,31 +59,6 @@ import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
-import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
-import { cn } from '@renderer/utils/style'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import {
-  AGENT_WORKSPACE_TYPE,
-  type AgentSessionWorkspaceSource,
-  type AgentWorkspaceEntity
-} from '@shared/data/api/schemas/agentWorkspaces'
-import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import {
-  type AgentSessionImageActionRequest,
-  type AgentSessionImageActionType,
-  rejectPendingAgentSessionImageActions,
-  requestAgentSessionImageAction
-} from '../messages/agentSessionImageActionBus'
-import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
-import type { DraftAgentSessionDefaults } from '../types'
-import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
-import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
@@ -108,7 +84,32 @@ import {
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
-} from './sessionListHelpers'
+} from '@renderer/utils/chat/sessionListHelpers'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { cn } from '@renderer/utils/style'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  type AgentWorkspaceEntity
+} from '@shared/data/api/schemas/agentWorkspaces'
+import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  type AgentSessionImageActionRequest,
+  type AgentSessionImageActionType,
+  rejectPendingAgentSessionImageActions,
+  requestAgentSessionImageAction
+} from '../messages/agentSessionImageActionBus'
+import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
+import type { CreateAgentSessionDefaults } from '../types'
+import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
+import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
@@ -116,13 +117,17 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
+  historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
-  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
-  onStartMissingAgentDraft?: () => void | Promise<void>
+  onCreateSession?: (
+    defaults: CreateAgentSessionDefaults
+  ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
+  onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
@@ -297,14 +302,16 @@ export function findLatestCreateSessionSeed(
 }
 
 const Sessions = ({
+  agentSessionsSource,
   activeSessionId,
   agentIdFilter,
+  historyRecordsActive,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
   onSetPanePosition,
-  onStartDraftSession,
-  onStartMissingAgentDraft,
+  onCreateSession,
+  onShowMissingAgentSelection,
   panePosition,
   presentation = 'sidebar',
   revealRequest,
@@ -355,7 +362,7 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useAgentSessionsSource()
+  } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -650,28 +657,27 @@ const Sessions = ({
   )
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      // Capture the deleted session before removal so selection can be scoped to its agent even
+      // after the list refetches.
+      const deletedSession =
+        filteredGroupedSessions.find((session) => session.id === id) ??
+        sessionItemsRef.current.find((session) => session.id === id)
+
       const success = await deleteSession(id)
       if (!success || activeSessionId !== id) return
 
-      // Select the neighbouring session in the visible display order. Classic layout is agent-scoped
-      // via filteredGroupedSessions; modern uses the full grouped list (filteredGroupedSessions ===
-      // groupedSessions there). This keeps agent-session deletion consistent with topic deletion
-      // instead of falling back to the raw API/orderKey head.
-      const next = pickNeighbourAfterRemoval(filteredGroupedSessions, id)
+      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
+      // never jump to an unrelated agent's session. When that agent has no other session left, open a
+      // fresh empty one for it instead of stranding the view.
+      const agentScopedSessions = deletedSession
+        ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
+        : filteredGroupedSessions
+      const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
       if (next) {
         setActiveSessionId(next.id)
         return
       }
 
-      if (!isRightPanel) {
-        setActiveSessionId(null)
-        return
-      }
-
-      // Classic layout scoped to a single agent and now empty: start a fresh draft session for it.
-      const deletedSession =
-        filteredGroupedSessions.find((session) => session.id === id) ??
-        sessionItemsRef.current.find((session) => session.id === id)
       const seed = deletedSession
         ? buildCreateSessionSeed({
             agentId: agentIdFilter ?? deletedSession.agentId,
@@ -682,32 +688,26 @@ const Sessions = ({
           ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
           : null
       // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-      // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
+      // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
       // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+      let createdSession: AgentSessionEntity | null | void = null
       try {
-        if (seed?.agentId && onStartDraftSession) {
-          await onStartDraftSession({
+        if (seed?.agentId && onCreateSession) {
+          createdSession = await onCreateSession({
             agentId: seed.agentId,
-            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+            // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
+            excludeReuseSessionId: id
           })
         }
       } catch (err) {
-        logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
+        logger.error('Failed to create session after deleting last session', { err, sessionId: id })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
-        setActiveSessionId(null)
+        if (!createdSession) setActiveSessionId(null)
       }
     },
-    [
-      activeSessionId,
-      agentIdFilter,
-      deleteSession,
-      filteredGroupedSessions,
-      isRightPanel,
-      onStartDraftSession,
-      setActiveSessionId,
-      t
-    ]
+    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
   )
 
   const handleRenameSession = useCallback(
@@ -844,7 +844,10 @@ const Sessions = ({
     async (session: AgentSessionEntity) => {
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
-      await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
+      await ipcApi.request('export.word.from_markdown', {
+        markdown,
+        fileName: removeSpecialCharactersForFileName(title)
+      })
     },
     [getSessionExportOptions]
   )
@@ -933,15 +936,15 @@ const Sessions = ({
       if (!seed?.agentId) {
         const defaultAgent = agentsForDisplay[0]
         if (defaultAgent) {
-          await onStartDraftSession?.({
+          const createdSession = await onCreateSession?.({
             agentId: defaultAgent.id,
             workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
           })
-          setActiveSessionId(null)
-          return null
+          if (!createdSession) setActiveSessionId(null)
+          return createdSession ?? null
         }
 
-        await onStartMissingAgentDraft?.()
+        await onShowMissingAgentSelection?.()
         return null
       }
 
@@ -959,13 +962,13 @@ const Sessions = ({
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
 
-        await onStartDraftSession?.({
+        const createdSession = await onCreateSession?.({
           agentId: seed.agentId,
           workspace
         })
 
-        setActiveSessionId(null)
-        return null
+        if (!createdSession) setActiveSessionId(null)
+        return createdSession ?? null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -979,8 +982,8 @@ const Sessions = ({
       agentsForDisplay,
       creatingSession,
       findOrCreateWorkspace,
-      onStartMissingAgentDraft,
-      onStartDraftSession,
+      onShowMissingAgentSelection,
+      onCreateSession,
       setActiveSessionId,
       t
     ]
@@ -1675,11 +1678,14 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
-    displayMode === 'agent' ? !onAddAgent : creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)
+    displayMode === 'agent'
+      ? !onAddAgent
+      : creatingSession || (!headerCreateSessionSeed && !onShowMissingAgentSelection)
   const handleHeaderCreate = displayMode === 'agent' ? () => void onAddAgent?.() : handleHeaderCreateSession
   const canSetPanePosition = displayMode === 'agent' || isRightPanel
 
@@ -1689,7 +1695,7 @@ const Sessions = ({
       className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
-      selectedId={hasActiveResourceMenuItem ? null : activeSessionId}
+      selectedId={hasActiveCenterSurface ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
@@ -1739,6 +1745,7 @@ const Sessions = ({
               onClick={handleHeaderCreate}
               actions={
                 <SessionListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
                   manageAgentsActive={manageAgentsMenuItem?.active}
                   manageSkillsActive={manageSkillsMenuItem?.active}
                   manageSkillsIcon={manageSkillsMenuItem?.icon}

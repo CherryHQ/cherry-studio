@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { openSettingsInMainWindow } from '@main/services/settingsNavigation'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 
 const logger = loggerService.withContext('ProtocolService:providersImport')
 

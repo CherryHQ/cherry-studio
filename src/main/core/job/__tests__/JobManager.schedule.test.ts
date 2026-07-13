@@ -362,6 +362,30 @@ describe('JobManager schedule control APIs', () => {
       expect(getScheduleDisposables().get(snap.id)).toBe(originalDisp)
     })
 
+    it('(f) trigger update onto a spent once: disposes the stale registration and does not re-arm', async () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'case-f',
+        trigger: { kind: 'once', at: Date.now() + 600_000 },
+        jobInputTemplate: {} as Record<string, unknown>,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      expect(getScheduleDisposables().has(snap.id)).toBe(true)
+
+      // Manual fire writes lastRun < at (extra one-shot; natural fire still pending).
+      expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
+
+      // Reschedule onto a past moment already covered by the manual fire — the
+      // updated snapshot is spent, so the pending timer for the old future `at`
+      // must be disposed rather than left to fire with its stale closure.
+      const updated = jobManager.updateJobSchedule(snap.id, {
+        trigger: { kind: 'once', at: Date.now() - 60_000 }
+      })
+
+      expect(updated?.enabled).toBe(true)
+      expect(getScheduleDisposables().has(snap.id)).toBe(false)
+    })
+
     it('returns null when the id does not exist (no re-arm side effects)', async () => {
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
 

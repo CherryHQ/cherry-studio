@@ -55,7 +55,7 @@ vi.mock('@renderer/components/ContentSearch', () => ({
   ContentSearch: () => <div data-testid="content-search" />
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: {
     show: vi.fn()
   }

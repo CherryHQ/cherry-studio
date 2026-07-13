@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openSettingsInMainWindowMock } = vi.hoisted(() => ({
-  openSettingsInMainWindowMock: vi.fn()
+const { openRouteInMainWindowMock, loggerMock } = vi.hoisted(() => ({
+  openRouteInMainWindowMock: vi.fn(),
+  loggerMock: {
+    warn: vi.fn()
+  }
 }))
 
-vi.mock('@main/services/settingsNavigation', () => ({
-  openSettingsInMainWindow: openSettingsInMainWindowMock
+vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  openRouteInMainWindow: openRouteInMainWindowMock
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => loggerMock
+  }
 }))
 
 import { navigationHandlers } from '../navigation'
@@ -17,15 +27,22 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('navigationHandlers', () => {
-  it('opens settings in the main window', async () => {
-    await navigationHandlers['navigation.open_settings']({ path: '/settings/mcp/servers' }, ctx)
+  it('opens an allowlisted settings route in the main window', async () => {
+    await navigationHandlers['navigation.open_route_in_main']({ path: '/settings/mcp/servers' }, ctx)
 
-    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
   })
 
-  it('normalizes invalid settings paths before opening', async () => {
-    await navigationHandlers['navigation.open_settings']({ path: '/agents' }, ctx)
+  it('opens an allowlisted non-settings route in the main window', async () => {
+    await navigationHandlers['navigation.open_route_in_main']({ path: '/knowledge' }, ctx)
 
-    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/provider')
+    expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/knowledge')
+  })
+
+  it('drops routes outside the allowlist with a warning', async () => {
+    await navigationHandlers['navigation.open_route_in_main']({ path: '/definitely-not-a-route' }, ctx)
+
+    expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
+    expect(loggerMock.warn).toHaveBeenCalled()
   })
 })
