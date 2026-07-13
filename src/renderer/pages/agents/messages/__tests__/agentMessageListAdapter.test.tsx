@@ -188,7 +188,12 @@ describe('useAgentMessageListProviderValue', () => {
         metadata: {
           parentId: 'user-1',
           createdAt: '2026-01-01T00:00:01.000Z',
-          status: 'pending'
+          status: 'pending',
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'My Agent',
+            model: { id: 'claude-4', name: 'Claude 4', provider: 'anthropic' }
+          }
         }
       }
     ] as CherryUIMessage[]
@@ -204,11 +209,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId,
         assistantId: 'agent-1',
-        modelFallback: {
-          id: 'claude-4',
-          name: 'Claude 4',
-          provider: 'anthropic'
-        },
         isLoading: false,
         openArtifactFile,
         deleteMessage,
@@ -228,7 +228,7 @@ describe('useAgentMessageListProviderValue', () => {
       role: 'assistant',
       parentId: 'user-1',
       status: 'pending',
-      modelSnapshot: {
+      model: {
         id: 'claude-4',
         name: 'Claude 4',
         provider: 'anthropic'
@@ -385,7 +385,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -427,7 +426,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -473,7 +471,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         messageNavigation: 'anchor'
       })
@@ -486,7 +483,6 @@ describe('useAgentMessageListProviderValue', () => {
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
         assistantId: 'agent-1',
-        modelFallback: undefined,
         isLoading: false,
         imageActionConsumer: 'capture',
         messageNavigation: 'anchor'
