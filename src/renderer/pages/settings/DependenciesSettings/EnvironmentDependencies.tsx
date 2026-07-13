@@ -229,7 +229,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     const allNames = [
       ...PRESETS_BINARY_TOOLS.map((p) => p.name),
       ...customTools.map((c) => c.name),
-      ...inventoryTools.map((i) => i.name),
+      ...inventoryTools.filter((tool) => tool.managed).map((tool) => tool.name),
       ...CODE_CLI_BINARIES
     ]
     if (allNames.includes(tool.name)) {

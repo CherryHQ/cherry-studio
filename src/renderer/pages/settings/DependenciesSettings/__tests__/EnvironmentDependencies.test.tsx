@@ -348,7 +348,8 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeRuntimeConfirmMessage')
   })
 
-  it('allows explicitly adding a runtime tool', async () => {
+  it('allows taking explicit ownership of an auto-discovered runtime', async () => {
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'node', version: '22.23.1', managed: false }])
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
     render(<EnvironmentDependencies />)
 
@@ -364,7 +365,7 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('rejects adding a tool that already exists in the inventory', async () => {
-    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1' }])
+    ipcMocks.listTools.mockResolvedValue([{ name: 'node', tool: 'core:node', version: '22.23.1', managed: true }])
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])
     render(<EnvironmentDependencies />)
     await screen.findByText('node')
