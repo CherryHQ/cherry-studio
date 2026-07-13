@@ -1,5 +1,5 @@
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { NavbarHeader } from '@renderer/components/Navbar'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -25,7 +25,7 @@ const AgentChatNavbar = ({
   onSidebarToggle
 }: Props) => {
   useCommandHandler('app.search', () => {
-    void SearchPopup.show()
+    void GlobalSearchPopup.show()
   })
 
   return (

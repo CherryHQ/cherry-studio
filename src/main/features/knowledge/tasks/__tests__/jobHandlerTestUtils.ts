@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   reclaimSpaceMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
+  refineLocalEmbeddingChunksMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
@@ -68,6 +69,7 @@ export const {
   reclaimSpaceMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
+  refineLocalEmbeddingChunksMock,
   loggerWarnMock,
   scheduleItemMock
 } = mocks
@@ -171,6 +173,10 @@ vi.mock('../../utils/indexing/embed', () => ({
   embedKnowledgeTexts: embedKnowledgeTextsMock
 }))
 
+vi.mock('../../utils/indexing/localEmbeddingTokenLimit', () => ({
+  refineLocalEmbeddingChunks: refineLocalEmbeddingChunksMock
+}))
+
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
 export const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
 export const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
@@ -183,7 +189,7 @@ export const FILE_RELATIVE_PATH = 'source.pdf'
 export const PROCESSED_RELATIVE_PATH = 'source.md'
 type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
-export function createBase(): KnowledgeBase {
+export function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
@@ -200,7 +206,8 @@ export function createBase(): KnowledgeBase {
     chunkSeparator: '\\n\\n',
     documentCount: 10,
     createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
+    updatedAt: '2026-04-08T00:00:00.000Z',
+    ...overrides
   }
 }
 
@@ -383,6 +390,7 @@ beforeEach(() => {
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
     values.map(fakeEmbedVector)
   )
+  refineLocalEmbeddingChunksMock.mockImplementation(async (_base: KnowledgeBase, chunked) => chunked)
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })

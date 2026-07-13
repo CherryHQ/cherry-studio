@@ -419,22 +419,31 @@ class ModelService {
       return { toRemove, presetBackedRemovalIds: new Set() }
     }
 
-    const rows = db
-      .select({
-        id: userModelTable.id,
-        presetModelId: userModelTable.presetModelId
-      })
-      .from(userModelTable)
-      .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
-      .all()
+    const rows: { id: string; presetModelId: string | null }[] = []
+    for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+      rows.push(
+        ...db
+          .select({
+            id: userModelTable.id,
+            presetModelId: userModelTable.presetModelId
+          })
+          .from(userModelTable)
+          .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+          .all()
+      )
+    }
 
     const managedDefaultIds = new Set<string>()
     const presetBackedRemovalIds = new Set<string>()
+    const customModelIds = new Set<string>()
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
       } else if (row.presetModelId != null && row.presetModelId !== '') {
         presetBackedRemovalIds.add(row.id)
+      } else {
+        customModelIds.add(row.id)
       }
     }
 
@@ -456,6 +465,8 @@ class ModelService {
       })
     }
 
+    const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
+
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -464,8 +475,18 @@ class ModelService {
       })
     }
 
+    if (removableCustomModelIds.size > 0) {
+      logger.warn('Skipped custom model removal during reconcile', {
+        providerId,
+        skippedCount: removableCustomModelIds.size,
+        skippedIds: [...removableCustomModelIds]
+      })
+    }
+
     return {
-      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id)),
+      toRemove: toRemove.filter(
+        (id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id) && !removableCustomModelIds.has(id)
+      ),
       presetBackedRemovalIds
     }
   }
@@ -494,10 +515,13 @@ class ModelService {
       .all()
 
     let models = rows.map(rowToRuntimeModel)
+    const capabilityOverrideModelIds = new Set(
+      rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
+    )
 
     // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
     // imageGeneration is preset-only metadata (not stored on user_model).
-    // capabilities are unioned in: if registry says a model is `image-generation`
+    // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
     // but the provider's /models endpoint didn't tag it (cherryin returning
     // `qwen/qwen-image-edit-2509(free)` with no capability field), the painting
     // filter still picks it up. `override.capabilities.force` replaces; `add`
@@ -510,7 +534,7 @@ class ModelService {
       string,
       { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
     >()
-    models = models.map((model, index) => {
+    models = models.map((model) => {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
@@ -522,10 +546,7 @@ class ModelService {
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
-        // `models` is index-aligned with `rows` (built via `rows.map`), so the
-        // row's `userOverrides` is read positionally here.
-        const capabilitiesOverridden = rows[index].userOverrides?.includes('capabilities') ?? false
-        if (!capabilitiesOverridden) {
+        if (!capabilityOverrideModelIds.has(model.id)) {
           const capabilities = resolveCapabilities(
             presetModel?.capabilities,
             registryOverride?.capabilities,
@@ -846,25 +867,28 @@ class ModelService {
     const toRemove = removalFilter.toRemove
 
     let actuallyDeleted = 0
-    let deletedIds: string[] = []
+    const deletedIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         db.transaction((tx) => {
           if (toRemove.length > 0) {
-            const deletedRows = tx
-              .delete(userModelTable)
-              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
-              .returning({ id: userModelTable.id })
-              .all()
-            actuallyDeleted = deletedRows.length
-            deletedIds = deletedRows.map((row) => row.id)
+            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+              const deletedRows = tx
+                .delete(userModelTable)
+                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+                .returning({ id: userModelTable.id })
+                .all()
+              actuallyDeleted += deletedRows.length
+              deletedIds.push(...deletedRows.map((row) => row.id))
 
-            if (deletedRows.length > 0) {
-              pinService.purgeForEntitiesTx(
-                tx,
-                'model',
-                deletedRows.map((row) => row.id)
-              )
+              if (deletedRows.length > 0) {
+                pinService.purgeForEntitiesTx(
+                  tx,
+                  'model',
+                  deletedRows.map((row) => row.id)
+                )
+              }
             }
           }
 

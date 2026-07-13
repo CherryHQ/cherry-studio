@@ -1,6 +1,6 @@
 export { useCloseConversationTabs } from './useCloseConversationTabs'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
-export { useMainSettingsTab } from './useSettingsTab'
+export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'
 export {
   type OpenTabOptions,

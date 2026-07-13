@@ -217,6 +217,20 @@ describe('ModelService.update', () => {
     expect(row.userOverrides).toContain('name')
   })
 
+  it('records model group edits as user overrides', async () => {
+    await seedExistingModel()
+
+    modelService.update('openai', 'gpt-4o', { group: 'My Models' })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.group).toBe('My Models')
+    expect(row.userOverrides).toContain('group')
+  })
+
   it('does not add non-enrichable fields to userOverrides', async () => {
     await seedExistingModel()
 
@@ -797,6 +811,42 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.imageGeneration).toEqual(imageGenerationMeta)
   })
 
+  it('does not re-add image-generation when the user overrode capabilities', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIn'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'qwen-image-edit-2509', {
+        presetModelId: 'qwen-image-edit-2509',
+        name: 'Qwen Image Edit',
+        capabilities: [],
+        userOverrides: ['capabilities']
+      })
+    )
+
+    lookupModelMock.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+        return {
+          presetModel: {
+            id: 'qwen-image-edit-2509',
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            imageGeneration: imageGenerationMeta
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = modelService.list({ providerId: 'cherryin' })
+    const imageModels = modelService.list({
+      providerId: 'cherryin',
+      capability: MODEL_CAPABILITY.IMAGE_GENERATION
+    })
+
+    expect(model.capabilities).toEqual([])
+    expect(model.imageGeneration).toEqual(imageGenerationMeta)
+    expect(imageModels).toEqual([])
+  })
+
   it('does NOT re-add a non-image-generation preset capability the user removed', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
     await dbh.db.insert(userModelTable).values(
@@ -1000,9 +1050,10 @@ describe('ModelService.batchUpsert', () => {
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o-legacy',
         name: 'My Custom Name',
+        group: 'My Models',
         capabilities: ['function-call'],
         contextWindow: 32_000,
-        userOverrides: ['name', 'contextWindow']
+        userOverrides: ['name', 'group', 'contextWindow']
       })
     )
 
@@ -1010,6 +1061,7 @@ describe('ModelService.batchUpsert', () => {
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o',
         name: 'Registry Name',
+        group: 'Registry Group',
         capabilities: ['reasoning'],
         contextWindow: 128_000,
         maxOutputTokens: 8192
@@ -1023,10 +1075,11 @@ describe('ModelService.batchUpsert', () => {
 
     expect(row.presetModelId).toBe('gpt-4o')
     expect(row.name).toBe('My Custom Name')
+    expect(row.group).toBe('My Models')
     expect(row.contextWindow).toBe(32_000)
     expect(row.capabilities).toEqual(['reasoning'])
     expect(row.maxOutputTokens).toBe(8192)
-    expect(row.userOverrides).toEqual(['name', 'contextWindow'])
+    expect(row.userOverrides).toEqual(['name', 'group', 'contextWindow'])
   })
 
   it('rejects batch upsert for the managed CherryAI default model', async () => {
@@ -1505,6 +1558,20 @@ describe('ModelService.bulkDelete', () => {
 describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
 
+  it('records model group edits as user overrides', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o'))
+
+    modelService.bulkUpdate([{ providerId: 'openai', modelId: 'gpt-4o', patch: { group: 'My Models' } }])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+    expect(row.group).toBe('My Models')
+    expect(row.userOverrides).toContain('group')
+  })
+
   it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {
     const [cherryAiOrderKey, openAiOrderKey] = generateOrderKeySequence(2)
     await dbh.db
@@ -1640,7 +1707,7 @@ describe('ModelService.reconcileForProvider', () => {
     await dbh.db
       .insert(userModelTable)
       .values([
-        modelRow('openai', 'gpt-4o', { id: openaiGpt4o }),
+        modelRow('openai', 'gpt-4o', { id: openaiGpt4o, presetModelId: 'gpt-4o' }),
         modelRow('openai', 'gpt-4o-mini', { id: openaiGpt4oMini }),
         modelRow('anthropic', 'claude-3-5-sonnet', { id: anthropicClaude })
       ])
@@ -1687,13 +1754,46 @@ describe('ModelService.reconcileForProvider', () => {
     expect(new Set(sortedKeys).size).toBe(sortedKeys.length)
   })
 
+  it('chunks large removal filters and deletes', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const rows = Array.from({ length: 600 }, (_, index) =>
+      modelRow('openai', `managed-model-${index}`, {
+        id: createUniqueModelId('openai', `managed-model-${index}`),
+        presetModelId: `managed-model-${index}`
+      })
+    )
+    for (let i = 0; i < rows.length; i += 25) {
+      await dbh.db.insert(userModelTable).values(rows.slice(i, i + 25))
+    }
+
+    const firstPin = pinService.pin({ entityType: 'model', entityId: rows[0].id })
+    const lastPin = pinService.pin({ entityType: 'model', entityId: rows[rows.length - 1].id })
+
+    const result = modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: rows.map((row) => row.id)
+    })
+
+    const remainingRows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
+    const pins = await dbh.db.select().from(pinTable)
+
+    expect(result).toHaveLength(0)
+    expect(remainingRows).toHaveLength(0)
+    expect(pins.find((pin) => pin.id === firstPin.id)).toBeUndefined()
+    expect(pins.find((pin) => pin.id === lastPin.id)).toBeUndefined()
+  })
+
   it('warns when toRemove references IDs that do not exist for this provider', async () => {
     // S2 regression coverage: stale renderer state passes a toRemove with a
     // non-existent id; reconcile completes but logs the count mismatch.
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db
-      .insert(userModelTable)
-      .values([modelRow('openai', 'gpt-4o', { id: createUniqueModelId('openai', 'gpt-4o') })])
+    await dbh.db.insert(userModelTable).values([
+      modelRow('openai', 'gpt-4o', {
+        id: createUniqueModelId('openai', 'gpt-4o'),
+        presetModelId: 'gpt-4o'
+      })
+    ])
 
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     modelService.reconcileForProvider('openai', {
@@ -1740,6 +1840,34 @@ describe('ModelService.reconcileForProvider', () => {
       deletedIds: [gpt4o]
     })
     infoSpy.mockRestore()
+  })
+
+  it('does not remove custom models during reconcile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const customModelId = createUniqueModelId('openai', 'custom-model')
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'custom-model', {
+        id: customModelId,
+        presetModelId: null,
+        name: 'Custom Model'
+      })
+    )
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const result = modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [customModelId]
+    })
+
+    expect(result.map((model) => model.id)).toEqual([customModelId])
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, customModelId))
+    expect(rows).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith('Skipped custom model removal during reconcile', {
+      providerId: 'openai',
+      skippedCount: 1,
+      skippedIds: [customModelId]
+    })
+    warnSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {

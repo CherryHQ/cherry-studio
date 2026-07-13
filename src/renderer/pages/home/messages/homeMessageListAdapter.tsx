@@ -43,6 +43,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -385,7 +386,7 @@ export function useHomeMessageListProviderValue({
   }, [])
 
   const abortTool = useCallback((toolId: string) => {
-    return window.api.mcp.abortTool(toolId)
+    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(

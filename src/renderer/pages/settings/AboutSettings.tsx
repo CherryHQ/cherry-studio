@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import {
   SettingGroup,
   SettingRow,
@@ -11,7 +10,8 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
@@ -65,20 +65,20 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    void window.api.openWebsite(url)
+    void ipcApi.request('system.shell.open_website', url)
   }
 
   const mailto = async () => {
     const email = 'support@cherry-ai.com'
     const subject = 'Cherry Studio Feedback'
-    const version = (await window.api.getAppInfo()).version
+    const version = (await ipcApi.request('app.get_info')).version
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
   }
 
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('system.toggle_dev_tools')
   }
 
   const showEnterprise = async () => {
@@ -86,7 +86,7 @@ const AboutSettings: FC = () => {
   }
 
   const showReleases = async () => {
-    const { appPath } = await window.api.getAppInfo()
+    const { appPath } = await ipcApi.request('app.get_info')
     openSmartMiniApp({
       appId: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
@@ -156,7 +156,7 @@ const AboutSettings: FC = () => {
 
   useEffect(() => {
     void (async () => {
-      const appInfo = await window.api.getAppInfo()
+      const appInfo = await ipcApi.request('app.get_info')
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })()
@@ -164,7 +164,10 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void ipcApi.request(
+      'system.shell.open_website',
+      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us'
+    )
   }
 
   const testChannels = getAvailableTestChannels()

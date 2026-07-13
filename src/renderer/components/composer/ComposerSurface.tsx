@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -22,6 +23,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions, JSONContent } from '@tiptap/core'
@@ -113,6 +115,11 @@ export interface ComposerSurfaceEditingState {
   onLocate?: () => void
 }
 
+type ComposerSurfaceSendAccessoryRenderer = (
+  inputAdapter?: QuickPanelInputAdapter,
+  unifiedPanelControl?: ComposerUnifiedPanelControl
+) => React.ReactNode
+
 export interface ComposerSurfaceProps {
   text: string
   onTextChange: (text: string) => void
@@ -155,8 +162,11 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
-  renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
-  sendAccessory?: React.ReactNode
+  renderBelowControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -235,6 +245,16 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
+}
+
+function createFolderComposerToken(path: string): ComposerDraftToken {
+  return {
+    id: createComposerSecureRandomId('folder-token'),
+    kind: 'folder',
+    label: getPathBasename(path),
+    description: path,
+    promptText: path
+  }
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -607,6 +627,11 @@ export default function ComposerSurface({
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
+    onFolderPathDropped: (path) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
+    },
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
@@ -775,11 +800,13 @@ export default function ComposerSurface({
 
   const createUnifiedPanelOptions = useCallback(
     ({
+      initialSearchText,
       inputAdapter,
       queryAnchor,
       resourceItems,
       triggerInfo
     }: {
+      initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       resourceItems?: readonly QuickPanelListItem[]
@@ -798,7 +825,8 @@ export default function ComposerSurface({
         additionalItems: rootPanelAdditionalItems,
         resourceItems,
         queryAnchor,
-        triggerInfo
+        triggerInfo,
+        initialSearchText
       })
     },
     [t]
@@ -880,11 +908,13 @@ export default function ComposerSurface({
 
   const openUnifiedComposerPanel = useCallback(
     ({
+      initialSearchText,
       inputAdapter,
       queryAnchor,
       requestRootPanelOpen = true,
       triggerInfo
     }: {
+      initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       requestRootPanelOpen?: boolean
@@ -897,12 +927,52 @@ export default function ComposerSurface({
       setUnifiedResourceItems([])
       quickPanel.open(
         createUnifiedPanelOptions({
+          initialSearchText,
           inputAdapter,
           queryAnchor,
           resourceItems: [],
           triggerInfo
         })
       )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const openUnifiedComposerLauncherSubmenu = useCallback(
+    ({
+      inputAdapter,
+      launcherId,
+      queryAnchor,
+      searchText,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      launcherId: string
+      queryAnchor?: number
+      searchText?: string
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const { quickPanel } = rootSuggestionStateRef.current
+      const rootPanelOptions = createUnifiedPanelOptions({
+        initialSearchText: searchText,
+        inputAdapter,
+        queryAnchor,
+        resourceItems: [],
+        triggerInfo
+      })
+      const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
+      if (!launcherItem?.isMenu || launcherItem.disabled) return false
+
+      launcherItem.action?.({
+        action: 'click',
+        context: { ...quickPanel, triggerInfo: rootPanelOptions.triggerInfo },
+        item: launcherItem,
+        parentPanel: rootPanelOptions,
+        queryAnchor,
+        searchText,
+        inputAdapter
+      })
+      return true
     },
     [createUnifiedPanelOptions]
   )
@@ -1661,25 +1731,57 @@ export default function ComposerSurface({
   const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
     () => ({
       available: unifiedPanelAvailable,
-      open: () => {
+      open: (options) => {
+        if (!unifiedPanelAvailable) return
+
+        const { quickPanel } = rootSuggestionStateRef.current
+        const requestedSearchText = options?.searchText ?? ''
+        const isButtonPanelVisible = quickPanel.isVisible && quickPanel.triggerInfo?.type === 'button'
+        const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === options.launcherId)
+        const isSameRootPanel =
+          quickPanel.symbol === ComposerPanelSymbol.Root && (quickPanel.initialSearchText ?? '') === requestedSearchText
+
+        if (isButtonPanelVisible && (isSameLauncherPanel || isSameRootPanel)) {
+          quickPanel.close('toggle')
+          inputAdapter?.focus()
+          return
+        }
+
         const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
-        openUnifiedComposerPanel({
-          inputAdapter,
-          queryAnchor,
-          triggerInfo: {
-            type: 'button',
-            position: queryAnchor
-          }
-        })
+        const triggerInfo = {
+          type: 'button',
+          position: queryAnchor
+        } as const
+        const didOpenLauncherSubmenu = options?.launcherId
+          ? openUnifiedComposerLauncherSubmenu({
+              inputAdapter,
+              launcherId: options.launcherId,
+              queryAnchor,
+              searchText: options.searchText,
+              triggerInfo
+            })
+          : false
+
+        if (!didOpenLauncherSubmenu) {
+          openUnifiedComposerPanel({
+            initialSearchText: options?.searchText,
+            inputAdapter,
+            queryAnchor,
+            triggerInfo
+          })
+        }
+
         inputAdapter?.focus()
       }
     }),
-    [inputAdapter, openUnifiedComposerPanel, unifiedPanelAvailable]
+    [inputAdapter, openUnifiedComposerLauncherSubmenu, openUnifiedComposerPanel, unifiedPanelAvailable]
   )
 
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
-  const belowControls = renderBelowControls?.(inputAdapter)
+  const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  const sendAccessoryElement =
+    typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const editingModeBadge = editingState ? (
     <div
@@ -1783,7 +1885,7 @@ export default function ComposerSurface({
           {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
         </div>
         <div className="flex flex-row items-center gap-1.5">
-          {sendAccessory}
+          {sendAccessoryElement}
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button

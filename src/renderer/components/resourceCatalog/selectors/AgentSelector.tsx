@@ -26,6 +26,7 @@ export type AgentSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactElement
+  additionalItems?: readonly AgentSelectorItem[]
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
@@ -53,6 +54,7 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const {
     trigger,
+    additionalItems,
     open,
     onOpenChange,
     onDialogCloseAutoFocus,
@@ -94,14 +96,16 @@ export function AgentSelector(props: AgentSelectorProps) {
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((agent) => ({
+    () => [
+      ...(data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
         description: agent.description,
         emoji: getAgentAvatarFromConfiguration(agent.configuration)
       })),
-    [data]
+      ...(additionalItems ?? [])
+    ],
+    [additionalItems, data]
   )
 
   const handleTogglePin = useCallback(
@@ -165,8 +169,7 @@ export function AgentSelector(props: AgentSelectorProps) {
             skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
+              permission_mode: 'bypassPermissions'
             }
           }
         })
