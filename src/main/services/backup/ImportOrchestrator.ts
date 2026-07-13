@@ -31,6 +31,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
+import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
 
@@ -86,8 +87,8 @@ export interface ImportOrchestratorDeps {
   readonly restoreStagingRoot: string
   /** Absolute path to userData — journal paths are stored relative to this. */
   readonly userData: string
-  /** Archive admission — validate + safely unpack the .cbu into the staging subtree BEFORE quiesce. Throws until the safe-unpack track lands. */
-  readonly admitArchive: (archivePath: string, workDir: string) => Promise<void>
+  /** Archive admission — validate + safely unpack the .cbu into the staging subtree BEFORE quiesce (backup-architecture §9 step 0). Returns ArchiveContext; importBackup awaits WITHOUT binding — consumer binding (merge/stage) lands in spine-wiring. */
+  readonly admitArchive: (archivePath: string, workDir: string, migrationsFolder: string) => Promise<ArchiveContext>
   /** Quiesce all main-side writers + renderer mutation admission. Throws until #16849/#16850 land. */
   readonly quiesceWriters: (signal?: AbortSignal) => Promise<void>
   /** Merge backup rows into the detached work.sqlite. Throws until the merge engine lands. */
@@ -130,8 +131,11 @@ export class ImportOrchestrator {
     try {
       this.emit(options, 'admission', 0, 1, 'archive admission + staging prep')
       // (横切) Archive admission — validate + safely unpack the .cbu into the staging subtree
-      // BEFORE quiesce (plan 横切 archive admission). UNIMPLEMENTED — throws fail-closed.
-      await this.deps.admitArchive(options.archivePath, workDir)
+      // BEFORE quiesce (backup-architecture §9 step 0): format gate + schema comparison +
+      // migrate-forward + integrity_check (admitArchive.ts). Return is NOT bound here — the
+      // merge/stage consumers that read ArchiveContext land in spine-wiring (no consumer yet
+      // → binding now would be an unused local). BackupService wires the real impl.
+      await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
       this.assertNotCancelled(options)
       // Prepare the staging subtree: work.sqlite must NOT exist (snapshotTo asserts this).
       fs.mkdirSync(workDir, { recursive: true })

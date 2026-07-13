@@ -40,17 +40,21 @@ import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/ba
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
+import { admitArchive } from './admitArchive'
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { contributorManager } from './contributors'
 import {
+  BackupArchiveCorruptError,
   BackupCancelledError,
+  BackupIntegrityError,
   DiskFullError,
   InsufficientDiskSpaceError,
+  NewerOrDivergedBackupError,
   OutputPathExistsError,
-  RestoreArchiveAdmissionNotImplementedError,
   RestoreMergeNotImplementedError,
   RestoreQuiesceNotImplementedError,
-  RestoreStagingNotImplementedError
+  RestoreStagingNotImplementedError,
+  UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
@@ -272,12 +276,11 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Fail-closed stubs — restore stays unavailable until archive admission, quiesce,
-        // merge, AND file-resource staging all land. Each throws independently so no journal
-        // is written without the full track (not just incidentally fail-closed via merge).
-        admitArchive: async () => {
-          throw new RestoreArchiveAdmissionNotImplementedError()
-        },
+        // Archive admission is wired (admitArchive.ts — architecture §9 step 0). quiesce /
+        // merge / file-resource staging stay fail-closed stubs — restore is still unavailable
+        // until each lands. Every stub throws independently so no journal is written without
+        // the full track (not just incidentally fail-closed via merge).
+        admitArchive,
         quiesceWriters: async () => {
           throw new RestoreQuiesceNotImplementedError()
         },
@@ -603,6 +606,15 @@ export class BackupService extends BaseService {
     }
     if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
     if (e instanceof OutputPathExistsError) return new IpcError('BACKUP_OUTPUT_PATH_EXISTS', e.message)
+    // Archive admission errors (restore-side, backup-architecture §9 step 0).
+    if (e instanceof UnsupportedBackupFormatError) {
+      return new IpcError('BACKUP_UNSUPPORTED_FORMAT', e.message, { found: e.found, expected: e.expected })
+    }
+    if (e instanceof NewerOrDivergedBackupError) {
+      return new IpcError('BACKUP_NEWER_OR_DIVERGED', e.message, { producerAppVersion: e.producerAppVersion })
+    }
+    if (e instanceof BackupIntegrityError) return new IpcError('BACKUP_INTEGRITY_FAILED', e.message)
+    if (e instanceof BackupArchiveCorruptError) return new IpcError('BACKUP_ARCHIVE_CORRUPT', e.message)
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
     // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.
