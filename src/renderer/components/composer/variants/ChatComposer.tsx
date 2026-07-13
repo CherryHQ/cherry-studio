@@ -1007,9 +1007,7 @@ const ChatComposerInner = ({
           knowledgeBaseIds: payload.knowledgeBaseIds,
           userMessageParts: [...payload.userMessageParts, ...fileParts]
         })
-        void saveHistory(payload.text).catch((error) => {
-          logger.warn('Failed to save input history', { error })
-        })
+        saveHistory(payload.text)
         return true
       } catch (error) {
         logger.warn('send failed', { error })

@@ -85,7 +85,7 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   }, [])
 
   const saveHistory = useCallback(
-    async (content: string) => {
+    (content: string) => {
       const normalizedContent = content.trim()
       if (!normalizedContent) {
         return

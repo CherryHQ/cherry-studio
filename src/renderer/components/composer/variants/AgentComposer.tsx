@@ -1127,9 +1127,7 @@ const AgentComposerInner = ({
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
-        void saveHistory(payload.text).catch((error) => {
-          logger.warn('Failed to save input history', { error })
-        })
+        saveHistory(payload.text)
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
