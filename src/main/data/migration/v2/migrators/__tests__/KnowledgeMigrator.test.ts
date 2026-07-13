@@ -3,8 +3,7 @@ import fs from 'node:fs'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
-  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
-  KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1512,7 +1511,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedItems.find((i: any) => i.id === migratedId)).toMatchObject({
       type: 'directory',
       status: 'failed',
-      error: KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
+      error: 'Legacy knowledge item failed without an error message.'
     })
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
   })

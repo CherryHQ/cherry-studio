@@ -6,7 +6,6 @@ import {
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
-  KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED,
   KNOWLEDGE_NOTE_CONTENT_MAX,
   type KnowledgeItemData,
   type KnowledgeItemStatus
@@ -414,14 +413,9 @@ export const transformKnowledgeItem = (
   // home), so letting the directory claim `completed` would leave an empty shell
   // that never re-indexes. Mark it `failed` with a code the UI renders as a
   // delete-and-re-upload prompt (it migrated as a record but its vectors were dropped).
-  // Interrupted and never-indexed items keep their inferred `failed` status (only a
-  // `completed` directory is overridden to `failed`).
+  // Interrupted and never-indexed directories keep their inferred `failed` status
+  // (only a `completed` directory is overridden to `failed`).
   const directoryIndexDropped = type === 'directory' && inferredStatus === 'completed'
-  const wasInterrupted =
-    item.processingStatus === 'failed' || item.processingStatus === 'processing' || item.processingStatus === 'pending'
-  // A v1 item that never started indexing (no uniqueId, not interrupted) has nothing to
-  // resume from; mark it with a code the UI renders as a re-index prompt.
-  const neverIndexed = !directoryIndexDropped && inferredStatus === 'failed' && !wasInterrupted
   const status = directoryIndexDropped ? 'failed' : inferredStatus
 
   return {
@@ -437,9 +431,7 @@ export const transformKnowledgeItem = (
       status,
       error: directoryIndexDropped
         ? KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
-        : neverIndexed
-          ? KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
-          : normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
+        : normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
     },

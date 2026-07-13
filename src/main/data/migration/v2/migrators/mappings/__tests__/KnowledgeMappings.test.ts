@@ -1,7 +1,6 @@
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
-  KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED,
   KNOWLEDGE_NOTE_CONTENT_MAX
 } from '@shared/data/types/knowledge'
 import { FILE_TYPE } from '@shared/types/file'
@@ -284,7 +283,7 @@ describe('KnowledgeMappings', () => {
           content: 'dexie-content'
         },
         status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED,
+        error: 'Legacy knowledge item failed without an error message.',
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       }
@@ -516,7 +515,7 @@ describe('KnowledgeMappings', () => {
     expect(warnings[0]).toContain('blank v1 filename')
   })
 
-  it('transformKnowledgeItem marks a never-started item never_indexed (ignoring any stale processing error) and clears blank legacy processing errors for completed items', () => {
+  it('transformKnowledgeItem marks a never-started item failed with the generic fallback message and clears blank legacy processing errors for completed items', () => {
     const neverIndexedResult = transformKnowledgeItem(
       'kb-1',
       {
@@ -549,7 +548,7 @@ describe('KnowledgeMappings', () => {
       ok: true,
       value: expect.objectContaining({
         status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
+        error: 'Legacy knowledge item failed without an error message.'
       })
     })
     expect(completedResult).toStrictEqual({
@@ -653,7 +652,7 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeItem maps a never-indexed directory to v2 directory node data, marked never_indexed', () => {
+  it('transformKnowledgeItem maps a never-indexed directory to v2 directory node data, marked failed', () => {
     const result = transformKnowledgeItem(
       'kb-1',
       {
@@ -678,7 +677,7 @@ describe('KnowledgeMappings', () => {
           source: '/tmp/docs'
         },
         status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED,
+        error: 'Legacy knowledge item failed without an error message.',
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       }
