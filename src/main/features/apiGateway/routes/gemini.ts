@@ -5,7 +5,6 @@ import { approximateTokenSize } from 'tokenx'
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
 import { processMessage } from '../proxyStream'
-import { getModels } from '../utils/models'
 import { GeminiGenerateContentBodySchema } from './schemas'
 
 /** Generation methods the gateway serves under `/v1beta/models/{model}:{method}`. */
@@ -54,6 +53,15 @@ function estimateGeminiTokens(body: unknown): number {
   return total
 }
 
+/** Whether a Gemini request carries binary/file parts the text-only estimator cannot count. */
+function hasMediaParts(body: unknown): boolean {
+  const request = (body ?? {}) as { contents?: Array<{ parts?: Array<{ inlineData?: unknown; fileData?: unknown }> }> }
+  if (!Array.isArray(request.contents)) return false
+  return request.contents.some(
+    (content) => Array.isArray(content.parts) && content.parts.some((part) => part?.inlineData || part?.fileData)
+  )
+}
+
 /** Google `invalid_argument` (400) envelope for in-handler request errors. */
 const invalidArgument = (message: string) => ({
   error: { code: 400, message, status: 'INVALID_ARGUMENT' }
@@ -71,9 +79,9 @@ const invalidArgument = (message: string) => ({
  * `POST /v1beta/models/{model}:generateContent` (JSON) and
  * `:streamGenerateContent` (SSE with `?alt=sse`) both stream through
  * `AiStreamManager`; the model and the streaming flag come from the URL, not the
- * body. `:countTokens` returns a local estimate. `GET /v1beta/models` lists the
- * gateway-addressable models in Gemini's list shape. Errors are shaped into the
- * Google envelope by the app's root `onError` (path-based → `googleErrorHandler`).
+ * body. `:countTokens` returns a local estimate (text only; media is rejected so the
+ * client falls back to its own count). Errors are shaped into the Google envelope by
+ * the app's root `onError` (path-based → `googleErrorHandler`).
  */
 export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
   .use(bearer())
@@ -100,6 +108,13 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       const { model, method } = parsed
 
       if (method === 'countTokens') {
+        // The estimate counts text only. Gemini CLI calls remote countTokens precisely
+        // when the request has media and falls back to its own local media estimate only
+        // on a non-2xx response — so reject media rather than return a wrong 200 that
+        // would suppress that fallback and badly undercount context usage.
+        if (hasMediaParts(body)) {
+          return status(400, invalidArgument('countTokens does not support inlineData/fileData parts.'))
+        }
         return { totalTokens: estimateGeminiTokens(body) }
       }
       if (!GENERATE_METHODS.has(method)) {
@@ -119,18 +134,4 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       body: GeminiGenerateContentBodySchema,
       detail: { tags: ['Gemini'], summary: 'Generate content (Gemini dialect)' }
     }
-  )
-  .get(
-    '/models',
-    async () => {
-      const { data } = await getModels()
-      return {
-        models: data.map((model) => ({
-          name: `models/${model.id}`,
-          displayName: model.id,
-          supportedGenerationMethods: ['generateContent', 'streamGenerateContent', 'countTokens']
-        }))
-      }
-    },
-    { detail: { tags: ['Gemini'], summary: 'List available models (Gemini dialect)' } }
   )

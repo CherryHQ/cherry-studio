@@ -23,6 +23,8 @@ const logger = loggerService.withContext('AiSdkToGeminiSse')
 interface GeminiResponsePart {
   text?: string
   thought?: boolean
+  /** Gemini 3 opaque reasoning signature the client must echo back next turn. */
+  thoughtSignature?: string
   functionCall?: { name: string; args: unknown }
 }
 
@@ -93,9 +95,16 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         this.appendText(chunk.delta || '', true)
         break
 
-      case 'tool-input-available':
-        this.appendFunctionCall(chunk.toolName, chunk.input)
+      case 'tool-input-available': {
+        // Gemini 3 requires the model's thought signature echoed back on the next
+        // function-calling turn; the Google provider surfaces it on the tool call's
+        // provider metadata, so carry it out on the emitted functionCall part.
+        const meta = chunk.providerMetadata as Record<string, any> | undefined
+        const thoughtSignature =
+          typeof meta?.google?.thoughtSignature === 'string' ? meta.google.thoughtSignature : undefined
+        this.appendFunctionCall(chunk.toolName, chunk.input, thoughtSignature)
         break
+      }
 
       case 'finish':
         this.finishReason = toGeminiFinishReason(chunk.finishReason)
@@ -129,8 +138,9 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emitParts([thought ? { text, thought: true } : { text }])
   }
 
-  private appendFunctionCall(name: string, args: unknown): void {
+  private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
     const part: GeminiResponsePart = { functionCall: { name, args: args ?? {} } }
+    if (thoughtSignature) part.thoughtSignature = thoughtSignature
     this.accumulatedParts.push(part)
     this.emitParts([part])
   }

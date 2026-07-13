@@ -52,6 +52,21 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     expect(frame.candidates[0].content.parts).toEqual([{ functionCall: { name: 'get_weather', args: { city: 'SF' } } }])
   })
 
+  it("emits the tool call's thoughtSignature from its provider metadata (Gemini 3 round-trip)", () => {
+    const [frame] = run([
+      {
+        type: 'tool-input-available',
+        toolCallId: 'search_0',
+        toolName: 'search',
+        input: { q: 'x' },
+        providerMetadata: { google: { thoughtSignature: 'sig-abc' } }
+      }
+    ])
+    expect(frame.candidates[0].content.parts).toEqual([
+      { functionCall: { name: 'search', args: { q: 'x' } }, thoughtSignature: 'sig-abc' }
+    ])
+  })
+
   it('maps the AI SDK finish reason to the Gemini enum', () => {
     const frames = run([textDelta('x'), finish('length')])
     expect(frames[frames.length - 1].candidates[0].finishReason).toBe('MAX_TOKENS')

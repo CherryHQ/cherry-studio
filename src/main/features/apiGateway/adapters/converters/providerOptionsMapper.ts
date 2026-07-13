@@ -113,6 +113,43 @@ export function mapAnthropicThinkingToProviderOptions(
 }
 
 /**
+ * Map a Gemini-native `thinkingConfig` to AI SDK provider options.
+ *
+ * Gemini's `thinkingBudget` is a sentinel — `-1` = dynamic, `0` = disabled, `> 0` =
+ * fixed budget — and Gemini 3 adds `thinkingLevel`. Routing this through the Anthropic
+ * thinking shape (binary enabled/disabled + a non-negative budget) INVERTS the
+ * sentinels (`-1` → `0`, `0` → `-1`) and drops `thinkingLevel`. So for a Gemini/Google
+ * target we forward the native config verbatim (lossless); for any other provider we
+ * translate the sentinels into the shared thinking shape WITHOUT inverting them, then
+ * reuse the generic per-provider mapper.
+ */
+export function mapGeminiThinkingToProviderOptions(
+  provider: Provider,
+  thinkingConfig: { includeThoughts?: boolean; thinkingBudget?: number; thinkingLevel?: string }
+): ProviderOptions | undefined {
+  const { includeThoughts, thinkingBudget, thinkingLevel } = thinkingConfig
+
+  if (isGeminiProvider(provider)) {
+    const nativeThinkingConfig: { thinkingBudget?: number; includeThoughts?: boolean; thinkingLevel?: string } = {}
+    if (typeof thinkingBudget === 'number') nativeThinkingConfig.thinkingBudget = thinkingBudget
+    if (typeof includeThoughts === 'boolean') nativeThinkingConfig.includeThoughts = includeThoughts
+    if (typeof thinkingLevel === 'string') nativeThinkingConfig.thinkingLevel = thinkingLevel
+    if (Object.keys(nativeThinkingConfig).length === 0) return undefined
+    return { google: { thinkingConfig: nativeThinkingConfig } as GoogleGenerativeAIProviderOptions }
+  }
+
+  // budget 0 (or no thinking signal) → disabled; budget > 0 → that fixed budget;
+  // budget < 0 (dynamic) / a thinkingLevel / includeThoughts → enabled (no exact fixed
+  // budget on non-Gemini providers, so 0 lets the generic mapper pick effort/dynamic).
+  const enabled =
+    thinkingBudget === undefined ? includeThoughts === true || typeof thinkingLevel === 'string' : thinkingBudget !== 0
+  const thinking: MessageCreateParams['thinking'] = enabled
+    ? { type: 'enabled', budget_tokens: typeof thinkingBudget === 'number' && thinkingBudget > 0 ? thinkingBudget : 0 }
+    : { type: 'disabled' }
+  return mapAnthropicThinkingToProviderOptions(provider, thinking)
+}
+
+/**
  * Map OpenAI-style reasoning_effort to AI SDK provider options
  *
  * Converts reasoning_effort (low/medium/high) to provider-specific

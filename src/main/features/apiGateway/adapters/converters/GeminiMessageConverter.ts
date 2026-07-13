@@ -12,7 +12,6 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
@@ -20,7 +19,7 @@ import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
-import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
+import { mapGeminiThinkingToProviderOptions } from './providerOptionsMapper'
 
 /** Inline binary payload (`inlineData`). */
 interface GeminiBlob {
@@ -78,6 +77,8 @@ interface GeminiTool {
 interface GeminiThinkingConfig {
   includeThoughts?: boolean
   thinkingBudget?: number
+  /** Gemini 3 reasoning level (`low` / `high`), an alternative to `thinkingBudget`. */
+  thinkingLevel?: string
 }
 
 interface GeminiGenerationConfig {
@@ -222,12 +223,21 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
 
       const parts: CherryUIMessage['parts'] = []
       for (const part of content.parts) {
+        // Gemini 3 attaches an opaque `thoughtSignature` to the model's thought /
+        // text / functionCall parts and requires it echoed back verbatim on the next
+        // turn (missing it → HTTP 400). Carry it through AI SDK provider metadata so
+        // the Google provider re-sends it (mirrors AnthropicMessageConverter).
+        const signatureMetadata = part.thoughtSignature
+          ? { google: { thoughtSignature: part.thoughtSignature } }
+          : undefined
         if (typeof part.text === 'string' && part.text.length > 0) {
           if (part.thought) {
             const reasoning: ReasoningUIPart = { type: 'reasoning', text: part.text }
+            if (signatureMetadata) reasoning.providerMetadata = signatureMetadata
             parts.push(reasoning)
           } else {
             const text: TextUIPart = { type: 'text', text: part.text }
+            if (signatureMetadata) text.providerMetadata = signatureMetadata
             parts.push(text)
           }
         } else if (part.inlineData?.data) {
@@ -249,7 +259,12 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
           const toolName = part.functionCall.name ?? 'unknown'
           const toolCallId = part.functionCall.id ?? `${toolName}-${toolCallSeq++}`
           const output = takeToolOutput(part.functionCall, toolResponses)
-          const base = { type: 'dynamic-tool' as const, toolName, toolCallId }
+          const base = {
+            type: 'dynamic-tool' as const,
+            toolName,
+            toolCallId,
+            ...(signatureMetadata ? { callProviderMetadata: signatureMetadata } : {})
+          }
           const toolPart: DynamicToolUIPart =
             output !== undefined
               ? { ...base, state: 'output-available', input: part.functionCall.args ?? {}, output }
@@ -309,19 +324,14 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
 
   /**
    * Map `generationConfig.thinkingConfig` to provider-specific reasoning options.
-   * Translated to the Anthropic-style thinking shape and delegated to the shared
-   * mapper so every provider is handled identically to the other dialects.
+   * Delegated to the Gemini-native mapper so a Gemini/Google target keeps its sentinel
+   * semantics (`-1` dynamic / `0` disabled / `> 0` fixed) and `thinkingLevel` intact
+   * instead of being inverted by a round trip through the Anthropic thinking shape.
    */
   extractProviderOptions(provider: Provider, params: GeminiGenerateContentRequest): ProviderOptions | undefined {
     const thinkingConfig = params.generationConfig?.thinkingConfig
     if (!thinkingConfig) return undefined
-
-    const budget = thinkingConfig.thinkingBudget
-    const enabled = thinkingConfig.includeThoughts === true || (typeof budget === 'number' && budget !== 0)
-    const thinking: MessageCreateParams['thinking'] = enabled
-      ? { type: 'enabled', budget_tokens: typeof budget === 'number' && budget > 0 ? budget : 0 }
-      : { type: 'disabled' }
-    return mapAnthropicThinkingToProviderOptions(provider, thinking)
+    return mapGeminiThinkingToProviderOptions(provider, thinkingConfig)
   }
 }
 

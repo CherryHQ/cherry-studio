@@ -175,6 +175,55 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     )
     expect(msgs[0].parts[0]).toMatchObject({ type: 'dynamic-tool', toolName: 'search', state: 'input-available' })
   })
+
+  // Gemini 3 requires the model's thoughtSignature echoed back on the next turn; carry it
+  // through AI SDK provider metadata so the Google provider re-sends it (else HTTP 400).
+  it('round-trips a functionCall thoughtSignature into callProviderMetadata', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'model',
+            parts: [{ functionCall: { id: 'c1', name: 'search', args: { q: 'x' } }, thoughtSignature: 'sig-abc' }]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({
+      type: 'dynamic-tool',
+      toolName: 'search',
+      callProviderMetadata: { google: { thoughtSignature: 'sig-abc' } }
+    })
+  })
+
+  it('round-trips a thought part thoughtSignature into providerMetadata', () => {
+    const msgs = converter.toUIMessages(
+      request({ contents: [{ role: 'model', parts: [{ text: 'hmm', thought: true, thoughtSignature: 'sig-xyz' }] }] })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({
+      type: 'reasoning',
+      text: 'hmm',
+      providerMetadata: { google: { thoughtSignature: 'sig-xyz' } }
+    })
+  })
+
+  it('round-trips a plain text part thoughtSignature into providerMetadata', () => {
+    const msgs = converter.toUIMessages(
+      request({ contents: [{ role: 'model', parts: [{ text: 'answer', thoughtSignature: 'sig-txt' }] }] })
+    )
+    expect(msgs[0].parts[0]).toMatchObject({
+      type: 'text',
+      text: 'answer',
+      providerMetadata: { google: { thoughtSignature: 'sig-txt' } }
+    })
+  })
+
+  it('attaches no metadata to a signature-less functionCall (no empty callProviderMetadata)', () => {
+    const msgs = converter.toUIMessages(
+      request({ contents: [{ role: 'model', parts: [{ functionCall: { name: 'search', args: { q: 'x' } } }] }] })
+    )
+    expect(msgs[0].parts[0]).not.toHaveProperty('callProviderMetadata')
+  })
 })
 
 describe('GeminiMessageConverter.toAiSdkTools', () => {
@@ -256,5 +305,14 @@ describe('GeminiMessageConverter.extractProviderOptions', () => {
       request({ generationConfig: { thinkingConfig: { includeThoughts: true, thinkingBudget: 512 } } })
     )
     expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } } })
+  })
+
+  it('preserves a dynamic thinkingBudget (-1) for a Gemini target instead of inverting it to 0', () => {
+    asMock(isGeminiProvider).mockReturnValue(true)
+    const options = converter.extractProviderOptions(
+      provider(),
+      request({ generationConfig: { thinkingConfig: { thinkingBudget: -1 } } })
+    )
+    expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: -1 } } })
   })
 })

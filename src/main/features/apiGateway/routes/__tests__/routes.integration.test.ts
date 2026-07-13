@@ -265,6 +265,22 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
+    // The text-only estimator would return a bogus ~3 with HTTP 200, suppressing gemini-cli's
+    // media fallback (it only falls back on a non-2xx) and badly undercounting context usage.
+    // Both media shapes matter: large uploads reach the CLI as fileData/fileUri via the Files API.
+    it.each([
+      ['inlineData', { inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
+      ['fileData', { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }]
+    ])('countTokens with %s media → 400 so the CLI falls back to its own media count', async (_kind, mediaPart) => {
+      const mediaBody = { contents: [{ role: 'user', parts: [mediaPart] }] }
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', mediaBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
     it('unsupported method → 400 Google INVALID_ARGUMENT envelope', async () => {
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:embedContent', geminiBody)
@@ -336,14 +352,6 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(429)
       expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
       expect(body.error.message).toBe('rate limited')
-    })
-
-    it('GET /v1beta/models returns the Gemini list shape', async () => {
-      const { status, body } = await read(await get(app, '/v1beta/models'))
-      expect(status).toBe(200)
-      expect(Array.isArray(body.models)).toBe(true)
-      expect(body.models[0].name).toBe('models/openai:gpt-4')
-      expect(body.models[0].supportedGenerationMethods).toContain('generateContent')
     })
   })
 })
