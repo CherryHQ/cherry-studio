@@ -5,6 +5,7 @@
 // (pnpm backup:refs:generate) and update the expected counts here.
 import { describe, expect, it } from 'vitest'
 
+import { parseFtsStatement } from '../../../../../../scripts/generate-backup-schema-refs'
 import {
   column,
   columns,
@@ -209,6 +210,42 @@ describe('DB_FTS_VIRTUAL_TABLES', () => {
     for (const contentTable of Object.values(DB_FTS_VIRTUAL_TABLES)) {
       expect(known.has(contentTable)).toBe(true)
     }
+  })
+})
+
+describe('parseFtsStatement (FTS5 parser contract)', () => {
+  it('parses a valid idempotent FTS5 statement (IF NOT EXISTS + content=)', () => {
+    expect(parseFtsStatement("CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(content='message')")).toEqual({
+      ftsTable: 'message_fts',
+      contentTable: 'message'
+    })
+  })
+
+  it('accepts double-quoted content= clauses', () => {
+    expect(parseFtsStatement('CREATE VIRTUAL TABLE IF NOT EXISTS foo_fts USING fts5(content="foo")')).toEqual({
+      ftsTable: 'foo_fts',
+      contentTable: 'foo'
+    })
+  })
+
+  it('returns null for a non-FTS5 statement', () => {
+    expect(parseFtsStatement('CREATE TABLE foo (id INTEGER)')).toBeNull()
+    expect(parseFtsStatement('CREATE INDEX foo_idx ON foo(id)')).toBeNull()
+  })
+
+  it('throws on a non-idempotent FTS5 statement (no IF NOT EXISTS)', () => {
+    // applyMigrations replays these every boot; a bare CREATE throws "table already exists" on
+    // the second launch, so the generator must reject it rather than emit it.
+    expect(() => parseFtsStatement('CREATE VIRTUAL TABLE foo_fts USING fts5(content=foo)')).toThrow(/idempotent/)
+  })
+
+  it('throws on a fts5-looking statement without a table name (multiline-safe guard)', () => {
+    // `.` does not cross newlines without dotAll; the guard uses [\s\S]* so this trips.
+    expect(() => parseFtsStatement('CREATE VIRTUAL TABLE\nUSING fts5(content=foo)')).toThrow(/idempotent/)
+  })
+
+  it('throws on a FTS5 statement without a parseable content= clause', () => {
+    expect(() => parseFtsStatement('CREATE VIRTUAL TABLE IF NOT EXISTS foo_fts USING fts5()')).toThrow(/content=/)
   })
 })
 

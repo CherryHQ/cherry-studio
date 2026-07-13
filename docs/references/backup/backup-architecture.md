@@ -191,7 +191,7 @@ Post-#16532: the old polymorphic `file_ref` table has been split. `chat_message_
 
 These two junctions are junction tables with real single-column FKs (not polymorphic), so finalize #25 requires their owner to declare the FK (unlike `entity_tag` which is polymorphically exempt). The `temp_session` ref becomes pure memory (CacheService, no table).
 
-`fileRefSourcePolicies` (sourceType→ownerDomain) covers 3 sourceTypes (`temp_session` runtime-only, `chat_message`→TOPICS, `painting`→PAINTINGS) and governs **export-phase file blob collection** — lands with the TOPICS/PAINTINGS contributors + temp_session runtime-owner decision (finalize #11 follow-up).
+`fileRefSourcePolicies` (sourceType→ownerDomain) covers 5 sourceTypes (`temp_session` runtime-only, `chat_message`→TOPICS, `painting`→PAINTINGS, `provider_logo`→PROVIDERS, `mini_app_logo`→MINIAPPS) and governs **export-phase file blob collection** — lands with the TOPICS/PAINTINGS/PROVIDERS/MINIAPPS contributors + temp_session runtime-owner decision (finalize #11).
 
 **Implementation caveat**: ① post-restore consistency check (no dangling ref / no **internal** file_entry missing blob, rollback on failure; **external file_entry by design has no blob** — `origin='external'` only references `externalPath` user files, does not copy blob, cross-device inherent dangling by design (FILE_STORAGE origin semantics: external rows only reference user files via externalPath, internal rows own their blobs)); ② file_entry soft delete vs ref hard delete asymmetry (export filter must only take `deletedAt IS NULL`).
 
@@ -241,7 +241,7 @@ Derivation is performed by `finalize` at startup, **not** during hook invocation
 
 #### Codegen landing plan
 
-`scripts/generate-backup-schema-refs.ts` (tsx) discovers `sqliteTable` in `schemas/*.ts`, reads table/column/PK names via `getTableConfig()`, and stably sorts output to `dbSchemaRefs.ts` (lands in neutral layer `src/main/data/db/backup/dbSchemaRefs.ts`, main-only; `DB_TABLES`, `DB_COLUMNS_BY_TABLE`, `DbTableName`, `DbColumnName<TTable>`, `DB_PRIMARY_KEYS` with uuid-v4/v7 determination and ambiguous annotation). Does not connect to DB, does not start Electron. `pnpm backup:refs:generate` writes to disk, `pnpm backup:refs:check` does byte-for-byte comparison (CI enforced) — **both commands are planned, implementation-phase PR adds package.json scripts**.
+`scripts/generate-backup-schema-refs.ts` (tsx) discovers `sqliteTable` in `schemas/*.ts`, reads table/column/PK names via `getTableConfig()`, and stably sorts output to `dbSchemaRefs.ts` (lands in neutral layer `src/main/data/db/backup/dbSchemaRefs.ts`, main-only; `DB_TABLES`, `DB_COLUMNS_BY_TABLE`, `DbTableName`, `DbColumnName<TTable>`, `DB_PRIMARY_KEYS` with uuid-v4/v7 determination and ambiguous annotation). Does not connect to DB, does not start Electron. `pnpm backup:refs:generate` writes to disk, `pnpm backup:refs:check` does byte-for-byte comparison (CI enforced) — **both commands are delivered** (Track A2 adds the `package.json` scripts + the CI-enforced `build:check` gate).
 
 ```mermaid
 flowchart LR
@@ -279,8 +279,10 @@ flowchart TB
 | Classified item | Ownership |
 |---|---|
 | `chat_message` | TOPICS |
-| `knowledge_item` | KNOWLEDGE |(Forward-looking: current `allSourceTypes` only registers `temp_session`/`chat_message`/`painting`; `knowledge_item` to be registered in `@shared/data/types/file/ref` when KNOWLEDGE file-ref lands)|
+| `knowledge_item` | KNOWLEDGE |(Forward-looking: `knowledge_item` to be registered in `@shared/data/types/file` when KNOWLEDGE file-ref lands; current `allSourceTypes` registers `temp_session`/`chat_message`/`painting`/`provider_logo`/`mini_app_logo`)|
 | `painting` | PAINTINGS |
+| `provider_logo` | PROVIDERS |
+| `mini_app_logo` | MINIAPPS |
 | `temp_session` | excluded (runtime) |
 | `message.data` (file_entry id in `parts[].providerMetadata.cherry.fileEntryId`, non-top-level fileId) | TOPICS jsonSoftReferences |
 | `agent_session_message.data` (file_entry id in `parts[].providerMetadata.cherry.fileEntryId`) | AGENTS jsonSoftReferences (tolerant) |

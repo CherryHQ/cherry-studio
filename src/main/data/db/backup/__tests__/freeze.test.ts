@@ -92,4 +92,13 @@ describe('deepFreeze', () => {
     expect(Object.isFrozen(root)).toBe(true)
     expect(Object.isFrozen(root.a)).toBe(true)
   })
+
+  it('freezes an unfrozen child of a pre-frozen root (WeakSet guard is not Object.isFrozen)', () => {
+    // A buggy `if (Object.isFrozen(v)) return` would skip the unfrozen child of a pre-frozen
+    // root. The WeakSet visited-guard descends into children regardless of the root's state.
+    const root = { child: { x: 1 } }
+    Object.freeze(root)
+    deepFreeze(root)
+    expect(Object.isFrozen(root.child)).toBe(true)
+  })
 })

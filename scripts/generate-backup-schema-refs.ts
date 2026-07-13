@@ -15,7 +15,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { isTable } from 'drizzle-orm/table'
@@ -70,6 +70,36 @@ interface TableInfo {
  * double module-eval. The schema dir is flat (only __tests__/ as a subdir, which
  * readdirSync skips); _columnHelpers.ts holds column-builder helpers, not tables.
  */
+
+/**
+ * Parse a `CREATE VIRTUAL TABLE ... USING fts5` statement into its fts table + content
+ * table. Returns null for non-FTS5 statements. Throws on a fts5-looking statement that is
+ * non-idempotent (lacks IF NOT EXISTS — applyMigrations replays these every boot, so a bare
+ * CREATE would throw "table already exists" on the second launch) or unparseable (missing
+ * table name / content= clause), so an FTS mapping can never silently slip out of
+ * DB_FTS_VIRTUAL_TABLES. Exported for unit testing the parser contract.
+ */
+export function parseFtsStatement(statement: string): { ftsTable: string; contentTable: string } | null {
+  // \s+ in the parser crosses newlines; [\s\S]* in the guard does too (without dotAll flag).
+  const ftsMatch = statement.match(/CREATE\s+VIRTUAL\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s+USING\s+fts5/i)
+  if (!ftsMatch) {
+    if (/CREATE\s+VIRTUAL\s+TABLE[\s\S]*USING\s+fts5/i.test(statement)) {
+      throw new Error(
+        `FTS5 virtual table statement must be idempotent (CREATE VIRTUAL TABLE IF NOT EXISTS <name> USING fts5); got: ${statement.slice(0, 80)}…`
+      )
+    }
+    return null
+  }
+  // content= may use single or double quotes; \w+ requires a non-empty content table.
+  const contentMatch = statement.match(/content\s*=\s*["'](\w+)["']/i)
+  if (!contentMatch) {
+    throw new Error(
+      `FTS virtual table '${ftsMatch[1]}' has no parseable non-empty content= clause (needed to map it to its content table): ${statement.slice(0, 80)}…`
+    )
+  }
+  return { ftsTable: ftsMatch[1], contentTable: contentMatch[1] }
+}
+
 async function discoverSchemas(): Promise<{
   tables: SQLiteTable[]
   ftsVirtualTables: ReadonlyArray<readonly [string, string]>
@@ -99,24 +129,16 @@ async function discoverSchemas(): Promise<{
       }
       if (!exportName.endsWith('_FTS_STATEMENTS') || !Array.isArray(exportedValue)) continue
       for (const statement of exportedValue as readonly string[]) {
-        const ftsMatch = statement.match(/CREATE\s+VIRTUAL\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s+USING\s+fts5/i)
-        if (!ftsMatch) continue
-        // content= may use single or double quotes; \w+ requires a non-empty
-        // content table. A missing/unparseable clause fails loudly so a future
-        // schema author can't silently lose an FTS mapping that CHECK would bless.
-        const contentMatch = statement.match(/content\s*=\s*["'](\w+)["']/i)
-        if (!contentMatch) {
-          throw new Error(
-            `FTS virtual table '${ftsMatch[1]}' has no parseable non-empty content= clause (needed to map it to its content table): ${statement.slice(0, 80)}…`
-          )
+        const parsed = parseFtsStatement(statement)
+        if (parsed) {
+          ftsVirtualTables.set(parsed.ftsTable, parsed.contentTable)
         }
-        ftsVirtualTables.set(ftsMatch[1], contentMatch[1])
       }
     }
   }
   return {
     tables: [...tables.values()],
-    ftsVirtualTables: [...ftsVirtualTables.entries()].sort(([a], [b]) => a.localeCompare(b))
+    ftsVirtualTables: [...ftsVirtualTables.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   }
 }
 
@@ -294,7 +316,7 @@ function emitDbSchemaRefs(
   ftsVirtualTables: ReadonlyArray<readonly [string, string]>,
   meta: { generatedAt: string }
 ): string {
-  const sortedTables = [...tables].sort((a, b) => a.name.localeCompare(b.name))
+  const sortedTables = [...tables].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
   const dbTables = sortedTables.map((t) => `  ${str(t.name)},`).join('\n')
 
@@ -497,7 +519,7 @@ async function main(): Promise<void> {
   const autoIncrementKeys = collectAutoIncrement(tables)
   const tableInfos = tables
     .map((t) => extractTableInfo(t, autoIncrementKeys))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
   const meta = { generatedAt: new Date().toISOString() }
   const content = formatViaBiome(emitDbSchemaRefs(tableInfos, ftsVirtualTables, meta))
@@ -521,7 +543,11 @@ async function main(): Promise<void> {
   console.log(`Generated ${OUTPUT_FILE} (${tableInfos.length} tables, ${ftsVirtualTables.length} FTS virtual tables)`)
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+// Run only when executed directly (tsx pnpm backup:refs:generate/check), not when imported
+// by unit tests (parseFtsStatement tests import this module).
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}
