@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac } from '@main/core/platform'
+import { isDev, isMac } from '@main/core/platform'
 import { RelocationIpcChannels, type RelocationProgress, type RelocationStage } from '@shared/types/relocation'
 import { BrowserWindow, ipcMain } from 'electron'
 
@@ -138,7 +138,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     webContents.once('render-process-gone', didExit)
   })
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
     void window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/windows/relocation/index.html`)
   } else {
     void window.loadFile(join(__dirname, '../renderer/windows/relocation/index.html'))

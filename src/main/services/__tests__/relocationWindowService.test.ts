@@ -8,7 +8,7 @@ const { browserWindowMock, ipcHandleMock, ipcRemoveHandlerMock } = vi.hoisted(()
   ipcRemoveHandlerMock: vi.fn()
 }))
 
-vi.mock('@main/core/platform', () => ({ isMac: false }))
+vi.mock('@main/core/platform', () => ({ isDev: false, isMac: false }))
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
@@ -54,6 +54,15 @@ beforeEach(() => {
 })
 
 describe('relocationWindowService', () => {
+  it('ignores the renderer URL outside development', () => {
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'https://example.com')
+
+    openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
+
+    expect(window.loadURL).not.toHaveBeenCalled()
+    expect(window.loadFile).toHaveBeenCalledTimes(1)
+  })
+
   it('blocks user close during copy and sends progress to the renderer', async () => {
     const onRestart = vi.fn()
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })

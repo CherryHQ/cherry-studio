@@ -48,10 +48,10 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
     assertUserDataRelocationRequest(pending)
 
-    // Temporary BootConfig values bypass PreferenceService. Flush immediately
+    // Temporary BootConfig values bypass PreferenceService. Persist immediately
     // because the request must be durable before Electron relaunches.
     bootConfigService.set('temp.user_data_relocation', pending)
-    bootConfigService.flush()
+    bootConfigService.persist()
     logger.info('userData relocation requested; relaunch required', pending)
   },
   'app.adjust_zoom': async ({ delta, reset = false }) => {

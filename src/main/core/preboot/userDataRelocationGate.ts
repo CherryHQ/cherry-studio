@@ -126,7 +126,7 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
       error: message,
       failedAt: new Date().toISOString()
     })
-    bootConfigService.flush()
+    bootConfigService.persist()
     publish(makeProgress('failed', relocation, 0, 0, message))
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
   }
@@ -365,7 +365,9 @@ async function copyTree(source: string, target: string, context: CopyContext, al
       if (allowMissing && isErrno(error, 'ENOENT')) return
       throw error
     }
+    const isSourceRoot = sourceReal === normalizeForCompare(context.sourceRootReal)
     for (const entry of entries) {
+      if (isSourceRoot && entry.name.startsWith('Singleton')) continue
       await copyTree(path.join(source, entry.name), path.join(target, entry.name), context, true)
     }
     return
@@ -581,7 +583,7 @@ function isPathInside(child: string, parent: string): boolean {
 
 function clearRelocationState(): void {
   bootConfigService.set('temp.user_data_relocation', null)
-  bootConfigService.flush()
+  bootConfigService.persist()
 }
 
 function invalid(reason: UserDataRelocationValidationReason, message: string): never {

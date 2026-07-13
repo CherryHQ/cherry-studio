@@ -56,7 +56,7 @@ const setPathMock = vi.fn()
 const cpSyncMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
-const bootConfigFlushMock = vi.fn()
+const bootConfigPersistMock = vi.fn()
 
 function stubElectron(opts: ElectronStubOptions = {}) {
   const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
@@ -94,14 +94,14 @@ function stubBootConfig(store: BootConfigStore = {}) {
   bootConfigSetMock.mockImplementation((key: string, value: unknown) => {
     ;(internal as Record<string, unknown>)[key] = value
   })
-  bootConfigFlushMock.mockImplementation(() => {
+  bootConfigPersistMock.mockImplementation(() => {
     /* no-op for tests */
   })
   vi.doMock('@main/data/bootConfig', () => ({
     bootConfigService: {
       get: bootConfigGetMock,
       set: bootConfigSetMock,
-      flush: bootConfigFlushMock
+      persist: bootConfigPersistMock
     }
   }))
   return internal
@@ -144,7 +144,7 @@ beforeEach(() => {
   cpSyncMock.mockReset()
   bootConfigGetMock.mockReset()
   bootConfigSetMock.mockReset()
-  bootConfigFlushMock.mockReset()
+  bootConfigPersistMock.mockReset()
 })
 
 afterEach(() => {
@@ -430,7 +430,7 @@ describe('resolveUserDataLocation', () => {
   })
 
   describe('relocation state helpers', () => {
-    it('commitUserDataRelocation updates the executable mapping, clears temp state, and flushes', async () => {
+    it('commitUserDataRelocation updates the executable mapping, clears temp state, and persists', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       const store = stubBootConfig({
@@ -450,7 +450,7 @@ describe('resolveUserDataLocation', () => {
 
       expect(store['app.user_data_path']).toEqual({ '/other/exe': '/other/data', '/mock/exe': '/new/data' })
       expect(store['temp.user_data_relocation']).toBeNull()
-      expect(bootConfigFlushMock).toHaveBeenCalled()
+      expect(bootConfigPersistMock).toHaveBeenCalled()
     })
 
     it('resolveUserDataLocation does not execute a pending relocation', async () => {

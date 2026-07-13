@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, assertRequestMock, bootConfigFlushMock, inspectTargetMock, preferenceSetMock } =
+const { appGetMock, appGetPathMock, assertRequestMock, bootConfigPersistMock, bootConfigSetMock, inspectTargetMock } =
   vi.hoisted(() => ({
     appGetMock: vi.fn(),
     appGetPathMock: vi.fn(),
     assertRequestMock: vi.fn(),
-    bootConfigFlushMock: vi.fn(),
-    inspectTargetMock: vi.fn(),
-    preferenceSetMock: vi.fn()
+    bootConfigPersistMock: vi.fn(),
+    bootConfigSetMock: vi.fn(),
+    inspectTargetMock: vi.fn()
   }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
@@ -16,7 +16,9 @@ vi.mock('@main/core/preboot/userDataRelocationGate', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock
 }))
 vi.mock('@main/core/preboot/userDataLocation', () => ({ canonicalizeUserDataPath: (value: string) => value }))
-vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { flush: bootConfigFlushMock } }))
+vi.mock('@main/data/bootConfig', () => ({
+  bootConfigService: { persist: bootConfigPersistMock, set: bootConfigSetMock }
+}))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
   BrowserWindow: { getAllWindows: () => [] },
@@ -32,8 +34,7 @@ const appUpdaterService = {
   quitAndInstall: vi.fn()
 }
 const preferenceService = {
-  get: vi.fn(),
-  set: preferenceSetMock
+  get: vi.fn()
 }
 
 beforeEach(() => {
@@ -58,7 +59,7 @@ describe('appHandlers', () => {
     expect(result).toEqual({ valid: true, targetExists: true, targetEmpty: true })
   })
 
-  it('persists relocation through PreferenceService and flushes before relaunch', async () => {
+  it('persists relocation directly through BootConfigService before relaunch', async () => {
     const result = await appHandlers['app.request_user_data_relocation'](
       { path: '/new/data', copy: true, overwrite: false },
       ctx
@@ -72,9 +73,19 @@ describe('appHandlers', () => {
       overwrite: false
     }
     expect(assertRequestMock).toHaveBeenCalledWith(pending)
-    expect(preferenceSetMock).toHaveBeenCalledWith('BootConfig.temp.user_data_relocation', pending)
-    expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
+    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.user_data_relocation', pending)
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('rejects relocation when the pending request cannot be persisted', async () => {
+    bootConfigPersistMock.mockImplementationOnce(() => {
+      throw new Error('disk full')
+    })
+
+    await expect(
+      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true, overwrite: false }, ctx)
+    ).rejects.toThrow('disk full')
   })
 
   it('rejects relocation requests from unpackaged development runs', async () => {
@@ -83,7 +94,7 @@ describe('appHandlers', () => {
     await expect(
       appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true, overwrite: false }, ctx)
     ).rejects.toMatchObject({ code: 'USER_DATA_RELOCATION_UNAVAILABLE' })
-    expect(preferenceSetMock).not.toHaveBeenCalled()
+    expect(bootConfigSetMock).not.toHaveBeenCalled()
   })
 
   it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {

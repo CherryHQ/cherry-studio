@@ -33,7 +33,7 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
 
 /**
  * Persist the new location only after the relocation gate has completed its
- * copy/switch transaction. Both writes are flushed together before relaunch.
+ * copy/switch transaction. Both writes are persisted together before relaunch.
  */
 export function commitUserDataRelocation(targetPath: string): void {
   const canonicalTargetPath = canonicalizeUserDataPath(targetPath)
@@ -42,7 +42,7 @@ export function commitUserDataRelocation(targetPath: string): void {
 
   bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
   bootConfigService.set('temp.user_data_relocation', null)
-  bootConfigService.flush()
+  bootConfigService.persist()
 
   logger.info('userData relocation committed', { exe, targetPath: canonicalTargetPath })
 }

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetPathMock,
-  bootConfigFlushMock,
+  bootConfigPersistMock,
   bootConfigGetMock,
   bootConfigSetMock,
   commitMock,
@@ -19,7 +19,7 @@ const {
   windowOpenMock
 } = vi.hoisted(() => ({
   appGetPathMock: vi.fn(),
-  bootConfigFlushMock: vi.fn(),
+  bootConfigPersistMock: vi.fn(),
   bootConfigGetMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
   commitMock: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
     get: bootConfigGetMock,
     set: bootConfigSetMock,
-    flush: bootConfigFlushMock
+    persist: bootConfigPersistMock
   }
 }))
 vi.mock('@main/services/relocationWindowService', () => ({
@@ -231,6 +231,28 @@ describe('userDataRelocationGate', () => {
     expect(commitMock).not.toHaveBeenCalled()
   })
 
+  it('excludes active Singleton markers when copying the userData root', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    fs.writeFileSync(path.join(source, 'SingletonLock'), 'lock')
+    fs.writeFileSync(path.join(source, 'SingletonSocket'), 'socket')
+    fs.writeFileSync(path.join(source, 'SingletonCookie'), 'cookie')
+    appGetPathMock.mockReturnValue(source)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'SingletonLock'))).toBe(false)
+    expect(fs.existsSync(path.join(target, 'SingletonSocket'))).toBe(false)
+    expect(fs.existsSync(path.join(target, 'SingletonCookie'))).toBe(false)
+    expect(commitMock).toHaveBeenCalledWith(target)
+  })
+
   it('rewrites an absolute symlink that points inside the copied source tree', async () => {
     if (process.platform === 'win32') return
     const root = makeRoot()
@@ -310,6 +332,7 @@ describe('userDataRelocationGate', () => {
       status: 'failed',
       error: expect.stringContaining('not enough free space')
     })
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps failed state until the recovery window explicitly continues on the old path', async () => {
@@ -336,6 +359,7 @@ describe('userDataRelocationGate', () => {
 
     restartFromWindow?.()
     expect(relocationState['temp.user_data_relocation']).toBeNull()
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
     expect(relaunchMock).toHaveBeenCalledTimes(1)
   })
 
