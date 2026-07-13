@@ -1,14 +1,11 @@
 import { loggerService } from '@logger'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Readability } from '@mozilla/readability'
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import PQueue from 'p-queue'
 
-import { sanitizeRemoteUrl } from './remoteUrlSafety'
-
 const logger = loggerService.withContext('CitationPreview')
-const citationPreviewQueue = new PQueue({ concurrency: 3 })
-const inFlightRequests = new Map<string, Promise<string>>()
 
 const FETCH_TIMEOUT_MS = 8000
 const MAX_RESPONSE_BYTES = 1024 * 1024
@@ -147,33 +144,40 @@ async function fetchQueuedPreview(safeUrl: string): Promise<string> {
   }
 }
 
-export function fetchCitationPreview(url: string): Promise<string> {
-  let safeUrl: string
-  try {
-    safeUrl = sanitizeRemoteUrl(url)
-  } catch {
-    return Promise.resolve('')
-  }
+class CitationPreviewService {
+  private readonly queue = new PQueue({ concurrency: 3 })
+  private readonly inFlightRequests = new Map<string, Promise<string>>()
 
-  const existingRequest = inFlightRequests.get(safeUrl)
-  if (existingRequest) {
-    return existingRequest
-  }
+  fetchPreview(url: string): Promise<string> {
+    let safeUrl: string
+    try {
+      safeUrl = sanitizeRemoteUrl(url)
+    } catch {
+      return Promise.resolve('')
+    }
 
-  const request = citationPreviewQueue
-    .add(() => fetchQueuedPreview(safeUrl))
-    .then((preview) => preview ?? '')
-    .catch((error) => {
-      logger.error('Failed to queue citation preview', createErrorLogContext(safeUrl, error))
-      return ''
+    const existingRequest = this.inFlightRequests.get(safeUrl)
+    if (existingRequest) {
+      return existingRequest
+    }
+
+    const request = this.queue
+      .add(() => fetchQueuedPreview(safeUrl))
+      .then((preview) => preview ?? '')
+      .catch((error) => {
+        logger.error('Failed to queue citation preview', createErrorLogContext(safeUrl, error))
+        return ''
+      })
+
+    this.inFlightRequests.set(safeUrl, request)
+    void request.then(() => {
+      if (this.inFlightRequests.get(safeUrl) === request) {
+        this.inFlightRequests.delete(safeUrl)
+      }
     })
 
-  inFlightRequests.set(safeUrl, request)
-  void request.then(() => {
-    if (inFlightRequests.get(safeUrl) === request) {
-      inFlightRequests.delete(safeUrl)
-    }
-  })
-
-  return request
+    return request
+  }
 }
+
+export const citationPreviewService = new CitationPreviewService()

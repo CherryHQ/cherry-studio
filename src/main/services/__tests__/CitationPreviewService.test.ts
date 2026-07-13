@@ -2,11 +2,11 @@ import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as CitationPreviewModule from '../citationPreview'
+import type * as CitationPreviewModule from '../CitationPreviewService'
 
 const fetchMock = vi.mocked(net.fetch)
 let mockMainLoggerService: MockMainLoggerService
-let fetchCitationPreview: typeof CitationPreviewModule.fetchCitationPreview
+let fetchPreview: typeof CitationPreviewModule.citationPreviewService.fetchPreview
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -27,15 +27,17 @@ function createTextResponse(body: BodyInit, headers: HeadersInit = { 'content-ty
   return new Response(body, { status: 200, headers })
 }
 
-describe('fetchCitationPreview', () => {
+describe('CitationPreviewService', () => {
   beforeEach(async () => {
     vi.resetModules()
     fetchMock.mockReset()
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
     mockMainLoggerService.error.mockClear()
-    const citationPreviewModule = await import('../citationPreview')
-    fetchCitationPreview = citationPreviewModule.fetchCitationPreview
+    const citationPreviewModule = await import('../CitationPreviewService')
+    fetchPreview = citationPreviewModule.citationPreviewService.fetchPreview.bind(
+      citationPreviewModule.citationPreviewService
+    )
   })
 
   afterEach(() => {
@@ -46,7 +48,7 @@ describe('fetchCitationPreview', () => {
     const body = `![hero](https://example.com/hero.png)\n[Visible](https://example.com/link)\nhttps://hidden.test --- ${'x'.repeat(110)}`
     fetchMock.mockResolvedValue(createTextResponse(body))
 
-    await expect(fetchCitationPreview('https://example.com')).resolves.toBe(`Visible ${'x'.repeat(92)}...`)
+    await expect(fetchPreview('https://example.com')).resolves.toBe(`Visible ${'x'.repeat(92)}...`)
 
     const [safeUrl, requestInit] = fetchMock.mock.calls[0]
     expect(safeUrl).toBe('https://example.com/')
@@ -56,7 +58,7 @@ describe('fetchCitationPreview', () => {
   it('disables automatic redirects for remote fetches', async () => {
     fetchMock.mockResolvedValue(createTextResponse('preview'))
 
-    await fetchCitationPreview('https://example.com/redirect-target')
+    await fetchPreview('https://example.com/redirect-target')
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/redirect-target',
@@ -81,7 +83,7 @@ describe('fetchCitationPreview', () => {
     `
     fetchMock.mockResolvedValue(createTextResponse(html, { 'content-type': 'text/html; charset=utf-8' }))
 
-    await expect(fetchCitationPreview('https://example.com/article')).resolves.toBe(
+    await expect(fetchPreview('https://example.com/article')).resolves.toBe(
       'Readable headline The primary citation sentence is extracted from the article body'
     )
   })
@@ -101,14 +103,14 @@ describe('fetchCitationPreview', () => {
     `
     fetchMock.mockResolvedValue(createTextResponse(xhtml, { 'content-type': 'application/xhtml+xml' }))
 
-    await expect(fetchCitationPreview('https://example.com/article.xhtml')).resolves.toBe(
+    await expect(fetchPreview('https://example.com/article.xhtml')).resolves.toBe(
       'XHTML headline The citation preview is extracted from XHTML content'
     )
   })
 
   it('rejects private and invalid URLs before calling net.fetch', async () => {
-    await expect(fetchCitationPreview('http://127.0.0.1/private')).resolves.toBe('')
-    await expect(fetchCitationPreview('not a URL')).resolves.toBe('')
+    await expect(fetchPreview('http://127.0.0.1/private')).resolves.toBe('')
+    await expect(fetchPreview('not a URL')).resolves.toBe('')
 
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -119,7 +121,7 @@ describe('fetchCitationPreview', () => {
   ])('returns empty for %s', async (_case, headers) => {
     fetchMock.mockResolvedValue(createTextResponse(new Uint8Array([1, 2, 3]), headers))
 
-    await expect(fetchCitationPreview(`https://example.com/${encodeURIComponent(_case)}`)).resolves.toBe('')
+    await expect(fetchPreview(`https://example.com/${encodeURIComponent(_case)}`)).resolves.toBe('')
   })
 
   it('cancels a non-text response body before returning empty', async () => {
@@ -127,7 +129,7 @@ describe('fetchCitationPreview', () => {
     const body = new ReadableStream<Uint8Array>({ cancel })
     fetchMock.mockResolvedValue(createTextResponse(body, { 'content-type': 'image/png' }))
 
-    await expect(fetchCitationPreview('https://example.com/non-text-body')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/non-text-body')).resolves.toBe('')
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -142,7 +144,7 @@ describe('fetchCitationPreview', () => {
       })
     )
 
-    await expect(fetchCitationPreview('https://example.com/declared-large')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/declared-large')).resolves.toBe('')
     expect(pull).not.toHaveBeenCalled()
     expect(cancel).toHaveBeenCalledOnce()
   })
@@ -160,7 +162,7 @@ describe('fetchCitationPreview', () => {
       })
     )
 
-    await expect(fetchCitationPreview('https://example.com/declared-huge')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/declared-huge')).resolves.toBe('')
     expect(pull).not.toHaveBeenCalled()
   })
 
@@ -181,7 +183,7 @@ describe('fetchCitationPreview', () => {
     })
     fetchMock.mockResolvedValue(createTextResponse(body))
 
-    await expect(fetchCitationPreview('https://example.com/streamed-large')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/streamed-large')).resolves.toBe('')
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -190,8 +192,8 @@ describe('fetchCitationPreview', () => {
     fetchMock.mockImplementationOnce(() => deferredResponse.promise)
     fetchMock.mockResolvedValueOnce(createTextResponse('fresh preview'))
 
-    const firstRequest = fetchCitationPreview('https://EXAMPLE.com:443/single-flight')
-    const secondRequest = fetchCitationPreview('https://example.com/single-flight')
+    const firstRequest = fetchPreview('https://EXAMPLE.com:443/single-flight')
+    const secondRequest = fetchPreview('https://example.com/single-flight')
 
     expect(secondRequest).toBe(firstRequest)
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -199,7 +201,7 @@ describe('fetchCitationPreview', () => {
     deferredResponse.resolve(createTextResponse('shared preview'))
     await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual(['shared preview', 'shared preview'])
 
-    await expect(fetchCitationPreview('https://example.com/single-flight')).resolves.toBe('fresh preview')
+    await expect(fetchPreview('https://example.com/single-flight')).resolves.toBe('fresh preview')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -226,9 +228,7 @@ describe('fetchCitationPreview', () => {
       }
     })
 
-    const requests = Array.from({ length: 4 }, (_, index) =>
-      fetchCitationPreview(`https://example.com/queued/${index + 1}`)
-    )
+    const requests = Array.from({ length: 4 }, (_, index) => fetchPreview(`https://example.com/queued/${index + 1}`))
 
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(3)
@@ -289,9 +289,7 @@ describe('fetchCitationPreview', () => {
       })
     })
 
-    const requests = Array.from({ length: 4 }, (_, index) =>
-      fetchCitationPreview(`https://example.com/timeout/${index + 1}`)
-    )
+    const requests = Array.from({ length: 4 }, (_, index) => fetchPreview(`https://example.com/timeout/${index + 1}`))
 
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(3)
@@ -320,7 +318,7 @@ describe('fetchCitationPreview', () => {
     const url = `https://example.com${path}?access_token=${secret}`
     fetchMock.mockRejectedValue(new Error(`network unavailable for ${url}`))
 
-    await expect(fetchCitationPreview(url)).resolves.toBe('')
+    await expect(fetchPreview(url)).resolves.toBe('')
 
     expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to fetch citation preview', {
       origin: 'https://example.com',
@@ -338,7 +336,7 @@ describe('fetchCitationPreview', () => {
     const body = new ReadableStream<Uint8Array>({ cancel })
     fetchMock.mockResolvedValue(new Response(body, { status: 503 }))
 
-    await expect(fetchCitationPreview('https://example.com/http-error')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/http-error')).resolves.toBe('')
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -347,7 +345,7 @@ describe('fetchCitationPreview', () => {
     const body = new ReadableStream<Uint8Array>({ cancel })
     fetchMock.mockResolvedValue(createTextResponse(body, { 'content-type': 'application/octet-stream' }))
 
-    await expect(fetchCitationPreview('https://example.com/cancel-error')).resolves.toBe('')
+    await expect(fetchPreview('https://example.com/cancel-error')).resolves.toBe('')
     expect(cancel).toHaveBeenCalledOnce()
   })
 })
