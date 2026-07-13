@@ -5,13 +5,7 @@ const StepLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="15.25 15.25 89.51 87.91"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-steplight__a)`}>
         <mask
           id={`${iconId}-steplight__b`}

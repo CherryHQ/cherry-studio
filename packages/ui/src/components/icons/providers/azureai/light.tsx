@@ -5,13 +5,7 @@ const AzureaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="18.83 15.25 83.53 89.51"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-azureailight__a)`}>
         <mask
           id={`${iconId}-azureailight__b`}

@@ -5,13 +5,7 @@ const AbacusLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="16.1 17.3 86.6 86.6"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <g clipPath={`url(#${iconId}-abacuslight__a)`}>
         <path
           fill="#C9E5FE"

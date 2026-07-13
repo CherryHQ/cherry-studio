@@ -10,7 +10,7 @@ export function TesseractJsAvatar({ size = 32, shape = 'circle', className }: Om
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <TesseractJsLight style={{ width: size, height: size }} />
+        <TesseractJsLight style={{ width: size * 0.82, height: size * 0.82 }} />
       </AvatarFallback>
     </Avatar>
   )

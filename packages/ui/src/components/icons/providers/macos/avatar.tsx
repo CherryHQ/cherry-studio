@@ -11,8 +11,8 @@ export function MacosAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <MacosLight className="dark:hidden" style={{ width: size, height: size }} />
-        <MacosDark className="hidden dark:block" style={{ width: size, height: size }} />
+        <MacosLight className="dark:hidden" style={{ width: size * 0.7, height: size * 0.7 }} />
+        <MacosDark className="hidden dark:block" style={{ width: size * 0.7, height: size * 0.7 }} />
       </AvatarFallback>
     </Avatar>
   )

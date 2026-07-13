@@ -10,7 +10,7 @@ export function NotebooklmAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <NotebooklmLight style={{ width: size, height: size }} />
+        <NotebooklmLight style={{ width: size * 0.82, height: size * 0.82 }} />
       </AvatarFallback>
     </Avatar>
   )

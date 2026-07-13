@@ -5,13 +5,7 @@ const LanyunLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="15.25 17.64 89.51 83.93"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
       <mask
         id={`${iconId}-lanyunlight__a`}
         width={86}
