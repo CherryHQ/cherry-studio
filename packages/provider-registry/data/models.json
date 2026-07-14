@@ -4116,10 +4116,14 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"]
       }
     },
     {
@@ -4151,10 +4155,14 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"]
       }
     },
     {
@@ -4227,10 +4235,14 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"]
       }
     },
     {
@@ -4255,10 +4267,14 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"]
       }
     },
     {
@@ -4283,10 +4299,14 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"]
       }
     },
     {
@@ -5178,7 +5198,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.1 Pro",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -5189,7 +5227,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.1 Turbo",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -7649,6 +7705,10 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["minimal", "high"]
+          },
+          {
             "kind": "toggle"
           },
           {
@@ -7657,7 +7717,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"],
+        "supportedEfforts": ["minimal", "high", "none"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 1024
@@ -7916,6 +7976,10 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["minimal", "high"]
+          },
+          {
             "kind": "toggle"
           },
           {
@@ -7924,7 +7988,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["none", "auto"],
+        "supportedEfforts": ["minimal", "high", "none"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 1024
@@ -15260,10 +15324,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
+            "values": ["none", "low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -15296,10 +15360,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
+            "values": ["none", "low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -15332,10 +15396,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
+            "values": ["none", "low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -15421,10 +15485,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
+            "values": ["none", "low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -19890,5 +19954,5 @@
       }
     }
   ],
-  "version": "48e6971ac1c6bc08"
+  "version": "d4b367a68af12933"
 }

@@ -22,6 +22,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getLowerBaseModelName,
   getModelSupportedReasoningEffortOptions,
+  isAnthropicModel,
   isClaude46SeriesModel,
   isClaude47SeriesModel,
   isDeepSeekHybridInferenceModel,
@@ -758,11 +759,20 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // Claude reasoning parameters. The adaptive 4.6/4.7 series qualifies by
-  // SKU — its knob is the effort vocabulary, not a token budget, so the
-  // budget-descriptor gate alone would wrongly route it to the non-Anthropic
-  // branch (sendReasoning + budgetTokens against Anthropic's own endpoint).
-  if (isSupportedThinkingTokenClaudeModel(model) || isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+  // Claude reasoning parameters. The adaptive series qualifies by its effort
+  // vocabulary, not a token budget: 4.6/4.7 by SKU regex, later generations
+  // (4.8 / 5.x / Fable) by their DESCRIPTOR carrying an effort control —
+  // otherwise the budget-descriptor gate would wrongly route them to the
+  // non-Anthropic branch (sendReasoning + budgetTokens against Anthropic's
+  // own endpoint).
+  const hasAnthropicEffortControl =
+    isAnthropicModel(model) && (model.reasoning?.controls?.some((c) => c.kind === 'effort') ?? false)
+  if (
+    isSupportedThinkingTokenClaudeModel(model) ||
+    isClaude46SeriesModel(model) ||
+    isClaude47SeriesModel(model) ||
+    hasAnthropicEffortControl
+  ) {
     // Claude 4.7: adaptive thinking + native 'xhigh' effort.
     // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
     // (no reasoning text in response), which would break Cherry's thinking UI.
@@ -804,6 +814,26 @@ export function getAnthropicReasoningParams(
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effortMap[reasoningEffort]
       return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
+    }
+
+    // Post-4.7 adaptive generations (4.8 / 5.x / Fable): the descriptor's
+    // native vocabulary rides verbatim ('xhigh' AND 'max' are both accepted).
+    // `display: 'summarized'` as with 4.7 — the API defaults to 'omitted',
+    // which would break Cherry's thinking UI.
+    if (hasAnthropicEffortControl) {
+      const effortNativeMap = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh',
+        max: 'max'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effortNativeMap[reasoningEffort]
+      const thinking = { type: 'adaptive', display: 'summarized' } as const
+      return effort ? { thinking, effort } : { thinking }
     }
 
     // Other Claude models continue using enabled + budgetTokens
@@ -1045,17 +1075,25 @@ export function getBedrockReasoningParams(
     }
   }
 
-  // Only apply thinking config for Claude reasoning models. Adaptive 4.6/4.7
-  // qualifies by SKU (effort knob, no budget descriptor) — see
+  // Only apply thinking config for Claude reasoning models. The adaptive
+  // series qualifies by effort vocabulary: 4.6/4.7 by SKU regex, later
+  // generations by their descriptor's effort control — see
   // getAnthropicReasoningParams.
-  if (!isSupportedThinkingTokenClaudeModel(model) && !isClaude46SeriesModel(model) && !isClaude47SeriesModel(model)) {
+  const hasAnthropicEffortControl =
+    isAnthropicModel(model) && (model.reasoning?.controls?.some((c) => c.kind === 'effort') ?? false)
+  if (
+    !isSupportedThinkingTokenClaudeModel(model) &&
+    !isClaude46SeriesModel(model) &&
+    !isClaude47SeriesModel(model) &&
+    !hasAnthropicEffortControl
+  ) {
     return {}
   }
 
-  // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
-  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
+  // Adaptive generations use adaptive thinking + maxReasoningEffort.
+  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so xhigh
   // falls back to 'max' here (matches the 4.6 mapping).
-  if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+  if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model) || hasAnthropicEffortControl) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',

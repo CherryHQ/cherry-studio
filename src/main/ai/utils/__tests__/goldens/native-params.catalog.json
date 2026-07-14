@@ -1,6 +1,6 @@
 {
   "rows": 951,
-  "groups": 28,
+  "groups": 29,
   "behaviors": [
     {
       "behavior": {
@@ -175,30 +175,23 @@
       },
       "members": [
         "302ai::claude-haiku-4-5",
-        "302ai::claude-opus-4-5",
         "302ai::claude-sonnet-4",
         "302ai::claude-sonnet-4-5",
         "anthropic::claude-haiku-4-5",
-        "anthropic::claude-opus-4-5",
         "anthropic::claude-sonnet-4",
         "anthropic::claude-sonnet-4-5",
         "claude-code::claude-haiku-4-5",
-        "claude-code::claude-opus-4-5",
         "claude-code::claude-sonnet-4-5",
         "copilot::claude-haiku-4-5",
-        "copilot::claude-opus-4-5",
         "copilot::claude-sonnet-4",
         "copilot::claude-sonnet-4-5",
         "gateway::claude-haiku-4-5",
-        "gateway::claude-opus-4-5",
         "gateway::claude-sonnet-4",
         "gateway::claude-sonnet-4-5",
         "openrouter::claude-haiku-4-5",
-        "openrouter::claude-opus-4-5",
         "openrouter::claude-sonnet-4",
         "openrouter::claude-sonnet-4-5",
         "vertexai::claude-haiku-4-5",
-        "vertexai::claude-opus-4-5",
         "vertexai::claude-sonnet-4",
         "vertexai::claude-sonnet-4-5"
       ]
@@ -387,6 +380,218 @@
         "openrouter::claude-opus-4-1",
         "vertexai::claude-opus-4",
         "vertexai::claude-opus-4-1"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "medium"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "medium"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "high"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "xhigh"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "max"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-5",
+        "anthropic::claude-fable-5",
+        "anthropic::claude-fable-latest",
+        "anthropic::claude-haiku-latest",
+        "anthropic::claude-opus-4-5",
+        "anthropic::claude-opus-4-8",
+        "anthropic::claude-opus-4-8-fast",
+        "anthropic::claude-opus-latest",
+        "anthropic::claude-sonnet-5",
+        "anthropic::claude-sonnet-latest",
+        "claude-code::claude-fable-5",
+        "claude-code::claude-opus-4-5",
+        "claude-code::claude-opus-4-8",
+        "copilot::claude-fable-5",
+        "copilot::claude-opus-4-5",
+        "copilot::claude-opus-4-8",
+        "copilot::claude-sonnet-5",
+        "gateway::claude-fable-5",
+        "gateway::claude-opus-4-5",
+        "gateway::claude-opus-4-8",
+        "gateway::claude-sonnet-5",
+        "openrouter::claude-fable-5",
+        "openrouter::claude-fable-latest",
+        "openrouter::claude-haiku-latest",
+        "openrouter::claude-opus-4-5",
+        "openrouter::claude-opus-4-8",
+        "openrouter::claude-opus-4-8-fast",
+        "openrouter::claude-opus-latest",
+        "openrouter::claude-sonnet-5",
+        "openrouter::claude-sonnet-latest",
+        "vertexai::claude-opus-4-5",
+        "vertexai::claude-opus-4-8",
+        "vertexai::claude-sonnet-5"
       ]
     },
     {
@@ -916,14 +1121,6 @@
         "302ai::minimax-m2-1",
         "302ai::minimax-m2-7",
         "302ai::minimax-m2-7-highspeed",
-        "anthropic::claude-fable-5",
-        "anthropic::claude-fable-latest",
-        "anthropic::claude-haiku-latest",
-        "anthropic::claude-opus-4-8",
-        "anthropic::claude-opus-4-8-fast",
-        "anthropic::claude-opus-latest",
-        "anthropic::claude-sonnet-5",
-        "anthropic::claude-sonnet-latest",
         "aws-bedrock::claude-fable-5",
         "aws-bedrock::claude-opus-4-8",
         "aws-bedrock::deepseek-r1",
@@ -943,11 +1140,6 @@
         "baidu-cloud::ernie-5-0",
         "baidu-cloud::ernie-x1-1-preview",
         "baidu-cloud::ernie-x1-turbo",
-        "claude-code::claude-fable-5",
-        "claude-code::claude-opus-4-8",
-        "copilot::claude-fable-5",
-        "copilot::claude-opus-4-8",
-        "copilot::claude-sonnet-5",
         "dashscope::qvq-max",
         "dashscope::qwen-3-14b",
         "dashscope::qwen-3-235b",
@@ -969,16 +1161,11 @@
         "deepseek::deepseek-v3-2",
         "deepseek::deepseek-v3-2-exp",
         "deepseek::deepseek-v3-2-maas",
-        "doubao::doubao-seed-2-1-pro",
-        "doubao::doubao-seed-2-1-turbo",
         "doubao::doubao-seed-evolving",
         "doubao::seed-1-6",
         "doubao::seed-1-8",
         "fireworks::minimax-m2-7",
         "fireworks::minimax-m3",
-        "gateway::claude-fable-5",
-        "gateway::claude-opus-4-8",
-        "gateway::claude-sonnet-5",
         "gateway::deepseek-r1",
         "gateway::deepseek-v3-1",
         "gateway::deepseek-v3-1-terminus",
@@ -1096,14 +1283,6 @@
         "nvidia::nemotron-super-3-120b",
         "nvidia::step-3-5-flash",
         "nvidia::step-3-7-flash",
-        "openrouter::claude-fable-5",
-        "openrouter::claude-fable-latest",
-        "openrouter::claude-haiku-latest",
-        "openrouter::claude-opus-4-8",
-        "openrouter::claude-opus-4-8-fast",
-        "openrouter::claude-opus-latest",
-        "openrouter::claude-sonnet-5",
-        "openrouter::claude-sonnet-latest",
         "openrouter::cogito-v2-1-671b",
         "openrouter::deepseek-chat-v3-1",
         "openrouter::deepseek-r1",
@@ -1185,8 +1364,6 @@
         "tokenhub::minimax-m2-5",
         "tokenhub::minimax-m2-7",
         "tokenhub::minimax-m3",
-        "vertexai::claude-opus-4-8",
-        "vertexai::claude-sonnet-5",
         "vertexai::deepseek-v3-1-maas",
         "vertexai::deepseek-v3-2-maas",
         "vertexai::kimi-k2-thinking-maas",
@@ -1360,6 +1537,8 @@
         "doubao::doubao-seed-2-0-lite",
         "doubao::doubao-seed-2-0-mini",
         "doubao::doubao-seed-2-0-pro",
+        "doubao::doubao-seed-2-1-pro",
+        "doubao::doubao-seed-2-1-turbo",
         "fireworks::glm-5-1",
         "fireworks::glm-5-2",
         "fireworks::glm-5-2-fast",

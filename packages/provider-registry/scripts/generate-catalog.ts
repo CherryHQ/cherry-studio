@@ -222,15 +222,22 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     const controls = inferReasoningControls(m.id)
     if (controls) m.reasoning = { controls }
   }
-  // Budget completion — models.dev frequently reports only the on/off toggle
-  // for budget-capable families (glm, claude-haiku, …). A missing budget makes
-  // the request path inert on compat providers, so merge the heuristic
-  // token-limit knowledge in when the declaration lacks it.
+  // Completion passes — models.dev frequently reports only the on/off toggle
+  // for models whose family has richer knobs (glm's budget, claude-5.x's
+  // effort tiers, the -latest aliases). A missing knob makes the request path
+  // inert or budget-less, so merge the heuristic knowledge in when the
+  // declaration lacks that control KIND (declared kinds always win).
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
-    if (!controls?.length || controls.some((c: { kind: string }) => c.kind === 'budget')) continue
-    const limits = findHeuristicTokenLimits(m.id)
-    if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
+    if (!controls?.length) continue
+    if (!controls.some((c: { kind: string }) => c.kind === 'budget')) {
+      const limits = findHeuristicTokenLimits(m.id)
+      if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
+    }
+    if (!controls.some((c: { kind: string }) => c.kind === 'effort')) {
+      const inferred = inferReasoningControls(m.id)?.find((c) => c.kind === 'effort')
+      if (inferred) controls.unshift(inferred)
+    }
   }
   // Reasoning normalization — `controls` is the source of truth: whenever a
   // model declares it (upstream ingest, creator hand-list, or heuristic fill),

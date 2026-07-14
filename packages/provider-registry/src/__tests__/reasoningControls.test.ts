@@ -122,7 +122,20 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['gemma-4-27b-it', [{ kind: 'effort', values: ['minimal', 'high'] }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
-    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]]
+    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    // ── new-generation forward coverage (both canonical-hyphen and API-dot ids) ──
+    ['gpt-5.6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
+    ['gpt-5-6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
+    ['claude-sonnet-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
+    ['claude-opus-4-8', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
+    ['claude-fable-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
+    [
+      'doubao-seed-2.1',
+      [
+        { kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] },
+        { kind: 'budget', min: 0, max: 30_720 }
+      ]
+    ]
   ])('infers %s', (id, expected) => {
     expect(inferReasoningControls(id)).toEqual(expected)
   })

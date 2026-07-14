@@ -37,25 +37,28 @@ interface EffortRule {
 const EFFORT_RULES: EffortRule[] = [
   // ── OpenAI ────────────────────────────────────────────────────────────────
   { pattern: /^(?:o\d|gpt).*deep[-_]?research/i, values: ['medium'] },
-  { pattern: /^gpt-5\.1-codex-max/i, values: ['medium', 'high', 'xhigh'] },
-  { pattern: /^gpt-5\.1-codex/i, values: ['medium', 'high'] },
-  { pattern: /^gpt-5\.1/i, values: ['none', 'low', 'medium', 'high'] },
+  { pattern: /^gpt-5[.-]1-codex-max/i, values: ['medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5[.-]1-codex/i, values: ['medium', 'high'] },
+  { pattern: /^gpt-5[.-]1(?!\d)/i, values: ['none', 'low', 'medium', 'high'] },
   { pattern: /^gpt-5-pro/i, values: ['high'] },
-  { pattern: /^gpt-5\.\d+-pro/i, values: ['medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5[.-]\d+-pro/i, values: ['medium', 'high', 'xhigh'] },
   { pattern: /^gpt-5-codex/i, values: ['low', 'medium', 'high'] },
-  { pattern: /^gpt-5\.\d+-codex/i, values: ['low', 'medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5[.-]\d+-codex/i, values: ['low', 'medium', 'high', 'xhigh'] },
   // gpt-5.2 and later minor versions (5.3+ inherit the 5.2 vocabulary)
-  { pattern: /^gpt-5\.\d+(?!.*chat)/i, values: ['none', 'low', 'medium', 'high', 'xhigh'] },
-  { pattern: /^gpt-5(?![.\d])(?!.*chat)/i, values: ['minimal', 'low', 'medium', 'high'] },
+  { pattern: /^gpt-5[.-]\d+(?!.*chat)/i, values: ['none', 'low', 'medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5(?![.-]\d)(?!.*chat)/i, values: ['minimal', 'low', 'medium', 'high'] },
   { pattern: /^gpt-oss/i, values: ['low', 'medium', 'high'] },
   // o-series reasoning SKUs (o1/o3/o4, excluding the non-reasoning previews)
   { pattern: /^o1(?!-preview|-mini)|^o3|^o4/i, values: ['low', 'medium', 'high'] },
 
   // ── Anthropic / Claude ────────────────────────────────────────────────────
-  // 4.6/4.7 adaptive-effort series (models.dev normally covers these; the rule
-  // backstops gap SKUs like dated snapshots).
+  // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
+  // -latest aliases (which track the newest flagship). models.dev normally
+  // covers these; the rule backstops gap SKUs, dated snapshots, and sparse
+  // toggle-only upstream declarations (via the generation completion pass).
   {
-    pattern: /^(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-][67]/i,
+    pattern:
+      /^(?:anthropic\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\d)|(?:opus|sonnet|haiku)-latest|fable)/i,
     values: ['low', 'medium', 'high', 'max'],
     toggle: true
   },
@@ -91,7 +94,7 @@ const EFFORT_RULES: EffortRule[] = [
 
   // ── ByteDance Doubao ──────────────────────────────────────────────────────
   {
-    pattern: /doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]0|doubao-seed-1[.-]8/i,
+    pattern: /doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\d|doubao-seed-1[.-]8/i,
     values: ['minimal', 'low', 'medium', 'high']
   },
   // Auto-capable SKUs (mirrors DOUBAO_THINKING_AUTO_MODEL_REGEX).
@@ -102,7 +105,7 @@ const EFFORT_RULES: EffortRule[] = [
   // Remaining thinking SKUs: on/off only (mirrors DOUBAO_THINKING_MODEL_REGEX).
   {
     pattern:
-      /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]0(?:-[\w-]+)?)(?:-[\w-]+)*/i,
+      /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]\d(?:-[\w-]+)?)(?:-[\w-]+)*/i,
     values: ['none', 'high']
   },
 
@@ -185,7 +188,7 @@ const TOKEN_LIMIT_RULES: Array<{ pattern: RegExp; min: number; max: number }> = 
   // The `(?!-thinking(?:-|$))` lookahead excludes always-thinking seed variants.
   {
     pattern:
-      /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]0(?:-[\w-]+)?)(?:-[\w-]+)*/i,
+      /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]\d(?:-[\w-]+)?)(?:-[\w-]+)*/i,
     min: 0,
     max: 30_720
   }

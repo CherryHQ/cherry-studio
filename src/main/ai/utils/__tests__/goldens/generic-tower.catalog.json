@@ -198,10 +198,15 @@
       "members": [
         "302ai::claude-opus-4-6",
         "302ai::claude-sonnet-4-6",
+        "anthropic::claude-fable-latest",
+        "anthropic::claude-haiku-latest",
         "anthropic::claude-opus-4-6",
         "anthropic::claude-opus-4-6-v1",
         "anthropic::claude-opus-4-7-fast",
+        "anthropic::claude-opus-4-8-fast",
+        "anthropic::claude-opus-latest",
         "anthropic::claude-sonnet-4-6",
+        "anthropic::claude-sonnet-latest",
         "aws-bedrock::claude-opus-4-6",
         "aws-bedrock::claude-sonnet-4-6",
         "claude-code::claude-opus-4-6",
@@ -277,11 +282,6 @@
         "302ai::minimax-m2-1",
         "302ai::minimax-m2-7",
         "302ai::minimax-m2-7-highspeed",
-        "anthropic::claude-fable-latest",
-        "anthropic::claude-haiku-latest",
-        "anthropic::claude-opus-4-8-fast",
-        "anthropic::claude-opus-latest",
-        "anthropic::claude-sonnet-latest",
         "aws-bedrock::claude-haiku-4-5",
         "aws-bedrock::claude-sonnet-4-5",
         "aws-bedrock::deepseek-r1",
@@ -312,16 +312,12 @@
         "deepseek::deepseek-r1-distill-qwen-32b",
         "deepseek::deepseek-r1-distill-qwen-7b",
         "deepseek::deepseek-reasoner",
-        "doubao::doubao-seed-2-1-pro",
-        "doubao::doubao-seed-2-1-turbo",
         "doubao::doubao-seed-evolving",
         "doubao::seed-1-6",
         "fireworks::minimax-m2-7",
         "fireworks::minimax-m3",
         "gateway::deepseek-r1",
         "gateway::fugu-ultra",
-        "gateway::gemma-4-26b-a4b-it",
-        "gateway::gemma-4-31b-it",
         "gateway::gpt-5-chat",
         "gateway::grok-4-1-fast",
         "gateway::grok-4-20",
@@ -363,8 +359,6 @@
         "groq::gpt-oss-safeguard-20b",
         "groq::qwen3-32b",
         "huggingface::deepseek-r1",
-        "huggingface::gemma-4-26b-a4b-it",
-        "huggingface::gemma-4-31b-it",
         "huggingface::kimi-k2",
         "huggingface::minimax-m2",
         "huggingface::minimax-m2-1",
@@ -396,7 +390,6 @@
         "moonshot::kimi-k2-thinking-maas",
         "moonshot::kimi-k2-thinking-turbo",
         "moonshot::kimi-latest",
-        "nvidia::gemma-4-31b-it",
         "nvidia::magistral-small",
         "nvidia::minimax-m2-7",
         "nvidia::minimax-m3",
@@ -1072,10 +1065,6 @@
         "gateway::gpt-5-nano",
         "gateway::seed-1-8",
         "openai::gpt-5",
-        "openai::gpt-5-4-image-2",
-        "openai::gpt-5-6-luna-pro",
-        "openai::gpt-5-6-sol-pro",
-        "openai::gpt-5-6-terra-pro",
         "openai::gpt-5-image",
         "openai::gpt-5-image-mini",
         "openai::gpt-5-mini",
@@ -1880,7 +1869,9 @@
         "doubao::doubao-seed-2-0-code",
         "doubao::doubao-seed-2-0-lite",
         "doubao::doubao-seed-2-0-mini",
-        "doubao::doubao-seed-2-0-pro"
+        "doubao::doubao-seed-2-0-pro",
+        "doubao::doubao-seed-2-1-pro",
+        "doubao::doubao-seed-2-1-turbo"
       ]
     },
     {
@@ -2078,6 +2069,40 @@
         "gateway::gemini-2-5-flash-lite",
         "gemini::gemini-2-5-flash-lite",
         "vertexai::gemini-2-5-flash-lite"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "minimal"
+        },
+        "low": {
+          "reasoningEffort": "minimal"
+        },
+        "medium": {
+          "reasoningEffort": "minimal"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "minimal"
+        },
+        "max": {
+          "reasoningEffort": "minimal"
+        },
+        "auto": {
+          "reasoningEffort": "minimal"
+        }
+      },
+      "members": [
+        "gateway::gemma-4-26b-a4b-it",
+        "gateway::gemma-4-31b-it",
+        "gemini::gemma-4-26b-a4b-it",
+        "gemini::gemma-4-31b-it",
+        "huggingface::gemma-4-26b-a4b-it",
+        "huggingface::gemma-4-31b-it",
+        "nvidia::gemma-4-31b-it"
       ]
     },
     {
@@ -2304,84 +2329,6 @@
     },
     {
       "behavior": {
-        "minimal": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 2508,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "low": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 2508,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "medium": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 15872,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "high": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 24780,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "xhigh": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 27750,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "max": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": 30720,
-                "include_thoughts": true
-              }
-            }
-          }
-        },
-        "auto": {
-          "extra_body": {
-            "google": {
-              "thinking_config": {
-                "thinking_budget": -1,
-                "include_thoughts": true
-              }
-            }
-          }
-        }
-      },
-      "members": [
-        "gemini::gemma-4-26b-a4b-it",
-        "gemini::gemma-4-31b-it"
-      ]
-    },
-    {
-      "behavior": {
         "none": {
           "enable_thinking": false
         },
@@ -2590,9 +2537,13 @@
         "openai::gpt-5-2",
         "openai::gpt-5-3-codex-spark",
         "openai::gpt-5-4",
+        "openai::gpt-5-4-image-2",
         "openai::gpt-5-4-mini",
         "openai::gpt-5-4-nano",
-        "openai::gpt-5-5"
+        "openai::gpt-5-5",
+        "openai::gpt-5-6-luna-pro",
+        "openai::gpt-5-6-sol-pro",
+        "openai::gpt-5-6-terra-pro"
       ]
     },
     {
