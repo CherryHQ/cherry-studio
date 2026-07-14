@@ -32,8 +32,8 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
-    PopoverContent: ({ children, onFocusOutside, align, ...props }: any) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ children, 'aria-labelledby': ariaLabelledby }: any) =>
+      React.createElement('div', { 'data-testid': 'popover-content', 'aria-labelledby': ariaLabelledby }, children),
     ReorderableList: (props: any) => {
       mocks.reorderableProps = props
       const rows = props.visibleItems ?? props.items
