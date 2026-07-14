@@ -164,7 +164,7 @@ const titleKeyMap = {
   launchpad: 'title.launchpad',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
-  paintings: 'title.paintings',
+  paintings: 'title.creation',
   settings: 'title.settings',
   translate: 'title.translate',
   agents: 'agent.sidebar_title'
@@ -187,7 +187,7 @@ export const getThemeModeLabelKey = (key: string): string => {
 const sidebarIconKeyMap = {
   assistants: 'title.chat',
   agents: 'title.work',
-  paintings: 'title.paintings',
+  paintings: 'title.creation',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
@@ -207,7 +207,7 @@ const sidebarFavoriteKeyMap = {
   assistants: 'assistants.title',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'title.paintings',
+  paintings: 'title.creation',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',

@@ -15,10 +15,10 @@
 // deliberate: if the dangling guard ever regresses, the FK constraint fires
 // immediately on insert and `execute()` returns `success=false` — the same
 // signal as the production check, just earlier.
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
-import { paintingTable } from '@data/db/schemas/painting'
-import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file'
+import { creationFileRefTable } from '@data/db/schemas/fileRelations'
+import { creationFileRefSchema, creationSourceType } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -103,7 +103,7 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((await migrator.prepare(ctx)).success).toBe(true)
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 1 })
 
-    const paintingRows = await dbh.db.select().from(paintingTable)
+    const paintingRows = await dbh.db.select().from(creationTable)
     expect(paintingRows).toHaveLength(1)
     expect(paintingRows[0]).toMatchObject({
       id: PAINTING_OUTPUT_ID,
@@ -114,8 +114,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
 
     const refRows = await dbh.db
       .select()
-      .from(paintingFileRefTable)
-      .where(eq(paintingFileRefTable.sourceId, PAINTING_OUTPUT_ID))
+      .from(creationFileRefTable)
+      .where(eq(creationFileRefTable.sourceId, PAINTING_OUTPUT_ID))
     expect(refRows).toHaveLength(2)
     const byRole = new Map(refRows.map((r) => [r.role, r.fileEntryId]))
     expect(byRole.get('output')).toBe(FILE_PRESENT_OUTPUT_ID)
@@ -160,12 +160,12 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 2 })
 
     // Both paintings persisted.
-    const paintingRows = await dbh.db.select().from(paintingTable)
+    const paintingRows = await dbh.db.select().from(creationTable)
     expect(paintingRows.map((r) => r.id).sort()).toEqual([PAINTING_OUTPUT_ID, PAINTING_INPUT_ID].sort())
 
     // Only the present output id produced a painting_file_ref; the two missing ids were
     // dropped (one output + one input).
-    const refRows = await dbh.db.select().from(paintingFileRefTable)
+    const refRows = await dbh.db.select().from(creationFileRefTable)
     expect(refRows).toHaveLength(1)
     expect(refRows[0]).toMatchObject({
       fileEntryId: FILE_PRESENT_OUTPUT_ID,
@@ -195,11 +195,11 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((await migrator.prepare(ctx)).success).toBe(true)
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 1 })
 
-    const paintingRows = await dbh.db.select().from(paintingTable)
+    const paintingRows = await dbh.db.select().from(creationTable)
     expect(paintingRows).toHaveLength(1)
     expect(paintingRows[0].id).toBe(PAINTING_DANGLING_ID)
 
-    const refRows = await dbh.db.select().from(paintingFileRefTable)
+    const refRows = await dbh.db.select().from(creationFileRefTable)
     expect(refRows).toHaveLength(0)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
 
@@ -213,7 +213,7 @@ describe('PaintingMigrator painting_file_ref integration', () => {
 
     // Same legacy id in two namespaces → the second occurrence collides and
     // must be rewritten. The composite `${id}_${ns}_${i}` form used previously
-    // is not a uuidv4, so its emitted painting_file_ref would fail `paintingFileRefSchema`.
+    // is not a uuidv4, so its emitted creation_file_ref would fail `creationFileRefSchema`.
     const migrator = new PaintingMigrator()
     const ctx = makeCtx(dbh, {
       siliconflow_paintings: [{ id: PAINTING_OUTPUT_ID, prompt: 'first', files: [{ id: FILE_PRESENT_OUTPUT_ID }] }],
@@ -223,7 +223,7 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((await migrator.prepare(ctx)).success).toBe(true)
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 2 })
 
-    const paintingRows = await dbh.db.select().from(paintingTable)
+    const paintingRows = await dbh.db.select().from(creationTable)
     expect(paintingRows).toHaveLength(2)
     const ids = paintingRows.map((r) => r.id)
     // One row keeps the original id; the collision was rewritten to a distinct id.
@@ -232,10 +232,10 @@ describe('PaintingMigrator painting_file_ref integration', () => {
 
     // Every emitted painting_file_ref (including the rewritten sourceId) parses against
     // the painting ref schema, whose `sourceId` is `z.uuidv4()`.
-    const refRows = await dbh.db.select().from(paintingFileRefTable)
+    const refRows = await dbh.db.select().from(creationFileRefTable)
     expect(refRows).toHaveLength(2)
     for (const row of refRows) {
-      expect(() => paintingFileRefSchema.parse({ ...row, sourceType: paintingSourceType })).not.toThrow()
+      expect(() => creationFileRefSchema.parse({ ...row, sourceType: creationSourceType })).not.toThrow()
     }
     expect(new Set(refRows.map((r) => r.sourceId))).toEqual(new Set(ids))
 
@@ -276,7 +276,7 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((await migrator.prepare(ctx)).success).toBe(true)
     await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: FILE_COUNT })
 
-    const refRows = await dbh.db.select().from(paintingFileRefTable)
+    const refRows = await dbh.db.select().from(creationFileRefTable)
     expect(refRows).toHaveLength(FILE_COUNT)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
 

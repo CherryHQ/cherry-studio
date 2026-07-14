@@ -178,7 +178,9 @@ vi.stubGlobal('electron', {
 vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
-    writeWithId: vi.fn().mockResolvedValue(undefined)
+    writeWithId: vi.fn().mockResolvedValue(undefined),
+    // Media slot previews (creation video first/last frame) resolve a physical path.
+    getPhysicalPath: vi.fn().mockResolvedValue('/tmp/mock-frame.png')
   },
   // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
   // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
@@ -204,6 +206,7 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   const DropdownMenuOpenContext = React.createContext(null)
+  const TabsContext = React.createContext({ value: undefined, onValueChange: undefined })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -631,6 +634,28 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
+    Tabs: ({ children, value, onValueChange, ...props }) =>
+      React.createElement(
+        TabsContext.Provider,
+        { value: { value, onValueChange } },
+        React.createElement('div', props, children)
+      ),
+    TabsList: ({ children, ...props }) => React.createElement('div', { role: 'tablist', ...props }, children),
+    TabsTrigger: ({ children, value, disabled, ...props }) => {
+      const ctx = React.useContext(TabsContext)
+      return React.createElement(
+        'button',
+        {
+          role: 'tab',
+          type: 'button',
+          'aria-selected': ctx.value === value,
+          disabled,
+          onClick: () => ctx.onValueChange?.(value),
+          ...props
+        },
+        children
+      )
+    },
     Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title

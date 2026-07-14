@@ -2,20 +2,20 @@ import type { tempSessionSourceType } from '@shared/data/types/file'
 import {
   chatMessageRoles,
   chatMessageSourceType,
+  creationRoles,
+  creationSourceType,
   type FileRefSourceType,
   miniAppLogoRef,
-  paintingRoles,
-  paintingSourceType,
   providerLogoRef
 } from '@shared/data/types/file'
 import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { creationTable } from './creation'
 import { fileEntryTable } from './file'
 import { messageTable } from './message'
 import { miniAppTable } from './miniApp'
-import { paintingTable } from './painting'
 import { userProviderTable } from './userProvider'
 
 function sqlStringList(values: readonly string[]) {
@@ -57,13 +57,14 @@ export const chatMessageFileRefTable = sqliteTable(
 )
 
 /**
- * Painting file references.
+ * Creation file references.
  *
- * Replaces the old polymorphic `file_ref` rows with `sourceType='painting'`.
- * Deleting a painting or file entry cascades its association rows.
+ * Replaces the old polymorphic `file_ref` rows with `sourceType='creation'`
+ * (covering both image and video generations via `creation.kind`). Deleting a
+ * creation or file entry cascades its association rows.
  */
-export const paintingFileRefTable = sqliteTable(
-  'painting_file_ref',
+export const creationFileRefTable = sqliteTable(
+  'creation_file_ref',
   {
     id: uuidPrimaryKey(),
     fileEntryId: text()
@@ -71,15 +72,15 @@ export const paintingFileRefTable = sqliteTable(
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
     sourceId: text()
       .notNull()
-      .references(() => paintingTable.id, { onDelete: 'cascade' }),
-    role: text().notNull().$type<(typeof paintingRoles)[number]>(),
+      .references(() => creationTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof creationRoles)[number]>(),
     ...createUpdateTimestamps
   },
   (t) => [
-    index('pfr_entry_id_idx').on(t.fileEntryId),
-    index('pfr_source_id_idx').on(t.sourceId),
-    uniqueIndex('pfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
-    check('pfr_role_check', roleCheck(t.role, paintingRoles))
+    index('crfr_entry_id_idx').on(t.fileEntryId),
+    index('crfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('crfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    check('crfr_role_check', roleCheck(t.role, creationRoles))
   ]
 )
 
@@ -93,7 +94,7 @@ export const paintingFileRefTable = sqliteTable(
  * id back up via `getLogoFileId` (one indexed lookup on the unique `(sourceId)`
  * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
  * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
- * collection ref tables (`chat_message`, `painting`): dropping a provider /
+ * collection ref tables (`chat_message`, `creation`): dropping a provider /
  * mini-app or its file drops the ref row, so orphan-counting stays exact.
  * Because both FKs are enforced, a write must order its inserts
  * `file_entry → owner row → ref row` (the ref's `fileEntryId` FK needs the file,
@@ -135,21 +136,21 @@ export const miniAppLogoFileRefTable = sqliteTable(
 )
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
-  [paintingSourceType]: paintingFileRefTable,
+  [creationSourceType]: creationFileRefTable,
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
   [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
-  | typeof paintingFileRefTable
+  | typeof creationFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
 >
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert
-export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
-export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
+export type CreationFileRefRow = typeof creationFileRefTable.$inferSelect
+export type InsertCreationFileRefRow = typeof creationFileRefTable.$inferInsert
 export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect

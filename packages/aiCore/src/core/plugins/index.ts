@@ -7,6 +7,7 @@ export type {
   StreamTextParams,
   StreamTextResult
 } from './types'
+import type { Experimental_VideoModelV3 } from '@ai-sdk/provider'
 import type { ImageModel, LanguageModel } from 'ai'
 
 import type { ProviderId } from '../providers'
@@ -18,7 +19,7 @@ export { PluginManager } from './manager'
 // 工具函数
 export function createContext<T extends ProviderId, TParams = unknown, TResult = unknown>(
   providerId: T,
-  model: LanguageModel | ImageModel,
+  model: LanguageModel | ImageModel | Experimental_VideoModelV3,
   originalParams: TParams
 ): AiRequestContext<TParams, TResult> {
   return {

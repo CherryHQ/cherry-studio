@@ -25,7 +25,13 @@ import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@c
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
+import type {
+  ImageGenerationSupport,
+  Model,
+  RuntimeModelPricing,
+  RuntimeReasoning,
+  VideoGenerationSupport
+} from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
@@ -164,7 +170,8 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
-    imageGeneration: override.imageGeneration
+    imageGeneration: override.imageGeneration,
+    videoGeneration: override.videoGeneration
   }
 }
 
@@ -685,6 +692,19 @@ class ProviderRegistryService {
     // imageGeneration block without polluting the global models.json.
     if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
     if (presetModel?.imageGeneration) return presetModel.imageGeneration
+    return null
+  }
+
+  /**
+   * Resolve a model's `videoGeneration` support — the video counterpart of
+   * {@link getImageGenerationSupport}. Used by:
+   * GET /providers/:providerId/models/:modelId/video-generation-support
+   * (greedy `:modelId` capture for ids containing `/`).
+   */
+  getVideoGenerationSupport(providerId: string, modelId: string): VideoGenerationSupport | null {
+    const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
+    if (registryOverride?.videoGeneration) return registryOverride.videoGeneration
+    if (presetModel?.videoGeneration) return presetModel.videoGeneration
     return null
   }
 }

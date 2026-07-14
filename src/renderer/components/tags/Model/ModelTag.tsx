@@ -1,3 +1,4 @@
+import { MODALITY } from '@cherrystudio/provider-registry'
 import { type Model, MODEL_CAPABILITY, type ModelCapability, type ModelTag } from '@shared/data/types/model'
 import { isFreeModel } from '@shared/utils/model'
 import type { ComponentType } from 'react'
@@ -11,7 +12,7 @@ import { ToolsCallingTag } from './ToolsCallingTag'
 import { VisionTag } from './VisionTag'
 import { WebSearchTag } from './WebSearchTag'
 
-export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities'>
+export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'inputModalities'>
 
 export const MODEL_DISPLAY_CAPABILITY_TAGS = [
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
@@ -55,6 +56,10 @@ export function isModelTagVisible(
 export function modelMatchesDisplayTag(model: ModelDisplayTagSource, tag: ModelDisplayTag) {
   if (tag === 'free') {
     return isFreeModel(model)
+  }
+
+  if (tag === MODEL_CAPABILITY.IMAGE_RECOGNITION) {
+    return model.capabilities.includes(tag) || !!model.inputModalities?.includes(MODALITY.IMAGE)
   }
 
   return model.capabilities.includes(tag)

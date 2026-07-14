@@ -9,10 +9,10 @@
 
 import { randomUUID } from 'node:crypto'
 
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, creationFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
-import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -286,12 +286,13 @@ describe('chatMessageFileRefTable — CASCADE FK', () => {
   })
 })
 
-describe('paintingFileRefTable — CASCADE FK', () => {
+describe('creationFileRefTable — CASCADE FK', () => {
   const dbh = setupTestDatabase()
 
-  async function seedPainting(id = randomUUID()) {
-    await dbh.db.insert(paintingTable).values({
+  async function seedCreation(id = randomUUID()) {
+    await dbh.db.insert(creationTable).values({
       id,
+      kind: 'image',
       providerId: 'provider',
       modelId: null,
       prompt: 'prompt',
@@ -302,15 +303,15 @@ describe('paintingFileRefTable — CASCADE FK', () => {
     return id
   }
 
-  it('deleting a file_entry removes painting_file_ref rows via CASCADE', async () => {
+  it('deleting a file_entry removes creation_file_ref rows via CASCADE', async () => {
     const entry = baseInternal()
-    const paintingId = await seedPainting()
+    const creationId = await seedCreation()
     await dbh.db.insert(fileEntryTable).values(entry)
 
-    await dbh.db.insert(paintingFileRefTable).values({
+    await dbh.db.insert(creationFileRefTable).values({
       id: randomUUID(),
       fileEntryId: entry.id,
-      sourceId: paintingId,
+      sourceId: creationId,
       role: 'output',
       createdAt: TS,
       updatedAt: TS
@@ -318,45 +319,45 @@ describe('paintingFileRefTable — CASCADE FK', () => {
 
     const beforeDelete = await dbh.db
       .select()
-      .from(paintingFileRefTable)
-      .where(eq(paintingFileRefTable.fileEntryId, entry.id))
+      .from(creationFileRefTable)
+      .where(eq(creationFileRefTable.fileEntryId, entry.id))
     expect(beforeDelete).toHaveLength(1)
 
     await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
 
     const afterDelete = await dbh.db
       .select()
-      .from(paintingFileRefTable)
-      .where(eq(paintingFileRefTable.fileEntryId, entry.id))
+      .from(creationFileRefTable)
+      .where(eq(creationFileRefTable.fileEntryId, entry.id))
     expect(afterDelete).toHaveLength(0)
   })
 
-  it('deleting a painting removes painting_file_ref rows via CASCADE', async () => {
+  it('deleting a creation removes creation_file_ref rows via CASCADE', async () => {
     const entry = baseInternal()
-    const paintingId = await seedPainting()
+    const creationId = await seedCreation()
     await dbh.db.insert(fileEntryTable).values(entry)
-    await dbh.db.insert(paintingFileRefTable).values({
+    await dbh.db.insert(creationFileRefTable).values({
       id: randomUUID(),
       fileEntryId: entry.id,
-      sourceId: paintingId,
+      sourceId: creationId,
       role: 'output',
       createdAt: TS,
       updatedAt: TS
     })
 
-    await dbh.db.delete(paintingTable).where(eq(paintingTable.id, paintingId))
+    await dbh.db.delete(creationTable).where(eq(creationTable.id, creationId))
 
-    const remaining = await dbh.db.select().from(paintingFileRefTable)
+    const remaining = await dbh.db.select().from(creationFileRefTable)
     expect(remaining).toHaveLength(0)
   })
 
-  it('rejects painting_file_ref pointing to a non-existent file_entry', async () => {
-    const paintingId = await seedPainting()
+  it('rejects creation_file_ref pointing to a non-existent file_entry', async () => {
+    const creationId = await seedCreation()
     await expect(
-      dbh.db.insert(paintingFileRefTable).values({
+      dbh.db.insert(creationFileRefTable).values({
         id: randomUUID(),
         fileEntryId: uuidv7(),
-        sourceId: paintingId,
+        sourceId: creationId,
         role: 'output',
         createdAt: TS,
         updatedAt: TS
@@ -364,16 +365,16 @@ describe('paintingFileRefTable — CASCADE FK', () => {
     ).rejects.toThrow()
   })
 
-  it('rejects unsupported painting_file_ref roles', async () => {
+  it('rejects unsupported creation_file_ref roles', async () => {
     const entry = baseInternal()
-    const paintingId = await seedPainting()
-    const invalidRole = 'source' as unknown as (typeof paintingFileRefTable.$inferInsert)['role']
+    const creationId = await seedCreation()
+    const invalidRole = 'source' as unknown as (typeof creationFileRefTable.$inferInsert)['role']
     await dbh.db.insert(fileEntryTable).values(entry)
     await expect(
-      dbh.db.insert(paintingFileRefTable).values({
+      dbh.db.insert(creationFileRefTable).values({
         id: randomUUID(),
         fileEntryId: entry.id,
-        sourceId: paintingId,
+        sourceId: creationId,
         role: invalidRole,
         createdAt: TS,
         updatedAt: TS
@@ -382,12 +383,13 @@ describe('paintingFileRefTable — CASCADE FK', () => {
   })
 })
 
-describe('paintingFileRefTable — unique constraint', () => {
+describe('creationFileRefTable — unique constraint', () => {
   const dbh = setupTestDatabase()
 
-  async function seedPainting(id = randomUUID()) {
-    await dbh.db.insert(paintingTable).values({
+  async function seedCreation(id = randomUUID()) {
+    await dbh.db.insert(creationTable).values({
       id,
+      kind: 'image',
       providerId: 'provider',
       modelId: null,
       prompt: 'prompt',
@@ -400,36 +402,36 @@ describe('paintingFileRefTable — unique constraint', () => {
 
   it('rejects duplicate (fileEntryId, sourceId, role)', async () => {
     const entry = baseInternal()
-    const paintingId = await seedPainting()
+    const creationId = await seedCreation()
     await dbh.db.insert(fileEntryTable).values(entry)
 
     const refValues = {
       fileEntryId: entry.id,
-      sourceId: paintingId,
+      sourceId: creationId,
       role: 'output' as const,
       createdAt: TS,
       updatedAt: TS
     }
 
-    await dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...refValues })
-    await expect(dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...refValues })).rejects.toThrow()
+    await dbh.db.insert(creationFileRefTable).values({ id: randomUUID(), ...refValues })
+    await expect(dbh.db.insert(creationFileRefTable).values({ id: randomUUID(), ...refValues })).rejects.toThrow()
   })
 
   it('allows multiple roles for the same (fileEntryId, sourceId)', async () => {
     const entry = baseInternal()
-    const paintingId = await seedPainting()
+    const creationId = await seedCreation()
     await dbh.db.insert(fileEntryTable).values(entry)
 
     const common = {
       fileEntryId: entry.id,
-      sourceId: paintingId,
+      sourceId: creationId,
       createdAt: TS,
       updatedAt: TS
     }
 
-    await dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...common, role: 'output' })
+    await dbh.db.insert(creationFileRefTable).values({ id: randomUUID(), ...common, role: 'output' })
     await expect(
-      dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...common, role: 'input' })
+      dbh.db.insert(creationFileRefTable).values({ id: randomUUID(), ...common, role: 'input' })
     ).resolves.not.toThrow()
   })
 })

@@ -444,7 +444,7 @@ export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSch
 // TODO: 2. Add brand for FileHandle since factory function has been used
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FileRef — association from a business entity (chat message, painting, …) to a
+// FileRef — association from a business entity (chat message, creation, …) to a
 // FileEntry. Combines every registered business-domain variant into a single
 // discriminated union keyed on `sourceType`.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -557,35 +557,38 @@ export const chatMessageRefFields = {
 
 export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
-// ─── painting variant ───
+// ─── creation variant ───
 //
-// Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
-// painting association table holds two buckets — generated `output` files and
-// `input` files — which map directly to the two roles below. Painting row
-// deletion is handled by DB-level cascade; explicit cleanup is still used when
-// replacing a painting's file set wholesale.
+// Links a FileEntry to a `creation` row in the v2 generation subsystem. A
+// creation is a media-agnostic generation receipt (`kind: 'image' | 'video'`),
+// so this single sourceType covers both paintings (image) and videos. The
+// creation association table holds two buckets — generated `output` files and
+// `input` files (source frames / reference media) — which map directly to the
+// two roles below. Creation row deletion is handled by DB-level cascade;
+// explicit cleanup is still used when replacing a creation's file set
+// wholesale.
 //
-// `painting.id` is `uuidPrimaryKey()` — UUID v4 (not v7; paintings have no
-// ordered-id requirement, unlike `knowledge_item`). Extending `paintingRoles`
+// `creation.id` is `uuidPrimaryKey()` — UUID v4 (not v7; creations have no
+// ordered-id requirement, unlike `knowledge_item`). Extending `creationRoles`
 // later is additive: rows whose role falls outside the set surface as
 // `ZodError`, the desired clean-up signal.
 
-export const paintingSourceType = 'painting' as const
+export const creationSourceType = 'creation' as const
 
-export const paintingRoles = ['output', 'input'] as const
-export const paintingRoleSchema = z.enum(paintingRoles)
+export const creationRoles = ['output', 'input'] as const
+export const creationRoleSchema = z.enum(creationRoles)
 
-export const paintingRefFields = {
-  sourceType: z.literal(paintingSourceType),
+export const creationRefFields = {
+  sourceType: z.literal(creationSourceType),
   sourceId: z.uuidv4(),
-  role: paintingRoleSchema
+  role: creationRoleSchema
 }
 
-export const paintingFileRefSchema = createRefSchema(paintingRefFields)
+export const creationFileRefSchema = createRefSchema(creationRefFields)
 
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
-// Unlike the collection refs above (`chat_message`, `painting`), these model a
+// Unlike the collection refs above (`chat_message`, `creation`), these model a
 // single-file **slot**: one owner holds at most ONE file, set-replaces the
 // previous one, and owns it exclusively. They are **roleless** (an owner has one
 // implicit purpose, so a `role` column would be a constant nothing reads) and
@@ -644,7 +647,7 @@ export function tagStoredFileRef(id: string): string {
 export const allSourceTypes = [
   tempSessionSourceType,
   chatMessageSourceType,
-  paintingSourceType,
+  creationSourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
@@ -669,7 +672,7 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema,
+  creationFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema
 ])

@@ -1,33 +1,19 @@
-import * as z from 'zod'
-
 /**
- * Mode the user was authoring under when the painting form is submitted
- * (`generate`, `edit`, `remix`, `upscale`, etc.). Kept as a runtime/draft
- * concern only — not persisted on the painting receipt, since the output
- * files alone are sufficient to display history and re-runs always start
- * from the user's current draft mode, not from a frozen historical mode.
+ * TRANSITION SHIM — paintings are now `creation` rows with `kind: 'image'`.
+ *
+ * The legacy paintings page still imports `Painting` / `PaintingMode` / etc.;
+ * these re-export the unified `creation` types so that page compiles unchanged.
+ * Removed when the page is rewritten as the unified Creation page (Phase 5).
  */
-export const PaintingModeSchema = z.string().trim().min(1)
-export type PaintingMode = z.infer<typeof PaintingModeSchema>
 
-export const PaintingFilesSchema = z.strictObject({
-  output: z.array(z.string()),
-  input: z.array(z.string())
-})
-export type PaintingFiles = z.infer<typeof PaintingFilesSchema>
+import type { Creation, CreationFiles, CreationMode } from './creation'
+import { CreationFilesSchema, CreationModeSchema } from './creation'
 
-export const PaintingSchema = z.strictObject({
-  id: z.string(),
-  providerId: z.string(),
-  modelId: z.string().nullable().optional(),
-  prompt: z.string(),
-  files: PaintingFilesSchema,
-  orderKey: z.string().min(1),
-  // ISO 8601 (matches the assistant/topic/tag/note/prompt convention); the
-  // service emits these via `timestampToISO`. `id` stays `z.string()` because
-  // migration supplies opaque ids.
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
-})
+export const PaintingModeSchema = CreationModeSchema
+export type PaintingMode = CreationMode
 
-export type Painting = z.infer<typeof PaintingSchema>
+export const PaintingFilesSchema = CreationFilesSchema
+export type PaintingFiles = CreationFiles
+
+/** A painting is a `creation` with `kind: 'image'`; the extra `kind` field is ignored by the legacy page. */
+export type Painting = Creation

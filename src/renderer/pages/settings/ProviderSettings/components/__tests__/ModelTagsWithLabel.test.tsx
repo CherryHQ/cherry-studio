@@ -37,4 +37,44 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
     expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
     expect(container.querySelectorAll('svg')).toHaveLength(3)
   })
+
+  it('renders the vision tag for an i2v video-gen model (IMAGE input modality, no IMAGE_RECOGNITION capability)', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'gemini::veo-3-1-generate-preview',
+            providerId: 'gemini',
+            name: 'Veo 3.1',
+            capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+            inputModalities: ['text', 'image'],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        showTooltip={false}
+      />
+    )
+
+    expect(container.querySelectorAll('svg')).toHaveLength(1)
+  })
+
+  it('does not render the vision tag for a text-to-video model (no image input)', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'gemini::veo-2-0-generate-001',
+            providerId: 'gemini',
+            name: 'Veo 2',
+            capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+            inputModalities: ['text'],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        showTooltip={false}
+      />
+    )
+
+    expect(container.querySelectorAll('svg')).toHaveLength(0)
+  })
 })

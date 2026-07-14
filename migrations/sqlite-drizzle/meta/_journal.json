@@ -154,6 +154,13 @@
       "when": 1783909776548,
       "tag": "0021_noisy_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1783958421108,
+      "tag": "0022_wide_taskmaster",
+      "breakpoints": true
     }
   ],
   "version": "7"

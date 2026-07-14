@@ -5,6 +5,7 @@
 
 import type {
   EmbeddingModelV3,
+  Experimental_VideoModelV3,
   ImageModelV3,
   LanguageModelV3,
   LanguageModelV3Middleware,
@@ -155,6 +156,7 @@ export function createMockProviderV3(overrides?: {
   imageModel?: (modelId: string) => ImageModelV3
   embeddingModel?: (modelId: string) => EmbeddingModelV3
   rerankingModel?: (modelId: string) => RerankingModelV3
+  videoModel?: (modelId: string) => Experimental_VideoModelV3
 }): ProviderV3 {
   const defaultLanguageModel = (modelId: string) =>
     ({
@@ -251,7 +253,9 @@ export function createMockProviderV3(overrides?: {
     languageModel: vi.fn(overrides?.languageModel ?? defaultLanguageModel),
     imageModel: vi.fn(overrides?.imageModel ?? defaultImageModel),
     embeddingModel: vi.fn(overrides?.embeddingModel ?? defaultEmbeddingModel),
-    rerankingModel: vi.fn(overrides?.rerankingModel ?? defaultRerankingModel)
+    rerankingModel: vi.fn(overrides?.rerankingModel ?? defaultRerankingModel),
+    // Only attach videoModel when supplied — base ProviderV3 does not expose it.
+    ...(overrides?.videoModel ? { videoModel: vi.fn(overrides.videoModel) } : {})
   } as ProviderV3
 }
 

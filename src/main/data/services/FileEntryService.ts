@@ -22,8 +22,8 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  creationFileRefTable,
   miniAppLogoFileRefTable,
-  paintingFileRefTable,
   type PersistentFileRefSourceType,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
@@ -39,7 +39,7 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, miniAppLogoRef, paintingSourceType, providerLogoRef } from '@shared/data/types/file'
+import { chatMessageSourceType, creationSourceType, miniAppLogoRef, providerLogoRef } from '@shared/data/types/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -531,8 +531,8 @@ class FileEntryServiceImpl implements FileEntryService {
     const persistentRefAbsenceConditions = {
       [chatMessageSourceType]: () =>
         sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
-      [paintingSourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [creationSourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${creationFileRefTable} WHERE ${creationFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
       [providerLogoRef.sourceType]: () =>
         sql`NOT EXISTS (SELECT 1 FROM ${providerLogoFileRefTable} WHERE ${providerLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
       [miniAppLogoRef.sourceType]: () =>

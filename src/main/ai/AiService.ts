@@ -2,9 +2,10 @@ import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
+  generateVideo as aiCoreGenerateVideo,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import type { ParamValues, VideoParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -36,7 +37,14 @@ import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
-import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import type {
+  ImageGenerationJobOutput,
+  ImageGenerationJobPayload,
+  VideoGenerationJobOutput,
+  VideoGenerationJobPayload
+} from './provider/custom/tasks/jobTypes'
+import { deleteVideoInputEntries, videoGenerationJobHandler } from './provider/custom/tasks/videoGenerationJobHandler'
+import { resolveVideoTransport } from './provider/custom/videoTransportRegistry'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
@@ -52,8 +60,8 @@ import type {
   AppProviderSettingsMap,
   ListModelsRequest
 } from './types'
-import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import { buildVideoProviderOptions, splitVideoParamValues } from './utils/videoOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -139,6 +147,42 @@ export interface AiImageResult {
 }
 
 /**
+ * Video generation request.
+ *
+ * The AI SDK standardizes only `prompt` + a single start-frame `image` and the native
+ * scalar params (`duration`/`aspectRatio`/`resolution`/`fps`/`seed`) — those and every
+ * vendor knob travel in the canonical `paramValues` bag; main partitions it
+ * (`splitVideoParamValues`) into the native call options vs the vendor body. Omni-modal
+ * extras (end frame, reference images, input video/audio) have no standard field and
+ * ride as explicit media inputs consumed by the aggregator transports.
+ */
+export interface AiVideoRequest extends AiBaseRequest {
+  prompt?: string
+  /** Image-to-video start frame (base64 data URL or URL). Maps to the AI SDK `prompt.image`. */
+  firstFrame?: string
+  /** End frame for first+last-frame models (aggregator transports only). */
+  lastFrame?: string
+  /** Reference/subject images for consistency (aggregator transports only). */
+  referenceImages?: string[]
+  /** Input video for extend / video-to-video (aggregator transports only). */
+  inputVideo?: string
+  /** Input audio for lip-sync / audio-driven generation (aggregator transports only). */
+  inputAudio?: string
+  /**
+   * Canonical video param bag — already a strict, coerced `VideoParamValues` (the
+   * `ai.generate_video` IPC validated it via the catalog `videoParamsSchema`).
+   * main derives the native call options + the vendor bag from it via
+   * `splitVideoParamValues`.
+   */
+  paramValues: VideoParamValues
+}
+
+/** Video generation result — persisted file entries (main writes the bytes). */
+export interface AiVideoResult {
+  files: FileEntry[]
+}
+
+/**
  * Map a painting input-image / mask string to FileManager create params. Preserves
  * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
  * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
@@ -209,12 +253,14 @@ export class AiService extends BaseService {
   // the shared `ipcHandleWithAbort` helper lands.
   private readonly imageRequests = new Map<string, AbortController>()
 
+  // Per-request AbortControllers for the `ai.generate_video` route, paired with the
+  // `ai.abort_video` route — same self-cleaning pattern as `imageRequests`.
+  private readonly videoRequests = new Map<string, AbortController>()
+
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
-    // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
-    // would otherwise overwrite (see installProviderUserAgentInterceptor).
-    this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    application.get('JobManager').registerHandler('video-generation.generate', videoGenerationJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -679,6 +725,180 @@ export class AiService extends BaseService {
     // returns a non-OK response with no body), which would otherwise surface as a
     // message-less `Error` the renderer can't show.
     throw new Error(snapshot.error?.message || 'Image generation failed')
+  }
+
+  // ── Video ──
+
+  /**
+   * Run a video request under an abort registry entry keyed by the renderer-supplied
+   * `requestId`, so `ai.abort_video` can cancel it. Self-cleaning via `finally`; the
+   * `ai.generate_video` handler delegates here (the registry is service state).
+   */
+  async runVideoRequest(requestId: string, payload: AiVideoRequest): Promise<AiVideoResult> {
+    const controller = new AbortController()
+    this.videoRequests.set(requestId, controller)
+    try {
+      return await this.generateVideo({
+        ...payload,
+        requestOptions: { ...payload.requestOptions, signal: controller.signal }
+      })
+    } finally {
+      this.videoRequests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight video request for `requestId`; a no-op on an unknown id. */
+  abortVideo(requestId: string): void {
+    this.videoRequests.get(requestId)?.abort()
+  }
+
+  /**
+   * Generate video via aiCore's native path (`@ai-sdk/google` Veo today). Video models
+   * are long-running and poll internally, so this call blocks until the SDK returns —
+   * mirroring the in-SDK image path. Async custom-provider transports (Seedance / Wan /
+   * Kling / …) will route through the job system in a later phase.
+   */
+  async generateVideo(request: AsInProcess<AiVideoRequest>): Promise<AiVideoResult> {
+    logger.info('generateVideo started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+
+    // Image-to-video: the AI SDK `prompt` accepts `{ image, text }` for a single start frame.
+    const promptParam = request.firstFrame
+      ? { image: request.firstFrame, ...(request.prompt ? { text: request.prompt } : {}) }
+      : (request.prompt ?? '')
+
+    // Partition the IPC-validated canonical bag once: `native` are the AI SDK
+    // `generateVideo` top-level call options (aspectRatio normalized here); the
+    // vendor long tail rides `providerOptions[<providerId>]` via the per-vendor
+    // emitters. Aggregator transports have no top-level params, so their emitter
+    // maps the native scalars into the vendor bag the transport sends.
+    const split = splitVideoParamValues(request.paramValues)
+    const videoProviderOptions = buildVideoProviderOptions(sdkConfig.providerId, split)
+
+    // Aggregator submit/poll vendors (DMXAPI HappyHorse/Vidu/Hailuo, …) run the long
+    // poll loop on the job system so it survives a restart; native providers (Veo / Grok
+    // / Seedance-ByteDance / Wan-Alibaba / Luma / Kling) keep the in-SDK path below.
+    if (resolveVideoTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)) {
+      return await this.generateVideoViaJob(request, videoProviderOptions[sdkConfig.providerId] ?? {}, signal)
+    }
+
+    const { duration, aspectRatio, resolution, fps, seed } = split.native
+
+    const videoParams = {
+      model: sdkConfig.modelId,
+      prompt: promptParam,
+      ...(duration !== undefined ? { duration } : {}),
+      // Registry resolutions may be vendor spellings ('720p') the SDK template
+      // type doesn't cover but providers accept — same pass-through as before.
+      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(resolution ? { resolution: resolution as `${number}x${number}` } : {}),
+      ...(fps !== undefined ? { fps } : {}),
+      ...(seed !== undefined ? { seed } : {}),
+      ...(Object.keys(videoProviderOptions).length > 0 ? { providerOptions: videoProviderOptions } : {}),
+      ...(signal ? { abortSignal: signal } : {})
+    }
+
+    const result = await aiCoreGenerateVideo<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      videoParams
+    )
+
+    const fileManager = application.get('FileManager')
+    const files = await Promise.all(
+      (result.videos ?? [])
+        .filter((video) => Boolean(video.base64))
+        // Inline the data URL into the contextually-typed `data` property so it
+        // is inferred as `Base64String` (a bare `const` would widen to `string`,
+        // and a cast gets stripped by typescript-eslint's autofix → tsgo error).
+        .map((video) =>
+          fileManager.createInternalEntry({
+            source: 'base64',
+            data: `data:${video.mediaType || 'video/mp4'};base64,${video.base64}`
+          })
+        )
+    )
+
+    return { files }
+  }
+
+  /**
+   * Run an async aggregator video generation through the job system (mirror of
+   * `generateImageViaJob`). The handler owns submit/poll/download/persist and
+   * survives a restart; here we persist media inputs as temp FileEntries, enqueue,
+   * bridge the IPC abort signal to job cancellation, and await the terminal snapshot.
+   */
+  private async generateVideoViaJob(
+    request: AsInProcess<AiVideoRequest>,
+    providerParams: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ): Promise<AiVideoResult> {
+    const uniqueModelId = request.uniqueModelId
+    if (!uniqueModelId) throw new Error('generateVideoViaJob requires a uniqueModelId')
+
+    const fileManager = application.get('FileManager')
+    const jobManager = application.get('JobManager')
+
+    const createdEntryIds: string[] = []
+    const persistMedia = async (value: string): Promise<string> => {
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+      createdEntryIds.push(entry.id)
+      return entry.id
+    }
+
+    let handle: JobHandle
+    try {
+      const firstFrameFileId = request.firstFrame ? await persistMedia(request.firstFrame) : undefined
+      const lastFrameFileId = request.lastFrame ? await persistMedia(request.lastFrame) : undefined
+      const inputVideoFileId = request.inputVideo ? await persistMedia(request.inputVideo) : undefined
+      const inputAudioFileId = request.inputAudio ? await persistMedia(request.inputAudio) : undefined
+      let referenceImageFileIds: string[] | undefined
+      if (request.referenceImages?.length) {
+        const settled = await Promise.allSettled(request.referenceImages.map(persistMedia))
+        const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+        if (rejected) throw rejected.reason
+        referenceImageFileIds = settled.map((r) => (r as PromiseFulfilledResult<string>).value)
+      }
+
+      const payload: VideoGenerationJobPayload = {
+        uniqueModelId,
+        prompt: request.prompt,
+        ...(firstFrameFileId && { firstFrameFileId }),
+        ...(lastFrameFileId && { lastFrameFileId }),
+        ...(inputVideoFileId && { inputVideoFileId }),
+        ...(inputAudioFileId && { inputAudioFileId }),
+        ...(referenceImageFileIds && { referenceImageFileIds }),
+        providerParams
+      }
+      handle = await jobManager.enqueue('video-generation.generate', payload)
+    } catch (error) {
+      // Setup failed before the job owns the payload — clean up what we created.
+      await deleteVideoInputEntries(createdEntryIds)
+      throw error
+    }
+
+    const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+
+    let snapshot: JobSnapshot
+    try {
+      snapshot = await handle.finished
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      await deleteVideoInputEntries(createdEntryIds)
+    }
+
+    if (snapshot.status === 'completed') {
+      const output = snapshot.output as VideoGenerationJobOutput | null
+      return { files: output?.files ?? [] }
+    }
+    if (snapshot.status === 'cancelled') {
+      throw new DOMException('Video generation aborted', 'AbortError')
+    }
+    throw new Error(snapshot.error?.message ?? 'Video generation failed')
   }
 
   // ── Embedding ──

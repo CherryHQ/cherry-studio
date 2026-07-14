@@ -1,4 +1,4 @@
-import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { imageParamsSchema, videoParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -71,6 +71,27 @@ const aiImagePayloadSchema = z.strictObject({
   mask: z.string().optional()
 })
 
+const aiVideoPayloadSchema = z.strictObject({
+  ...aiBaseRequestShape,
+  prompt: z.string().optional(),
+  /** Image-to-video start frame (base64 data URL or URL). */
+  firstFrame: z.string().optional(),
+  /** End frame for first+last-frame models (aggregator transports only). */
+  lastFrame: z.string().optional(),
+  /** Reference/subject images for consistency (aggregator transports only). */
+  referenceImages: z.array(z.string()).optional(),
+  /**
+   * The canonical video param bag, validated + coerced at the IPC boundary by
+   * the catalog value schema (mirror of the image payload's `paramValues`) —
+   * the router's `safeParse` yields a typed `VideoParamValues` (non-catalog
+   * keys stripped). Per-model option/range constraints already ran in the
+   * renderer's `buildVideoParamsSchema`; this is the value-type gate. main
+   * partitions it into the AI SDK's native video params vs the vendor bag
+   * (`splitVideoParamValues`).
+   */
+  paramValues: videoParamsSchema
+})
+
 export const aiRequestSchemas = {
   'ai.generate_text': defineRoute({
     input: z.strictObject({
@@ -102,6 +123,15 @@ export const aiRequestSchemas = {
   }),
   'ai.abort_image': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
+    input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.generate_video': defineRoute({
+    // requestId pairs the request with `ai.abort_video` (the abort registry lives in AiService).
+    input: z.strictObject({ requestId: z.string().min(1), payload: aiVideoPayloadSchema }),
+    output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
+  }),
+  'ai.abort_video': defineRoute({
     input: z.strictObject({ requestId: z.string().min(1) }),
     output: z.void()
   }),

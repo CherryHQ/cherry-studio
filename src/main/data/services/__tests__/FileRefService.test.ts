@@ -1,7 +1,7 @@
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, creationFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
-import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
@@ -47,10 +47,11 @@ describe('FileRefService', () => {
     })
   }
 
-  async function seedPainting(id = uuidv4()): Promise<string> {
+  async function seedCreation(id = uuidv4()): Promise<string> {
     orderKeySeq += 1
-    await dbh.db.insert(paintingTable).values({
+    await dbh.db.insert(creationTable).values({
       id,
+      kind: 'image',
       providerId: 'provider',
       modelId: null,
       prompt: 'prompt',
@@ -78,8 +79,8 @@ describe('FileRefService', () => {
     return messageId
   }
 
-  async function seedPaintingRef(fileEntryId: FileEntryId, sourceId: string, role: 'output' | 'input'): Promise<void> {
-    await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId, role })
+  async function seedCreationRef(fileEntryId: FileEntryId, sourceId: string, role: 'output' | 'input'): Promise<void> {
+    await dbh.db.insert(creationFileRefTable).values({ fileEntryId, sourceId, role })
   }
 
   async function seedChatRef(fileEntryId: FileEntryId, sourceId: string): Promise<void> {
@@ -89,27 +90,27 @@ describe('FileRefService', () => {
   describe('read aggregation', () => {
     it('findByEntryId returns refs across persistent tables and temp-session cache', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
-      const paintingId = await seedPainting()
+      const creationId = await seedCreation()
       const messageId = await seedChatMessage()
       await seedEntry(entryId)
-      await seedPaintingRef(entryId, paintingId, 'output')
+      await seedCreationRef(entryId, creationId, 'output')
       await seedChatRef(entryId, messageId)
       fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
 
       const refs = fileRefService.findByEntryId(entryId)
       expect(refs).toHaveLength(3)
       expect(refs.every((r) => r.fileEntryId === entryId)).toBe(true)
-      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting', 'temp_session'])
+      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'creation', 'temp_session'])
     })
 
     it('findBySource reads persistent sources without owning their write path', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa02' as FileEntryId
-      const paintingId = await seedPainting()
+      const creationId = await seedCreation()
       await seedEntry(entryId)
-      await seedPaintingRef(entryId, paintingId, 'input')
+      await seedCreationRef(entryId, creationId, 'input')
 
-      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: paintingId })).toEqual([
-        expect.objectContaining({ fileEntryId: entryId, sourceType: 'painting', sourceId: paintingId, role: 'input' })
+      expect(fileRefService.findBySource({ sourceType: 'creation', sourceId: creationId })).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'creation', sourceId: creationId, role: 'input' })
       ])
     })
 
@@ -198,13 +199,13 @@ describe('FileRefService', () => {
   })
 
   describe('sweep helpers', () => {
-    it('countByEntryIds counts refs across chat, painting, and temp-session sources', async () => {
+    it('countByEntryIds counts refs across chat, creation, and temp-session sources', async () => {
       const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
       const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
       const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
       const idD = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
-      const paintingId = await seedPainting()
-      const secondPaintingId = await seedPainting()
+      const creationId = await seedCreation()
+      const secondCreationId = await seedCreation()
       const messageId = await seedChatMessage()
       await seedEntry(idA)
       await seedEntry(idB)
@@ -214,9 +215,9 @@ describe('FileRefService', () => {
         { fileEntryId: idA, sourceId: 's1', role: 'pending' },
         { fileEntryId: idA, sourceId: 's2', role: 'pending' }
       ])
-      await seedPaintingRef(idB, paintingId, 'output')
+      await seedCreationRef(idB, creationId, 'output')
       await seedChatRef(idD, messageId)
-      await seedPaintingRef(idD, secondPaintingId, 'input')
+      await seedCreationRef(idD, secondCreationId, 'input')
 
       const result = fileRefService.countByEntryIds([idA, idB, idC, idD])
       expect(result.get(idA)).toBe(2)
@@ -229,11 +230,11 @@ describe('FileRefService', () => {
       const ids = Array.from({ length: 501 }, (_, index) => fileEntryId(0xdd0000 + index))
       const firstId = ids[0]
       const boundaryId = ids[500]
-      const paintingId = await seedPainting()
+      const creationId = await seedCreation()
       const messageId = await seedChatMessage()
       await seedEntry(firstId)
       await seedEntry(boundaryId)
-      await seedPaintingRef(firstId, paintingId, 'output')
+      await seedCreationRef(firstId, creationId, 'output')
       await seedChatRef(boundaryId, messageId)
 
       const result = fileRefService.countByEntryIds(ids)

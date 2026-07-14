@@ -5283,7 +5283,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 131072,
+      "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-1",
       "inputModalities": ["text"],
@@ -5293,6 +5293,10 @@
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.574
@@ -5591,11 +5595,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.21
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.7899999999999999
+          "perMillionTokens": 0.95
         }
       }
     },
@@ -8181,46 +8185,6 @@
       "name": "Kling v2.6 Text-to-Video",
       "outputModalities": ["video"],
       "ownedBy": "kling"
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 32768,
-      "id": "lfm-2-5-1-2b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "lfm-2-5-1-2b",
-      "outputModalities": ["text"],
-      "ownedBy": "liquidai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      }
-    },
-    {
-      "capabilities": ["structured-output"],
-      "contextWindow": 32768,
-      "id": "lfm-2-5-1-2b-instruct",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "lfm-2-5-1-2b-instruct",
-      "outputModalities": ["text"],
-      "ownedBy": "liquidai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      }
     },
     {
       "capabilities": ["image-generation"],
@@ -17642,5 +17606,5 @@
       }
     }
   ],
-  "version": "26463070f57c2c15"
+  "version": "1c23f04d05c1d438"
 }

@@ -186,5 +186,11 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     GET: async ({ params }) => {
       return providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
     }
+  },
+
+  '/providers/:providerId/models/:modelId*/video-generation-support': {
+    GET: async ({ params }) => {
+      return providerRegistryService.getVideoGenerationSupport(params.providerId, params.modelId)
+    }
   }
 }

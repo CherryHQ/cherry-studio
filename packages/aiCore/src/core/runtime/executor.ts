@@ -2,11 +2,12 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { Experimental_VideoModelV3, ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   createProviderRegistry,
   embedMany as _embedMany,
+  experimental_generateVideo as _generateVideo,
   generateImage as _generateImage,
   generateText as _generateText,
   rerank as _rerank,
@@ -16,7 +17,12 @@ import {
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
-import { ImageGenerationError, ImageModelResolutionError } from './errors'
+import {
+  ImageGenerationError,
+  ImageModelResolutionError,
+  VideoGenerationError,
+  VideoModelResolutionError
+} from './errors'
 import { PluginEngine } from './pluginEngine'
 import type {
   EmbedManyParams,
@@ -24,11 +30,16 @@ import type {
   generateImageParams,
   generateImageResult,
   generateTextParams,
+  generateVideoParams,
+  generateVideoResult,
   RerankParams,
   RerankResult,
   RuntimeConfig,
   streamTextParams
 } from './types'
+
+/** ProviderV3 augmented with the optional `videoModel()` that `customProvider`/google expose. */
+type ProviderWithVideoModel = ProviderV3 & { videoModel?: (modelId: string) => Experimental_VideoModelV3 }
 
 export class RuntimeExecutor<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
@@ -74,6 +85,17 @@ export class RuntimeExecutor<
 
       resolveModel: async (modelId: string) => {
         return await this.resolveImageModel(modelId)
+      }
+    })
+  }
+
+  private createResolveVideoModelPlugin() {
+    return definePlugin({
+      name: '_internal_resolveVideoModel',
+      enforce: 'post',
+
+      resolveModel: async (modelId: string) => {
+        return await this.resolveVideoModel(modelId)
       }
     })
   }
@@ -173,6 +195,40 @@ export class RuntimeExecutor<
   }
 
   /**
+   * 生成视频
+   *
+   * 与图像生成结构一致，但视频模型解析走 provider.videoModel()（AI SDK 的
+   * ProviderRegistry 不暴露 videoModel），见 resolveVideoModel。
+   */
+  async generateVideo(params: generateVideoParams): Promise<generateVideoResult> {
+    try {
+      const { model } = params
+
+      // 根据 model 类型决定插件配置
+      if (typeof model === 'string') {
+        this.pluginEngine.usePlugins([this.createResolveVideoModelPlugin(), this.createConfigureContextPlugin()])
+      } else {
+        this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
+      }
+
+      return this.pluginEngine.executeVideoWithPlugins('generateVideo', params, (resolvedModel, transformedParams) =>
+        _generateVideo({ ...transformedParams, model: resolvedModel })
+      )
+    } catch (error) {
+      if (error instanceof Error) {
+        const modelId = typeof params.model === 'string' ? params.model : params.model.modelId
+        throw new VideoGenerationError(
+          `Failed to generate video: ${error.message}`,
+          this.config.providerId,
+          modelId,
+          error
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
    * 批量嵌入文本
    */
   async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
@@ -242,6 +298,32 @@ export class RuntimeExecutor<
       }
     } catch (error) {
       throw new ImageModelResolutionError(
+        typeof modelOrId === 'string' ? modelOrId : modelOrId.modelId,
+        this.config.providerId,
+        error instanceof Error ? error : undefined
+      )
+    }
+  }
+
+  /**
+   * 解析视频模型：如果是字符串则通过 provider.videoModel() 创建，如果是模型则直接返回。
+   *
+   * 不同于图像/语言模型，AI SDK 的 ProviderRegistry 不暴露 videoModel()，因此这里
+   * 直接调用底层 provider 的 videoModel()（由 customProvider / @ai-sdk/google 等暴露）。
+   */
+  private async resolveVideoModel(modelOrId: Experimental_VideoModelV3 | string): Promise<Experimental_VideoModelV3> {
+    try {
+      if (typeof modelOrId === 'string') {
+        const provider = this.config.provider as ProviderWithVideoModel
+        if (!provider.videoModel) {
+          throw new Error(`Provider "${this.config.providerId}" does not support video generation`)
+        }
+        return provider.videoModel(modelOrId)
+      } else {
+        return modelOrId
+      }
+    } catch (error) {
+      throw new VideoModelResolutionError(
         typeof modelOrId === 'string' ? modelOrId : modelOrId.modelId,
         this.config.providerId,
         error instanceof Error ? error : undefined

@@ -7,6 +7,7 @@
 export {
   ANTHROPIC_REASONING_EFFORT,
   CANONICAL_PARAM_KEY,
+  CANONICAL_VIDEO_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
   GEMINI_THINKING_LEVEL,
@@ -26,13 +27,17 @@ export {
   paramCatalogEntry,
   wireName
 } from './schemas/imageParamCatalog'
-export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { ImageGenerationModeSchema, ImageGenerationSupportSchema, VideoGenerationSupportSchema } from './schemas/model'
+export type { VideoParamCatalogEntry, VideoParamValue, VideoParamValues } from './schemas/videoParamCatalog'
+export { VIDEO_PARAM_CATALOG, VIDEO_PARAM_CATALOG_KEYS, videoParamsSchema } from './schemas/videoParamCatalog'
 export { buildParamsSchema } from './utils/buildParamsSchema'
+export { buildVideoParamsSchema } from './utils/buildVideoParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
 export type {
   AnthropicReasoningEffort,
   CanonicalParamKey,
+  CanonicalVideoParamKey,
   Currency,
   EndpointType,
   GeminiThinkingLevel,
@@ -53,7 +58,10 @@ export type {
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningSupport,
-  SupportSpec
+  SupportSpec,
+  VideoGenerationMode,
+  VideoGenerationSupport,
+  VideoModeDef
 } from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,

@@ -1,0 +1,29 @@
+export const creationClasses = {
+  page: 'flex h-full flex-1 flex-col',
+  content: 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
+  frame: 'relative flex min-h-0 flex-1 overflow-hidden px-2 pt-2 pb-1',
+  surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none bg-background',
+  centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+  /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
+  centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col',
+  /** Pins the prompt visually to the bottom of the middle column. */
+  promptDock: 'shrink-0 bg-background px-2 pt-2 pb-2',
+  historyStrip:
+    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+  historyAddButton:
+    'sticky top-0 z-10 mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-dashed border-border-muted bg-background text-muted-foreground hover:bg-secondary-hover hover:text-foreground',
+  historyItem:
+    'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[12px] bg-secondary p-0 leading-none transition hover:bg-secondary-hover',
+  historyItemActive: 'bg-background',
+  historyDelete:
+    'absolute -top-1 -right-1 z-20 flex size-5 cursor-pointer items-center justify-center rounded-full border border-border-muted bg-white/95 text-destructive opacity-0 shadow-sm transition group-hover:opacity-100 dark:bg-background/95',
+  promptModeTabsList: 'h-8 rounded-full border border-border-muted bg-muted/35 p-0.5 shadow-none dark:bg-muted/20',
+  promptModeTabsTrigger:
+    'h-7 rounded-full px-2.5 text-xs text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+  promptWrap: 'shrink-0 px-2 pb-4 pt-2',
+  toolbarWrap: 'absolute top-1/2 left-4 z-20 -translate-y-1/2',
+  toolbarRail:
+    'flex flex-col items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
+  toolbarButton: 'rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground',
+  toolbarButtonActive: 'bg-muted text-foreground'
+} as const

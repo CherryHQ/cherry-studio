@@ -59,6 +59,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.abort_image': async ({ requestId }) => {
     application.get('AiService').abortImage(requestId)
   },
+  'ai.generate_video': ({ requestId, payload }) =>
+    exposeAiError('ai.generate_video', () => application.get('AiService').runVideoRequest(requestId, payload)),
+  'ai.abort_video': async ({ requestId }) => {
+    application.get('AiService').abortVideo(requestId)
+  },
   'ai.list_models': (request) =>
     exposeAiError('ai.list_models', () => application.get('AiService').listModels(request)),
 

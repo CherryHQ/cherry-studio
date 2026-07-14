@@ -1,13 +1,13 @@
+import { creationTable } from '@data/db/schemas/creation'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  creationFileRefTable,
   miniAppLogoFileRefTable,
-  paintingFileRefTable,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { miniAppTable } from '@data/db/schemas/miniApp'
-import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -1339,20 +1339,21 @@ describe('FileEntryService', () => {
   describe('findUnreferenced', () => {
     async function seedRef(fileEntryId: FileEntryId): Promise<void> {
       const now = Date.now()
-      const paintingId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
-      await dbh.db.insert(paintingTable).values({
-        id: paintingId,
+      const creationId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
+      await dbh.db.insert(creationTable).values({
+        id: creationId,
+        kind: 'image',
         providerId: 'provider',
         modelId: null,
         prompt: 'prompt',
-        orderKey: paintingId,
+        orderKey: creationId,
         createdAt: now,
         updatedAt: now
       })
-      await dbh.db.insert(paintingFileRefTable).values({
+      await dbh.db.insert(creationFileRefTable).values({
         id: '22222222-2222-4222-8222-' + fileEntryId.slice(-12),
         fileEntryId,
-        sourceId: paintingId,
+        sourceId: creationId,
         role: 'output',
         createdAt: now,
         updatedAt: now
@@ -1480,7 +1481,7 @@ describe('FileEntryService', () => {
       expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
-    it('excludes entries referenced by both chat and painting refs', async () => {
+    it('excludes entries referenced by both chat and creation refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d05' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d06' as FileEntryId
       fileEntryService.create({

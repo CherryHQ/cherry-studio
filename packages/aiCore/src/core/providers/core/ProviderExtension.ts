@@ -39,6 +39,9 @@ interface ProviderExtensionConfigBase<
   /** 是否支持图像生成 */
   supportsImageGeneration?: boolean
 
+  /** 是否支持视频生成 */
+  supportsVideoGeneration?: boolean
+
   /**
    * Provider 变体配置
    * 用于注册同一 provider 的不同模式

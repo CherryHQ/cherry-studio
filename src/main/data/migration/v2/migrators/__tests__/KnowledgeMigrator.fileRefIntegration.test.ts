@@ -11,7 +11,7 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, creationFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -341,12 +341,12 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       }
     ])
 
-    const [chatRefRows, paintingRefRows] = await Promise.all([
+    const [chatRefRows, creationRefRows] = await Promise.all([
       dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
-      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+      dbh.db.select({ fileEntryId: creationFileRefTable.fileEntryId }).from(creationFileRefTable)
     ])
     expect(chatRefRows).toHaveLength(0)
-    expect(paintingRefRows).toHaveLength(0)
+    expect(creationRefRows).toHaveLength(0)
 
     const fkCheck = dbh.sqlite.pragma('foreign_key_check')
     expect(fkCheck).toHaveLength(0)
@@ -393,12 +393,12 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       relativePath: `${fileEntryIdAt(1000)}.pdf`
     })
 
-    const [chatRefRows, paintingRefRows] = await Promise.all([
+    const [chatRefRows, creationRefRows] = await Promise.all([
       dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
-      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+      dbh.db.select({ fileEntryId: creationFileRefTable.fileEntryId }).from(creationFileRefTable)
     ])
     expect(chatRefRows).toHaveLength(0)
-    expect(paintingRefRows).toHaveLength(0)
+    expect(creationRefRows).toHaveLength(0)
 
     const fkCheck = dbh.sqlite.pragma('foreign_key_check')
     expect(fkCheck).toHaveLength(0)

@@ -120,7 +120,7 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(models[0].name).toBe('Gemini 2.0 Flash')
   })
 
-  it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
+  it('drops audio (tts/native-audio) models, keeping chat, image, video, and embedding models', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         models: [
@@ -169,7 +169,8 @@ describe('listModels — geminiFetcher API key transport', () => {
       'gemini-2.0-flash',
       'gemini-2.5-flash-image',
       'imagen-4.0-generate-001',
-      'gemini-embedding-001'
+      'gemini-embedding-001',
+      'veo-3.1-generate-preview'
     ])
   })
 })

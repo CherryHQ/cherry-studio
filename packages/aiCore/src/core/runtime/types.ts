@@ -1,9 +1,23 @@
 /**
  * Runtime 层类型定义
  */
-import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type {
+  EmbeddingModelV3,
+  Experimental_VideoModelV3,
+  ImageModelV3,
+  ProviderV3,
+  RerankingModelV3
+} from '@ai-sdk/provider'
 import type { JSONObject } from '@ai-sdk/provider'
-import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
+import type {
+  embedMany,
+  Experimental_DownloadFunction,
+  experimental_generateVideo,
+  generateImage,
+  generateText,
+  rerank,
+  streamText
+} from 'ai'
 
 import { type AiPlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
@@ -35,6 +49,12 @@ export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'mod
   experimental_download?: Experimental_DownloadFunction
 }
 export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
+
+export type generateVideoParams = Omit<Parameters<typeof experimental_generateVideo>[0], 'model'> & {
+  model: string | Experimental_VideoModelV3
+}
+export type generateVideoResult = Awaited<ReturnType<typeof experimental_generateVideo>>
+
 export type generateTextParams = Parameters<typeof generateText>[0]
 export type streamTextParams = Parameters<typeof streamText>[0]
 

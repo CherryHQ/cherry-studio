@@ -17,11 +17,13 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
     enableQuickPanel: true,
     enableDragDrop: false
   },
-  // Image-generation prompt bar: the slash quick panel surfaces only the saved
-  // prompts library (the sole root-panel launcher in this scope), plus drag-drop
-  // of input images (the drop layer filters by supportedExts; the edit-only
-  // constraint is enforced via couldAddImageFile / switchModel, not here).
-  painting: {
+  // Unified Creation prompt bar (image + video modes): the slash quick panel
+  // surfaces only the saved prompts library (the sole root-panel launcher in
+  // this scope), plus drag-drop of input images (the drop layer filters by
+  // supportedExts; image's edit-only constraint is enforced via
+  // couldAddImageFile / switchModel, and video opts out of the flat attachment
+  // pipeline entirely — see attachmentTool's condition).
+  creation: {
     enableQuickPanel: true,
     enableDragDrop: true
   }

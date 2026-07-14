@@ -3,7 +3,7 @@
  *
  * Persistent business refs are owned by their source domains and stored in
  * FK-constrained association tables (`chat_message_file_ref`,
- * `painting_file_ref`). This service does not create, copy, or replace those
+ * `creation_file_ref`). This service does not create, copy, or replace those
  * persistent relationships; source services/migrators write their own tables.
  *
  * Cross-source read aggregation still lives here because File DataApi and the
@@ -16,9 +16,9 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  creationFileRefTable,
   type MiniAppLogoFileRefRow,
   miniAppLogoFileRefTable,
-  paintingFileRefTable,
   type PersistentFileRefSourceType,
   type ProviderLogoFileRefRow,
   providerLogoFileRefTable
@@ -26,9 +26,9 @@ import {
 import type { FileEntryId, FileRef, FileRefSourceType, tempSessionRoles } from '@shared/data/types/file'
 import {
   chatMessageSourceType,
+  creationSourceType,
   FileRefSchema,
   miniAppLogoRef,
-  paintingSourceType,
   providerLogoRef,
   tempSessionSourceType
 } from '@shared/data/types/file'
@@ -50,7 +50,7 @@ export interface FileRefService {
   /** All refs pointing at a given file_entry. Includes CacheService-backed temp-session refs. */
   findByEntryId(fileEntryId: FileEntryId): FileRef[]
 
-  /** All refs owned by a business source (chat message, painting, temp session). */
+  /** All refs owned by a business source (chat message, creation, temp session). */
   findBySource(source: FileRefSourceKey): FileRef[]
 
   /** Add one in-memory temp-session ref. Duplicate `(entry, source, role)` throws. */
@@ -76,7 +76,7 @@ const SQLITE_INARRAY_CHUNK = 500
 const TEMP_SESSION_REFS_CACHE_KEY = 'file.temp_session.refs'
 
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
-type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
+type CreationFileRefRow = typeof creationFileRefTable.$inferSelect
 type TempSessionFileRef = Extract<FileRef, { sourceType: typeof tempSessionSourceType }>
 type TempSessionRefCache = Record<string, TempSessionFileRef[]>
 
@@ -90,8 +90,8 @@ function chatMessageRowToFileRef(row: ChatMessageFileRefRow): FileRef {
   return FileRefSchema.parse({ ...row, sourceType: chatMessageSourceType })
 }
 
-function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
-  return FileRefSchema.parse({ ...row, sourceType: paintingSourceType })
+function creationRowToFileRef(row: CreationFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: creationSourceType })
 }
 
 /**
@@ -161,14 +161,14 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map(chatMessageRowToFileRef)
       },
-      [paintingSourceType]: () => {
+      [creationSourceType]: () => {
         const rows = this.getDb()
           .select()
-          .from(paintingFileRefTable)
-          .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
-          .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .from(creationFileRefTable)
+          .where(eq(creationFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(creationFileRefTable.createdAt), asc(creationFileRefTable.id))
           .all()
-        return rows.map(paintingRowToFileRef)
+        return rows.map(creationRowToFileRef)
       },
       [providerLogoRef.sourceType]: () => {
         const rows = this.getDb()
@@ -212,14 +212,14 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map(chatMessageRowToFileRef)
       }
-      case paintingSourceType: {
+      case creationSourceType: {
         const rows = this.getDb()
           .select()
-          .from(paintingFileRefTable)
-          .where(eq(paintingFileRefTable.sourceId, source.sourceId))
-          .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .from(creationFileRefTable)
+          .where(eq(creationFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(creationFileRefTable.createdAt), asc(creationFileRefTable.id))
           .all()
-        return rows.map(paintingRowToFileRef)
+        return rows.map(creationRowToFileRef)
       }
       case providerLogoRef.sourceType: {
         const rows = this.getDb()
@@ -286,12 +286,12 @@ class FileRefServiceImpl implements FileRefService {
             .where(inArray(chatMessageFileRefTable.fileEntryId, chunk))
             .groupBy(chatMessageFileRefTable.fileEntryId)
             .all(),
-        [paintingSourceType]: () =>
+        [creationSourceType]: () =>
           this.getDb()
-            .select({ entryId: paintingFileRefTable.fileEntryId, refCount: count() })
-            .from(paintingFileRefTable)
-            .where(inArray(paintingFileRefTable.fileEntryId, chunk))
-            .groupBy(paintingFileRefTable.fileEntryId)
+            .select({ entryId: creationFileRefTable.fileEntryId, refCount: count() })
+            .from(creationFileRefTable)
+            .where(inArray(creationFileRefTable.fileEntryId, chunk))
+            .groupBy(creationFileRefTable.fileEntryId)
             .all(),
         [providerLogoRef.sourceType]: () =>
           this.getDb()

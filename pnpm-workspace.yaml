@@ -32,7 +32,7 @@ overrides:
   '@img/sharp-linux-x64': '0.34.5'
   '@img/sharp-win32-x64': '0.34.5'
   '@napi-rs/canvas': '0.1.97'
-  '@ai-sdk/provider-utils': '4.0.23'
+  '@ai-sdk/provider-utils': '4.0.30'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.87 backports

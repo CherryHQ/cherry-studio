@@ -1,4 +1,4 @@
-import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
+import type { Experimental_VideoModelV3, ProviderV2, ProviderV3 } from '@ai-sdk/provider'
 import type {
   EmbeddingModel,
   EmbeddingModelUsage,
@@ -43,7 +43,13 @@ export class ProviderError extends Error {
   }
 }
 
-export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel
+export type AiSdkModel =
+  | LanguageModel
+  | ImageModel
+  | EmbeddingModel
+  | TranscriptionModel
+  | SpeechModel
+  | Experimental_VideoModelV3
 export type AiSdkProvider = ProviderV2 | ProviderV3
 export type AiSdkUsage = LanguageModelUsage | ImageModelUsage | EmbeddingModelUsage
 

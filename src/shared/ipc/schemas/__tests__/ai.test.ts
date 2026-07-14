@@ -33,3 +33,34 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
   })
 })
+
+// The video payload mirrors the image one: a canonical `paramValues` bag validated
+// and coerced by the catalog `videoParamsSchema` at the boundary — no loose scalar
+// fields, no untyped `providerOptions` record.
+describe('ai IPC schemas — ai.generate_video payload', () => {
+  const genVideo = aiRequestSchemas['ai.generate_video'].input
+
+  const input = (paramValues: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+    requestId: 'r1',
+    payload: { uniqueModelId: 'google::veo-3.1-generate', prompt: 'a cat', paramValues, ...extra }
+  })
+
+  it('coerces canonical value types at the boundary (duration/seed string → number)', () => {
+    const parsed = genVideo.parse(input({ duration: '5', seed: '42', negativePrompt: 'blur' }))
+    expect(parsed.payload.paramValues).toEqual({ duration: 5, seed: 42, negativePrompt: 'blur' })
+  })
+
+  it('strips non-catalog keys from the bag', () => {
+    const parsed = genVideo.parse(input({ cameraFixed: true, notAParam: 'x' }))
+    expect(parsed.payload.paramValues).toEqual({ cameraFixed: true })
+  })
+
+  it('rejects unknown payload fields (strict object — the old loose scalars are gone)', () => {
+    expect(genVideo.safeParse(input({}, { duration: 5 })).success).toBe(false)
+    expect(genVideo.safeParse(input({}, { providerOptions: {} })).success).toBe(false)
+  })
+
+  it('accepts media inputs alongside the bag', () => {
+    expect(genVideo.safeParse(input({}, { firstFrame: 'data:image/png;base64,x' })).success).toBe(true)
+  })
+})
