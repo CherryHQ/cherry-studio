@@ -34,7 +34,8 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
     setState({ urls: [], failed: false })
     // Resolve each id independently so one deleted/unreadable FileEntry drops only its own tile
     // instead of blanking the whole group; only flag `failed` when every id fails to resolve.
-    Promise.all(
+    // Per-item try/catch means the outer promise never rejects, so it is fire-and-forget (`void`).
+    void Promise.all(
       list.map(async (id) => {
         try {
           return toSafeFileUrl(await window.api.file.getPhysicalPath({ id }), null)
