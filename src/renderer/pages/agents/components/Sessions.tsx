@@ -41,7 +41,7 @@ import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { usePins } from '@renderer/hooks/usePins'
+import { usePinMutations, usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
@@ -449,13 +449,7 @@ const Sessions = ({
     error: sessionStatsError,
     refetch: refetchSessionStats
   } = useAgentSessionStats({ enabled: isSessionListEnabled, query: sessionStatsQuery })
-  const { trigger: pinSession, isLoading: isPinningSession } = useMutation('POST', '/pins', {
-    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
-  })
-  const { trigger: unpinSession, isLoading: isUnpinningSession } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
-  })
-  const isSessionPinMutating = isPinningSession || isUnpinningSession
+  const { pin: pinSession, unpin: unpinSession, isMutating: isSessionPinMutating } = usePinMutations('session')
 
   const dragReady = isDraggableMode
   const {
@@ -687,9 +681,9 @@ const Sessions = ({
   const commitSessionPin = useCallback(
     async (session: AgentSessionListItem) => {
       if (session.pinId) {
-        await unpinSession({ params: { id: session.pinId } })
+        await unpinSession(session.pinId)
       } else {
-        await pinSession({ body: { entityId: session.id, entityType: 'session' } })
+        await pinSession(session.id)
       }
     },
     [pinSession, unpinSession]

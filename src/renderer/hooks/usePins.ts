@@ -5,12 +5,65 @@
  * `refetch` when opening a pin-aware surface that needs fresh state.
  */
 
+import type { DataApiRefreshTarget } from '@data/hooks/useDataApi'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
+
+/**
+ * Refresh targets for pin writes, keyed by entity type — the single owner of
+ * this knowledge; do not declare `/pins` mutations with hand-rolled `refresh`
+ * lists elsewhere.
+ *
+ * Topic and session lists are served pinned-first through a two-section
+ * cursor (`listByCursor`), so pin-state changes reorder `/topics` /
+ * `/agent-sessions` pages: those cursor chains must be reset and their stats
+ * refreshed, not just `/pins` membership. Other entity types group pinned
+ * rows client-side, so refreshing `/pins` alone is enough.
+ */
+function pinRefreshTargets(entityType: EntityType): DataApiRefreshTarget[] {
+  switch (entityType) {
+    case 'topic':
+      return ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    case 'session':
+      return ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+    default:
+      return ['/pins']
+  }
+}
+
+export interface UsePinMutationsResult {
+  /** Any in-flight pin/unpin write. */
+  isMutating: boolean
+  /** Most recent pin/unpin write error, if any. */
+  error: Error | undefined
+  /** Pin the given entity. Rejects on write errors. */
+  pin: (entityId: string) => Promise<unknown>
+  /** Remove a pin by its pin row id. Rejects on write errors. */
+  unpin: (pinId: string) => Promise<unknown>
+}
+
+/**
+ * Pin/unpin write triggers for surfaces that already project `pinId` onto
+ * their rows and don't need the `/pins` read that {@link usePins} performs.
+ */
+export function usePinMutations(entityType: EntityType): UsePinMutationsResult {
+  const refresh = useMemo(() => pinRefreshTargets(entityType), [entityType])
+  const { trigger: createPin, isLoading: isPinning, error: pinError } = useMutation('POST', '/pins', { refresh })
+  const {
+    trigger: deletePin,
+    isLoading: isUnpinning,
+    error: unpinError
+  } = useMutation('DELETE', '/pins/:id', { refresh })
+
+  const pin = useCallback((entityId: string) => createPin({ body: { entityType, entityId } }), [createPin, entityType])
+  const unpin = useCallback((pinId: string) => deletePin({ params: { id: pinId } }), [deletePin])
+
+  return { pin, unpin, isMutating: isPinning || isUnpinning, error: pinError ?? unpinError }
+}
 
 export interface UsePinsResult {
   /** Initial pin list load only. */
@@ -43,20 +96,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
     refetch
   } = useQuery('/pins', { enabled, query: { entityType } })
 
-  const {
-    trigger: createPin,
-    isLoading: isCreatingPin,
-    error: createError
-  } = useMutation('POST', '/pins', {
-    refresh: ['/pins']
-  })
-  const {
-    trigger: deletePin,
-    isLoading: isDeletingPin,
-    error: deleteError
-  } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins']
-  })
+  const { pin: createPin, unpin: deletePin, isMutating, error: mutationError } = usePinMutations(entityType)
   const toggleInFlightRef = useRef(false)
 
   const pins = useMemo(
@@ -64,8 +104,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
     [enabled, rawPins, entityType]
   )
   const pinnedIds = useMemo(() => pins.map((pin) => pin.entityId), [pins])
-  const isMutating = isCreatingPin || isDeletingPin
-  const error = queryError ?? createError ?? deleteError
+  const error = queryError ?? mutationError
 
   useEffect(() => {
     if (enabled && queryError) {
@@ -98,11 +137,11 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
       try {
         const existing = pinsRef.current.find((pin) => pin.entityId === entityId)
         if (existing) {
-          await deletePin({ params: { id: existing.id } })
+          await deletePin(existing.id)
           return
         }
 
-        await createPin({ body: { entityType, entityId } })
+        await createPin(entityId)
       } finally {
         toggleInFlightRef.current = false
       }

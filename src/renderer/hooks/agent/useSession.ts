@@ -17,6 +17,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { usePinMutations } from '@renderer/hooks/usePins'
 import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -436,24 +437,15 @@ export const useSessions = (
     [reorderTrigger, t]
   )
 
-  // Server returns pinned-first via the two-section cursor in
-  // `AgentSessionService.listByCursor`, so pin-state changes affect `/agent-sessions`
-  // page ordering, not just `/pins` membership. Refresh both keys so the
-  // row visibly relocates after pin/unpin.
-  const { trigger: pinTrigger } = useMutation('POST', '/pins', {
-    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
-  })
-  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
-  })
+  const { pin: pinTrigger, unpin: unpinTrigger } = usePinMutations('session')
   const togglePin = useCallback(
     async (sessionId: string, projectedPinId?: string | null) => {
       const pinId = projectedPinId === undefined ? pinIdBySessionId.get(sessionId) : projectedPinId
       try {
         if (pinId) {
-          await unpinTrigger({ params: { id: pinId } })
+          await unpinTrigger(pinId)
         } else {
-          await pinTrigger({ body: { entityType: 'session', entityId: sessionId } })
+          await pinTrigger(sessionId)
         }
         return true
       } catch (error) {

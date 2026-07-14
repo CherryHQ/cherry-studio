@@ -206,7 +206,7 @@ export interface RefreshContext<TPath extends ApiPath, TMethod extends 'POST' | 
  * cursor family and lets subscribed infinite queries rebuild from page one.
  * Related paths such as `/stats` remain explicit, separate targets.
  */
-type DataApiRefreshTarget<TRefreshPath extends string = ConcreteApiPaths> =
+export type DataApiRefreshTarget<TRefreshPath extends string = ConcreteApiPaths> =
   | TRefreshPath
   | {
       path: TRefreshPath

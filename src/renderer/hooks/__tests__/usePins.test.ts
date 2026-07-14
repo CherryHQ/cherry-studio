@@ -3,7 +3,7 @@ import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { usePins } from '../usePins'
+import { usePinMutations, usePins } from '../usePins'
 
 const ASSISTANT_PIN: Pin = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -231,5 +231,73 @@ describe('usePins', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to read pins', queryError, { entityType: 'model' })
     consoleErrorSpy.mockRestore()
+  })
+})
+
+describe('usePinMutations', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+  })
+
+  function wireRecordingMutations() {
+    const postTrigger = vi.fn(async () => MODEL_PIN_A)
+    const deleteTrigger = vi.fn(async () => undefined)
+    const refreshByCall = new Map<string, unknown>()
+
+    mockUseMutation.mockImplementation((method: string, path: string, options?: { refresh?: unknown }) => {
+      refreshByCall.set(`${method} ${path}`, options?.refresh)
+      if (method === 'POST' && path === '/pins') {
+        return { trigger: postTrigger, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/pins/:id') {
+        return { trigger: deleteTrigger, isLoading: false, error: undefined }
+      }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
+
+    return { postTrigger, deleteTrigger, refreshByCall }
+  }
+
+  it('resets the /topics cursor chain and refreshes stats on topic pin writes', () => {
+    const { refreshByCall } = wireRecordingMutations()
+
+    renderHook(() => usePinMutations('topic'))
+
+    const expected = ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
+    expect(refreshByCall.get('POST /pins')).toEqual(expected)
+    expect(refreshByCall.get('DELETE /pins/:id')).toEqual(expected)
+  })
+
+  it('resets the /agent-sessions cursor chain and refreshes stats on session pin writes', () => {
+    const { refreshByCall } = wireRecordingMutations()
+
+    renderHook(() => usePinMutations('session'))
+
+    const expected = ['/pins', { path: '/agent-sessions', strategy: 'reset-cursor' }, '/agent-sessions/stats']
+    expect(refreshByCall.get('POST /pins')).toEqual(expected)
+    expect(refreshByCall.get('DELETE /pins/:id')).toEqual(expected)
+  })
+
+  it('refreshes only /pins for entity types without pin-ordered cursor lists', () => {
+    const { refreshByCall } = wireRecordingMutations()
+
+    renderHook(() => usePinMutations('model'))
+
+    expect(refreshByCall.get('POST /pins')).toEqual(['/pins'])
+    expect(refreshByCall.get('DELETE /pins/:id')).toEqual(['/pins'])
+  })
+
+  it('maps pin/unpin arguments onto the POST body and DELETE params', async () => {
+    const { postTrigger, deleteTrigger } = wireRecordingMutations()
+
+    const { result } = renderHook(() => usePinMutations('topic'))
+
+    await act(async () => {
+      await result.current.pin('topic-1')
+      await result.current.unpin('pin-1')
+    })
+
+    expect(postTrigger).toHaveBeenCalledWith({ body: { entityType: 'topic', entityId: 'topic-1' } })
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'pin-1' } })
   })
 })

@@ -7,13 +7,13 @@ import type {
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { usePinMutations } from '@renderer/hooks/usePins'
 import {
   finishTopicRenaming,
   getTopicMessages,
@@ -123,12 +123,7 @@ const AssistantHistoryRecords = ({
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const { trigger: pinTopic } = useMutation('POST', '/pins', {
-    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
-  })
-  const { trigger: unpinTopic } = useMutation('DELETE', '/pins/:id', {
-    refresh: ['/pins', { path: '/topics', strategy: 'reset-cursor' }, '/topics/stats']
-  })
+  const { pin: pinTopic, unpin: unpinTopic } = usePinMutations('topic')
   const renamingTopicIdSet = useMemo(
     () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
     [renamingTopics]
@@ -230,9 +225,9 @@ const AssistantHistoryRecords = ({
       try {
         const projectedTopic = topicById.get(topic.id)
         if (projectedTopic?.pinId) {
-          await unpinTopic({ params: { id: projectedTopic.pinId } })
+          await unpinTopic(projectedTopic.pinId)
         } else {
-          await pinTopic({ body: { entityId: topic.id, entityType: 'topic' } })
+          await pinTopic(topic.id)
         }
         return true
       } catch (err) {

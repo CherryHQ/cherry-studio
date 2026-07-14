@@ -27,6 +27,7 @@ const hookMocks = vi.hoisted(() => ({
   useDataApiQuery: vi.fn(),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
+  usePinMutations: vi.fn(),
   useSessions: vi.fn(),
   useUpdateSession: vi.fn(),
   virtualListRenderRows: [] as VirtualListRenderRow[]
@@ -166,7 +167,8 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
-  usePins: hookMocks.usePins
+  usePins: hookMocks.usePins,
+  usePinMutations: hookMocks.usePinMutations
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -510,6 +512,8 @@ describe('HistoryRecordsView agent mode', () => {
     ])
     hookMocks.usePins.mockReset()
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: vi.fn() })
+    hookMocks.usePinMutations.mockReset()
+    hookMocks.usePinMutations.mockReturnValue({ pin: vi.fn(), unpin: vi.fn(), isMutating: false, error: undefined })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
