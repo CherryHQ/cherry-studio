@@ -330,7 +330,7 @@ describe('EnvironmentDependencies', () => {
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeDisabled()
+    expect(await within(card).findByLabelText('settings.dependencies.remove')).toBeDisabled()
     expect(within(card).queryByText('settings.dependencies.installing')).not.toBeInTheDocument()
   })
 
