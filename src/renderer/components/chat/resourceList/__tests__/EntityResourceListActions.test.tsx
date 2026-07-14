@@ -669,7 +669,7 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'chat.topics.display.time' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
@@ -681,7 +681,7 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.sort.updated_at' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'updatedAt')
@@ -832,7 +832,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.sort.updated_at' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'updatedAt')

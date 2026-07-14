@@ -866,6 +866,11 @@ describe('HistoryRecordsView agent mode', () => {
       deleteSessions: hookMocks.deleteSessions,
       togglePin: hookMocks.togglePin
     })
+    hookMocks.useAgentSessionStats.mockReturnValue({
+      stats: { total: 1, pinnedCount: 0, byAgent: [] },
+      error: undefined,
+      isLoading: false
+    })
 
     const props = {
       mode: 'agent' as const,
