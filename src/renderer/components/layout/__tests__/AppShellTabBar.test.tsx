@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -438,7 +438,6 @@ describe('AppShellTabBar', () => {
     const title = screen.getByText('Chat title')
     const tabButton = screen.getByRole('button', { name: 'Chat title' })
     const icon = tabButton.querySelector('svg')
-    const iconBox = icon?.parentElement
 
     expect(title).toHaveClass('font-normal')
     expect(title).toHaveClass('text-xs')
@@ -451,7 +450,7 @@ describe('AppShellTabBar', () => {
     expect(tabButton).not.toHaveClass('pr-1')
     expect(icon).toHaveAttribute('width', '14')
     expect(icon).toHaveAttribute('height', '14')
-    expect(iconBox).toHaveClass('h-3.5', 'w-3.5')
+    expect(icon).toHaveClass('shrink-0')
   })
 
   it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
@@ -560,7 +559,7 @@ describe('AppShellTabBar', () => {
     expect(closeTab).toHaveBeenCalledWith('home')
   })
 
-  it('closes a tab from the hover close overlay without selecting it', () => {
+  it('closes a tab from its close button without selecting it', () => {
     const setActiveTab = vi.fn()
     const closeTab = vi.fn()
     const tabs: Tab[] = [
@@ -589,19 +588,212 @@ describe('AppShellTabBar', () => {
     expect(setActiveTab).not.toHaveBeenCalled()
   })
 
-  it('keeps the hover close overlay reachable by keyboard', () => {
+  it('keeps the close button reachable by keyboard', () => {
     const closeTab = renderTabBar()
 
     const tab = screen.getByRole('button', { name: 'A' })
-    const closeOverlay = within(tab).getByRole('button', { name: 'tab.close' })
+    const closeButton = within(tab).getByRole('button', { name: 'tab.close' })
 
-    // Hidden via opacity, not display — display:none would drop it from the tab order.
-    expect(closeOverlay).toHaveClass('opacity-0')
-    expect(closeOverlay).not.toHaveClass('hidden')
-    expect(closeOverlay).toHaveAttribute('tabindex', '0')
+    // Hidden via opacity + collapsed width, not display — display:none would drop
+    // it from the tab order, and a fixed width would reserve blank space on the tab.
+    expect(closeButton).toHaveClass('opacity-0')
+    expect(closeButton).toHaveClass('w-0')
+    expect(closeButton).not.toHaveClass('hidden')
+    expect(closeButton).toHaveAttribute('tabindex', '0')
 
-    fireEvent.keyDown(closeOverlay, { key: 'Enter' })
+    fireEvent.keyDown(closeButton, { key: 'Enter' })
     expect(closeTab).toHaveBeenCalledWith('a')
+  })
+
+  it('always shows the close button on the active tab', () => {
+    renderTabBar()
+
+    const activeTab = screen.getByRole('button', { name: 'Chat' })
+    const closeButton = within(activeTab).getByRole('button', { name: 'tab.close' })
+
+    expect(closeButton).toHaveClass('opacity-100')
+    expect(closeButton).toHaveClass('w-[18px]')
+    expect(closeButton).not.toHaveClass('opacity-0')
+  })
+
+  it('freezes tab widths, collapses the closed tab, then re-flexes when the mouse leaves the strip', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 120,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 120,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect)
+    vi.useFakeTimers()
+    // Drive the two-phase freeze→collapse through the fake timers deterministically.
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+    )
+
+    try {
+      const closeTab = renderTabBar()
+
+      const tabA = screen.getByRole('button', { name: 'A' })
+      const closeButton = within(tabA).getByRole('button', { name: 'tab.close' })
+
+      // detail > 0 marks a real mouse click; keyboard-driven closes must not freeze.
+      fireEvent.click(closeButton, { detail: 1 })
+
+      // Phase 1: the whole strip freezes instantly (a visual no-op snap).
+      const remainingTab = screen.getByRole('button', { name: 'Chat' })
+      expect(tabA).toHaveStyle({ flex: '0 0 120px' })
+      expect(remainingTab).toHaveStyle({ flex: '0 0 120px' })
+      expect(closeTab).not.toHaveBeenCalled()
+
+      // Phase 2 (next frames): the closed tab collapses; removal waits for the end.
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+      expect(tabA).toHaveStyle({ flex: '0 0 0px' })
+      expect(closeTab).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(250)
+      })
+      expect(closeTab).toHaveBeenCalledWith('a')
+
+      // jsdom reports zero-size rects, so the thaw falls back to an instant unfreeze.
+      fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('routes the deferred close through the latest closeTab, not the click-time closure', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 120,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 120,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect)
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+    )
+
+    try {
+      const staleCloseTab = vi.fn()
+      const freshCloseTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ]
+      const baseProps = {
+        tabs,
+        activeTabId: 'home',
+        setActiveTab: vi.fn(),
+        closeTabs: vi.fn(),
+        reorderTabs: vi.fn(),
+        pinTab: vi.fn(),
+        unpinTab: vi.fn(),
+        openTab: vi.fn()
+      }
+
+      const { rerender } = render(<AppShellTabBar {...baseProps} closeTab={staleCloseTab} />)
+
+      const tab = screen.getByRole('button', { name: 'A' })
+      fireEvent.click(within(tab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+
+      // The provider hands down a new closeTab (fresh tabs/activeTabId closure)
+      // before the 200ms deferral fires — the deferred call must use it, or the
+      // provider computes fallback/active decisions against a stale world.
+      rerender(<AppShellTabBar {...baseProps} closeTab={freshCloseTab} />)
+
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(freshCloseTab).toHaveBeenCalledWith('a')
+      expect(staleCloseTab).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('hands the active slot to the right neighbor as soon as a pointer close starts', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 120,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 120,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect)
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+    )
+
+    try {
+      const setActiveTab = vi.fn()
+      const closeTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ]
+
+      render(
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId="home"
+          setActiveTab={setActiveTab}
+          closeTab={closeTab}
+          closeTabs={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+        />
+      )
+
+      const activeTab = screen.getByRole('button', { name: 'Chat' })
+      fireEvent.click(within(activeTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+
+      // The handover rides the same commit as the collapse start (a couple of
+      // frames after the click) — long before the tab is actually removed.
+      expect(setActiveTab).not.toHaveBeenCalled()
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+      expect(setActiveTab).toHaveBeenCalledWith('a')
+      expect(closeTab).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(closeTab).toHaveBeenCalledWith('home')
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+      rectSpy.mockRestore()
+    }
   })
 
   it('keeps the tab highlighted while its context menu is open', () => {
