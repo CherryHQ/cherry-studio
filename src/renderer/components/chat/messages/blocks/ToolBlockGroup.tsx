@@ -132,7 +132,7 @@ const MCP_IMAGE_PATTERN = /_(?:image|photo|picture)_/
 const MCP_MODIFY_PATTERN = /_(?:edit|patch|update|write)_/
 const MCP_SEARCH_PATTERN = /_(?:find|query|search)_/
 const MCP_SEND_PATTERN = /_(?:publish|send|upload)_/
-const MCP_TASK_PATTERN = /_(?:task|todo)_/
+const MCP_TASK_PATTERN = /_(?:tasks?|todos?)_/
 const MCP_VIEW_PATTERN = /_(?:fetch|get|list|read|view)_/
 const MCP_WEB_PATTERN = /_(?:browser|fetch_markdown|http|url|web|website)_/
 

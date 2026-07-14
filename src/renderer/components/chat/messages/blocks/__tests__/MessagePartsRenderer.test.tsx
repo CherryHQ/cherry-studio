@@ -1117,7 +1117,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.queryByText('Reasoning between tools')).toBeNull()
       expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(2)
+      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(1)
       expect(screen.getByText('Main final answer')).toBeInTheDocument()
     })
 
@@ -1227,7 +1227,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
     })
 
-    it('folds a terminal process error with its adjacent reasoning', () => {
+    it('filters terminal reasoning while keeping the process error', () => {
       renderParts([
         { type: 'text', text: 'partial answer' },
         { type: 'reasoning', text: 'Investigating', state: 'done' },
@@ -1240,8 +1240,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('partial answer')).toBeInTheDocument()
 
       fireEvent.click(historyTrigger)
-      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Investigating')
-      expandCollapsedChildToolGroups()
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
       expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'failed after reasoning')
     })
