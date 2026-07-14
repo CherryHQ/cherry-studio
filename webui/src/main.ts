@@ -112,7 +112,10 @@ const textPacks = {
     noContext: 'No context usage available',
     noSessions: 'No desktop sessions yet',
     reasoning: 'Reasoning',
+    processDetails: 'Processing details',
+    toolCalls: 'Tool calls',
     processingTime: 'Processed in',
+    requestAborted: 'Generation was interrupted',
     runtime: 'Runtime',
     selectConversation: 'Select a conversation',
     selectFirst: 'Select a desktop conversation first',
@@ -180,7 +183,10 @@ const textPacks = {
     noContext: '暂无上下文用量',
     noSessions: '暂无桌面会话',
     reasoning: '思考过程',
+    processDetails: '处理过程',
+    toolCalls: '工具调用',
     processingTime: '处理用时',
+    requestAborted: '生成已中断',
     runtime: '运行状态',
     selectConversation: '选择一个会话',
     selectFirst: '请先选择桌面会话',
@@ -248,7 +254,10 @@ const textPacks = {
     noContext: '暫無上下文用量',
     noSessions: '尚無桌面會話',
     reasoning: '思考過程',
+    processDetails: '處理過程',
+    toolCalls: '工具調用',
     processingTime: '處理用時',
+    requestAborted: '生成已中斷',
     runtime: '執行狀態',
     selectConversation: '選擇一個會話',
     selectFirst: '請先選擇桌面會話',
@@ -289,6 +298,15 @@ type TextKey = keyof (typeof textPacks)[typeof fallbackLanguage]
 
 const toErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : 'Unable to reach the desktop bridge'
+}
+
+const isAbortError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError') ||
+    /signal\s+is\s+aborted|abort(?:ed)?/i.test(message)
+  )
 }
 
 const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversationSummary => ({
@@ -400,7 +418,11 @@ const renderActionIcon = (name: ActionIconName) => {
   if (name === 'stop') return h('svg', { ...props, fill: 'currentColor', stroke: 'none' }, h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 1.5 }))
   if (name === 'menu') return h('svg', props, [h('path', { d: 'M4 7h16' }), h('path', { d: 'M4 12h16' }), h('path', { d: 'M4 17h16' })])
   if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
-  return h('svg', props, [h('path', { d: 'M14 4h6v6' }), h('path', { d: 'm20 4-7 7' }), h('path', { d: 'M10 20H4v-6' }), h('path', { d: 'm4 20 7-7' })])
+  return h('svg', props, [
+    h('path', { d: 'M5 19A14 14 0 0 0 19 5' }),
+    h('path', { d: 'M9 19A10 10 0 0 0 19 9' }),
+    h('path', { d: 'M13 19A6 6 0 0 0 19 13' })
+  ])
 }
 
 const toDisplayText = (value: unknown): string | undefined => {
@@ -622,6 +644,55 @@ const App = defineComponent({
       return pack[key] ?? textPacks[fallbackLanguage][key]
     }
 
+    const localizedErrorMessage = (error: unknown) => (isAbortError(error) ? text('requestAborted') : toErrorMessage(error))
+    const localizedSseErrorMessage = (message?: string) =>
+      message && isAbortError(message) ? text('requestAborted') : message || text('disconnected')
+    const isAbortSseMessage = (message?: string) => Boolean(message && isAbortError(message))
+
+    const hasProcessDetails = (message: WebUiMessageSnapshot) =>
+      Boolean(message.reasoning || message.toolCalls?.length)
+    const getProcessSummary = (message: WebUiMessageSnapshot) => {
+      if (message.status !== 'pending' && message.processingTimeMs) {
+        return `${text('processingTime')} ${formatDuration(message.processingTimeMs)}`
+      }
+      if (message.toolCalls?.length) return `${text('processDetails')} · ${message.toolCalls.length} ${text('toolCalls')}`
+      return text('reasoning')
+    }
+    const renderToolCall = (tool: WebUiToolCallSnapshot, message: WebUiMessageSnapshot) =>
+      h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: message.status === 'pending' && !terminalToolStates.has(tool.state) }, [
+        h('summary', [
+          h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
+          h('span', { class: 'tool-call-name' }, tool.name),
+          h('span', { class: 'tool-call-state' }, tool.state.replaceAll('-', ' '))
+        ]),
+        h('div', { class: 'tool-call-body' }, [
+          tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
+          tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
+          tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
+        ])
+      ])
+    const renderProcessDetails = (message: WebUiMessageSnapshot) =>
+      hasProcessDetails(message)
+        ? h('details', { class: ['process-block', { 'process-block-pending': message.status === 'pending' }] }, [
+            h('summary', [
+              h('span', { class: 'process-state-indicator', 'aria-hidden': 'true' }),
+              h('span', { class: 'process-summary' }, getProcessSummary(message))
+            ]),
+            message.reasoning
+              ? h('section', { class: 'process-section' }, [
+                  h('p', { class: 'process-section-title' }, text('reasoning')),
+                  h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
+                ])
+              : undefined,
+            message.toolCalls?.length
+              ? h('section', { class: 'process-section' }, [
+                  h('p', { class: 'process-section-title' }, `${text('toolCalls')} (${message.toolCalls.length})`),
+                  ...message.toolCalls.map((tool) => renderToolCall(tool, message))
+                ])
+              : undefined
+          ])
+        : undefined
+
     const selectLanguage = (nextLanguage: (typeof webUiLanguages)[number]['id']) => {
       language.value = nextLanguage
       languageOverride.value = true
@@ -665,7 +736,7 @@ const App = defineComponent({
         sseClientCount.value = String(health.sseClients)
       } catch (error) {
         bridgeState.value = 'offline'
-        bridgeDetail.value = toErrorMessage(error)
+        bridgeDetail.value = localizedErrorMessage(error)
         appVersion.value = ''
         serviceStartedAt.value = text('unavailable')
         sseClientCount.value = '0'
@@ -691,7 +762,9 @@ const App = defineComponent({
           if (cursor && seenCursors.has(cursor)) break
           if (cursor) seenCursors.add(cursor)
         } while (cursor)
-        conversations.value = sessions.map(toConversationSummary)
+        conversations.value = sessions
+          .map(toConversationSummary)
+          .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
         if (
           selectedConversationId.value &&
           !conversations.value.some((conversation) => conversation.id === selectedConversationId.value)
@@ -706,7 +779,7 @@ const App = defineComponent({
       } catch (error) {
         conversations.value = []
         conversationLoadState.value = 'error'
-        conversationLoadMessage.value = toErrorMessage(error)
+        conversationLoadMessage.value = localizedErrorMessage(error)
       }
     }
 
@@ -738,12 +811,13 @@ const App = defineComponent({
         if (mode === 'replace') olderMessagesCursor.value = page.nextCursor
         messageLoadState.value = 'ready'
         messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
+        refreshComposerInfo(conversationId)
         if (mode === 'replace') scrollMessagesToEnd()
       } catch (error) {
         if (requestId !== latestMessageRequest || selectedConversationId.value !== conversationId) return
 
         messageLoadState.value = 'error'
-        messageLoadMessage.value = toErrorMessage(error)
+        messageLoadMessage.value = localizedErrorMessage(error)
       }
     }
 
@@ -766,7 +840,7 @@ const App = defineComponent({
         await nextTick()
         if (stack) stack.scrollTop += stack.scrollHeight - previousScrollHeight
       } catch (error) {
-        submitError.value = toErrorMessage(error)
+        submitError.value = localizedErrorMessage(error)
       } finally {
         olderMessagesLoading.value = false
       }
@@ -795,7 +869,7 @@ const App = defineComponent({
         modelPickerOpen.value = false
         modelUpdateState.value = 'idle'
       } catch (error) {
-        submitError.value = toErrorMessage(error)
+        submitError.value = localizedErrorMessage(error)
         modelUpdateState.value = 'error'
       }
     }
@@ -825,11 +899,19 @@ const App = defineComponent({
     }
 
     const selectConversation = (conversationId: string) => {
-      if (conversationId === selectedConversationId.value) return
+      if (conversationId === selectedConversationId.value) {
+        mobileSidebarOpen.value = false
+        void loadConversationMessages(conversationId, 'refresh')
+        refreshComposerInfo(conversationId)
+        refreshSlashCommands(conversationId)
+        return
+      }
 
       selectedConversationId.value = conversationId
       mobileSidebarOpen.value = false
       messages.value = []
+      contextUsage.value = null
+      slashCommands.value = []
       olderMessagesCursor.value = undefined
       attachments.value = []
       reasoningEffort.value = 'default'
@@ -854,7 +936,7 @@ const App = defineComponent({
         agents.value = []
         selectedAgentId.value = ''
         newConversationState.value = 'error'
-        newConversationError.value = toErrorMessage(error)
+        newConversationError.value = localizedErrorMessage(error)
       }
     }
 
@@ -874,7 +956,7 @@ const App = defineComponent({
         selectConversation(session.id)
       } catch (error) {
         newConversationState.value = 'error'
-        newConversationError.value = toErrorMessage(error)
+        newConversationError.value = localizedErrorMessage(error)
       }
     }
 
@@ -1058,7 +1140,13 @@ const App = defineComponent({
         scrollMessagesToEnd('smooth')
         refreshSlashCommands(conversationId)
       } catch (error) {
-        submitError.value = error instanceof DOMException ? text('attachmentReadFailed') : toErrorMessage(error)
+        if (isAbortError(error)) {
+          submitError.value = ''
+          bridgeDetail.value = text('requestAborted')
+          activeRunConversationId.value = undefined
+          return
+        }
+        submitError.value = error instanceof DOMException ? text('attachmentReadFailed') : localizedErrorMessage(error)
         activeRunConversationId.value = undefined
       }
     }
@@ -1070,7 +1158,8 @@ const App = defineComponent({
       try {
         await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/abort`, {})
       } catch (error) {
-        submitError.value = toErrorMessage(error)
+        submitError.value = ''
+        bridgeDetail.value = localizedErrorMessage(error)
         activeRunConversationId.value = undefined
       }
     }
@@ -1127,7 +1216,7 @@ const App = defineComponent({
         if (!status.authRequired) startAuthenticatedSession()
       } catch (error) {
         bridgeState.value = 'offline'
-        bridgeDetail.value = toErrorMessage(error)
+        bridgeDetail.value = localizedErrorMessage(error)
         serviceStartedAt.value = text('unavailable')
       }
     }
@@ -1171,7 +1260,13 @@ const App = defineComponent({
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
       if (data?.conversationId === activeRunConversationId.value) {
-        submitError.value = data.message ?? text('disconnected')
+        const message = localizedSseErrorMessage(data.message)
+        if (isAbortSseMessage(data.message)) {
+          submitError.value = ''
+          bridgeDetail.value = message
+        } else {
+          submitError.value = message
+        }
         activeRunConversationId.value = undefined
       }
     })
@@ -1439,31 +1534,7 @@ const App = defineComponent({
                         )
                       : undefined
                   ]),
-                  message.reasoning
-                    ? h('details', { class: 'reasoning-block', open: message.status === 'pending' }, [
-                        h(
-                          'summary',
-                          message.status === 'pending' || !message.processingTimeMs
-                            ? text('reasoning')
-                            : `${text('processingTime')} ${formatDuration(message.processingTimeMs)}`
-                        ),
-                        h('div', { class: 'markdown-content', innerHTML: renderMarkdown(message.reasoning) })
-                      ])
-                    : undefined,
-                  ...(message.toolCalls ?? []).map((tool) =>
-                    h('details', { class: ['tool-call', `tool-call-${tool.state}`], open: message.status === 'pending' && !terminalToolStates.has(tool.state) }, [
-                      h('summary', [
-                        h('span', { class: 'tool-state-indicator', 'aria-hidden': 'true' }),
-                        h('span', { class: 'tool-call-name' }, tool.name),
-                        h('span', { class: 'tool-call-state' }, tool.state.replaceAll('-', ' '))
-                      ]),
-                      h('div', { class: 'tool-call-body' }, [
-                        tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
-                        tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
-                        tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
-                      ])
-                    ])
-                  ),
+                  renderProcessDetails(message),
                   message.attachments?.length
                     ? h(
                         'div',
@@ -1489,6 +1560,7 @@ const App = defineComponent({
                 {
                   class: 'scroll-bottom-button',
                   type: 'button',
+                  style: { bottom: `${composerHeight.value + (attachments.value.length ? 104 : 72)}px` },
                   title: text('backToBottom'),
                   'aria-label': text('backToBottom'),
                   onClick: () => scrollMessagesToEnd('smooth')
@@ -1570,6 +1642,17 @@ const App = defineComponent({
                     {
                       class: 'composer-tool-button',
                       type: 'button',
+                      title: text('newConversationTool'),
+                      'aria-label': text('newConversationTool'),
+                      onClick: () => void openNewConversation()
+                    },
+                    renderComposerToolIcon('newConversation')
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: 'composer-tool-button',
+                      type: 'button',
                       title: text('attachmentPending'),
                       'aria-label': text('attachmentPending'),
                       disabled: attachments.value.length >= maxAttachmentCount,
@@ -1594,17 +1677,6 @@ const App = defineComponent({
                       }
                     },
                     renderComposerToolIcon('thinking')
-                  ),
-                  h(
-                    'button',
-                    {
-                      class: 'composer-tool-button',
-                      type: 'button',
-                      title: text('newConversationTool'),
-                      'aria-label': text('newConversationTool'),
-                      onClick: () => void openNewConversation()
-                    },
-                    renderComposerToolIcon('newConversation')
                   ),
                   h(
                     'button',
@@ -2374,6 +2446,69 @@ style.textContent = `
     background: #f3f4f6;
   }
 
+  .process-block {
+    margin-bottom: 12px;
+    color: #4b5563;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-left: 3px solid #9ca3af;
+    border-radius: 7px;
+  }
+
+  .process-block summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 12px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .process-block summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .process-block[open] summary {
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .process-state-indicator {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    background: #9ca3af;
+    border-radius: 999px;
+  }
+
+  .process-block-pending .process-state-indicator {
+    background: #d97706;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  .process-summary {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .process-section {
+    padding: 10px 12px;
+  }
+
+  .process-section + .process-section {
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .process-section-title {
+    margin: 0 0 8px;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   .reasoning-block {
     margin-bottom: 12px;
     padding: 10px 12px;
@@ -2603,9 +2738,8 @@ style.textContent = `
   }
 
   .composer-resize-handle svg {
-    width: 14px;
-    height: 14px;
-    transform: rotate(45deg);
+    width: 16px;
+    height: 16px;
   }
 
   .composer-toolbar {
@@ -2728,11 +2862,33 @@ style.textContent = `
     box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
   }
 
+  .model-picker-menu {
+    right: auto;
+    bottom: 56px;
+    left: 112px;
+    width: min(460px, calc(100% - 128px));
+    max-height: min(360px, 48dvh);
+    transform-origin: bottom left;
+    animation: model-drawer-up 140ms ease-out;
+  }
+
   .reasoning-picker-menu {
     z-index: 7;
     right: auto;
     left: 8px;
     max-height: min(276px, 42dvh);
+  }
+
+  @keyframes model-drawer-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .model-picker-group {
@@ -3196,6 +3352,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .conversation-item,
+  :root[data-webui-theme='dark'] .process-block,
   :root[data-webui-theme='dark'] .tool-call,
   :root[data-webui-theme='dark'] .reasoning-block,
   :root[data-webui-theme='dark'] .markdown-content th,
@@ -3226,6 +3383,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='dark'] .conversation-title,
+  :root[data-webui-theme='dark'] .process-block,
   :root[data-webui-theme='dark'] .tool-call,
   :root[data-webui-theme='dark'] .tool-call-data,
   :root[data-webui-theme='dark'] .slash-command-option,
@@ -3283,6 +3441,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='light'] .conversation-item,
+  :root[data-webui-theme='light'] .process-block,
   :root[data-webui-theme='light'] .tool-call,
   :root[data-webui-theme='light'] .reasoning-block,
   :root[data-webui-theme='light'] .markdown-content th,
@@ -3313,6 +3472,7 @@ style.textContent = `
   }
 
   :root[data-webui-theme='light'] .conversation-title,
+  :root[data-webui-theme='light'] .process-block,
   :root[data-webui-theme='light'] .tool-call,
   :root[data-webui-theme='light'] .tool-call-data,
   :root[data-webui-theme='light'] .slash-command-option,
@@ -3444,12 +3604,14 @@ style.textContent = `
       background: #ffffff;
       border: 1px solid #d1d5db;
       border-radius: 6px;
+      line-height: 0;
     }
 
     .mobile-sidebar-button svg {
       display: block;
       width: 20px;
       height: 20px;
+      margin: auto;
     }
 
     .mobile-bridge-indicator {
@@ -3545,6 +3707,14 @@ style.textContent = `
       bottom: calc(100% + 10px);
       width: min(280px, calc(100% - 8px));
       max-height: min(256px, 36dvh);
+    }
+
+    .model-picker-menu {
+      right: auto;
+      bottom: 58px;
+      left: 0;
+      width: min(100%, 320px);
+      max-height: min(300px, 44dvh);
     }
 
     .reasoning-picker-menu {
