@@ -51,7 +51,7 @@ export function SystemSkillDialog({ agentId, open, onOpenChange, onRegistered }:
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {loading ? (
+          {loading && skills.length === 0 ? (
             <Center className="min-h-0 flex-1 text-foreground-muted text-sm">
               <Spinner text={t('common.loading')} />
             </Center>
