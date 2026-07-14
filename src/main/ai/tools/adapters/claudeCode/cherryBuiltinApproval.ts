@@ -1,5 +1,5 @@
 /**
- * cherry-tools agent-session approval policy.
+ * cherry-tools / assistant-MCP agent-session approval policy.
  *
  * Consumed by the Claude Code runtime (settingsBuilder allowlist + tool-policy snapshot in
  * `agentTools`) to decide which cherry-tools an agent may call without a per-call approval prompt.
@@ -51,3 +51,13 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   NOTIFY_TOOL_NAME,
   CONFIG_TOOL_NAME
 ]
+
+/**
+ * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate` only,
+ * which emits a clickable link the user must click themselves. `diagnose` reads local machine data
+ * (logs, source files, config, host info) and MUST go through per-call approval — the Assistant
+ * also reads untrusted web/KB content, and auto-approved web_fetch would complete a prompt-injection
+ * exfiltration chain (untrusted page → diagnose → web_fetch). Never widen this to a
+ * `mcp__assistant__` prefix or wildcard; a future assistant tool must opt in here explicitly.
+ */
+export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = ['mcp__assistant__navigate']
