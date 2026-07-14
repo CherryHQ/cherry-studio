@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
