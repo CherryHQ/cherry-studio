@@ -21,15 +21,25 @@ export const BINARY_INSTALL_PREFERENCE_KEYS = {
 } as const
 
 /**
+ * The interpreters mise auto-installs for package backends (npm → node,
+ * pipx → python). Single source of truth for the runtime-name fact: the shared
+ * `isRuntimeDependency` check below and BinaryManager's backend→runtime
+ * `RUNTIME_DEPS` map both derive from this, so adding a backend (e.g. gem → ruby)
+ * forces the interpreter to be registered here first.
+ */
+export const RUNTIME_INTERPRETERS = ['node', 'python'] as const
+export type RuntimeInterpreter = (typeof RUNTIME_INTERPRETERS)[number]
+
+/**
  * Whether a tool spec is a runtime interpreter that mise auto-installs for
- * package backends (BinaryManager's RUNTIME_DEPS: npm → node, pipx → python).
- * Once owned, a runtime stays removable after the UI warns about dependent tools.
+ * package backends. Once owned, a runtime stays removable after the UI warns
+ * about dependent tools.
  */
 export function isRuntimeDependency(toolSpec: string): boolean {
   const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec
   if (spec.includes(':')) return false
   const base = spec.split('@')[0]
-  return base === 'node' || base === 'python'
+  return (RUNTIME_INTERPRETERS as readonly string[]).includes(base)
 }
 
 export function validateBinaryManifestEntry(tool: BinaryManifestEntry): void {

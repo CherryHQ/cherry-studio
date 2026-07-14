@@ -347,6 +347,42 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('drops a stale failed install once the tool resolves on the system PATH', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+        fd: { status: 'failed', action: 'install', error: 'offline', intent: { name: 'fd', tool: 'fd' } }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+      // The out-of-band install satisfied the tool — no spurious retry survives.
+      expect(snapshots.fd.operation).toBeUndefined()
+    })
+
+    it('keeps a failed install whose tool is present via mise so ownership retry survives', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+        fd: { status: 'failed', action: 'install', error: 'manifest write failed', intent: { name: 'fd', tool: 'fd' } }
+      })
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
+        stderr: ''
+      })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      // Physically installed but manifest write failed — the retry claims ownership.
+      expect(snapshots.fd.availability.source).toBe('mise')
+      expect(snapshots.fd.operation).toMatchObject({ status: 'failed', action: 'install' })
+    })
+
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

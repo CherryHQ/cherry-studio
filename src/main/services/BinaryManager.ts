@@ -19,6 +19,7 @@ import {
   BINARY_INSTALL_PREFERENCE_KEYS,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
+  type RuntimeInterpreter,
   TOOL_KEY_RE,
   validateBinaryManifestEntry
 } from '@shared/data/presets/binaryTools'
@@ -65,7 +66,9 @@ const MISE_PASSTHROUGH_ENV = [
   'PIP_INDEX_URL'
 ]
 
-const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
+// Backend → default runtime spec. The runtime name must be a registered
+// RuntimeInterpreter, so a new backend can't silently bypass isRuntimeDependency.
+const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@22', pipx: 'python@3.12' }
 
 // Query commands (which/ls/registry/latest) finish in seconds. Installs are a
 // different budget entirely: `use` may download a full runtime (node, python)
@@ -374,11 +377,19 @@ export class BinaryManager extends BaseService {
           : system[name]
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
+      const operation = operations[name]
+      // A failed install for a tool that now resolves on the system PATH was
+      // satisfied out-of-band (e.g. the user installed it with their own package
+      // manager). It is stale — dropping it avoids a spurious retry over a
+      // working tool. A mise/bundled source keeps its failed op: that is the
+      // "installed but manifest write failed" case whose retry claims ownership.
+      const staleFailedInstall =
+        operation?.status === 'failed' && operation.action === 'install' && availability.source === 'system'
       snapshots[name] = {
         name,
         ...(intentsByName.has(name) ? { intent: intentsByName.get(name)! } : {}),
         availability,
-        ...(operations[name] ? { operation: operations[name] } : {})
+        ...(operation && !staleFailedInstall ? { operation } : {})
       }
     }
     return snapshots
@@ -660,7 +671,9 @@ export class BinaryManager extends BaseService {
           return isRuntimeDependency(entry.tool) && runtimeTool.split('@')[0] === runtimeName
         })
       : undefined
-    let runtime = defaultRuntime
+    // The narrow template type is RUNTIME_DEPS's guarantee; the local is just a
+    // `<tool>@<version>` command fragment, which the owned-runtime branch widens.
+    let runtime: string | undefined = defaultRuntime
     if (ownedRuntime) {
       const runtimeTool = ownedRuntime.tool.replace(/@[^@]+$/, '')
       const runtimeVersion = ownedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
