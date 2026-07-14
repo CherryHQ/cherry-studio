@@ -287,25 +287,31 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('does not offer maximize for non-file panes', () => {
+  it('treats the maximized pane as a single-view focus surface and restores switching after minimizing', () => {
     render(
       <TopicRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <ResourcePaneCountButton label="chat.topics.title" count={3} openBehavior="toggle-active" />
         <TopicRightPane.Shortcuts topicId="topic-a" />
         <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+        <TopicRightPane.MaximizedOverlay topicId="topic-a" traceId="trace-a" />
       </TopicRightPane>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
+    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeNull()
+    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'chat.topics.title 3' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.title 3' }))
-    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+    expect(screen.getAllByTestId('shell-tab-title').map((title) => title.textContent)).toContain('trace.label')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
   })
 
   it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {

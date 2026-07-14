@@ -401,7 +401,6 @@ function AgentRightPaneFilesPanel() {
   return (
     <ArtifactPaneView
       workspacePath={state.workspacePath}
-      maximized={shellState.maximized}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={shellState.pdfLayoutPending}
@@ -602,11 +601,7 @@ function AgentRightPaneSurface() {
 
   return (
     <Shell.Tabs>
-      <Shell.TabList
-        title={activeTitle}
-        showTabs={false}
-        canMaximize={hasFiles && shellState.activeTab === 'files'}
-        extraTrailing={tabListTrailing}>
+      <Shell.TabList title={activeTitle} showTabs={false} extraTrailing={tabListTrailing}>
         <ResourcePaneTab />
         {hasFiles && (
           <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>

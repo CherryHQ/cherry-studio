@@ -166,7 +166,6 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   const MockArtifactPane = ({
     workspacePath,
-    maximized,
     previewFileSelection,
     onPreviewClose,
     selectedFile,
@@ -177,7 +176,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     onFileTreeSearchKeywordChange
   }: {
     workspacePath?: string
-    maximized?: boolean
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
     selectedFile?: string | null
@@ -203,7 +201,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       <div
         data-testid="artifact-pane"
         data-workspace-path={workspacePath ?? ''}
-        data-maximized={String(Boolean(maximized))}
         data-selected-file={selectedFile ?? ''}
         data-view-mode={viewMode}
         data-expanded-ids={Array.from(resolvedExpandedIds).sort().join(',')}
@@ -271,7 +268,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     selectedFile,
     onSelectedFileChange,
     workspacePath,
-    maximized,
     previewFileSelection,
     onPreviewClose
   }: {
@@ -284,13 +280,11 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     selectedFile: string | null
     onSelectedFileChange: (file: string | null) => void
     workspacePath?: string
-    maximized?: boolean
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
   }) => (
     <MockArtifactPane
       workspacePath={workspacePath}
-      maximized={maximized}
       previewFileSelection={previewFileSelection}
       onPreviewClose={onPreviewClose}
       selectedFile={selectedFile}
@@ -688,20 +682,8 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-composer-elevated', 'true')
     expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-  })
-
-  it('only offers maximize for the files pane', () => {
-    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
-
-    openFilesPane()
-    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
-
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
@@ -903,7 +885,7 @@ describe('AgentChat artifact pane', () => {
       setActiveSessionId: vi.fn()
     }
 
-    renderAgentChat({ activeSession: undefined, activeSessionLoading: true, sessionPaneOpen: true })
+    renderAgentChat({ activeSession: undefined, activeSessionLoading: true })
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
@@ -912,8 +894,6 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('opens selected subagent flows in the right-pane title header', () => {
@@ -925,7 +905,6 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('cache-usage.md')
     expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
 

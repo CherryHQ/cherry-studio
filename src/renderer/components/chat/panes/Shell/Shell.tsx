@@ -9,7 +9,7 @@ import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { ComponentProps, CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -227,8 +227,6 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   const reduceMotion = useReducedMotion()
   const bottomInset = useChatMaximizedOverlayBottomInset()
-  const contentStyle =
-    bottomInset > 0 ? ({ '--chat-maximized-pane-safe-bottom': `${bottomInset}px` } as CSSProperties) : undefined
 
   return (
     <AnimatePresence onExitComplete={actions.finishClose}>
@@ -241,7 +239,10 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
           exit={{ clipPath: CLIP_COLLAPSED, transition: reduceMotion ? { duration: 0 } : MAXIMIZE_EXIT }}
           transition={reduceMotion ? { duration: 0 } : MAXIMIZE_ENTER}
           className="absolute inset-0 z-40 overflow-hidden bg-background">
-          <div data-shell-maximized-overlay-content="" className="h-full min-h-0 overflow-hidden" style={contentStyle}>
+          <div
+            data-shell-maximized-overlay-content=""
+            className="h-full min-h-0 overflow-hidden"
+            style={bottomInset > 0 ? { height: `max(0px, calc(100% - ${bottomInset}px))` } : undefined}>
             {children}
           </div>
         </motion.div>
@@ -401,13 +402,11 @@ function ShellTabs({ children }: { children: ReactNode }) {
 // pane can switch this header to title mode and leave the entry cluster in ConversationShell.
 function ShellTabList({
   children,
-  canMaximize = false,
   extraTrailing,
   title,
   showTabs = true
 }: {
   children: ReactNode
-  canMaximize?: boolean
   extraTrailing?: ReactNode
   title?: ReactNode
   showTabs?: boolean
@@ -422,19 +421,18 @@ function ShellTabList({
   // — clear the macOS traffic lights and let the user drag the window from the tab strip,
   // matching ConversationShellTopBar.
   const isWindowTopBar = state.maximized && mode === 'window'
-  const maximizeButton =
-    canMaximize || state.maximized ? (
-      <Tooltip content={maximizeLabel} delay={800}>
-        <NavbarIcon
-          tone="conversation"
-          className="[&_svg]:!size-3.5 shrink-0"
-          aria-label={maximizeLabel}
-          aria-pressed={state.maximized}
-          onClick={actions.toggleMaximized}>
-          <MaximizeIcon />
-        </NavbarIcon>
-      </Tooltip>
-    ) : null
+  const maximizeButton = (
+    <Tooltip content={maximizeLabel} delay={800}>
+      <NavbarIcon
+        tone="conversation"
+        className="[&_svg]:!size-3.5 shrink-0"
+        aria-label={maximizeLabel}
+        aria-pressed={state.maximized}
+        onClick={actions.toggleMaximized}>
+        <MaximizeIcon />
+      </NavbarIcon>
+    </Tooltip>
+  )
   const closeButton = (
     <Tooltip content={closeLabel} delay={800}>
       <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={() => actions.close()}>
