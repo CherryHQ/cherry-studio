@@ -83,6 +83,14 @@ describe('agent right pane projections', () => {
     expect((projection.partsByMessageId['root:agent-flow-assistant'][3] as { text?: string }).text).toBe(
       'Done exploring'
     )
+
+    const nextProjection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
+    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][0]).toBe(
+      projection.partsByMessageId['root:agent-flow-assistant'][0]
+    )
+    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][1]).toBe(
+      projection.partsByMessageId['root:agent-flow-assistant'][1]
+    )
   })
 
   it('degrades to the selected tool prompt when child metadata is missing', () => {
