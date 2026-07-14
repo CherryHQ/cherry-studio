@@ -12,6 +12,7 @@ import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -47,6 +48,37 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
+
+function getAgentDescription(description: string, configuration: unknown): string {
+  if (description) return description
+  if (typeof configuration === 'object' && configuration !== null) {
+    if ((configuration as { builtin_role?: unknown }).builtin_role === 'assistant') {
+      return t('agent.builtin.cherry_assistant.description')
+    }
+  }
+  return ''
+}
+
+function buildAgentSearchPredicate(search: string): SQL {
+  const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descriptionMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
+  // The builtin description is an i18n-owned fallback when the database value is blank, so include
+  // its localized main-process fallback in SQL rather than limiting search to a renderer page.
+  const builtinDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant' AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, builtinDescriptionMatch)!
+}
+
+/**
+ * `builtin_role` is a capability identity, not user data: it drives the system prompt, bundle
+ * provisioning, settings-source isolation, Assistant MCP injection, and tool auto-approval. It is
+ * server-owned — only internal seeding (`createAgentTx`) may write it; the public DataApi surface
+ * must not let an ordinary agent forge, change, or drop it.
+ */
+function getBuiltinRole(configuration: unknown): unknown {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  return (configuration as { builtin_role?: unknown }).builtin_role
+}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -114,6 +146,13 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   createAgent(req: CreateAgentDto): AgentEntity {
+    // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
+    if (getBuiltinRole(req.configuration) !== undefined) {
+      throw DataApiErrorFactory.invalidOperation(
+        'create agent',
+        'configuration.builtin_role is reserved for system agents'
+      )
+    }
     const id = uuidv4()
     const mcps = req.mcps ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -222,15 +261,11 @@ export class AgentService {
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
-    // AND-compose deletedAt-null + optional search. Search runs LIKE against
-    // name OR description with user-typed wildcards escaped.
+    // AND-compose deletedAt-null + optional server-side search. The localized builtin
+    // fallback is part of the predicate, so pagination and full-library search stay authoritative.
     const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
     if (options.search) {
-      const pattern = `%${options.search.replace(/[\\%_]/g, '\\$&')}%`
-      const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-      const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
-      const searchClause = or(nameMatch, descMatch)
-      if (searchClause) conditions.push(searchClause)
+      conditions.push(buildAgentSearchPredicate(options.search))
     }
     const whereClause = and(...conditions)
 
@@ -294,12 +329,7 @@ export class AgentService {
 
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
-    const pattern = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`
-    const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-    const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
-    const searchClause = or(nameMatch, descMatch)
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
-    if (searchClause) conditions.push(searchClause)
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt), buildAgentSearchPredicate(options.q)]
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
@@ -322,7 +352,7 @@ export class AgentService {
       type: 'agent',
       id: row.id,
       title: row.name,
-      subtitle: row.description || undefined,
+      subtitle: getAgentDescription(row.description, row.configuration) || undefined,
       emoji: getAgentAvatar(row.configuration),
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
@@ -332,6 +362,23 @@ export class AgentService {
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
     const existing = this.getAgent(id)
     if (!existing) return null
+
+    // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
+    // Forging or changing it is rejected; omitting it re-injects the stored value so a whole-blob
+    // configuration update cannot strip the identity either.
+    if (updates.configuration !== undefined) {
+      const existingRole = getBuiltinRole(existing.configuration)
+      const incomingRole = getBuiltinRole(updates.configuration)
+      if (incomingRole !== undefined && incomingRole !== existingRole) {
+        throw DataApiErrorFactory.invalidOperation(
+          'update agent',
+          'configuration.builtin_role is reserved for system agents'
+        )
+      }
+      if (existingRole !== undefined && incomingRole === undefined) {
+        updates = { ...updates, configuration: { ...updates.configuration, builtin_role: existingRole } }
+      }
+    }
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
