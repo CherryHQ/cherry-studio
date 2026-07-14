@@ -143,48 +143,69 @@ function normalizeToolSemanticText(value: string): string {
     .replace(/[^a-z0-9]+/g, '_')}_`
 }
 
-function getMcpToolGroupPresentation(tool: ToolGroupTool | undefined): McpToolGroupPresentation | undefined {
+function getMcpRuntimeAction(args: unknown): McpActivityAction | undefined {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
+
+  const action = 'action' in args && typeof args.action === 'string' ? normalizeToolSemanticText(args.action) : ''
+  if (MCP_DELETE_PATTERN.test(action)) return 'delete'
+  if (MCP_CREATE_PATTERN.test(action) || action === '_add_') return 'create'
+  if (MCP_MODIFY_PATTERN.test(action)) return 'modify'
+  if (MCP_SEND_PATTERN.test(action)) return 'send'
+  if (MCP_ANALYZE_PATTERN.test(action)) return 'analyze'
+  if (MCP_SEARCH_PATTERN.test(action)) return 'search'
+  if (MCP_VIEW_PATTERN.test(action)) return 'view'
+  if (MCP_EXECUTE_PATTERN.test(action)) return 'execute'
+  return undefined
+}
+
+function getMcpToolGroupPresentation(
+  tool: ToolGroupTool | undefined,
+  args?: unknown
+): McpToolGroupPresentation | undefined {
   if (!tool || (tool.type !== 'mcp' && !tool.id.startsWith('mcp__') && !tool.name.startsWith('mcp__'))) {
     return undefined
   }
 
   const serverName = 'serverName' in tool && typeof tool.serverName === 'string' ? tool.serverName : ''
-  const semanticText = normalizeToolSemanticText(`${serverName} ${tool.id} ${tool.name} ${tool.description ?? ''}`)
+  const identityText = normalizeToolSemanticText(`${serverName} ${tool.id} ${tool.name}`)
+  const targetText = normalizeToolSemanticText(`${serverName} ${tool.id} ${tool.name} ${tool.description ?? ''}`)
 
   let target: McpActivityTarget | undefined
   let icon: LucideIcon = Sparkles
-  if (MCP_EMAIL_PATTERN.test(semanticText)) {
+  if (MCP_EMAIL_PATTERN.test(targetText)) {
     target = 'email'
     icon = Mail
-  } else if (MCP_CALENDAR_PATTERN.test(semanticText)) {
+  } else if (MCP_CALENDAR_PATTERN.test(targetText)) {
     target = 'calendar'
     icon = CalendarDays
-  } else if (MCP_DATA_PATTERN.test(semanticText)) {
+  } else if (MCP_DATA_PATTERN.test(targetText)) {
     target = 'data'
     icon = Database
-  } else if (MCP_IMAGE_PATTERN.test(semanticText)) {
+  } else if (MCP_IMAGE_PATTERN.test(targetText)) {
     target = 'imageFiles'
     icon = ImageIcon
-  } else if (MCP_TASK_PATTERN.test(semanticText)) {
+  } else if (MCP_TASK_PATTERN.test(targetText)) {
     target = 'taskList'
     icon = ListChecks
-  } else if (MCP_WEB_PATTERN.test(semanticText)) {
-    target = MCP_SEARCH_PATTERN.test(semanticText) ? 'webSearch' : 'webPage'
+  } else if (MCP_WEB_PATTERN.test(targetText)) {
+    target = MCP_SEARCH_PATTERN.test(targetText) ? 'webSearch' : 'webPage'
     icon = Globe
-  } else if (MCP_DOCUMENT_PATTERN.test(semanticText)) {
+  } else if (MCP_DOCUMENT_PATTERN.test(targetText)) {
     target = 'documentFiles'
     icon = FileText
   }
 
-  let action: McpActivityAction | undefined
-  if (MCP_DELETE_PATTERN.test(semanticText)) action = 'delete'
-  else if (MCP_CREATE_PATTERN.test(semanticText)) action = 'create'
-  else if (MCP_MODIFY_PATTERN.test(semanticText)) action = 'modify'
-  else if (MCP_SEND_PATTERN.test(semanticText)) action = 'send'
-  else if (MCP_ANALYZE_PATTERN.test(semanticText)) action = 'analyze'
-  else if (MCP_SEARCH_PATTERN.test(semanticText)) action = 'search'
-  else if (MCP_VIEW_PATTERN.test(semanticText)) action = 'view'
-  else if (MCP_EXECUTE_PATTERN.test(semanticText)) action = 'execute'
+  let action = getMcpRuntimeAction(args)
+  if (!action) {
+    if (MCP_DELETE_PATTERN.test(identityText)) action = 'delete'
+    else if (MCP_CREATE_PATTERN.test(identityText)) action = 'create'
+    else if (MCP_MODIFY_PATTERN.test(identityText)) action = 'modify'
+    else if (MCP_SEND_PATTERN.test(identityText)) action = 'send'
+    else if (MCP_ANALYZE_PATTERN.test(identityText)) action = 'analyze'
+    else if (MCP_SEARCH_PATTERN.test(identityText)) action = 'search'
+    else if (MCP_VIEW_PATTERN.test(identityText)) action = 'view'
+    else if (MCP_EXECUTE_PATTERN.test(identityText)) action = 'execute'
+  }
 
   if (icon === Sparkles) {
     if (action === 'search') icon = FileSearch
@@ -195,8 +216,9 @@ function getMcpToolGroupPresentation(tool: ToolGroupTool | undefined): McpToolGr
   return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
 }
 
-function ToolGroupContentIcon({ tool }: { tool?: ToolGroupTool }) {
-  const Icon = (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool)?.icon || Wrench
+function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
+  const Icon =
+    (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
   return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
@@ -322,7 +344,7 @@ function getSemanticToolTitle(
 ) {
   const { toolResponse } = candidate.item
   const isActive = candidate.status === 'invoking' || candidate.status === 'streaming' || candidate.status === 'waiting'
-  const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool)
+  const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
   if (mcpPresentation && candidate.status === 'error') return t('message.tools.activity.extensionFailed')
 
   const activity =
@@ -440,7 +462,10 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         icon
       )
 
-    const latestToolIcon = showContentIcon ? <ToolGroupContentIcon tool={items.at(-1)?.toolResponse.tool} /> : undefined
+    const latestTool = items.at(-1)?.toolResponse
+    const latestToolIcon = showContentIcon ? (
+      <ToolGroupContentIcon tool={latestTool?.tool} toolArguments={latestTool?.arguments} />
+    ) : undefined
 
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
@@ -467,7 +492,12 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
-      const icon = showContentIcon ? <ToolGroupContentIcon tool={displayCandidate.item.toolResponse.tool} /> : undefined
+      const icon = showContentIcon ? (
+        <ToolGroupContentIcon
+          tool={displayCandidate.item.toolResponse.tool}
+          toolArguments={displayCandidate.item.toolResponse.arguments}
+        />
+      ) : undefined
       return renderSemanticTitle(title, icon, displayCandidate.item.id)
     }
 
@@ -508,7 +538,12 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
             aria-hidden="true"
             className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
-            {summaryIcon ?? <ToolGroupContentIcon tool={items.at(-1)?.toolResponse.tool} />}
+            {summaryIcon ?? (
+              <ToolGroupContentIcon
+                tool={items.at(-1)?.toolResponse.tool}
+                toolArguments={items.at(-1)?.toolResponse.arguments}
+              />
+            )}
           </span>
         )}
         <div className="min-w-0 overflow-hidden">

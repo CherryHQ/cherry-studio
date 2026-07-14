@@ -137,6 +137,23 @@ const emailDoneItem = {
   }
 } as ToolRenderItem
 
+const cronDoneItem = {
+  ...readDoneItem,
+  id: 'tool-cron',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-cron',
+    toolCallId: 'tool-cron',
+    tool: {
+      id: 'mcp__cherry-tools__cron',
+      name: 'mcp__cherry-tools__cron',
+      type: 'mcp',
+      description:
+        "Manage scheduled tasks. Use action 'add' to create a job, 'list' to see all jobs, or 'remove' to delete a job."
+    }
+  }
+} as ToolRenderItem
+
 const unknownMcpDoneItem = {
   ...readDoneItem,
   id: 'tool-unknown-mcp',
@@ -256,6 +273,26 @@ describe('ToolBlockGroup', () => {
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-mail')).not.toBeNull()
     expect(
       screen.getByRole('button', { name: 'message.tools.activity.send message.tools.activity.email' })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    ['add', 'create'],
+    ['list', 'view'],
+    ['remove', 'delete']
+  ])('uses the runtime action %s for a multi-action MCP tool description', (action, label) => {
+    const item = {
+      ...cronDoneItem,
+      toolResponse: {
+        ...cronDoneItem.toolResponse,
+        arguments: { action }
+      }
+    } as ToolRenderItem
+
+    render(<ToolBlockGroup items={[item]} />)
+
+    expect(
+      screen.getByRole('button', { name: `message.tools.activity.${label} message.tools.activity.taskList` })
     ).toBeInTheDocument()
   })
 
