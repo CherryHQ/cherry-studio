@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
+import { isWin } from '@main/core/platform'
+import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
 
@@ -77,6 +78,29 @@ export function crossPlatformSpawn(
   options: SpawnOptions & { env: NodeJS.ProcessEnv }
 ): ChildProcess {
   return crossSpawn(command, args, { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' })
+}
+
+/**
+ * Force-kill a spawned child and any descendants.
+ *
+ * On Windows, `crossPlatformSpawn` runs non-`.exe` commands through `shell: true`
+ * (cmd.exe), so a plain `child.kill()` only reaps the cmd.exe wrapper and leaves the
+ * real process orphaned. `taskkill /T /F` terminates the whole tree by PID. Best-effort:
+ * falls back to `child.kill()` when the pid is missing or taskkill is unavailable.
+ */
+export function killProcessTree(child: ChildProcess): void {
+  if (isWin && child.pid) {
+    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], (error) => {
+      if (error) {
+        // Usually the child already exited (a common cancel-after-finish race), so taskkill
+        // reports "process not found" — debug, not warn, to avoid noise on normal cancels.
+        logger.debug('taskkill did not terminate the process tree, falling back to child.kill()', error)
+        child.kill()
+      }
+    })
+    return
+  }
+  child.kill()
 }
 
 /**

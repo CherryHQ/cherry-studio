@@ -34,8 +34,8 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import type { BinaryState, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_BINARY_TOOL_PRESET } from '@shared/data/presets/binaryTools'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
@@ -69,17 +69,11 @@ const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 
-const hasBabelDoc = (state: BinaryState): boolean => {
-  const installed = state.tools[BABELDOC_BINARY_TOOL_PRESET.name]
-  return (
-    installed?.tool === BABELDOC_BINARY_TOOL_PRESET.tool && installed.version === BABELDOC_BINARY_TOOL_PRESET.version
-  )
-}
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
   const [installing, setInstalling] = useState(false)
+  const [availabilityRevision, setAvailabilityRevision] = useState(0)
 
   useEffect(() => {
     if (!enabled) return
@@ -87,9 +81,9 @@ const useBabelDoc = (enabled: boolean) => {
     let cancelled = false
     setAvailability('checking')
     void ipcApi
-      .request('binary.get_state')
-      .then((state) => {
-        if (!cancelled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+      .request('binary.get_tool_snapshots', [BABELDOC_TOOL_NAME])
+      .then((snapshots) => {
+        if (!cancelled) setAvailability(isBabelDocInstalled(snapshots[BABELDOC_TOOL_NAME]) ? 'available' : 'missing')
       })
       .catch((error) => {
         if (cancelled) return
@@ -100,21 +94,17 @@ const useBabelDoc = (enabled: boolean) => {
     return () => {
       cancelled = true
     }
-  }, [enabled])
+  }, [availabilityRevision, enabled])
 
-  useIpcOn('binary.state_changed', (state) => {
-    if (enabled) setAvailability(hasBabelDoc(state) ? 'available' : 'missing')
+  useIpcOn('binary.availability_changed', () => {
+    if (enabled) setAvailabilityRevision((revision) => revision + 1)
   })
 
   const install = useCallback(async () => {
     if (installing) return
     setInstalling(true)
     try {
-      await ipcApi.request('binary.install_tool', {
-        name: BABELDOC_BINARY_TOOL_PRESET.name,
-        tool: BABELDOC_BINARY_TOOL_PRESET.tool,
-        version: BABELDOC_BINARY_TOOL_PRESET.version
-      })
+      await ipcApi.request('binary.install_tool', { name: BABELDOC_TOOL_NAME })
       setAvailability('available')
     } catch (error) {
       logger.error('Failed to install BabelDOC', error as Error)

@@ -7267,7 +7267,7 @@
       },
       "dependency": {
         "checking": "Checking BabelDOC...",
-        "description": "Install the BabelDOC plugin to improve translation quality.",
+        "description": "Install the BabelDOC plugin to translate PDFs while preserving their original layout.",
         "installing": "Installing BabelDOC...",
         "title": "PDF detected"
       },
@@ -7277,7 +7277,6 @@
       },
       "export_failed": "Failed to export translated PDF",
       "pane": {
-        "source": "Source PDF",
         "translated": "Translated PDF",
         "translated_text": "Translation"
       },

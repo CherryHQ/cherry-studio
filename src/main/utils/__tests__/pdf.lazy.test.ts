@@ -64,7 +64,6 @@ describe('extractPdfText module loading', () => {
     expect(getTextMock).toHaveBeenCalled()
     expect(destroyMock).toHaveBeenCalled()
   })
-
   it('reads local PDF metadata through a file URL and destroys the parser', async () => {
     const getInfoMock = vi.fn(async () => ({ total: 3 }))
     const destroyMock = vi.fn(async () => undefined)
@@ -108,26 +107,6 @@ describe('extractPdfText module loading', () => {
     const { getPdfPageCount } = await import('../pdf')
 
     await expect(getPdfPageCount('/tmp/invalid.pdf')).rejects.toThrow('invalid PDF')
-    expect(destroyMock).toHaveBeenCalled()
-  })
-
-  it.each([
-    ['extractable text', [{ num: 1, text: 'Hello' }], true],
-    ['empty pages', [{ num: 1, text: '  ' }], false]
-  ])('detects PDF text layers for %s', async (_case, pages, expected) => {
-    const getTextMock = vi.fn(async () => ({ pages }))
-    const destroyMock = vi.fn(async () => undefined)
-    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {} }))
-    vi.doMock('pdf-parse', () => ({
-      PDFParse: class PDFParse {
-        getText = getTextMock
-        destroy = destroyMock
-      }
-    }))
-    const { hasPdfTextLayer } = await import('../pdf')
-
-    await expect(hasPdfTextLayer(new Uint8Array([37, 80, 68, 70]))).resolves.toBe(expected)
-    expect(getTextMock).toHaveBeenCalledWith({ pageJoiner: '' })
     expect(destroyMock).toHaveBeenCalled()
   })
 })

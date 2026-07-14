@@ -1,4 +1,5 @@
 import { Button, CircularProgress, EmptyState, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import PdfPreviewPanel from '@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel'
 import { LoadingState } from '@renderer/components/chat/primitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -15,6 +16,8 @@ import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('PdfTranslationView')
 
 export interface PdfTranslationFile {
   name: string
@@ -130,7 +133,9 @@ const PdfTranslationView = ({
     activeJobIdRef.current = null
     setPhase('idle')
     setProgress(null)
-    void ipcApi.request('translate.pdf.cancel', { jobId })
+    ipcApi.request('translate.pdf.cancel', { jobId }).catch((error) => {
+      logger.warn('Failed to cancel PDF translation', error as Error)
+    })
   }, [])
 
   const start = useCallback(
@@ -138,7 +143,9 @@ const PdfTranslationView = ({
       if (!modelId || activeJobIdRef.current) return
 
       if (outputRef.current) {
-        void ipcApi.request('translate.pdf.cleanup', { jobId: outputRef.current.jobId })
+        ipcApi.request('translate.pdf.cleanup', { jobId: outputRef.current.jobId }).catch((error) => {
+          logger.warn('Failed to clean up previous PDF translation output', error as Error)
+        })
         outputRef.current = null
         setOutput(null)
       }
@@ -159,7 +166,9 @@ const PdfTranslationView = ({
         })
         .then((result) => {
           if (activeJobIdRef.current !== jobId) {
-            void ipcApi.request('translate.pdf.cleanup', { jobId })
+            ipcApi.request('translate.pdf.cleanup', { jobId }).catch((error) => {
+              logger.warn('Failed to clean up superseded PDF translation output', error as Error)
+            })
             return
           }
           activeJobIdRef.current = null
@@ -218,9 +227,17 @@ const PdfTranslationView = ({
     () => () => {
       const activeJobId = activeJobIdRef.current
       activeJobIdRef.current = null
-      if (activeJobId) void ipcApi.request('translate.pdf.cancel', { jobId: activeJobId })
+      if (activeJobId) {
+        ipcApi.request('translate.pdf.cancel', { jobId: activeJobId }).catch((error) => {
+          logger.warn('Failed to cancel PDF translation on unmount', error as Error)
+        })
+      }
       const completedJob = outputRef.current
-      if (completedJob) void ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId })
+      if (completedJob) {
+        ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId }).catch((error) => {
+          logger.warn('Failed to clean up PDF translation output on unmount', error as Error)
+        })
+      }
     },
     []
   )
@@ -229,7 +246,9 @@ const PdfTranslationView = ({
     cancel()
     const completedJob = outputRef.current
     if (completedJob) {
-      void ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId })
+      ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId }).catch((error) => {
+        logger.warn('Failed to clean up PDF translation output', error as Error)
+      })
       outputRef.current = null
       setOutput(null)
     }
