@@ -4,8 +4,6 @@ import { isDev } from '@main/core/platform'
 import { session } from 'electron'
 import { join } from 'path'
 
-import { registerMainNetworkDevtoolsOrigin } from './mainNetworkDevtoolsAccess'
-
 const logger = loggerService.withContext('devtools')
 
 /**
@@ -20,13 +18,7 @@ const logger = loggerService.withContext('devtools')
  */
 export async function installDevtoolsExtensions(): Promise<void> {
   if (!isDev) return
-  await Promise.allSettled([
-    installReactDevtools(),
-    installBundledDevtools('data-api', 'DataApi'),
-    installBundledDevtools('main-network', 'Main Network', (extension) => {
-      registerMainNetworkDevtoolsOrigin(`chrome-extension://${extension.id}`)
-    })
-  ])
+  await Promise.allSettled([installReactDevtools(), installBundledDevtools('data-api', 'DataApi')])
 }
 
 async function installReactDevtools() {
@@ -43,7 +35,14 @@ async function installReactDevtools() {
   }
 }
 
-async function installBundledDevtools(
+/**
+ * Load a bundled DevTools panel from `resources/devtools/<directoryName>` into the
+ * default session. The generic mechanism core owns: a concrete devtool (e.g. the
+ * main-network monitor) calls this to install its own panel and, via `onInstalled`,
+ * act on the resolved extension (for instance to allowlist its origin). Best-effort:
+ * failures are logged, never thrown. Dev-only gating is the caller's responsibility.
+ */
+export async function installBundledDevtools(
   directoryName: string,
   displayName: string,
   onInstalled?: (extension: { id: string; name: string }) => void

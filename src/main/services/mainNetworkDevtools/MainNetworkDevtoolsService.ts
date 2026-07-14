@@ -4,12 +4,17 @@ import https from 'node:https'
 import type { AddressInfo } from 'node:net'
 
 import { loggerService } from '@logger'
+import { installBundledDevtools } from '@main/core/devtools/installDevtoolsExtensions'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { net } from 'electron'
 import WebSocket, { WebSocketServer } from 'ws'
 
-import { getMainNetworkDevtoolsPort, isMainNetworkDevtoolsOriginAllowed } from './mainNetworkDevtoolsAccess'
+import {
+  getMainNetworkDevtoolsPort,
+  isMainNetworkDevtoolsOriginAllowed,
+  registerMainNetworkDevtoolsOrigin
+} from './mainNetworkDevtoolsAccess'
 
 export { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
 
@@ -195,11 +200,24 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.patchNetFetch()
     this.patchHttpModules()
 
+    await this.installPanel()
+
     try {
       await this.startWebSocketServer()
     } catch (error) {
       logger.error('Failed to start Main Network DevTools websocket server', error as Error)
     }
+  }
+
+  /**
+   * Install this devtool's own bundled panel and allowlist its extension origin.
+   * core owns only the generic bundled-panel installer; the concrete devtool
+   * registers itself here rather than having core know about it.
+   */
+  private async installPanel(): Promise<void> {
+    await installBundledDevtools('main-network', 'Main Network', (extension) => {
+      registerMainNetworkDevtoolsOrigin(`chrome-extension://${extension.id}`)
+    })
   }
 
   private patchFetch(): void {

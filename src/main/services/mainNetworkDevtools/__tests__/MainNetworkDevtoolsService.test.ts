@@ -31,6 +31,12 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('@main/core/devtools/installDevtoolsExtensions', () => ({
+  installBundledDevtools: vi.fn()
+}))
+
+import { installBundledDevtools } from '@main/core/devtools/installDevtoolsExtensions'
+
 import {
   clearMainNetworkDevtoolsOrigins,
   isMainNetworkDevtoolsOriginAllowed,
@@ -185,6 +191,19 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
     expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
     expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://other-id')).toBe(false)
+  })
+
+  it('installs its own bundled panel and allowlists the resolved extension origin', async () => {
+    vi.mocked(installBundledDevtools).mockImplementation(async (_directoryName, _displayName, onInstalled) => {
+      onInstalled?.({ id: 'main-network-id', name: 'Main Network' })
+    })
+
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as { installPanel: () => Promise<void> }
+    await serviceState.installPanel()
+
+    expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
+    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
   })
 
   it('enforces the registered DevTools extension origin on live websocket connections', async () => {
