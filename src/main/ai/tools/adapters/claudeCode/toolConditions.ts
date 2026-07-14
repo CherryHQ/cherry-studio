@@ -16,8 +16,6 @@ import { CLAUDE_TOOL_DEFS } from '@shared/ai/claudecode/toolRegistry'
 export interface ClaudeToolContext {
   /** Session workspace directory. */
   cwd: string
-  /** Whether a global painting model is configured (Settings > Default Model) — gates generate_image. */
-  hasPaintingModel?: boolean
 }
 
 function dirHasGit(cwd: string): boolean {
@@ -35,9 +33,7 @@ function dirHasGit(cwd: string): boolean {
  */
 const TOOL_ENABLE_PREDICATES: Record<string, (ctx: ClaudeToolContext) => boolean> = {
   EnterWorktree: (ctx) => dirHasGit(ctx.cwd),
-  ExitWorktree: (ctx) => dirHasGit(ctx.cwd),
-  // generate_image has nothing to generate with until a painting model is configured — hide it then.
-  'mcp__cherry-tools__generate_image': (ctx) => ctx.hasPaintingModel === true
+  ExitWorktree: (ctx) => dirHasGit(ctx.cwd)
 }
 
 /**

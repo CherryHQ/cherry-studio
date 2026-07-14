@@ -661,16 +661,9 @@ async function buildToolPermissions(
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
-  // Raw session context for tool enable-predicates (worktree tools need a .git dir; generate_image
-  // needs a configured painting model).
+  // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
-  const hasPaintingModel = Boolean(application.get('PreferenceService').get('feature.paintings.model_id'))
-  const conditionContext: ClaudeToolContext | undefined = cwd
-    ? {
-        cwd,
-        hasPaintingModel
-      }
-    : undefined
+  const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call

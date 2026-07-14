@@ -32,9 +32,21 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
     let cancelled = false
     // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
     setState({ urls: [], failed: false })
-    Promise.all(list.map(async (id) => toSafeFileUrl(await window.api.file.getPhysicalPath({ id }), null)))
-      .then((resolved) => !cancelled && setState({ urls: resolved, failed: false }))
-      .catch(() => !cancelled && setState({ urls: [], failed: true }))
+    // Resolve each id independently so one deleted/unreadable FileEntry drops only its own tile
+    // instead of blanking the whole group; only flag `failed` when every id fails to resolve.
+    Promise.all(
+      list.map(async (id) => {
+        try {
+          return toSafeFileUrl(await window.api.file.getPhysicalPath({ id }), null)
+        } catch {
+          return null
+        }
+      })
+    ).then((resolved) => {
+      if (cancelled) return
+      const urls = resolved.filter((url): url is NonNullable<typeof url> => url !== null)
+      setState({ urls, failed: urls.length === 0 })
+    })
     return () => {
       cancelled = true
     }
@@ -52,7 +64,7 @@ export const MessageGenerateImageToolTitle = ({
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
   const { t } = useTranslation()
-  const { inlineUrls, items, mcpText } = useMemo(() => {
+  const { inlineUrls, items } = useMemo(() => {
     const outputParse = generateImageOutputSchema.safeParse(toolResponse.response)
     const mcpOutputParse = CallToolResultSchema.safeParse(toolResponse.response)
     return {
@@ -61,12 +73,7 @@ export const MessageGenerateImageToolTitle = ({
         ? mcpOutputParse.data.content.flatMap((item) =>
             item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
           )
-        : [],
-      mcpText: mcpOutputParse.success
-        ? mcpOutputParse.data.content
-            .flatMap((item) => (item.type === 'text' && item.text ? [item.text] : []))
-            .join('\n\n')
-        : ''
+        : []
     }
   }, [toolResponse.response])
   const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
@@ -77,15 +84,12 @@ export const MessageGenerateImageToolTitle = ({
     return <Spinner text={<NoteText>{t('chat.input.tools.generate_image.generating')}</NoteText>} />
   }
 
-  // Failure: a returned `{ error }` note, a thrown error, or files we could no longer
-  // resolve to a path (`resolveFailed`) — otherwise the success branch below would spin forever.
+  // Failure: a returned `{ error }` note, a thrown error, or files we could no longer resolve to a
+  // path (`resolveFailed`) — otherwise the success branch below would spin forever. The main-side
+  // `{ error }` / MCP text are English, model-facing notes; show localized UI copy instead of piping
+  // them straight to the user (i18n: all user-visible strings go through i18next).
   if (urls.length === 0 && (items.length === 0 || resolveFailed)) {
-    const response = toolResponse.response
-    const errorText =
-      response && typeof response === 'object' && typeof (response as { error?: unknown }).error === 'string'
-        ? (response as { error: string }).error
-        : mcpText || t('chat.input.tools.generate_image.failed')
-    return <NoteText>{errorText}</NoteText>
+    return <NoteText>{t('chat.input.tools.generate_image.failed')}</NoteText>
   }
 
   // No card chrome — just a caption and the image(s) laid out like any other image group

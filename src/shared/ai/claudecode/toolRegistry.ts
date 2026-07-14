@@ -336,8 +336,8 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Inspects and manages this agent configuration and channels',
     mcpServer: 'cherry-tools'
   },
-  // media (image generation). Hosted by cherry-tools; runtime-gated on a configured painting model
-  // (see toolConditions.ts) so it self-hides when there's nothing to generate with.
+  // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
+  // "configure a painting model" note at runtime when none is set (see cherryBuiltinApproval.ts).
   CherryGenerateImage: {
     name: 'mcp__cherry-tools__generate_image',
     category: 'media',

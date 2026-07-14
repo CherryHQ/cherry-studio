@@ -81,25 +81,6 @@ describe('resolveDisallowedTools', () => {
     const disallowed = new Set(resolveDisallowedTools({}))
     expect(disallowed.has('EnterWorktree')).toBe(false)
     expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
-    expect(disallowed.has('mcp__cherry-tools__generate_image')).toBe(false)
-  })
-
-  it('gates generate_image on a configured painting model', () => {
-    // No painting model → hide it (nothing to generate with); model configured → offer it.
-    const noModel = new Set(resolveDisallowedTools({}, { cwd: '/ws', hasPaintingModel: false }))
-    expect(noModel.has('mcp__cherry-tools__generate_image')).toBe(true)
-
-    const withModel = new Set(resolveDisallowedTools({}, { cwd: '/ws', hasPaintingModel: true }))
-    expect(withModel.has('mcp__cherry-tools__generate_image')).toBe(false)
-
-    // Its own user toggle still wins even when a model is configured.
-    const userDisabled = new Set(
-      resolveDisallowedTools(
-        { disabledTools: ['mcp__cherry-tools__generate_image'] },
-        { cwd: '/ws', hasPaintingModel: true }
-      )
-    )
-    expect(userDisabled.has('mcp__cherry-tools__generate_image')).toBe(true)
   })
 
   it('disables worktree tools without .git but keeps notify available (self-degrades when no channels)', () => {

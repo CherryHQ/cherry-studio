@@ -98,21 +98,45 @@ describe('MessageGenerateImageToolTitle', () => {
     expect(getPhysicalPath).not.toHaveBeenCalled()
   })
 
-  it('shows the agent MCP text result when no image block was returned', () => {
+  it('shows localized failure copy (not the English MCP text) when no image block was returned', () => {
     render(
       <MessageGenerateImageToolTitle
         toolResponse={mcpToolResponse({ content: [{ type: 'text', text: 'Image generation failed' }] })}
       />
     )
 
-    expect(screen.getByText('Image generation failed')).toBeInTheDocument()
+    expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
+    expect(screen.queryByText('Image generation failed')).not.toBeInTheDocument()
     expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
   })
 
-  it('renders the error note when generation returned an error', () => {
+  it('shows localized failure copy (not the English error note) when generation returned an error', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: { error: 'boom' } })} />)
-    expect(screen.getByText('boom')).toBeInTheDocument()
+    expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
+    expect(screen.queryByText('boom')).not.toBeInTheDocument()
     expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+  })
+
+  it('keeps the resolvable images when only some FileEntry paths fail', async () => {
+    getPhysicalPath
+      .mockReset()
+      .mockImplementation(({ id }: { id: string }) =>
+        id === 'f2' ? Promise.reject(new Error('gone')) : Promise.resolve(`/data/${id}.png`)
+      )
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          response: [
+            { id: 'f1', name: 'a.png' },
+            { id: 'f2', name: 'b.png' }
+          ]
+        })}
+      />
+    )
+    // Only the resolvable tile renders; the failed one is dropped, not shown as an overall failure.
+    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
+    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
+    expect(screen.queryByText('chat.input.tools.generate_image.failed')).not.toBeInTheDocument()
   })
 
   it('falls back to an error note (not a perpetual spinner) when path resolution fails', async () => {
