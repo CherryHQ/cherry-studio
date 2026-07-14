@@ -41,6 +41,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -102,6 +103,7 @@ interface ComposerClipboardCopyView {
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
+  replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken) => void
@@ -146,6 +148,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -486,6 +489,20 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
+function getComposerSelectionState(view: ComposerTextInputView) {
+  const { doc, selection } = view.state
+  // ProseMirror positions are token-based: `doc.content.size` is one past the
+  // trailing block-close token, so the caret at end-of-text sits at
+  // `content.size - 1` for non-empty text. Empty text only has a single
+  // selectable position (`1`), which is what `Math.max(1, ...)` normalizes.
+  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+
+  return {
+    isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
+    isCursorAtEnd: selection.empty && selection.from === lastSelectablePosition
+  }
+}
+
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -515,6 +532,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  onInputHistoryNavigate,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
@@ -753,16 +771,39 @@ export default function ComposerSurface({
     return serializeComposerDocument(editor)
   }, [])
 
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
+      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+    },
+    [managedTokenKindSet]
+  )
+
   useEffect(() => {
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
+      replaceDraft,
       toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
       getDraft
     })
-  }, [focusEditor, getDraft, handleTextChangeFromTool, insertToken, onActionsChange, removeToken, toggleEditorExpanded])
+  }, [
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
@@ -1250,7 +1291,7 @@ export default function ComposerSurface({
         ),
         style: editorStyle
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (view, event) => {
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
@@ -1265,6 +1306,29 @@ export default function ComposerSurface({
             !event.altKey
           ) {
             return false
+          }
+        }
+
+        if (
+          (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey &&
+          shouldHandleInputHistoryNavigation({
+            ...getComposerSelectionState(view),
+            isComposing: event.isComposing,
+            isQuickPanelVisible: quickPanel.isVisible,
+            key: event.key,
+            text: textRef.current
+          })
+        ) {
+          const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
+          const handled = onInputHistoryNavigate?.(direction) ?? false
+          if (handled) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
           }
         }
 

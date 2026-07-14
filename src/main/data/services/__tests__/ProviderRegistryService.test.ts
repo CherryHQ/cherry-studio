@@ -504,6 +504,44 @@ describe('ProviderRegistryService', () => {
       ])
     })
 
+    it('a standalone override (no models.json entry) only carries image-generation capability when it declares capabilities.force', async () => {
+      // Regression: a vendor-exclusive override (e.g. Ollama's x/z-image-turbo) that sets
+      // imageGeneration but omits `capabilities` synthesizes with capabilities: [] — invisible to
+      // the Paintings model filter, which requires the image-generation capability.
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'ollama',
+            modelId: 'x/z-image-turbo',
+            apiModelId: 'x/z-image-turbo',
+            name: 'Z-Image Turbo',
+            capabilities: { force: ['image-generation'] },
+            outputModalities: ['image'],
+            imageGeneration: { modes: { generate: { supports: {} } } }
+          },
+          {
+            providerId: 'ollama',
+            modelId: 'x/no-capability',
+            apiModelId: 'x/no-capability',
+            name: 'No Capability',
+            outputModalities: ['image'],
+            imageGeneration: { modes: { generate: { supports: {} } } }
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'ollama', name: 'Ollama', defaultChatEndpoint: null, metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'ollama' })
+
+      expect(models.find((m) => m.apiModelId === 'x/z-image-turbo')?.capabilities).toEqual(['image-generation'])
+      expect(models.find((m) => m.apiModelId === 'x/no-capability')?.capabilities).toEqual([])
+    })
+
     it('lists provider-declared registry models without reading provider rows from DB', async () => {
       setupRegistryData()
       const providerSpy = vi.spyOn(providerService, 'getByProviderId').mockImplementationOnce(() => {

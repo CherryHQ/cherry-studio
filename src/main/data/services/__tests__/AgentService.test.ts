@@ -18,6 +18,7 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -57,6 +58,7 @@ describe('AgentService', () => {
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
   beforeEach(async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
     await dbh.db
       .insert(userProviderTable)
       .values({ providerId: 'anthropic', name: 'anthropic', orderKey: generateOrderKeyBetween(null, null) })
@@ -201,6 +203,70 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('builtin_role write protection', () => {
+    it('rejects createAgent when configuration carries a builtin_role', async () => {
+      const error = captureError(() =>
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Forged Assistant',
+          model: TEST_MODEL_ID,
+          configuration: { builtin_role: 'assistant' }
+        })
+      )
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('builtin_role')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Assistant'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { configuration: { builtin_role: 'assistant' } })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(created.id)?.configuration?.builtin_role).toBeUndefined()
+    })
+
+    it('rejects updateAgent changing an existing builtin_role', async () => {
+      // Seed through the internal tx path, as the Cherry Assistant seeder does.
+      const agentId = 'agent_builtin_change'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
+    })
+
+    it('preserves the builtin_role when an update omits it from configuration', async () => {
+      const agentId = 'agent_builtin_preserve'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+
+      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🅰️')
+    })
+
+    it('accepts an update that carries the existing builtin_role unchanged', async () => {
+      const agentId = 'agent_builtin_roundtrip'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const updated = agentService.updateAgent(agentId, {
+        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+      })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🍒')
     })
   })
 
@@ -775,6 +841,27 @@ describe('AgentService', () => {
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
+
+    it('searches the localized blank builtin description server-side and returns it for display', async () => {
+      await insertAgent({
+        id: 'agent_builtin_assistant',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' }
+      })
+
+      const { agents, total } = agentService.listAgents({ search: 'diagnose issues' })
+
+      expect(total).toBe(1)
+      expect(agents).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_assistant',
+          // Preserve the persistence contract: renderer display fallback must not
+          // masquerade as a user-owned database description.
+          description: ''
+        })
+      ])
+    })
   })
 
   describe('search', () => {
@@ -818,6 +905,24 @@ describe('AgentService', () => {
         }
       ])
       expect(result[0]).not.toHaveProperty('modelName')
+    })
+
+    it('matches and displays the localized blank builtin description in global search', async () => {
+      await insertAgent({
+        id: 'agent_builtin_global_search',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_global_search',
+          subtitle:
+            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
     })
   })
 

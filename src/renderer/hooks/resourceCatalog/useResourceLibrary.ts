@@ -1,11 +1,12 @@
 import { useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { agentAdapter } from './agentAdapter'
 import { assistantAdapter } from './assistantAdapter'
@@ -41,6 +42,7 @@ export function useResourceLibrary({
   search,
   sort
 }: UseResourceLibraryOptions): UseResourceLibraryResult {
+  const { t } = useTranslation()
   const tagList = useTagList()
 
   const trimmedSearch = search.trim() || undefined
@@ -101,6 +103,8 @@ export function useResourceLibrary({
     search: isAssistant ? trimmedSearch : undefined,
     tagIds: isAssistant ? tagIds : undefined
   })
+  // Agent search stays server-side so matching spans the full database, not only the
+  // current page. The main service resolves the builtin fallback description for this predicate.
   const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
   const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
@@ -126,19 +130,22 @@ export function useResourceLibrary({
     }
   }, [])
 
-  const buildAgentItem = useCallback((a: AgentDetail): ResourceItem => {
-    return {
-      id: a.id,
-      type: 'agent',
-      name: a.name ?? '',
-      description: a.description ?? '',
-      avatar: getAgentAvatarFromConfiguration(a.configuration),
-      model: a.modelName ?? undefined,
-      createdAt: a.createdAt,
-      updatedAt: a.updatedAt,
-      raw: a
-    }
-  }, [])
+  const buildAgentItem = useCallback(
+    (a: AgentDetail): ResourceItem => {
+      return {
+        id: a.id,
+        type: 'agent',
+        name: a.name ?? '',
+        description: getAgentDescriptionForDisplay(a, t),
+        avatar: getAgentAvatarFromConfiguration(a.configuration),
+        model: a.modelName ?? undefined,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+        raw: a
+      }
+    },
+    [t]
+  )
 
   const buildSkillItem = useCallback((s: InstalledSkill): ResourceItem => {
     return {
