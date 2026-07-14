@@ -9,7 +9,7 @@ import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/pr
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type { PdfTranslationProgress, PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
+import type { PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -21,7 +21,8 @@ export interface PdfTranslationFile {
   path: string
 }
 
-type PdfTranslationPhase = 'idle' | 'preparing' | 'translating' | 'success' | 'error'
+type PdfTranslationPhase = 'idle' | 'preparing' | 'downloading_assets' | 'translating' | 'success' | 'error'
+type PdfTranslationUiStage = 'preparing' | 'analyzing' | 'translating' | 'generating'
 
 export interface PdfTranslationStatus {
   phase: PdfTranslationPhase
@@ -60,22 +61,44 @@ interface PdfTranslationOutput {
   fileName: string
 }
 
-const getProgressLabel = (t: TFunction, stage: PdfTranslationProgressStage): string => {
+interface PdfTranslationUiProgress {
+  stage: PdfTranslationUiStage
+  progress: number
+}
+
+const PDF_TRANSLATION_UI_STAGE_RANK: Record<PdfTranslationUiStage, number> = {
+  preparing: 0,
+  analyzing: 1,
+  translating: 2,
+  generating: 3
+}
+
+const getUiStage = (stage: PdfTranslationProgressStage): PdfTranslationUiStage => {
   switch (stage) {
     case 'parsing':
-      return t('translate.pdf.progress.parsing')
+      return 'preparing'
+    case 'analyzing':
+    case 'extracting_terms':
+    case 'processing':
+      return 'analyzing'
+    case 'translating':
+      return 'translating'
+    case 'typesetting':
+    case 'rendering':
+      return 'generating'
+  }
+}
+
+const getProgressLabel = (t: TFunction, stage: PdfTranslationUiStage): string => {
+  switch (stage) {
+    case 'preparing':
+      return t('translate.pdf.progress.preparing')
     case 'analyzing':
       return t('translate.pdf.progress.analyzing')
-    case 'extracting_terms':
-      return t('translate.pdf.progress.extracting_terms')
     case 'translating':
       return t('translate.pdf.progress.translating')
-    case 'typesetting':
-      return t('translate.pdf.progress.typesetting')
-    case 'rendering':
-      return t('translate.pdf.progress.rendering')
-    case 'processing':
-      return t('translate.pdf.progress.processing')
+    case 'generating':
+      return t('translate.pdf.progress.generating')
   }
 }
 
@@ -96,7 +119,7 @@ const PdfTranslationView = ({
   const [phase, setPhase] = useState<PdfTranslationPhase>('idle')
   const [output, setOutput] = useState<PdfTranslationOutput | null>(null)
   const [error, setError] = useState<Error | null>(null)
-  const [progress, setProgress] = useState<PdfTranslationProgress | null>(null)
+  const [progress, setProgress] = useState<PdfTranslationUiProgress | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
   const outputRef = useRef(output)
   outputRef.current = output
@@ -165,9 +188,15 @@ const PdfTranslationView = ({
   })
   useIpcOn('translate.pdf.progress', ({ jobId, stage, progress: nextProgress }) => {
     if (activeJobIdRef.current !== jobId) return
+    setPhase('translating')
     setProgress((current) => {
       if (current && nextProgress < current.progress) return current
-      return { stage, progress: nextProgress }
+      const nextStage = getUiStage(stage)
+      const stableStage =
+        current && PDF_TRANSLATION_UI_STAGE_RANK[nextStage] < PDF_TRANSLATION_UI_STAGE_RANK[current.stage]
+          ? current.stage
+          : nextStage
+      return { stage: stableStage, progress: nextProgress }
     })
   })
 
@@ -182,7 +211,7 @@ const PdfTranslationView = ({
     return () => onHandleChange(null)
   }, [onHandleChange])
 
-  const running = phase === 'preparing' || phase === 'translating'
+  const running = phase === 'preparing' || phase === 'downloading_assets' || phase === 'translating'
   useEffect(() => onStatusChange({ phase, running }), [onStatusChange, phase, running])
 
   useEffect(
@@ -219,15 +248,8 @@ const PdfTranslationView = ({
     }
   }, [output, t])
 
-  const progressLabel = progress ? getProgressLabel(t, progress.stage) : null
+  const progressLabel = getProgressLabel(t, progress?.stage ?? 'preparing')
   const roundedProgress = progress ? Math.round(progress.progress) : null
-  const statusLabel = progress
-    ? t('translate.pdf.progress.status', { stage: progressLabel, progress: roundedProgress })
-    : phase === 'preparing'
-      ? t('translate.pdf.status.preparing')
-      : phase === 'translating'
-        ? t('translate.pdf.status.translating')
-        : null
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
   const ocrRequired = error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED
   const errorDescription = ocrRequired ? t('translate.pdf.error.ocr_required') : error?.message
@@ -264,7 +286,6 @@ const PdfTranslationView = ({
               <span className="shrink-0 text-foreground-muted text-xs">
                 {textFallback ? t('translate.pdf.pane.translated_text') : t('translate.pdf.pane.translated')}
               </span>
-              {statusLabel && <span className="truncate text-foreground-muted text-xs">{statusLabel}</span>}
               <span className="flex-1" />
               {output && (
                 <Tooltip content={t('translate.pdf.action.export')} delay={800}>
@@ -286,7 +307,9 @@ const PdfTranslationView = ({
             <PdfPreviewPanel filePath={output.outputPath} fileName={output.fileName} refreshKey={0} />
           ) : running ? (
             <div className="flex h-full items-center justify-center">
-              {progress && progressLabel ? (
+              {phase === 'downloading_assets' ? (
+                <LoadingState label={t('translate.pdf.progress.downloading_assets')} />
+              ) : progress ? (
                 <PdfProgress
                   progress={progress.progress}
                   label={progressLabel}
@@ -294,7 +317,7 @@ const PdfTranslationView = ({
                   valueText={t('translate.pdf.progress.value', { stage: progressLabel, progress: roundedProgress })}
                 />
               ) : (
-                <LoadingState label={statusLabel ?? undefined} />
+                <LoadingState label={progressLabel} />
               )}
             </div>
           ) : textFallback?.ocrRequired ? (

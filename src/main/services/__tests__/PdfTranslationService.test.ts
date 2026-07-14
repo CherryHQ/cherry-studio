@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
   getBinaryPath: vi.fn(),
-  hasPdfTextLayer: vi.fn(),
   modelGetByKey: vi.fn(),
   spawn: vi.fn()
 }))
@@ -29,7 +28,6 @@ vi.mock('@application', () => ({
 
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGetByKey } }))
 vi.mock('@main/utils/binaryResolver', () => ({ getBinaryPath: mocks.getBinaryPath }))
-vi.mock('@main/utils/pdf', () => ({ hasPdfTextLayer: mocks.hasPdfTextLayer }))
 vi.mock('@main/utils/processRunner', () => ({ crossPlatformSpawn: mocks.spawn }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(() => Promise.resolve({ OPENAI_API_KEY: 'shell-secret', PATH: '/usr/bin' }))
@@ -76,7 +74,6 @@ describe('PdfTranslationService', () => {
       throw new Error(`Unexpected service: ${name}`)
     })
     mocks.getBinaryPath.mockResolvedValue(MANAGED_BINARY)
-    mocks.hasPdfTextLayer.mockResolvedValue(true)
     mocks.modelGetByKey.mockReturnValue({
       id: 'openai::gpt-4.1-internal',
       providerId: 'openai',
@@ -145,6 +142,8 @@ describe('PdfTranslationService', () => {
         'en-US',
         '--lang-out',
         'zh-CN',
+        '--watermark-output-mode',
+        'no_watermark',
         '--no-dual'
       ]),
       expect.objectContaining({
@@ -158,7 +157,6 @@ describe('PdfTranslationService', () => {
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).not.toContain('--no-mono')
     expect(args).not.toContain('--auto-enable-ocr-workaround')
-    expect(mocks.hasPdfTextLayer).toHaveBeenCalledTimes(1)
     const configPath = args[args.indexOf('--config') + 1]
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
@@ -187,6 +185,7 @@ describe('PdfTranslationService', () => {
       const outputDir = args[args.indexOf('--output') + 1]
       fs.writeFileSync(path.join(outputDir, 'research paper.zh-CN.mono.pdf'), '%PDF-mono')
       queueMicrotask(() => {
+        child.stdout.write('doclayout onnx model not found or corrupted, downloading...\n')
         child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":12.4}\n')
         child.stdout.write('__CHERRY_BABELDOC_PROGRESS__not-json\n')
         child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Translate Paragraphs","progress":55.4}\n')
@@ -196,6 +195,7 @@ describe('PdfTranslationService', () => {
       })
       return child
     })
+    const onStage = vi.fn()
     const onProgress = vi.fn()
     const service = new PdfTranslationService()
 
@@ -207,10 +207,16 @@ describe('PdfTranslationService', () => {
         sourceLangCode: 'en-us',
         targetLangCode: 'zh-cn'
       },
-      undefined,
+      onStage,
       onProgress
     )
 
+    expect(onStage.mock.calls.map(([stage]) => stage)).toEqual([
+      'preparing',
+      'translating',
+      'downloading_assets',
+      'translating'
+    ])
     expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
       { stage: 'parsing', progress: 12 },
       { stage: 'translating', progress: 55 },
@@ -258,24 +264,7 @@ describe('PdfTranslationService', () => {
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
-  it('requires OCR before translating a PDF without extractable text', async () => {
-    mocks.hasPdfTextLayer.mockResolvedValueOnce(false)
-    const service = new PdfTranslationService()
-
-    const translation = service.translate({
-      jobId: 'job-ocr-required',
-      modelId: 'openai::gpt-4.1-internal',
-      sourcePath: SOURCE_PATH,
-      sourceLangCode: 'en-us',
-      targetLangCode: 'zh-cn'
-    })
-
-    await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    expect(mocks.spawn).not.toHaveBeenCalled()
-    expect(apiGateway.start).not.toHaveBeenCalled()
-  })
-
-  it('requires OCR when BabelDOC detects a scanned PDF with a text layer', async () => {
+  it('requires OCR when BabelDOC detects a scanned PDF', async () => {
     mocks.spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & {
         stderr: PassThrough
