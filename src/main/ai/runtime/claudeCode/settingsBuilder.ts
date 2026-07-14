@@ -218,11 +218,15 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
+  mcpServerSnapshots?: McpServerSnapshotMap
   thinkingOptions?: {
     effort?: 'low' | 'medium' | 'high' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
   }
 }
+
+export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
 
 // ── Main builder ────────────────────────────────────────────────────
 
@@ -286,7 +290,7 @@ export async function buildClaudeCodeSessionSettings(
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
 
   // 6. MCP servers (session + built-in)
-  const mcpServers = buildMcpServers(session, agent, assistantMcpEnabled)
+  const mcpServers = buildMcpServers(session, agent, assistantMcpEnabled, options?.mcpServerSnapshots)
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
@@ -986,7 +990,8 @@ export async function buildSystemPrompt(
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean
+  assistantMcpEnabled: boolean,
+  mcpServerSnapshots?: McpServerSnapshotMap
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -995,7 +1000,11 @@ export function buildMcpServers(
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
-        const sdkServer = createSdkMcpServerInstance(mcpId)
+        const serverSnapshot = mcpServerSnapshots?.get(mcpId)
+        if (mcpServerSnapshots && !serverSnapshot) {
+          throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
+        }
+        const sdkServer = createSdkMcpServerInstance(mcpId, serverSnapshot)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

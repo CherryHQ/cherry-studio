@@ -9,6 +9,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -25,7 +26,7 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings, buildSkillWhitelist } from './settingsBuilder'
+import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
@@ -41,9 +42,9 @@ interface RuntimeModelRef {
   provider?: Provider
 }
 
-interface ClaudeCodeRuntimeRoute {
+interface ClaudeCodeRouteFacts {
+  branch: 'external-cli' | 'gateway' | 'direct'
   baseUrl?: string
-  apiKey?: string
   /** Rotation-insensitive credential identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
   credentialsFingerprint: string
   modelIds: {
@@ -52,6 +53,16 @@ interface ClaudeCodeRuntimeRoute {
     sonnet: string
     haiku: string
   }
+}
+
+interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
+  apiKey?: string
+}
+
+interface ConnectionMaterializationFacts {
+  route: ClaudeCodeRouteFacts
+  mcp: unknown[]
+  skills: string[]
 }
 
 /**
@@ -151,25 +162,28 @@ async function deriveConnectionConfigFromSnapshot(
   session: AgentSessionEntity,
   agent: AgentEntity,
   uniqueModelId: UniqueModelId,
-  materializedSkills?: string[]
+  materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const provider = providerService.getByProviderId(providerId)
-  const model = modelService.getByKey(providerId, modelId)
-  const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  // Same pinning semantics as the query-request builder (see its comment).
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
-  const routeFacts = deriveRouteFacts(
-    provider,
-    model,
-    modelId,
-    baseUrl,
-    pinSubModelsToPrimary ? undefined : agent.planModel,
-    pinSubModelsToPrimary ? undefined : agent.smallModel
-  )
-  const skills = materializedSkills ?? (await buildSkillWhitelist(agent.id, cwd))
+  let routeFacts = materialized?.route
+  if (!routeFacts) {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
+    const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+    // Same pinning semantics as the query-request builder (see its comment).
+    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    routeFacts = deriveRouteFacts(
+      provider,
+      model,
+      modelId,
+      baseUrl,
+      pinSubModelsToPrimary ? undefined : agent.planModel,
+      pinSubModelsToPrimary ? undefined : agent.smallModel
+    )
+  }
+  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd))
   const rebuildFacts = {
     modelId: uniqueModelId,
     route: routeFacts,
@@ -181,7 +195,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
-    mcp: deriveMcpDefinitionFacts(agent.mcps)
+    mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps)
   }
 
   return {
@@ -197,9 +211,9 @@ async function deriveConnectionConfigFromSnapshot(
 }
 
 /** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
-function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined): unknown[] {
+function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
-    const server = mcpServerService.findByIdOrName(mcpId)
+    const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
     if (!server) return { mcpId, missing: true }
     return {
       mcpId,
@@ -215,6 +229,14 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined): unknown[
   })
 }
 
+function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServerSnapshotMap {
+  const snapshots = new Map<string, McpServer | undefined>()
+  for (const mcpId of mcpIds ?? []) {
+    snapshots.set(mcpId, mcpServerService.findByIdOrName(mcpId))
+  }
+  return snapshots
+}
+
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string,
@@ -228,6 +250,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
+  const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
@@ -252,16 +275,21 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
-        lastAgentSessionId: resumeSessionId
+        lastAgentSessionId: resumeSessionId,
+        mcpServerSnapshots
       },
       agent
     ),
     route
   )
-  // Capture the baseline from the same agent snapshot and skill list that materialized `settings`.
-  // This runs after route materialization so a first-use gateway key is already persisted and the
-  // connect-time fingerprint matches later pure reconciles.
-  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, settings.skills)
+  // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
+  // materialized this request. This runs after route materialization so a first-use gateway key is
+  // already persisted and the connect-time fingerprint matches later pure reconciles.
+  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, {
+    route: toConnectionRouteFacts(route),
+    mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
+    skills: settings.skills ?? []
+  })
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
     modelId: sdkModelId,
@@ -281,18 +309,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     credentialsFingerprint: route.credentialsFingerprint,
     settings,
     sdkModelId
-  }
-}
-
-interface ClaudeCodeRouteFacts {
-  branch: 'external-cli' | 'gateway' | 'direct'
-  baseUrl?: string
-  credentialsFingerprint: string
-  modelIds: {
-    primary: string
-    opus: string
-    sonnet: string
-    haiku: string
   }
 }
 
@@ -409,26 +425,34 @@ async function resolveClaudeCodeRuntimeRoute(
 
   switch (facts.branch) {
     case 'external-cli':
-      return { credentialsFingerprint: facts.credentialsFingerprint, modelIds: facts.modelIds }
+      return facts
     case 'gateway': {
       const gateway = await resolveApiGatewayRuntime()
       return {
+        ...facts,
         baseUrl: gateway.baseUrl,
         apiKey: gateway.apiKey,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey]),
-        modelIds: facts.modelIds
+        credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
     case 'direct': {
       const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
       const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
       return {
-        baseUrl: facts.baseUrl,
+        ...facts,
         apiKey: runtimeApiKey,
-        credentialsFingerprint: facts.credentialsFingerprint,
-        modelIds: facts.modelIds
+        credentialsFingerprint: facts.credentialsFingerprint
       }
     }
+  }
+}
+
+function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteFacts {
+  return {
+    branch: route.branch,
+    baseUrl: route.baseUrl,
+    credentialsFingerprint: route.credentialsFingerprint,
+    modelIds: route.modelIds
   }
 }
 

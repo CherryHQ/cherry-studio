@@ -190,6 +190,70 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
+  it('captures provider and model facts from the route materialized before a connect-time edit', async () => {
+    const materializedProvider = {
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://old.example.com' } }
+    }
+    const editedProvider = {
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://new.example.com' } }
+    }
+    mocks.getProviderByProviderId.mockReturnValue(materializedProvider)
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'old-model' })
+    mocks.resolveEffectiveEndpoint.mockImplementation((provider) => ({
+      baseUrl: provider.endpointConfigs['anthropic-messages'].baseUrl
+    }))
+    mocks.buildSessionSettings.mockImplementationOnce(async () => {
+      // Simulate provider/model edits while the async settings builder is still materializing.
+      mocks.getProviderByProviderId.mockReturnValue(editedProvider)
+      mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'new-model' })
+      return { env: {}, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://old.example.com',
+      ANTHROPIC_MODEL: 'old-model'
+    })
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('captures MCP definition facts from the snapshot materialized before a connect-time edit', async () => {
+    const materializedServer = {
+      id: 'mcp-1',
+      name: 'server',
+      type: 'stdio',
+      command: 'npx old-server'
+    }
+    const editedServer = { ...materializedServer, command: 'npx new-server' }
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: ['mcp-1'],
+      configuration: {}
+    })
+    mocks.findMcpServerByIdOrName.mockReturnValue(materializedServer)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options?.mcpServerSnapshots?.get('mcp-1')).toBe(materializedServer)
+      // Simulate an MCP definition edit while the async settings builder is still materializing.
+      mocks.findMcpServerByIdOrName.mockReturnValue(editedServer)
+      return { env: {}, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
   it('pins explicit plan/small to the captured primary for an overridden connection instead of the latest edited sub-models', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
