@@ -109,7 +109,7 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
       }
 
       settled = true
-      reject(error)
+      reject(signal.aborted && signal.reason instanceof Error ? signal.reason : error)
     }
 
     const clientRequest = request(requestOptions, (response) => {
