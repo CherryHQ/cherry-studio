@@ -34,7 +34,6 @@ export const BABELDOC_BINARY_TOOL_PRESET = {
 } as const satisfies BinaryToolPreset
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
-  BABELDOC_BINARY_TOOL_PRESET,
   {
     name: 'uv',
     displayName: 'uv',
@@ -99,7 +98,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'pi',
     repoUrl: 'https://github.com/earendil-works/pi',
     homepage: 'https://pi.dev'
-  }
+  },
+  BABELDOC_BINARY_TOOL_PRESET
   // CLI code tools (claude, codex, opencode, openclaw) are managed
   // in the Code CLI page instead of here.
 ]

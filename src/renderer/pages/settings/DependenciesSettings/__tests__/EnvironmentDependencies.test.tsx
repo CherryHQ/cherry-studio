@@ -126,6 +126,7 @@ describe('EnvironmentDependencies', () => {
     // Preset displayNames render regardless of install state.
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem').at(-1)).toHaveTextContent('BabelDOC')
     // No custom tools → empty-state hint.
     expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
   })
