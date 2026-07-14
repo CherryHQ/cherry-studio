@@ -443,12 +443,15 @@ export class CodeCliService extends BaseService {
             return exportCmd
           })
           .join(' && ')
-        return envCommands
+        const clearAmbientMise =
+          'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+        return `${clearAmbientMise} && ${envCommands}`
       }
     }
 
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
-    let baseCommand = `${needsBatchCall ? 'call ' : ''}"${executablePath}"`
+    let baseCommand =
+      platform === 'win32' ? `${needsBatchCall ? 'call ' : ''}"${executablePath}"` : posixQuote(executablePath)
 
     // OpenCode reads its provider AND default model from the opencode.json written by the
     // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
@@ -672,7 +675,11 @@ export class CodeCliService extends BaseService {
 
     const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
     const processEnv = Object.fromEntries(
-      Object.entries(baseProcessEnv).filter(([key]) => !usesCherryExecutionEnv || !key.startsWith('MISE_'))
+      Object.entries(baseProcessEnv).filter(
+        ([key]) =>
+          !usesCherryExecutionEnv ||
+          !(platform === 'win32' ? key.toUpperCase().startsWith('MISE_') : key.startsWith('MISE_'))
+      )
     )
     Object.assign(processEnv, env)
     removeEnvProxy(processEnv)

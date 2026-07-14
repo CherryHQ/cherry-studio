@@ -282,6 +282,28 @@ describe('CodeCliService', () => {
       expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })
 
+    it('single-quotes a system executable path containing shell metacharacters', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: {
+          name: 'claude',
+          availability: { source: 'system', path: '/tmp/$(touch pwned)/`whoami`/claude' }
+        }
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+      expect(launchArgs).toContain("'\\''/tmp/$(touch pwned)/`whoami`/claude'\\''")
+      expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
+    })
+
     it('preserves a pinned owned intent when lazily recovering a missing CLI', async () => {
       const intent = { name: 'claude', tool: 'claude', requestedVersion: '1.0.0' }
       binaryManagerMock.getToolSnapshots
@@ -336,6 +358,10 @@ describe('CodeCliService', () => {
         "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
       )
       expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
+      expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
+      expect(launchArgs).toContain('do unset')
+      expect(launchArgs).toContain('$_cherry_mise_key')
+      expect(launchArgs.indexOf('unset')).toBeLessThan(launchArgs.indexOf('export MISE_DATA_DIR'))
       expect(launchArgs).not.toContain('MISE_CONFIG_FILE')
       expect(launchArgs).not.toContain('PRIVATE_TOKEN')
       expect(launchArgs).not.toContain('must-not-be-exported')
@@ -387,6 +413,26 @@ describe('CodeCliService', () => {
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('filters mixed-case ambient MISE variables from the Windows launch environment', async () => {
+      shellEnvMock.getRawShellEnv.mockResolvedValue({
+        Path: 'C:\\Windows\\System32',
+        Mise_Global_Config_File: 'C:\\Users\\me\\mise.toml'
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: 'C:\\Users\\me\\project'
+      })
+
+      expect(result.success).toBe(true)
+      const launchEnv = vi.mocked(spawn).mock.calls.at(-1)?.[2]?.env as Record<string, string>
+      expect(launchEnv.Mise_Global_Config_File).toBeUndefined()
+      expect(launchEnv.MISE_DATA_DIR).toBe('/mock/binary-data')
     })
 
     it('writes a 0600 .bat with %-doubled paths and launches it via the default cmd /c', async () => {
