@@ -653,6 +653,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('loads the private skill plugin for the built-in Assistant while keeping setting sources isolated', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.settingSources).toEqual([])
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.claude.root',
+      skipMcpDiscovery: true
+    })
+    expect(settings.skills).toContain('system-skill')
+  })
+
   it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

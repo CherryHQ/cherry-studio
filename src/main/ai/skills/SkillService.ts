@@ -158,7 +158,7 @@ export class SkillService {
     return this.getSkillStoragePath(skill.folderName)
   }
 
-  /** Local plugin bridge used only when external CLI auth selects the user's Claude config root. */
+  /** Local plugin bridge used when the SDK user setting source must remain isolated. */
   getSkillPluginDirectory(): string {
     return path.dirname(this.getMirrorRoot())
   }
