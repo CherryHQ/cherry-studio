@@ -90,6 +90,17 @@ const readDoneItem = {
   }
 } as ToolRenderItem
 
+const bashDoneItem = {
+  ...readDoneItem,
+  id: 'tool-bash',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-bash',
+    toolCallId: 'tool-bash',
+    tool: { id: 'tool-bash', name: 'Bash', type: 'builtin' }
+  }
+} as ToolRenderItem
+
 const runningEditItem = {
   id: 'tool-c',
   toolResponse: {
@@ -121,6 +132,7 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
@@ -143,7 +155,14 @@ describe('ToolBlockGroup', () => {
     render(<ToolBlockGroup items={[readDoneItem]} isLiveProgress isThinking />)
 
     expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-brain')).not.toBeNull()
     expect(screen.getByText('message.tools.thinkingHeader')).toBeInTheDocument()
+  })
+
+  it('uses the latest tool type to choose the collapsed group icon', () => {
+    render(<ToolBlockGroup items={[bashDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-terminal')).not.toBeNull()
   })
 
   it('shows live progress instead of the summary while any tool is still running', () => {

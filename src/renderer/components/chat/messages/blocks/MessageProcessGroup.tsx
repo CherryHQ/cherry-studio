@@ -1,6 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { Brain, MessageSquareText } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -64,7 +65,20 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
           ? t('common.reasoning_content')
           : t('message.tools.processed')
   const header = (
-    <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
+    <ToolBlockGroupHeaderContent
+      items={toolItems}
+      elapsedText={elapsedText}
+      summary={summary}
+      preferSummary
+      showContentIcon={props.phase === 'completed'}
+      summaryIcon={
+        props.phase === 'completed' && props.contentKind === 'reasoning' ? (
+          <Brain aria-hidden="true" className="size-3.5" />
+        ) : props.phase === 'completed' && props.contentKind === 'other' ? (
+          <MessageSquareText aria-hidden="true" className="size-3.5" />
+        ) : undefined
+      }
+    />
   )
 
   if (props.phase === 'active') {

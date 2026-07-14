@@ -854,7 +854,8 @@ function renderNestedHistory(
     const lastProcessEntry = item.entries.at(-1)
     const isThinking =
       isCurrentProcess &&
-      (lastProcessEntry?.part.type as string) === 'reasoning' &&
+      lastProcessEntry !== undefined &&
+      (lastProcessEntry.part.type as string) === 'reasoning' &&
       (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
 
     return (

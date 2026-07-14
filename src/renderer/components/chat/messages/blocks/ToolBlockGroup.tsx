@@ -1,11 +1,23 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import {
+  Brain,
+  FileSearch,
+  FileText,
+  Globe,
+  ListChecks,
+  type LucideIcon,
+  Sparkles,
+  Terminal,
+  Wrench
+} from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
 import MessageTools from '../tools/MessageTools'
+import { AgentToolsType } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
@@ -44,6 +56,39 @@ type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
   | { key: string; kind: 'activity'; label: React.ReactNode }
   | { key: string; kind: 'tool'; item: ToolRenderItem; status: ToolStatus }
+
+const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
+  [AgentToolsType.Agent]: Sparkles,
+  [AgentToolsType.Bash]: Terminal,
+  [AgentToolsType.BashOutput]: Terminal,
+  [AgentToolsType.Edit]: FileText,
+  [AgentToolsType.Glob]: FileSearch,
+  [AgentToolsType.Grep]: FileSearch,
+  [AgentToolsType.ListMcpResources]: FileSearch,
+  [AgentToolsType.MultiEdit]: FileText,
+  [AgentToolsType.NotebookEdit]: FileText,
+  [AgentToolsType.Read]: FileText,
+  [AgentToolsType.ReadMcpResource]: FileSearch,
+  [AgentToolsType.Search]: FileSearch,
+  [AgentToolsType.Skill]: Sparkles,
+  [AgentToolsType.Task]: ListChecks,
+  [AgentToolsType.TaskCreate]: ListChecks,
+  [AgentToolsType.TaskGet]: ListChecks,
+  [AgentToolsType.TaskList]: ListChecks,
+  [AgentToolsType.TaskOutput]: ListChecks,
+  [AgentToolsType.TaskStop]: ListChecks,
+  [AgentToolsType.TaskUpdate]: ListChecks,
+  [AgentToolsType.TodoWrite]: ListChecks,
+  [AgentToolsType.ToolSearch]: FileSearch,
+  [AgentToolsType.WebFetch]: Globe,
+  [AgentToolsType.WebSearch]: Globe,
+  [AgentToolsType.Write]: FileText
+}
+
+function ToolGroupContentIcon({ toolName }: { toolName?: string }) {
+  const Icon = (toolName && TOOL_GROUP_ICON_BY_NAME[toolName]) || Wrench
+  return <Icon aria-hidden="true" className="size-3.5" />
+}
 
 function getActivityCandidateKey(label: React.ReactNode): string {
   return typeof label === 'string' || typeof label === 'number' ? `activity:${label}` : 'activity'
@@ -134,12 +179,15 @@ function useStableHeaderCandidate(
 interface ToolBlockGroupHeaderContentProps {
   items: ToolRenderItem[]
   activityLabel?: React.ReactNode
+  activityIcon?: React.ReactNode
   elapsedText?: React.ReactNode
   summary?: React.ReactNode
   isLiveProgress?: boolean
   preferSummary?: boolean
   semanticToolTitle?: boolean
+  showContentIcon?: boolean
   showLatestWhenComplete?: boolean
+  summaryIcon?: React.ReactNode
 }
 
 function getSemanticToolTitle(
@@ -161,11 +209,14 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
   ({
     items,
     activityLabel,
+    activityIcon,
     elapsedText,
     summary,
     isLiveProgress,
     preferSummary,
     semanticToolTitle,
+    showContentIcon,
+    summaryIcon,
     showLatestWhenComplete
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
@@ -222,8 +273,16 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
     }, [activityLabel, allCompleted, fallbackLabel, items, partsMap, preferSummary, showLatestWhenComplete])
     const displayCandidate = useStableHeaderCandidate(nextCandidate, isLiveProgress)
-    const renderWithElapsed = (content: React.ReactNode) => (
+    const renderWithElapsed = (content: React.ReactNode, icon?: React.ReactNode) => (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
+        {icon && (
+          <span
+            aria-hidden="true"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted"
+            data-testid="tool-group-content-icon">
+            {icon}
+          </span>
+        )}
         <div className="min-w-0 overflow-hidden">{content}</div>
         {elapsedText && (
           <>
@@ -235,7 +294,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         )}
       </div>
     )
-    const renderSemanticTitle = (title: React.ReactNode, key?: React.Key) =>
+    const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
         <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
           <span className="block truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
@@ -246,8 +305,13 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
               <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
             </span>
           )}
-        </div>
+        </div>,
+        icon
       )
+
+    const latestToolIcon = showContentIcon ? (
+      <ToolGroupContentIcon toolName={items.at(-1)?.toolResponse.tool.name} />
+    ) : undefined
 
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
@@ -255,12 +319,13 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
           <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
-        </div>
+        </div>,
+        summaryIcon ?? latestToolIcon
       )
     }
 
     if (displayCandidate.kind === 'activity') {
-      if (semanticToolTitle) return renderSemanticTitle(displayCandidate.label)
+      if (semanticToolTitle) return renderSemanticTitle(displayCandidate.label, activityIcon ?? latestToolIcon)
 
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
@@ -273,7 +338,10 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
-      return renderSemanticTitle(title, displayCandidate.item.id)
+      const icon = showContentIcon ? (
+        <ToolGroupContentIcon toolName={displayCandidate.item.toolResponse.tool.name} />
+      ) : undefined
+      return renderSemanticTitle(title, icon, displayCandidate.item.id)
     }
 
     return renderWithElapsed(
@@ -292,13 +360,30 @@ DynamicToolBlockGroupHeaderContent.displayName = 'DynamicToolBlockGroupHeaderCon
 
 export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHeaderContentProps) => {
   const { t } = useTranslation()
-  const { activityLabel, elapsedText, items, preferSummary, showLatestWhenComplete, summary } = props
+  const {
+    activityLabel,
+    elapsedText,
+    items,
+    preferSummary,
+    showContentIcon,
+    showLatestWhenComplete,
+    summary,
+    summaryIcon
+  } = props
   const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
   const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
 
   if (preferSummary || (allCompleted && !showLatestWhenComplete && !activityLabel)) {
     return (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
+        {(summaryIcon || showContentIcon) && (
+          <span
+            aria-hidden="true"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted"
+            data-testid="tool-group-content-icon">
+            {summaryIcon ?? <ToolGroupContentIcon toolName={items.at(-1)?.toolResponse.tool.name} />}
+          </span>
+        )}
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
             <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
@@ -372,8 +457,10 @@ export const ToolBlockGroup = React.memo(
                 <ToolBlockGroupHeaderContent
                   items={items}
                   activityLabel={isThinking ? t('message.tools.thinkingHeader') : undefined}
+                  activityIcon={isThinking ? <Brain aria-hidden="true" className="size-3.5" /> : undefined}
                   isLiveProgress={isLiveProgress}
                   semanticToolTitle
+                  showContentIcon
                   showLatestWhenComplete
                 />
               </div>
