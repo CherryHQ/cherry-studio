@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'moonshot',
   name: 'Moonshot AI',
   baseUrl: 'https://api.moonshot.cn',
+  reasoningFormat: { type: 'thinking-type' },
   anthropic: 'https://api.moonshot.cn/anthropic',
   website: {
     apiKey: 'https://platform.moonshot.cn/console/api-keys',

@@ -1,6 +1,6 @@
 {
   "rows": 1311,
-  "groups": 15,
+  "groups": 16,
   "behaviors": [
     {
       "behavior": {
@@ -100,6 +100,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
             },
             "sendReasoning": true
           },
@@ -688,6 +703,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 30000
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -835,6 +865,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -936,10 +981,15 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 7372
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
           },
           "ollama": {
             "think": true
@@ -951,10 +1001,15 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 7372
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
           },
           "ollama": {
             "think": true
@@ -966,10 +1021,15 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 64512
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "medium"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "medium"
+            }
           },
           "ollama": {
             "think": true
@@ -981,10 +1041,15 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 102604
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "high"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "high"
+            }
           },
           "ollama": {
             "think": true
@@ -996,10 +1061,35 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 115302
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "max"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "max"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
           },
           "ollama": {
             "think": true
@@ -1011,10 +1101,13 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 254976
-            },
-            "sendReasoning": true
+              "type": "adaptive"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive"
+            }
           },
           "ollama": {
             "think": true
@@ -1023,50 +1116,229 @@
       },
       "members": [
         "aihubmix::claude-opus-4-6",
-        "aihubmix::claude-opus-4-7",
         "anthropic::claude-opus-4-6",
-        "anthropic::claude-opus-4-7",
         "cerebras::claude-opus-4-6",
-        "cerebras::claude-opus-4-7",
         "cherryin::claude-opus-4-6",
-        "cherryin::claude-opus-4-7",
         "dashscope::claude-opus-4-6",
-        "dashscope::claude-opus-4-7",
         "deepseek::claude-opus-4-6",
-        "deepseek::claude-opus-4-7",
         "dmxapi::claude-opus-4-6",
-        "dmxapi::claude-opus-4-7",
         "doubao::claude-opus-4-6",
-        "doubao::claude-opus-4-7",
         "gemini::claude-opus-4-6",
-        "gemini::claude-opus-4-7",
         "groq::claude-opus-4-6",
-        "groq::claude-opus-4-7",
         "hunyuan::claude-opus-4-6",
-        "hunyuan::claude-opus-4-7",
         "my-custom-openai::claude-opus-4-6",
-        "my-custom-openai::claude-opus-4-7",
         "new-api::claude-opus-4-6",
-        "new-api::claude-opus-4-7",
         "nvidia::claude-opus-4-6",
-        "nvidia::claude-opus-4-7",
         "ollama::claude-opus-4-6",
-        "ollama::claude-opus-4-7",
         "openai::claude-opus-4-6",
-        "openai::claude-opus-4-7",
         "openrouter::claude-opus-4-6",
-        "openrouter::claude-opus-4-7",
         "poe::claude-opus-4-6",
-        "poe::claude-opus-4-7",
         "ppio::claude-opus-4-6",
-        "ppio::claude-opus-4-7",
         "silicon::claude-opus-4-6",
-        "silicon::claude-opus-4-7",
         "sophnet::claude-opus-4-6",
-        "sophnet::claude-opus-4-7",
         "tencent-cloud-ti::claude-opus-4-6",
+        "together::claude-opus-4-6"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "medium"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "medium"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "high"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "xhigh"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "xhigh"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "aihubmix::claude-opus-4-7",
+        "anthropic::claude-opus-4-7",
+        "cerebras::claude-opus-4-7",
+        "cherryin::claude-opus-4-7",
+        "dashscope::claude-opus-4-7",
+        "deepseek::claude-opus-4-7",
+        "dmxapi::claude-opus-4-7",
+        "doubao::claude-opus-4-7",
+        "gemini::claude-opus-4-7",
+        "groq::claude-opus-4-7",
+        "hunyuan::claude-opus-4-7",
+        "my-custom-openai::claude-opus-4-7",
+        "new-api::claude-opus-4-7",
+        "nvidia::claude-opus-4-7",
+        "ollama::claude-opus-4-7",
+        "openai::claude-opus-4-7",
+        "openrouter::claude-opus-4-7",
+        "poe::claude-opus-4-7",
+        "ppio::claude-opus-4-7",
+        "silicon::claude-opus-4-7",
+        "sophnet::claude-opus-4-7",
         "tencent-cloud-ti::claude-opus-4-7",
-        "together::claude-opus-4-6",
         "together::claude-opus-4-7"
       ]
     },
@@ -1172,6 +1444,21 @@
             },
             "sendReasoning": true,
             "effort": "max"
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
           },
           "ollama": {
             "think": true
@@ -1317,6 +1604,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 27648
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 30720
             },
             "sendReasoning": true
           },
@@ -1655,6 +1957,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24576
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1848,6 +2165,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32768
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2016,6 +2348,18 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
             },
             "sendReasoning": true
           },
@@ -2379,6 +2723,18 @@
             "think": true
           }
         },
+        "max": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "anthropic": {
             "thinking": {
@@ -2535,6 +2891,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2675,6 +3046,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 73728
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 81920
             },
             "sendReasoning": true
           },
@@ -2852,6 +3238,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 38912
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2999,6 +3400,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -3134,6 +3550,21 @@
           },
           "xai": {
             "reasoningEffort": "high"
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
           },
           "ollama": {
             "think": true

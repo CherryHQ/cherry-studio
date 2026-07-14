@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { REASONING_EFFORT, REASONING_EFFORT_ORDER } from '../schemas/enums'
 import type { ReasoningControl } from '../schemas/model'
 import { ReasoningSupportSchema } from '../schemas/model'
@@ -79,6 +80,60 @@ describe('deriveLegacyReasoningFields', () => {
       thinkingTokenLimits: { min: 0, max: 81_920 },
       defaultEffort: undefined
     })
+  })
+})
+
+describe('inferReasoningControls (ingest-time heuristics)', () => {
+  it.each([
+    // [id, expected controls]
+    ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
+    ['gpt-5.2-pro', [{ kind: 'effort', values: ['medium', 'high', 'xhigh'] }]],
+    ['o3', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['claude-sonnet-4-5', [{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }]],
+    [
+      'claude-opus-4-6',
+      [
+        { kind: 'effort', values: ['low', 'medium', 'high', 'max'] },
+        { kind: 'budget', min: 1024, max: 128_000 },
+        { kind: 'toggle' }
+      ]
+    ],
+    ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
+    ['deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['deepseek-v3.1', [{ kind: 'toggle' }]],
+    ['qwen3-32b', [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }]],
+    // always-think SKU: budget only, no toggle
+    ['qwen3-235b-a22b-thinking-2507', [{ kind: 'budget', min: 0, max: 81_920 }]],
+    [
+      'doubao-seed-1-6-250615',
+      [
+        { kind: 'effort', values: ['none', 'auto', 'high'] },
+        { kind: 'budget', min: 0, max: 30_720 }
+      ]
+    ],
+    [
+      'doubao-seed-1-6-251015',
+      [
+        { kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] },
+        { kind: 'budget', min: 0, max: 30_720 }
+      ]
+    ],
+    ['glm-4.6', [{ kind: 'budget', min: 0, max: 30_720 }, { kind: 'toggle' }]],
+    ['gemma-4-27b-it', [{ kind: 'effort', values: ['minimal', 'high'] }]],
+    ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
+    // provider-namespaced ids are normalized before matching
+    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]]
+  ])('infers %s', (id, expected) => {
+    expect(inferReasoningControls(id)).toEqual(expected)
+  })
+
+  it.each([
+    'acme-reasoner-v1', // unknown family
+    'deepseek-r1', // fixed reasoning — no knob
+    'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
+    'minimax-m2.1' // no documented knob
+  ])('returns undefined for %s', (id) => {
+    expect(inferReasoningControls(id)).toBeUndefined()
   })
 })
 

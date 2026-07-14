@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'nvidia',
   name: 'nvidia',
   baseUrl: 'https://integrate.api.nvidia.com',
+  reasoningFormat: { type: 'self-hosted' },
   website: {
     apiKey: 'https://build.nvidia.com/meta/llama-3_1-405b-instruct',
     docs: 'https://docs.api.nvidia.com/nim/reference/llm-apis',

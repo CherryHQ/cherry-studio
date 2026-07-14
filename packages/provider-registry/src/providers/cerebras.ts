@@ -7,7 +7,8 @@ export default defineProvider({
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'cerebras',
-      baseUrl: 'https://api.cerebras.ai/v1'
+      baseUrl: 'https://api.cerebras.ai/v1',
+      reasoningFormat: { type: 'disable-reasoning' }
     }
   },
   metadata: {

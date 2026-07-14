@@ -7,7 +7,8 @@ export default defineProvider({
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://api.hunyuan.cloud.tencent.com'
+      baseUrl: 'https://api.hunyuan.cloud.tencent.com',
+      reasoningFormat: { type: 'enable-thinking' }
     }
   },
   metadata: {

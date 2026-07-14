@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'silicon',
   name: 'Silicon',
   baseUrl: 'https://api.siliconflow.cn/v1',
+  reasoningFormat: { type: 'enable-thinking' },
   anthropic: 'https://api.siliconflow.cn',
   website: {
     apiKey: 'https://cloud.siliconflow.cn/',

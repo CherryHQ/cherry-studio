@@ -11,7 +11,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'deepseek',
-      baseUrl: 'https://api.deepseek.com'
+      baseUrl: 'https://api.deepseek.com',
+      reasoningFormat: { type: 'thinking-type' }
     }
   },
   apiFeatures: {

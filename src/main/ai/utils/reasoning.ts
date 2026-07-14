@@ -721,8 +721,11 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // Claude reasoning parameters
-  if (isSupportedThinkingTokenClaudeModel(model)) {
+  // Claude reasoning parameters. The adaptive 4.6/4.7 series qualifies by
+  // SKU — its knob is the effort vocabulary, not a token budget, so the
+  // budget-descriptor gate alone would wrongly route it to the non-Anthropic
+  // branch (sendReasoning + budgetTokens against Anthropic's own endpoint).
+  if (isSupportedThinkingTokenClaudeModel(model) || isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
     // Claude 4.7: adaptive thinking + native 'xhigh' effort.
     // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
     // (no reasoning text in response), which would break Cherry's thinking UI.
@@ -1005,8 +1008,10 @@ export function getBedrockReasoningParams(
     }
   }
 
-  // Only apply thinking budget for Claude reasoning models
-  if (!isSupportedThinkingTokenClaudeModel(model)) {
+  // Only apply thinking config for Claude reasoning models. Adaptive 4.6/4.7
+  // qualifies by SKU (effort knob, no budget descriptor) — see
+  // getAnthropicReasoningParams.
+  if (!isSupportedThinkingTokenClaudeModel(model) && !isClaude46SeriesModel(model) && !isClaude47SeriesModel(model)) {
     return {}
   }
 

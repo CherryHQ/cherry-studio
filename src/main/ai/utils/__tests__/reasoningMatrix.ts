@@ -250,7 +250,18 @@ export function buildSyntheticRows(): MatrixRow[] {
 }
 
 /** 'unset' = no reasoning_effort in settings (distinct from 'default' only for ollama). */
-export const EFFORT_AXIS = ['unset', 'default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'auto'] as const
+export const EFFORT_AXIS = [
+  'unset',
+  'default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'auto'
+] as const
 
 export function assistantFor(effort: string): Assistant {
   return { settings: effort === 'unset' ? {} : { reasoning_effort: effort } } as Assistant

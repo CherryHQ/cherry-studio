@@ -7,11 +7,13 @@ export default defineProvider({
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/'
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+      reasoningFormat: { type: 'thinking-type' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/'
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+      reasoningFormat: { type: 'thinking-type' }
     }
   },
   metadata: {

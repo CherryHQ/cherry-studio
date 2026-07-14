@@ -11,7 +11,7 @@
  *    fields when preset metadata is missing. Not intended for runtime use.
  */
 
-import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { findHeuristicTokenLimits, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -829,75 +829,13 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
 // Token limit inference
 // ---------------------------------------------------------------------------
 
-const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
-  'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
-  // Gemini -latest aliases (point at the current Gemini 3 flagships).
-  'gemini-flash-lite-latest$': { min: 512, max: 24576 },
-  'gemini-flash-latest$': { min: 0, max: 24576 },
-  'gemini-pro-latest$': { min: 128, max: 32768 },
-  'gemini-.*-flash.*$': { min: 0, max: 24576 },
-  'gemini-.*-pro.*$': { min: 128, max: 32768 },
-  'qwen3-235b-a22b-thinking-2507$': { min: 0, max: 81_920 },
-  'qwen3-30b-a3b-thinking-2507$': { min: 0, max: 81_920 },
-  'qwen3-vl-235b-a22b-thinking$': { min: 0, max: 81_920 },
-  'qwen3-vl-30b-a3b-thinking$': { min: 0, max: 81_920 },
-  'qwen-plus-2025-07-14$': { min: 0, max: 38_912 },
-  'qwen-plus-2025-04-28$': { min: 0, max: 38_912 },
-  'qwen3-1\\.7b$': { min: 0, max: 30_720 },
-  'qwen3-0\\.6b$': { min: 0, max: 30_720 },
-  'qwen-plus.*$': { min: 0, max: 81_920 },
-  'qwen-turbo.*$': { min: 0, max: 38_912 },
-  'qwen-flash.*$': { min: 0, max: 81_920 },
-  'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
-  // `qwen-max-latest` is a distinct alias — the versioned `qwen-max-2025-09-23`
-  // is explicitly excluded because that SKU predates thinking-token support.
-  'qwen-max-latest$': { min: 0, max: 81_920 },
-  '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
-  'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
-  '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
-  '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
-  '(?:anthropic\\.)?claude-(:?sonnet|haiku)-4[.-]6.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
-  '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
-  '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
-  '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
-    min: 1024,
-    max: 64_000
-  },
-  '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
-    min: 1024,
-    max: 32_000
-  },
-  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
-  'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 },
-  'gemma-?4[:-]?e[24]b': { min: 1024, max: 8192 },
-  'gemma-?4[:-]?26b': { min: 1024, max: 30720 },
-  'gemma-?4[:-]?31b': { min: 1024, max: 30720 },
-  // Hunyuan — only hunyuan-a13b exposes the knob today.
-  'hunyuan-a13b': { min: 0, max: 30_720 },
-  // Zhipu / GLM — GLM-5 and GLM-4.5 / 4.6 / 4.7. Unanchored to handle
-  // provider-prefixed ids (zhipu/glm-4.6, fireworks normalized form).
-  'glm-?5|glm-4\\.[567]': { min: 0, max: 30_720 },
-  // MiMo v2 family.
-  'mimo-v2\\.5(?:-pro)?(?!-)': { min: 0, max: 30_720 },
-  'mimo-v2-(?:flash|pro|omni)': { min: 0, max: 30_720 },
-  // Kimi K2.5+ / K3+.
-  'kimi-k(?:2\\.[5-9]\\d*|[3-9]\\d*(?:\\.\\d+)?)': { min: 0, max: 30_720 },
-  // Doubao thinking SKUs (mirrors DOUBAO_THINKING_MODEL_REGEX scope).
-  // The `(?!-thinking(?:-|$))` lookahead excludes always-thinking seed variants.
-  'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]0(?:-[\\w-]+)?)(?:-[\\w-]+)*':
-    { min: 0, max: 30_720 }
-}
-
-/** Find thinking token limits for a raw model ID (used during model creation) */
-export const findTokenLimit = (rawModelId: string): { min: number; max: number } | undefined => {
-  for (const [pattern, limits] of Object.entries(THINKING_TOKEN_MAP)) {
-    if (new RegExp(pattern, 'i').test(rawModelId)) {
-      return limits
-    }
-  }
-  return undefined
-}
+/**
+ * Find thinking token limits for a raw model ID (used during model creation
+ * and by the legacy budget path). Delegates to the registry heuristics table
+ * — the single copy of this knowledge (#16598); deleted once runtime
+ * consumers read `model.reasoning.thinkingTokenLimits` instead.
+ */
+export const findTokenLimit = findHeuristicTokenLimits
 
 // ---------------------------------------------------------------------------
 // Internal inference sub-functions

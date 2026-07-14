@@ -837,6 +837,23 @@
           "currency": "USD",
           "perMillionTokens": 1.434
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -1296,6 +1313,23 @@
           "currency": "USD",
           "perMillionTokens": 1.14682
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -1340,6 +1374,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.431
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -1992,6 +2043,23 @@
           "currency": "USD",
           "perMillionTokens": 7.5
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -2014,6 +2082,14 @@
           "currency": "USD",
           "perMillionTokens": 0.88
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -2036,6 +2112,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2275,6 +2368,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2522,6 +2632,23 @@
           "currency": "USD",
           "perMillionTokens": 0.88
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -2541,6 +2668,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.15
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2562,6 +2706,23 @@
           "currency": "USD",
           "perMillionTokens": 0.26
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
       }
     },
     {
@@ -2581,6 +2742,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.56
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2621,6 +2799,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.365
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2681,6 +2876,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.56
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -3069,6 +3281,23 @@
           "currency": "USD",
           "perMillionTokens": 15
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 64000,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 64000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3454,6 +3683,23 @@
           "currency": "USD",
           "perMillionTokens": 75
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 32000,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 32000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3540,6 +3786,23 @@
           "currency": "USD",
           "perMillionTokens": 75
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 32000,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 32000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3576,6 +3839,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 15
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 64000,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 64000,
+          "min": 1024
         }
       }
     },
@@ -3643,6 +3923,14 @@
           "currency": "USD",
           "perMillionTokens": 50
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3670,6 +3958,14 @@
           "currency": "USD",
           "perMillionTokens": 50
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3697,6 +3993,27 @@
           "currency": "USD",
           "perMillionTokens": 150
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "max"]
+          },
+          {
+            "kind": "budget",
+            "max": 128000,
+            "min": 1024
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "thinkingTokenLimits": {
+          "max": 128000,
+          "min": 1024
+        }
       }
     },
     {
@@ -3717,6 +4034,14 @@
           "currency": "USD",
           "perMillionTokens": 5
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3737,6 +4062,14 @@
           "currency": "USD",
           "perMillionTokens": 10
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -3757,6 +4090,14 @@
           "currency": "USD",
           "perMillionTokens": 25
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -4681,7 +5022,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.0 Pro",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -4692,7 +5051,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.0 Lite",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -4703,7 +5080,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.0 Mini",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
@@ -4714,7 +5109,25 @@
       "metadata": {},
       "name": "Doubao Seed 2.0 Code",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -4732,7 +5145,25 @@
       "metadata": {},
       "name": "Doubao Seed 1.6",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "auto", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -4750,7 +5181,25 @@
       "metadata": {},
       "name": "Doubao Seed 1.6 Flash",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -4769,7 +5218,25 @@
       "metadata": {},
       "name": "Doubao Seed 1.6 Vision",
       "outputModalities": ["text"],
-      "ownedBy": "bytedance"
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
     },
     {
       "id": "doubao-1-5-thinking-pro",
@@ -5641,6 +6108,14 @@
           "currency": "USD",
           "perMillionTokens": 0.431
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -5821,6 +6296,14 @@
           "currency": "USD",
           "perMillionTokens": 1.7
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -5848,6 +6331,14 @@
           "currency": "USD",
           "perMillionTokens": 1.68
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -5922,6 +6413,14 @@
           "currency": "USD",
           "perMillionTokens": 0.95
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -6012,6 +6511,23 @@
           "currency": "USD",
           "perMillionTokens": 2.5
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -6051,6 +6567,24 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 120
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
+          }
+        ],
+        "supportedEfforts": ["low", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
         }
       }
     },
@@ -6185,7 +6719,24 @@
       "metadata": {},
       "name": "Nano Banana Preview (Gemini 2.5 Flash Image Preview)",
       "outputModalities": ["text", "image"],
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
+      }
     },
     {
       "capabilities": ["function-call", "file-input", "image-generation"],
@@ -6626,6 +7177,24 @@
           "currency": "USD",
           "perMillionTokens": 12
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
+          }
+        ],
+        "supportedEfforts": ["low", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
+        }
       }
     },
     {
@@ -6910,6 +7479,23 @@
           "currency": "USD",
           "perMillionTokens": 1.5
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
       }
     },
     {
@@ -6983,6 +7569,19 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 9
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
         }
       }
     },
@@ -7775,6 +8374,24 @@
           "currency": "USD",
           "perMillionTokens": 12
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
+        }
       }
     },
     {
@@ -7802,6 +8419,19 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
+          }
+        ],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
         }
       }
     },
@@ -7831,6 +8461,19 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 32768,
+            "min": 128
+          }
+        ],
+        "thinkingTokenLimits": {
+          "max": 32768,
+          "min": 128
         }
       }
     },
@@ -14263,6 +14906,15 @@
           "currency": "USD",
           "perMillionTokens": 6
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -14290,6 +14942,15 @@
           "currency": "USD",
           "perMillionTokens": 15
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -14317,6 +14978,15 @@
           "currency": "USD",
           "perMillionTokens": 30
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -14397,6 +15067,15 @@
           "currency": "USD",
           "perMillionTokens": 15
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -14477,6 +15156,15 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -14497,6 +15185,15 @@
           "currency": "USD",
           "perMillionTokens": 10
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -15185,6 +15882,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.5700000000000001
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
         }
       }
     },
@@ -15888,7 +16602,16 @@
       "id": "grok-3-mini",
       "metadata": {},
       "name": "Grok 3 Mini",
-      "ownedBy": "xai"
+      "ownedBy": "xai",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "high"]
+      }
     },
     {
       "capabilities": ["reasoning", "function-call"],
@@ -15896,7 +16619,16 @@
       "id": "grok-3-mini-fast",
       "metadata": {},
       "name": "Grok 3 Mini Fast",
-      "ownedBy": "xai"
+      "ownedBy": "xai",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "high"]
+      }
     },
     {
       "capabilities": ["function-call"],
@@ -18602,5 +19334,5 @@
       }
     }
   ],
-  "version": "2fa07739cbb6f0b7"
+  "version": "748c8a0c2c8c5787"
 }

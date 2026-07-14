@@ -21,13 +21,20 @@ import type {
   ReasoningEffort as ReasoningEffortType
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
+import {
+  buildRuntimeEndpointConfigs,
+  deriveLegacyReasoningFields,
+  ENDPOINT_TYPE,
+  inferReasoningControls,
+  REASONING_EFFORT
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
+import { inferReasoningFromModelId } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -125,14 +132,47 @@ export function extractReasoningFormatTypes(
   return Object.keys(result).length > 0 ? result : undefined
 }
 
+/**
+ * Infer a reasoning descriptor for a model the catalog doesn't know, from the
+ * registry's ID-pattern heuristics (ingest-time only, #16598). Callers gate on
+ * the model actually being reasoning-capable (capability flag /
+ * `inferReasoningFromModelId`) — this only supplies the knobs.
+ */
+export function inferCustomModelReasoning(
+  modelId: string,
+  endpointTypes: EndpointType[] | undefined,
+  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined,
+  defaultChatEndpoint: EndpointType | undefined
+): RuntimeReasoning | undefined {
+  const controls = inferReasoningControls(modelId)
+  if (!controls) return undefined
+  const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }
+  return extractRuntimeReasoning(
+    proto,
+    resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
+  )
+}
+
 /** Create a minimal custom model used when a model ID has no registry match. */
-export function createCustomModel(providerId: string, modelId: string): Model {
+export function createCustomModel(
+  providerId: string,
+  modelId: string,
+  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
+  defaultChatEndpoint?: EndpointType
+): Model {
+  // Ingest-time heuristics: an unmatched model still gets its reasoning
+  // descriptor when the id is recognizably a reasoning SKU, so custom rows
+  // are descriptor-driven like catalog rows (#16598).
+  const reasoning = inferReasoningFromModelId(modelId)
+    ? inferCustomModelReasoning(modelId, undefined, reasoningFormatTypes, defaultChatEndpoint)
+    : undefined
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     apiModelId: modelId,
     name: modelId,
     capabilities: [],
+    reasoning,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
@@ -299,21 +339,20 @@ function resolveReasoning(
   catalogOverride: ProtoProviderModelOverride | null,
   reasoningFormatType: ReasoningFormatType | undefined
 ): RuntimeReasoning | undefined {
-  let reasoning: RuntimeReasoning | undefined
+  const preset = presetModel.reasoning
+  const override = catalogOverride?.reasoning
+  if (!preset && !override) return undefined
 
-  if (presetModel.reasoning) {
-    reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
+  // Per-field override→preset fallback on the PROTO data, then a single
+  // runtime extraction — an override declaring only one field (e.g. a
+  // provider-specific budget floor) must not wipe the preset's other fields.
+  const merged: ProtoReasoningSupport = {
+    controls: override?.controls ?? preset?.controls,
+    supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
+    thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort
   }
-
-  if (catalogOverride?.reasoning) {
-    const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
-    reasoning = {
-      ...overrideReasoning,
-      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits
-    }
-  }
-
-  return reasoning
+  return extractRuntimeReasoning(merged, reasoningFormatType)
 }
 
 function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
@@ -345,17 +384,33 @@ function resolveReasoningEndpointType(
   return undefined
 }
 
+/**
+ * The reasoning dialect an endpoint TYPE implies when the provider declares
+ * none — the endpoint's protocol is the baseline; provider `reasoningFormat`
+ * declarations override it for quirky OpenAI-compatible dialects
+ * (enable-thinking / thinking-type / dashscope / self-hosted / …).
+ */
+const DEFAULT_FORMAT_BY_ENDPOINT: Partial<Record<EndpointType, ReasoningFormatType>> = {
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'openai-responses',
+  [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'openai-chat',
+  [ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS]: 'openai-chat',
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'anthropic',
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'gemini',
+  [ENDPOINT_TYPE.OLLAMA_CHAT]: 'self-hosted',
+  [ENDPOINT_TYPE.OLLAMA_GENERATE]: 'self-hosted'
+}
+
 function resolveReasoningFormatType(
   endpointTypes: EndpointType[] | undefined,
   defaultChatEndpoint: EndpointType | undefined,
   reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined
 ): ReasoningFormatType | undefined {
   const endpointType = resolveReasoningEndpointType(endpointTypes, defaultChatEndpoint)
-  if (endpointType === undefined || !reasoningFormatTypes) {
+  if (endpointType === undefined) {
     return undefined
   }
 
-  return reasoningFormatTypes[endpointType]
+  return reasoningFormatTypes?.[endpointType] ?? DEFAULT_FORMAT_BY_ENDPOINT[endpointType]
 }
 
 /** Convert proto reasoning data to runtime form using the active reasoning format type. */
@@ -363,17 +418,26 @@ function extractRuntimeReasoning(
   reasoning: ProtoReasoningSupport,
   reasoningFormatType: ReasoningFormatType | undefined
 ): RuntimeReasoning {
-  const type = reasoningFormatType ?? ''
+  // Providers that declare no format serialize as plain OpenAI-compatible
+  // chat — the same assumption the request path already makes. An empty
+  // type made the descriptor unusable (#16598 failure mode D).
+  const type = reasoningFormatType ?? 'openai-chat'
 
   let supportedEfforts: ReasoningEffortType[] = [...(reasoning.supportedEfforts ?? [])]
-  if (supportedEfforts.length === 0) {
+  // Format-default vocabulary is a LEGACY-row fallback only. A declared
+  // `controls` block is authoritative: budget-only models genuinely have no
+  // effort vocabulary, and inventing one would hijack the request path's
+  // vendor-shape branches (e.g. gemini 2.5-pro's thinking_config).
+  if (supportedEfforts.length === 0 && !reasoning.controls?.length) {
     supportedEfforts = DEFAULT_EFFORTS[type] ?? []
   }
 
   return {
     type,
+    controls: reasoning.controls,
     supportedEfforts,
-    thinkingTokenLimits: reasoning.thinkingTokenLimits
+    thinkingTokenLimits: reasoning.thinkingTokenLimits,
+    defaultEffort: reasoning.defaultEffort
   }
 }
 
@@ -603,7 +667,7 @@ class ProviderRegistryService {
           presetModelId: presetModel.id
         })
       } else {
-        results.push(createCustomModel(providerId, modelId))
+        results.push(createCustomModel(providerId, modelId, reasoningFormatTypes, defaultChatEndpoint))
       }
     }
 

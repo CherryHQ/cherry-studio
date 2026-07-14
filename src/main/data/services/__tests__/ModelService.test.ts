@@ -840,6 +840,163 @@ describe('ModelService.list — registry enrichment', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Reasoning descriptor enrichment (#16598) — stored descriptors are frozen at
+// creation; list() recomputes preset-backed rows from the current registry and
+// infers descriptors for non-catalog rows, so both populations turn
+// descriptor-driven without a DB migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService — reasoning descriptor enrichment', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    lookupModelMock.mockReset()
+    lookupModelMock.mockReturnValue({ presetModel: null, registryOverride: null })
+  })
+
+  it('recomputes a stale preset-backed descriptor from the current registry', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-opus-4-6', {
+        presetModelId: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        // Row created before the catalog carried a reasoning block.
+        reasoning: null
+      })
+    )
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-opus-4-6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        }
+      } as any,
+      registryOverride: null
+    })
+
+    const [model] = modelService.list({ providerId: 'anthropic' })
+
+    expect(model.reasoning?.supportedEfforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(model.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }])
+    expect(model.reasoning?.type).toBe('openai-chat')
+  })
+
+  it('respects a user reasoning override', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    const userReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-opus-4-6', {
+        presetModelId: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: userReasoning,
+        userOverrides: ['reasoning']
+      })
+    )
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-opus-4-6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'] }
+      } as any,
+      registryOverride: null
+    })
+
+    const [model] = modelService.list({ providerId: 'anthropic' })
+
+    expect(model.reasoning).toEqual(userReasoning)
+  })
+
+  it('infers a descriptor for a non-catalog row with the reasoning capability', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'qwen3-32b', {
+        name: 'Qwen3 32B',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    // qwen3-32b: toggle + budget from the registry heuristics.
+    expect(model.reasoning?.supportedEfforts).toEqual(['none', 'auto'])
+    expect(model.reasoning?.thinkingTokenLimits).toEqual({ min: 1024, max: 38_912 })
+    expect(model.reasoning?.type).toBe('openai-chat')
+  })
+
+  it('infers a descriptor for a non-catalog row recognized by id alone', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'deepseek-v3.1', {
+        name: 'DeepSeek V3.1',
+        capabilities: [],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    expect(model.reasoning?.controls).toEqual([{ kind: 'toggle' }])
+    expect(model.reasoning?.supportedEfforts).toEqual(['none', 'auto'])
+  })
+
+  it('leaves non-reasoning custom rows untouched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'acme-embedder', {
+        name: 'Acme Embedder',
+        capabilities: [],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    expect(model.reasoning).toBeUndefined()
+  })
+
+  it('infers a descriptor at create time for a custom model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      { dto: { providerId: 'my-compat', modelId: 'glm-4.6', capabilities: [MODEL_CAPABILITY.REASONING] } }
+    ])
+
+    expect(created.reasoning?.controls).toEqual([{ kind: 'budget', min: 0, max: 30_720 }, { kind: 'toggle' }])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
+    expect((row.reasoning as { thinkingTokenLimits?: unknown })?.thinkingTokenLimits).toEqual({ min: 0, max: 30_720 })
+  })
+
+  it('keeps a DTO-supplied descriptor over inference at create time', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    const dtoReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'my-compat',
+          modelId: 'glm-4.6',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: dtoReasoning
+        }
+      }
+    ])
+
+    expect(created.reasoning).toEqual(dtoReasoning)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.getByKey — single model lookup
 // ─────────────────────────────────────────────────────────────────────────────
 

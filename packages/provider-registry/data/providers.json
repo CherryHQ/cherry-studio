@@ -34,7 +34,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.siliconflow.cn/v1"
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "reasoningFormat": {
+            "type": "enable-thinking"
+          }
         }
       },
       "id": "silicon",
@@ -120,7 +123,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/"
+          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         }
       },
       "id": "zhipu",
@@ -147,7 +153,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "deepseek",
-          "baseUrl": "https://api.deepseek.com"
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         }
       },
       "id": "deepseek",
@@ -386,7 +395,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openrouter",
-          "baseUrl": "https://openrouter.ai/api/v1/"
+          "baseUrl": "https://openrouter.ai/api/v1/",
+          "reasoningFormat": {
+            "type": "openrouter"
+          }
         }
       },
       "id": "openrouter",
@@ -458,7 +470,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "http://localhost:1234"
+          "baseUrl": "http://localhost:1234",
+          "reasoningFormat": {
+            "type": "self-hosted"
+          }
         }
       },
       "id": "lmstudio",
@@ -728,7 +743,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.moonshot.cn"
+          "baseUrl": "https://api.moonshot.cn",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         }
       },
       "id": "moonshot",
@@ -775,11 +793,17 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "dashscope"
+          }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "dashscope"
+          }
         }
       },
       "id": "dashscope",
@@ -823,11 +847,17 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/"
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/"
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         }
       },
       "id": "doubao",
@@ -897,7 +927,10 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "groq",
-          "baseUrl": "https://api.groq.com/openai"
+          "baseUrl": "https://api.groq.com/openai",
+          "reasoningFormat": {
+            "type": "none"
+          }
         }
       },
       "id": "groq",
@@ -957,7 +990,10 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://integrate.api.nvidia.com"
+          "baseUrl": "https://integrate.api.nvidia.com",
+          "reasoningFormat": {
+            "type": "self-hosted"
+          }
         }
       },
       "id": "nvidia",
@@ -1130,7 +1166,10 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com"
+          "baseUrl": "https://api.hunyuan.cloud.tencent.com",
+          "reasoningFormat": {
+            "type": "enable-thinking"
+          }
         }
       },
       "id": "hunyuan",
@@ -1150,7 +1189,10 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.lkeap.cloud.tencent.com"
+          "baseUrl": "https://api.lkeap.cloud.tencent.com",
+          "reasoningFormat": {
+            "type": "enable-thinking"
+          }
         }
       },
       "id": "tencent-cloud-ti",
@@ -1218,7 +1260,10 @@
       "description": "GPUStack - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible"
+          "adapterFamily": "openai-compatible",
+          "reasoningFormat": {
+            "type": "self-hosted"
+          }
         }
       },
       "id": "gpustack",
@@ -1366,7 +1411,10 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "cerebras",
-          "baseUrl": "https://api.cerebras.ai/v1"
+          "baseUrl": "https://api.cerebras.ai/v1",
+          "reasoningFormat": {
+            "type": "disable-reasoning"
+          }
         }
       },
       "id": "cerebras",
@@ -1390,7 +1438,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.xiaomimimo.com"
+          "baseUrl": "https://api.xiaomimimo.com",
+          "reasoningFormat": {
+            "type": "thinking-type"
+          }
         }
       },
       "id": "mimo",
@@ -1455,5 +1506,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "88fadfc88b8f4da7"
+  "version": "43e3aec5e53392a1"
 }

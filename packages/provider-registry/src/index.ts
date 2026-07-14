@@ -92,3 +92,7 @@ export {
 // vendor does this raw model ID belong to".
 export type { VendorKey } from './patterns/vendor-patterns'
 export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patterns'
+
+// Reasoning-control heuristics — INGEST-time only (generation enrichment,
+// custom-model creation); never a runtime capability source.
+export { findHeuristicTokenLimits, inferReasoningControls } from './patterns/reasoning-heuristics'

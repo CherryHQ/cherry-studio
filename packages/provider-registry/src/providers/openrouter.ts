@@ -11,7 +11,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'openrouter',
-      baseUrl: 'https://openrouter.ai/api/v1/'
+      baseUrl: 'https://openrouter.ai/api/v1/',
+      reasoningFormat: { type: 'openrouter' }
     }
   },
   metadata: {

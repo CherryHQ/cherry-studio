@@ -1,6 +1,6 @@
 {
   "rows": 951,
-  "groups": 46,
+  "groups": 54,
   "behaviors": [
     {
       "behavior": {
@@ -19,12 +19,19 @@
         "xhigh": {
           "reasoningEffort": "none"
         },
+        "max": {
+          "reasoningEffort": "none"
+        },
         "auto": {
           "reasoningEffort": "auto"
         }
       },
       "members": [
         "302ai::claude-haiku-4-5",
+        "302ai::claude-opus-4",
+        "302ai::claude-opus-4-1",
+        "302ai::claude-sonnet-4",
+        "302ai::claude-sonnet-4-5",
         "302ai::glm-4-5",
         "302ai::glm-4-5-air",
         "302ai::glm-4-5v",
@@ -36,8 +43,19 @@
         "302ai::glm-5-1",
         "302ai::glm-5-turbo",
         "302ai::glm-5v-turbo",
+        "anthropic::claude-fable-latest",
         "anthropic::claude-haiku-4-5",
+        "anthropic::claude-haiku-latest",
+        "anthropic::claude-opus-4",
+        "anthropic::claude-opus-4-1",
+        "anthropic::claude-opus-4-8-fast",
+        "anthropic::claude-opus-latest",
+        "anthropic::claude-sonnet-4",
+        "anthropic::claude-sonnet-4-5",
+        "anthropic::claude-sonnet-latest",
         "aws-bedrock::claude-haiku-4-5",
+        "aws-bedrock::claude-opus-4-1",
+        "aws-bedrock::claude-sonnet-4-5",
         "aws-bedrock::deepseek-v3-2",
         "aws-bedrock::glm-4-7",
         "aws-bedrock::glm-4-7-flash",
@@ -45,11 +63,19 @@
         "aws-bedrock::kimi-k2-5",
         "cerebras::glm-4-7",
         "claude-code::claude-haiku-4-5",
+        "claude-code::claude-opus-4-1",
+        "claude-code::claude-sonnet-4-5",
         "copilot::claude-haiku-4-5",
+        "copilot::claude-sonnet-4",
+        "copilot::claude-sonnet-4-5",
         "doubao::seed-1-6",
         "fireworks::glm-5-1",
         "fireworks::minimax-m3",
         "gateway::claude-haiku-4-5",
+        "gateway::claude-opus-4",
+        "gateway::claude-opus-4-1",
+        "gateway::claude-sonnet-4",
+        "gateway::claude-sonnet-4-5",
         "gateway::gemma-4-26b-a4b-it",
         "gateway::gemma-4-31b-it",
         "gateway::glm-4-5",
@@ -130,6 +156,10 @@
         "tokenhub::kimi-k2-5",
         "tokenhub::minimax-m3",
         "vertexai::claude-haiku-4-5",
+        "vertexai::claude-opus-4",
+        "vertexai::claude-opus-4-1",
+        "vertexai::claude-sonnet-4",
+        "vertexai::claude-sonnet-4-5",
         "vertexai::glm-4-7-maas",
         "vertexai::glm-5-maas",
         "zhipu::glm-4-5",
@@ -151,17 +181,195 @@
       ]
     },
     {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "low"
+        },
+        "max": {
+          "reasoningEffort": "low"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-5",
+        "anthropic::claude-opus-4-5",
+        "aws-bedrock::claude-opus-4-5",
+        "aws-bedrock::gpt-oss-120b",
+        "aws-bedrock::gpt-oss-20b",
+        "aws-bedrock::gpt-oss-safeguard-20b",
+        "aws-bedrock::nova-2-lite",
+        "cerebras::gpt-oss-120b",
+        "claude-code::claude-opus-4-5",
+        "copilot::claude-opus-4-5",
+        "copilot::gemini-3-1-pro-preview",
+        "fireworks::gpt-oss-120b",
+        "fireworks::gpt-oss-20b",
+        "gateway::claude-opus-4-5",
+        "gateway::gemini-3-1-pro-preview",
+        "gateway::gpt-5-1-codex",
+        "gateway::gpt-5-1-codex-mini",
+        "gateway::gpt-5-codex",
+        "gateway::gpt-oss-120b",
+        "gateway::gpt-oss-20b",
+        "gateway::gpt-oss-safeguard-20b",
+        "gateway::grok-4-5",
+        "gateway::interfaze-beta",
+        "gateway::mercury-2",
+        "gateway::nova-2-lite",
+        "gateway::o1",
+        "gateway::o3",
+        "gateway::o3-mini",
+        "gateway::o3-pro",
+        "gateway::o4-mini",
+        "gateway::step-3-5-flash",
+        "gemini::gemini-3-1-pro-preview",
+        "gemini::gemini-3-1-pro-preview-customtools",
+        "gemini::gemini-pro-latest",
+        "github::o1",
+        "github::o3",
+        "github::o3-mini",
+        "github::o4-mini",
+        "grok-cli::grok-4-5",
+        "grok::grok-4-5",
+        "huggingface::gpt-oss-120b",
+        "huggingface::gpt-oss-20b",
+        "huggingface::step-3-5-flash",
+        "lanyun::step-3-5-flash",
+        "nvidia::gpt-oss-120b",
+        "nvidia::gpt-oss-20b",
+        "nvidia::step-3-5-flash",
+        "openai::gpt-5-1-codex",
+        "openai::gpt-5-1-codex-mini",
+        "openai::gpt-5-codex",
+        "openai::gpt-oss-120b",
+        "openai::gpt-oss-120b-maas",
+        "openai::gpt-oss-20b",
+        "openai::gpt-oss-20b-maas",
+        "openai::gpt-oss-safeguard-20b",
+        "openai::o1",
+        "openai::o1-pro",
+        "openai::o3",
+        "openai::o3-mini",
+        "openai::o3-pro",
+        "openai::o4-mini",
+        "stepfun::step-3-5-flash",
+        "vertexai::claude-opus-4-5",
+        "vertexai::gemini-3-1-pro-preview",
+        "vertexai::gemini-3-1-pro-preview-customtools",
+        "vertexai::gpt-oss-120b-maas",
+        "vertexai::gpt-oss-20b-maas"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "low"
+        },
+        "max": {
+          "reasoningEffort": "max"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-6",
+        "302ai::claude-sonnet-4-6",
+        "anthropic::claude-opus-4-6",
+        "anthropic::claude-opus-4-6-v1",
+        "anthropic::claude-opus-4-7-fast",
+        "anthropic::claude-sonnet-4-6",
+        "aws-bedrock::claude-opus-4-6",
+        "aws-bedrock::claude-sonnet-4-6",
+        "claude-code::claude-opus-4-6",
+        "claude-code::claude-sonnet-4-6",
+        "copilot::claude-opus-4-6",
+        "copilot::claude-sonnet-4-6",
+        "gateway::claude-opus-4-6",
+        "gateway::claude-sonnet-4-6",
+        "vertexai::claude-opus-4-6",
+        "vertexai::claude-sonnet-4-6"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "max"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-7",
+        "anthropic::claude-fable-5",
+        "anthropic::claude-opus-4-7",
+        "anthropic::claude-opus-4-8",
+        "anthropic::claude-sonnet-5",
+        "aws-bedrock::claude-fable-5",
+        "aws-bedrock::claude-opus-4-7",
+        "aws-bedrock::claude-opus-4-8",
+        "claude-code::claude-fable-5",
+        "claude-code::claude-opus-4-7",
+        "claude-code::claude-opus-4-8",
+        "copilot::claude-fable-5",
+        "copilot::claude-opus-4-7",
+        "copilot::claude-opus-4-8",
+        "copilot::claude-sonnet-5",
+        "gateway::claude-fable-5",
+        "gateway::claude-opus-4-7",
+        "gateway::claude-opus-4-8",
+        "gateway::claude-sonnet-5",
+        "vertexai::claude-opus-4-7",
+        "vertexai::claude-opus-4-8",
+        "vertexai::claude-sonnet-5"
+      ]
+    },
+    {
       "behavior": {},
       "members": [
-        "302ai::claude-opus-4",
-        "302ai::claude-opus-4-1",
-        "302ai::claude-sonnet-4",
-        "302ai::claude-sonnet-4-5",
         "302ai::deepseek-reasoner",
-        "302ai::doubao-seed-1-6",
-        "302ai::doubao-seed-1-6-vision",
-        "302ai::gemini-2-5-flash-image",
-        "302ai::gemini-3-pro-image-preview",
         "302ai::grok-4-1",
         "302ai::grok-4-1-fast",
         "302ai::grok-4-fast",
@@ -172,18 +380,6 @@
         "302ai::minimax-m2-1",
         "302ai::minimax-m2-7",
         "302ai::minimax-m2-7-highspeed",
-        "anthropic::claude-fable-latest",
-        "anthropic::claude-haiku-latest",
-        "anthropic::claude-opus-4",
-        "anthropic::claude-opus-4-1",
-        "anthropic::claude-opus-4-7-fast",
-        "anthropic::claude-opus-4-8-fast",
-        "anthropic::claude-opus-latest",
-        "anthropic::claude-sonnet-4",
-        "anthropic::claude-sonnet-4-5",
-        "anthropic::claude-sonnet-latest",
-        "aws-bedrock::claude-opus-4-1",
-        "aws-bedrock::claude-sonnet-4-5",
         "aws-bedrock::deepseek-r1",
         "aws-bedrock::kimi-k2",
         "aws-bedrock::magistral-small",
@@ -199,10 +395,6 @@
         "baidu-cloud::ernie-5-0",
         "baidu-cloud::ernie-x1-1-preview",
         "baidu-cloud::ernie-x1-turbo",
-        "claude-code::claude-opus-4-1",
-        "claude-code::claude-sonnet-4-5",
-        "copilot::claude-sonnet-4",
-        "copilot::claude-sonnet-4-5",
         "copilot::kimi-k2-7-code",
         "deepseek::deepseek-r1",
         "deepseek::deepseek-r1-distill-llama-70b",
@@ -212,29 +404,13 @@
         "deepseek::deepseek-r1-distill-qwen-32b",
         "deepseek::deepseek-r1-distill-qwen-7b",
         "deepseek::deepseek-reasoner",
-        "dmxapi::gemini-2-5-flash-image",
-        "doubao::doubao-seed-1-6",
-        "doubao::doubao-seed-1-6-flash",
-        "doubao::doubao-seed-1-6-vision",
-        "doubao::doubao-seed-2-0-code",
-        "doubao::doubao-seed-2-0-lite",
-        "doubao::doubao-seed-2-0-mini",
-        "doubao::doubao-seed-2-0-pro",
         "doubao::doubao-seed-2-1-pro",
         "doubao::doubao-seed-2-1-turbo",
         "doubao::doubao-seed-evolving",
         "fireworks::kimi-k2-7-code",
         "fireworks::minimax-m2-7",
-        "gateway::claude-opus-4",
-        "gateway::claude-opus-4-1",
-        "gateway::claude-sonnet-4",
-        "gateway::claude-sonnet-4-5",
         "gateway::deepseek-r1",
         "gateway::fugu-ultra",
-        "gateway::gemini-2-5-flash-image",
-        "gateway::gemini-3-1-flash-lite-image",
-        "gateway::gemini-3-pro-image",
-        "gateway::gemini-omni-flash-preview",
         "gateway::gpt-5-chat",
         "gateway::grok-4-1-fast",
         "gateway::grok-4-20",
@@ -257,19 +433,7 @@
         "gateway::minimax-m2-7",
         "gateway::minimax-m2-7-highspeed",
         "gateway::trinity-large",
-        "gemini::gemini-2-5-flash-image",
-        "gemini::gemini-2-5-flash-image-preview",
-        "gemini::gemini-2-5-pro-preview",
-        "gemini::gemini-2-5-pro-preview-05-06",
-        "gemini::gemini-3-1-flash-lite-image",
-        "gemini::gemini-3-pro-image",
-        "gemini::gemini-3-pro-image-preview",
-        "gemini::gemini-omni-flash-preview",
-        "gemini::gemini-pro-latest",
         "github::deepseek-r1",
-        "github::grok-3-mini",
-        "grok::grok-3-mini",
-        "grok::grok-3-mini-fast",
         "grok::grok-4",
         "grok::grok-4-1",
         "grok::grok-4-1-fast",
@@ -290,7 +454,6 @@
         "huggingface::minimax-m2-5",
         "huggingface::minimax-m2-7",
         "hunyuan::hunyuan-2-0",
-        "hunyuan::hunyuan-a13b-instruct",
         "hunyuan::hunyuan-t1",
         "hunyuan::hy3",
         "hunyuan::hy3-preview",
@@ -321,14 +484,8 @@
         "nvidia::nemotron-content-safety-reasoning-4b",
         "nvidia::nemotron-nano-3-30b",
         "nvidia::nemotron-super-3-120b",
-        "openai::gpt-5-4-image-2",
-        "openai::gpt-5-6-luna-pro",
-        "openai::gpt-5-6-sol-pro",
-        "openai::gpt-5-6-terra-pro",
         "openai::gpt-5-chat",
         "openai::gpt-5-chat-latest",
-        "openai::gpt-5-image",
-        "openai::gpt-5-image-mini",
         "openai::gpt-latest",
         "openai::gpt-mini-latest",
         "perplexity::sonar-pro",
@@ -350,7 +507,6 @@
         "silicon::glm-5v-turbo",
         "silicon::gpt-oss-120b",
         "silicon::gpt-oss-20b",
-        "silicon::hunyuan-a13b-instruct",
         "silicon::hy3-preview",
         "silicon::kimi-k2-5",
         "silicon::kimi-k2-6",
@@ -368,12 +524,6 @@
         "tokenhub::kimi-k2-7-code",
         "tokenhub::minimax-m2-5",
         "tokenhub::minimax-m2-7",
-        "vertexai::claude-opus-4",
-        "vertexai::claude-opus-4-1",
-        "vertexai::claude-sonnet-4",
-        "vertexai::claude-sonnet-4-5",
-        "vertexai::gemini-2-5-flash-image",
-        "vertexai::gemini-3-pro-image",
         "vertexai::kimi-k2-thinking-maas",
         "zhipu::glm-4-1v",
         "zhipu::glm-z1",
@@ -385,168 +535,6 @@
     {
       "behavior": {
         "minimal": {
-          "reasoningEffort": "low"
-        },
-        "low": {
-          "reasoningEffort": "low"
-        },
-        "medium": {
-          "reasoningEffort": "medium"
-        },
-        "high": {
-          "reasoningEffort": "high"
-        },
-        "xhigh": {
-          "reasoningEffort": "low"
-        },
-        "auto": {
-          "reasoningEffort": "low"
-        }
-      },
-      "members": [
-        "302ai::claude-opus-4-5",
-        "302ai::claude-opus-4-6",
-        "302ai::claude-sonnet-4-6",
-        "anthropic::claude-opus-4-5",
-        "anthropic::claude-opus-4-6",
-        "anthropic::claude-opus-4-6-v1",
-        "anthropic::claude-sonnet-4-6",
-        "aws-bedrock::claude-opus-4-5",
-        "aws-bedrock::claude-opus-4-6",
-        "aws-bedrock::claude-sonnet-4-6",
-        "aws-bedrock::gpt-oss-120b",
-        "aws-bedrock::gpt-oss-20b",
-        "aws-bedrock::gpt-oss-safeguard-20b",
-        "aws-bedrock::nova-2-lite",
-        "cerebras::gpt-oss-120b",
-        "claude-code::claude-opus-4-5",
-        "claude-code::claude-opus-4-6",
-        "claude-code::claude-sonnet-4-6",
-        "copilot::claude-opus-4-5",
-        "copilot::claude-opus-4-6",
-        "copilot::claude-sonnet-4-6",
-        "copilot::gemini-3-1-pro-preview",
-        "fireworks::gpt-oss-120b",
-        "fireworks::gpt-oss-20b",
-        "gateway::claude-opus-4-5",
-        "gateway::claude-opus-4-6",
-        "gateway::claude-sonnet-4-6",
-        "gateway::gemini-3-1-pro-preview",
-        "gateway::gpt-5-1-codex",
-        "gateway::gpt-5-1-codex-mini",
-        "gateway::gpt-5-codex",
-        "gateway::gpt-oss-120b",
-        "gateway::gpt-oss-20b",
-        "gateway::gpt-oss-safeguard-20b",
-        "gateway::grok-4-5",
-        "gateway::interfaze-beta",
-        "gateway::mercury-2",
-        "gateway::nova-2-lite",
-        "gateway::o1",
-        "gateway::o3",
-        "gateway::o3-mini",
-        "gateway::o3-pro",
-        "gateway::o4-mini",
-        "gateway::step-3-5-flash",
-        "gemini::gemini-3-1-pro-preview",
-        "gemini::gemini-3-1-pro-preview-customtools",
-        "github::o1",
-        "github::o3",
-        "github::o3-mini",
-        "github::o4-mini",
-        "grok-cli::grok-4-5",
-        "grok::grok-4-5",
-        "huggingface::gpt-oss-120b",
-        "huggingface::gpt-oss-20b",
-        "huggingface::step-3-5-flash",
-        "lanyun::step-3-5-flash",
-        "nvidia::gpt-oss-120b",
-        "nvidia::gpt-oss-20b",
-        "nvidia::step-3-5-flash",
-        "openai::gpt-5-1-codex",
-        "openai::gpt-5-1-codex-mini",
-        "openai::gpt-5-codex",
-        "openai::gpt-oss-120b",
-        "openai::gpt-oss-120b-maas",
-        "openai::gpt-oss-20b",
-        "openai::gpt-oss-20b-maas",
-        "openai::gpt-oss-safeguard-20b",
-        "openai::o1",
-        "openai::o1-pro",
-        "openai::o3",
-        "openai::o3-mini",
-        "openai::o3-pro",
-        "openai::o4-mini",
-        "stepfun::step-3-5-flash",
-        "vertexai::claude-opus-4-5",
-        "vertexai::claude-opus-4-6",
-        "vertexai::claude-sonnet-4-6",
-        "vertexai::gemini-3-1-pro-preview",
-        "vertexai::gemini-3-1-pro-preview-customtools",
-        "vertexai::gpt-oss-120b-maas",
-        "vertexai::gpt-oss-20b-maas"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
-          "reasoningEffort": "low"
-        },
-        "low": {
-          "reasoningEffort": "low"
-        },
-        "medium": {
-          "reasoningEffort": "medium"
-        },
-        "high": {
-          "reasoningEffort": "high"
-        },
-        "xhigh": {
-          "reasoningEffort": "xhigh"
-        },
-        "auto": {
-          "reasoningEffort": "low"
-        }
-      },
-      "members": [
-        "302ai::claude-opus-4-7",
-        "302ai::grok-4-20-multi-agent-beta",
-        "anthropic::claude-fable-5",
-        "anthropic::claude-opus-4-7",
-        "anthropic::claude-opus-4-8",
-        "anthropic::claude-sonnet-5",
-        "aws-bedrock::claude-fable-5",
-        "aws-bedrock::claude-opus-4-7",
-        "aws-bedrock::claude-opus-4-8",
-        "claude-code::claude-fable-5",
-        "claude-code::claude-opus-4-7",
-        "claude-code::claude-opus-4-8",
-        "copilot::claude-fable-5",
-        "copilot::claude-opus-4-7",
-        "copilot::claude-opus-4-8",
-        "copilot::claude-sonnet-5",
-        "copilot::gpt-5-2-codex",
-        "gateway::claude-fable-5",
-        "gateway::claude-opus-4-7",
-        "gateway::claude-opus-4-8",
-        "gateway::claude-sonnet-5",
-        "gateway::gpt-5-1-codex-max",
-        "gateway::gpt-5-2-codex",
-        "gateway::grok-4-20-multi-agent",
-        "gateway::grok-4-20-multi-agent-beta",
-        "grok::grok-4-20-multi-agent",
-        "grok::grok-4-20-multi-agent-beta",
-        "openai::gpt-5-1-codex-max",
-        "openai::gpt-5-2-codex",
-        "openai::gpt-5-3-codex",
-        "vertexai::claude-opus-4-7",
-        "vertexai::claude-opus-4-8",
-        "vertexai::claude-sonnet-5"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
           "thinking": {
             "type": "enabled"
           }
@@ -567,6 +555,11 @@
           }
         },
         "xhigh": {
+          "thinking": {
+            "type": "enabled"
+          }
+        },
+        "max": {
           "thinking": {
             "type": "enabled"
           }
@@ -605,6 +598,75 @@
     {
       "behavior": {
         "none": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "none"
+        },
+        "medium": {
+          "reasoningEffort": "none"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "none"
+        },
+        "max": {
+          "reasoningEffort": "none"
+        },
+        "auto": {
+          "reasoningEffort": "auto"
+        }
+      },
+      "members": [
+        "302ai::doubao-seed-1-6",
+        "doubao::doubao-seed-1-6"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "none"
+        },
+        "medium": {
+          "reasoningEffort": "none"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "none"
+        },
+        "max": {
+          "reasoningEffort": "none"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "302ai::doubao-seed-1-6-vision",
+        "doubao::doubao-seed-1-6-flash",
+        "doubao::doubao-seed-1-6-vision"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
           "extra_body": {
             "google": {
               "thinking_config": {
@@ -628,17 +690,28 @@
         "xhigh": {
           "reasoningEffort": "none"
         },
+        "max": {
+          "reasoningEffort": "none"
+        },
         "auto": {
           "reasoningEffort": "auto"
         }
       },
       "members": [
         "302ai::gemini-2-5-flash",
+        "302ai::gemini-2-5-flash-image",
+        "dmxapi::gemini-2-5-flash-image",
         "gateway::gemini-2-5-flash",
+        "gateway::gemini-2-5-flash-image",
         "gateway::gemini-2-5-flash-lite",
+        "gateway::gemini-3-1-flash-lite-image",
         "gemini::gemini-2-5-flash",
+        "gemini::gemini-2-5-flash-image",
+        "gemini::gemini-2-5-flash-image-preview",
         "gemini::gemini-2-5-flash-lite",
+        "gemini::gemini-3-1-flash-lite-image",
         "vertexai::gemini-2-5-flash",
+        "vertexai::gemini-2-5-flash-image",
         "vertexai::gemini-2-5-flash-lite"
       ]
     },
@@ -694,6 +767,16 @@
             }
           }
         },
+        "max": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 32768,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
         "auto": {
           "extra_body": {
             "google": {
@@ -710,6 +793,8 @@
         "copilot::gemini-2-5-pro",
         "gateway::gemini-2-5-pro",
         "gemini::gemini-2-5-pro",
+        "gemini::gemini-2-5-pro-preview",
+        "gemini::gemini-2-5-pro-preview-05-06",
         "vertexai::gemini-2-5-pro"
       ]
     },
@@ -728,6 +813,9 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
+          "reasoningEffort": "minimal"
+        },
+        "max": {
           "reasoningEffort": "minimal"
         },
         "auto": {
@@ -761,6 +849,9 @@
         "xhigh": {
           "reasoningEffort": "minimal"
         },
+        "max": {
+          "reasoningEffort": "minimal"
+        },
         "auto": {
           "reasoningEffort": "minimal"
         }
@@ -787,6 +878,12 @@
         "gemini::gemini-3-flash",
         "gemini::gemini-3-flash-preview",
         "openai::gpt-5",
+        "openai::gpt-5-4-image-2",
+        "openai::gpt-5-6-luna-pro",
+        "openai::gpt-5-6-sol-pro",
+        "openai::gpt-5-6-terra-pro",
+        "openai::gpt-5-image",
+        "openai::gpt-5-image-mini",
         "openai::gpt-5-mini",
         "openai::gpt-5-nano",
         "perplexity::sonar-deep-research",
@@ -814,14 +911,25 @@
         "xhigh": {
           "reasoningEffort": "low"
         },
+        "max": {
+          "reasoningEffort": "low"
+        },
         "auto": {
           "reasoningEffort": "low"
         }
       },
       "members": [
+        "302ai::gemini-3-pro-image-preview",
         "302ai::gemini-3-pro-preview",
+        "gateway::gemini-3-pro-image",
         "gateway::gemini-3-pro-preview",
-        "gemini::gemini-3-pro-preview"
+        "gemini::gemini-3-pro-image",
+        "gemini::gemini-3-pro-image-preview",
+        "gemini::gemini-3-pro-preview",
+        "github::grok-3-mini",
+        "grok::grok-3-mini",
+        "grok::grok-3-mini-fast",
+        "vertexai::gemini-3-pro-image"
       ]
     },
     {
@@ -842,6 +950,9 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
+          "reasoningEffort": "none"
+        },
+        "max": {
           "reasoningEffort": "none"
         },
         "auto": {
@@ -868,6 +979,9 @@
           "reasoningEffort": "medium"
         },
         "xhigh": {
+          "reasoningEffort": "medium"
+        },
+        "max": {
           "reasoningEffort": "medium"
         },
         "auto": {
@@ -902,6 +1016,9 @@
         "xhigh": {
           "reasoningEffort": "xhigh"
         },
+        "max": {
+          "reasoningEffort": "none"
+        },
         "auto": {
           "reasoningEffort": "none"
         }
@@ -916,24 +1033,15 @@
         "copilot::gpt-5-4-mini",
         "copilot::gpt-5-4-nano",
         "copilot::gpt-5-5",
-        "copilot::gpt-5-6-luna",
-        "copilot::gpt-5-6-sol",
-        "copilot::gpt-5-6-terra",
         "gateway::gpt-5-2",
         "gateway::gpt-5-4",
         "gateway::gpt-5-4-mini",
         "gateway::gpt-5-4-nano",
         "gateway::gpt-5-5",
-        "gateway::gpt-5-6-luna",
-        "gateway::gpt-5-6-sol",
-        "gateway::gpt-5-6-terra",
         "openai-codex::gpt-5-3-codex-spark",
         "openai-codex::gpt-5-4",
         "openai-codex::gpt-5-4-mini",
-        "openai-codex::gpt-5-5",
-        "openai-codex::gpt-5-6-luna",
-        "openai-codex::gpt-5-6-sol",
-        "openai-codex::gpt-5-6-terra"
+        "openai-codex::gpt-5-5"
       ]
     },
     {
@@ -952,6 +1060,9 @@
         },
         "xhigh": {
           "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "medium"
         },
         "auto": {
           "reasoningEffort": "medium"
@@ -984,6 +1095,9 @@
         "xhigh": {
           "reasoningEffort": "high"
         },
+        "max": {
+          "reasoningEffort": "high"
+        },
         "auto": {
           "reasoningEffort": "high"
         }
@@ -992,6 +1106,44 @@
         "302ai::gpt-5-pro",
         "gateway::gpt-5-pro",
         "openai::gpt-5-pro"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "low"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "302ai::grok-4-20-multi-agent-beta",
+        "copilot::gpt-5-2-codex",
+        "gateway::gpt-5-1-codex-max",
+        "gateway::gpt-5-2-codex",
+        "gateway::grok-4-20-multi-agent",
+        "gateway::grok-4-20-multi-agent-beta",
+        "grok::grok-4-20-multi-agent",
+        "grok::grok-4-20-multi-agent-beta",
+        "openai::gpt-5-1-codex-max",
+        "openai::gpt-5-2-codex",
+        "openai::gpt-5-3-codex"
       ]
     },
     {
@@ -1015,6 +1167,10 @@
         "xhigh": {
           "enable_thinking": true,
           "thinking_budget": 73728
+        },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 81920
         },
         "auto": {
           "enable_thinking": true,
@@ -1053,6 +1209,10 @@
           "enable_thinking": true,
           "thinking_budget": 35123
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 76800
@@ -1060,15 +1220,26 @@
       },
       "members": [
         "302ai::qwen3-235b-a22b",
+        "302ai::qwen3-30b-a3b",
         "aws-bedrock::qwen3-235b-a22b",
+        "aws-bedrock::qwen3-next-80b-a3b",
+        "aws-bedrock::qwen3-vl-235b-a22b",
         "dashscope::qwen3-235b-a22b",
+        "dashscope::qwen3-30b-a3b",
+        "dashscope::qwen3-5-9b",
         "dashscope::qwen3-5-flash",
+        "dashscope::qwen3-5-flash-02-23",
         "dashscope::qwen3-5-plus",
+        "dashscope::qwen3-5-plus-02-15",
         "dashscope::qwen3-6-27b",
         "dashscope::qwen3-6-plus",
         "dashscope::qwen3-7-max",
         "dashscope::qwen3-7-plus",
+        "dashscope::qwen3-next-80b-a3b",
         "dashscope::qwen3-vl",
+        "dashscope::qwen3-vl-235b-a22b",
+        "dashscope::qwen3-vl-30b-a3b",
+        "dashscope::qwen3-vl-8b",
         "fireworks::qwen3-7-plus",
         "gateway::qwen3-5-flash",
         "gateway::qwen3-5-plus",
@@ -1076,82 +1247,14 @@
         "gateway::qwen3-6-plus",
         "gateway::qwen3-7-max",
         "gateway::qwen3-7-plus",
+        "huggingface::qwen3-5-9b",
         "huggingface::qwen3-6-27b",
         "lanyun::qwen3-235b-a22b",
         "ppio::qwen3-235b-a22b",
+        "ppio::qwen3-30b-a3b",
         "ppio::qwen3-5-plus",
         "tokenhub::qwen3-5-flash",
         "tokenhub::qwen3-5-plus"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
-          "enable_thinking": true,
-          "thinking_budget": 2918
-        },
-        "low": {
-          "enable_thinking": true,
-          "thinking_budget": 2918
-        },
-        "medium": {
-          "enable_thinking": true,
-          "thinking_budget": 19968
-        },
-        "high": {
-          "enable_thinking": true,
-          "thinking_budget": 31334
-        },
-        "xhigh": {
-          "enable_thinking": true,
-          "thinking_budget": 35123
-        },
-        "auto": {
-          "enable_thinking": true,
-          "thinking_budget": 76800
-        }
-      },
-      "members": [
-        "302ai::qwen3-30b-a3b",
-        "aws-bedrock::qwen3-32b",
-        "aws-bedrock::qwen3-coder-30b-a3b",
-        "aws-bedrock::qwen3-coder-next",
-        "aws-bedrock::qwen3-next-80b-a3b",
-        "aws-bedrock::qwen3-vl-235b-a22b",
-        "dashscope::qwen3-14b",
-        "dashscope::qwen3-235b-a22b-instruct-2507-maas",
-        "dashscope::qwen3-30b-a3b",
-        "dashscope::qwen3-32b",
-        "dashscope::qwen3-5-122b-a10b",
-        "dashscope::qwen3-5-27b",
-        "dashscope::qwen3-5-35b-a3b",
-        "dashscope::qwen3-5-397b-a17b",
-        "dashscope::qwen3-5-9b",
-        "dashscope::qwen3-5-flash-02-23",
-        "dashscope::qwen3-5-plus-02-15",
-        "dashscope::qwen3-6-35b-a3b",
-        "dashscope::qwen3-6-flash",
-        "dashscope::qwen3-6-max-preview",
-        "dashscope::qwen3-8b",
-        "dashscope::qwen3-coder",
-        "dashscope::qwen3-coder-30b-a3b",
-        "dashscope::qwen3-coder-next",
-        "dashscope::qwen3-next-80b-a3b",
-        "dashscope::qwen3-omni-flash",
-        "dashscope::qwen3-vl-235b-a22b",
-        "dashscope::qwen3-vl-30b-a3b",
-        "dashscope::qwen3-vl-8b",
-        "dashscope::qwen3-vl-plus",
-        "gateway::qwen3-coder",
-        "gateway::qwen3-coder-30b-a3b",
-        "gateway::qwen3-coder-next",
-        "huggingface::qwen3-32b",
-        "huggingface::qwen3-coder-next",
-        "lanyun::qwen3-32b",
-        "ppio::qwen3-30b-a3b",
-        "ppio::qwen3-32b",
-        "ppio::qwen3-coder-next",
-        "vertexai::qwen3-235b-a22b-instruct-2507-maas"
       ]
     },
     {
@@ -1179,6 +1282,10 @@
           "enable_thinking": true,
           "thinking_budget": 73728
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 81920
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 163840
@@ -1188,6 +1295,68 @@
         "302ai::qwen3-max",
         "dashscope::qwen3-max",
         "gateway::qwen3-max"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "enable_thinking": true,
+          "thinking_budget": 2918
+        },
+        "low": {
+          "enable_thinking": true,
+          "thinking_budget": 2918
+        },
+        "medium": {
+          "enable_thinking": true,
+          "thinking_budget": 19968
+        },
+        "high": {
+          "enable_thinking": true,
+          "thinking_budget": 31334
+        },
+        "xhigh": {
+          "enable_thinking": true,
+          "thinking_budget": 35123
+        },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
+        },
+        "auto": {
+          "enable_thinking": true,
+          "thinking_budget": 76800
+        }
+      },
+      "members": [
+        "aws-bedrock::qwen3-32b",
+        "aws-bedrock::qwen3-coder-30b-a3b",
+        "aws-bedrock::qwen3-coder-next",
+        "dashscope::qwen3-14b",
+        "dashscope::qwen3-235b-a22b-instruct-2507-maas",
+        "dashscope::qwen3-32b",
+        "dashscope::qwen3-5-122b-a10b",
+        "dashscope::qwen3-5-27b",
+        "dashscope::qwen3-5-35b-a3b",
+        "dashscope::qwen3-5-397b-a17b",
+        "dashscope::qwen3-6-35b-a3b",
+        "dashscope::qwen3-6-flash",
+        "dashscope::qwen3-6-max-preview",
+        "dashscope::qwen3-8b",
+        "dashscope::qwen3-coder",
+        "dashscope::qwen3-coder-30b-a3b",
+        "dashscope::qwen3-coder-next",
+        "dashscope::qwen3-omni-flash",
+        "dashscope::qwen3-vl-plus",
+        "gateway::qwen3-coder",
+        "gateway::qwen3-coder-30b-a3b",
+        "gateway::qwen3-coder-next",
+        "huggingface::qwen3-32b",
+        "huggingface::qwen3-coder-next",
+        "lanyun::qwen3-32b",
+        "ppio::qwen3-32b",
+        "ppio::qwen3-coder-next",
+        "vertexai::qwen3-235b-a22b-instruct-2507-maas"
       ]
     },
     {
@@ -1210,6 +1379,9 @@
         "xhigh": {
           "reasoningEffort": "xhigh"
         },
+        "max": {
+          "reasoningEffort": "low"
+        },
         "auto": {
           "reasoningEffort": "low"
         }
@@ -1217,6 +1389,45 @@
       "members": [
         "copilot::gpt-5-3-codex",
         "gateway::gpt-5-3-codex"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
+          "reasoningEffort": "none"
+        },
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "max"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "copilot::gpt-5-6-luna",
+        "copilot::gpt-5-6-sol",
+        "copilot::gpt-5-6-terra",
+        "gateway::gpt-5-6-luna",
+        "gateway::gpt-5-6-sol",
+        "gateway::gpt-5-6-terra",
+        "openai-codex::gpt-5-6-luna",
+        "openai-codex::gpt-5-6-sol",
+        "openai-codex::gpt-5-6-terra"
       ]
     },
     {
@@ -1234,6 +1445,9 @@
           "enable_thinking": true
         },
         "xhigh": {
+          "enable_thinking": true
+        },
+        "max": {
           "enable_thinking": true
         },
         "auto": {
@@ -1271,6 +1485,9 @@
           "enable_thinking": true
         },
         "xhigh": {
+          "enable_thinking": true
+        },
+        "max": {
           "enable_thinking": true
         },
         "auto": {
@@ -1311,6 +1528,10 @@
         "xhigh": {
           "enable_thinking": true,
           "thinking_budget": 35020
+        },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
         },
         "auto": {
           "enable_thinking": true,
@@ -1358,6 +1579,12 @@
           },
           "reasoning_effort": "max"
         },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "high"
+        },
         "auto": {
           "thinking": {
             "type": "enabled"
@@ -1380,6 +1607,42 @@
     },
     {
       "behavior": {
+        "none": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "minimal": {
+          "reasoningEffort": "minimal"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "minimal"
+        },
+        "max": {
+          "reasoningEffort": "minimal"
+        },
+        "auto": {
+          "reasoningEffort": "minimal"
+        }
+      },
+      "members": [
+        "doubao::doubao-seed-2-0-code",
+        "doubao::doubao-seed-2-0-lite",
+        "doubao::doubao-seed-2-0-mini",
+        "doubao::doubao-seed-2-0-pro"
+      ]
+    },
+    {
+      "behavior": {
         "minimal": {
           "reasoningEffort": "high"
         },
@@ -1395,19 +1658,49 @@
         "xhigh": {
           "reasoningEffort": "xhigh"
         },
+        "max": {
+          "reasoningEffort": "max"
+        },
         "auto": {
           "reasoningEffort": "high"
         }
       },
       "members": [
         "fireworks::glm-5-2",
-        "fireworks::glm-5-2-fast",
         "gateway::glm-5-2",
-        "gateway::glm-5-2-fast",
         "huggingface::glm-5-2",
         "nvidia::glm-5-2",
         "tokenhub::glm-5-2",
-        "zhipu::glm-5-2",
+        "zhipu::glm-5-2"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "high"
+        },
+        "low": {
+          "reasoningEffort": "high"
+        },
+        "medium": {
+          "reasoningEffort": "high"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "high"
+        },
+        "auto": {
+          "reasoningEffort": "high"
+        }
+      },
+      "members": [
+        "fireworks::glm-5-2-fast",
+        "gateway::glm-5-2-fast",
         "zhipu::glm-5-2-fast"
       ]
     },
@@ -1428,6 +1721,9 @@
         "xhigh": {
           "reasoningEffort": "xhigh"
         },
+        "max": {
+          "reasoningEffort": "max"
+        },
         "auto": {
           "reasoningEffort": "none"
         }
@@ -1435,11 +1731,97 @@
       "members": [
         "fireworks::kimi-k2-6",
         "gateway::kimi-k2-6",
-        "gateway::muse-spark-1-1",
         "huggingface::kimi-k2-6",
         "moonshot::kimi-k2-6",
         "nvidia::kimi-k2-6",
         "tokenhub::kimi-k2-6"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 0
+              }
+            }
+          }
+        },
+        "minimal": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 1228,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "low": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 1228,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "medium": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 12288,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "high": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 19660,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "xhigh": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 22118,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "max": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": 24576,
+                "include_thoughts": true
+              }
+            }
+          }
+        },
+        "auto": {
+          "extra_body": {
+            "google": {
+              "thinking_config": {
+                "thinking_budget": -1,
+                "include_thoughts": true
+              }
+            }
+          }
+        }
+      },
+      "members": [
+        "gateway::gemini-omni-flash-preview",
+        "gemini::gemini-omni-flash-preview"
       ]
     },
     {
@@ -1458,6 +1840,9 @@
         },
         "xhigh": {
           "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "minimal"
         },
         "auto": {
           "reasoningEffort": "minimal"
@@ -1483,6 +1868,9 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
+          "reasoningEffort": "none"
+        },
+        "max": {
           "reasoningEffort": "none"
         },
         "auto": {
@@ -1513,6 +1901,9 @@
         "xhigh": {
           "reasoningEffort": "none"
         },
+        "max": {
+          "reasoningEffort": "none"
+        },
         "auto": {
           "reasoningEffort": "none"
         }
@@ -1535,6 +1926,34 @@
     {
       "behavior": {
         "minimal": {
+          "reasoningEffort": "minimal"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "none"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "gateway::muse-spark-1-1"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
           "thinking_budget": 2918
         },
         "low": {
@@ -1548,6 +1967,9 @@
         },
         "xhigh": {
           "thinking_budget": 35123
+        },
+        "max": {
+          "thinking_budget": 38912
         },
         "auto": {
           "thinking_budget": 76800
@@ -1582,6 +2004,9 @@
         },
         "xhigh": {
           "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "max"
         },
         "auto": {
           "reasoningEffort": "low"
@@ -1618,6 +2043,9 @@
           "reasoningEffort": "high"
         },
         "xhigh": {
+          "reasoningEffort": "minimal"
+        },
+        "max": {
           "reasoningEffort": "minimal"
         },
         "auto": {
@@ -1658,6 +2086,10 @@
           "enable_thinking": true,
           "thinking_budget": 35123
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 76800
@@ -1668,12 +2100,42 @@
         "huggingface::qwen3-5-27b",
         "huggingface::qwen3-5-35b-a3b",
         "huggingface::qwen3-5-397b-a17b",
-        "huggingface::qwen3-5-9b",
         "huggingface::qwen3-6-35b-a3b",
         "ppio::qwen3-5-122b-a10b",
         "ppio::qwen3-5-27b",
         "ppio::qwen3-5-35b-a3b",
         "ppio::qwen3-5-397b-a17b"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
+          "enable_thinking": false
+        },
+        "minimal": {
+          "enable_thinking": true
+        },
+        "low": {
+          "enable_thinking": true
+        },
+        "medium": {
+          "enable_thinking": true
+        },
+        "high": {
+          "enable_thinking": true
+        },
+        "xhigh": {
+          "enable_thinking": true
+        },
+        "max": {
+          "enable_thinking": true
+        },
+        "auto": {
+          "enable_thinking": true
+        }
+      },
+      "members": [
+        "hunyuan::hunyuan-a13b-instruct"
       ]
     },
     {
@@ -1704,6 +2166,11 @@
           }
         },
         "xhigh": {
+          "chat_template_kwargs": {
+            "thinking": true
+          }
+        },
+        "max": {
           "chat_template_kwargs": {
             "thinking": true
           }
@@ -1756,6 +2223,12 @@
             "thinking_budget": 35123
           }
         },
+        "max": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "thinking_budget": 38912
+          }
+        },
         "auto": {
           "chat_template_kwargs": {
             "enable_thinking": true,
@@ -1785,6 +2258,9 @@
         "xhigh": {
           "reasoningEffort": "xhigh"
         },
+        "max": {
+          "reasoningEffort": "none"
+        },
         "auto": {
           "reasoningEffort": "none"
         }
@@ -1795,7 +2271,34 @@
         "openai::gpt-5-4",
         "openai::gpt-5-4-mini",
         "openai::gpt-5-4-nano",
-        "openai::gpt-5-5",
+        "openai::gpt-5-5"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
+          "reasoningEffort": "none"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "max"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
         "openai::gpt-5-6",
         "openai::gpt-5-6-luna",
         "openai::gpt-5-6-sol",
@@ -1826,6 +2329,9 @@
           "reasoning_effort": "medium"
         },
         "xhigh": {
+          "reasoning_effort": "medium"
+        },
+        "max": {
           "reasoning_effort": "medium"
         },
         "auto": {
@@ -1870,6 +2376,11 @@
             "effort": "xhigh"
           }
         },
+        "max": {
+          "reasoning": {
+            "effort": "max"
+          }
+        },
         "auto": {
           "reasoning": {
             "effort": "medium"
@@ -1878,29 +2389,48 @@
       },
       "members": [
         "openrouter::claude-fable-5",
+        "openrouter::claude-fable-latest",
         "openrouter::claude-haiku-4-5",
+        "openrouter::claude-haiku-latest",
+        "openrouter::claude-opus-4",
+        "openrouter::claude-opus-4-1",
         "openrouter::claude-opus-4-5",
         "openrouter::claude-opus-4-6",
         "openrouter::claude-opus-4-7",
+        "openrouter::claude-opus-4-7-fast",
         "openrouter::claude-opus-4-8",
+        "openrouter::claude-opus-4-8-fast",
+        "openrouter::claude-opus-latest",
+        "openrouter::claude-sonnet-4",
+        "openrouter::claude-sonnet-4-5",
         "openrouter::claude-sonnet-4-6",
         "openrouter::claude-sonnet-5",
+        "openrouter::claude-sonnet-latest",
+        "openrouter::deepseek-chat-v3-1",
         "openrouter::deepseek-v3-1-terminus",
         "openrouter::deepseek-v3-2",
+        "openrouter::deepseek-v3-2-exp",
         "openrouter::deepseek-v4-flash",
         "openrouter::deepseek-v4-pro",
         "openrouter::gemini-2-5-flash",
+        "openrouter::gemini-2-5-flash-image",
         "openrouter::gemini-2-5-flash-lite",
         "openrouter::gemini-2-5-pro",
+        "openrouter::gemini-2-5-pro-preview",
+        "openrouter::gemini-2-5-pro-preview-05-06",
         "openrouter::gemini-3-1-flash-image",
         "openrouter::gemini-3-1-flash-image-preview",
         "openrouter::gemini-3-1-flash-lite",
+        "openrouter::gemini-3-1-flash-lite-image",
         "openrouter::gemini-3-1-flash-lite-preview",
         "openrouter::gemini-3-1-pro-preview",
         "openrouter::gemini-3-1-pro-preview-customtools",
         "openrouter::gemini-3-5-flash",
         "openrouter::gemini-3-flash-preview",
+        "openrouter::gemini-3-pro-image",
+        "openrouter::gemini-3-pro-image-preview",
         "openrouter::gemini-flash-latest",
+        "openrouter::gemini-pro-latest",
         "openrouter::gemma-4-26b-a4b-it",
         "openrouter::gemma-4-31b-it",
         "openrouter::glm-4-5",
@@ -1923,7 +2453,12 @@
         "openrouter::gpt-5-2-pro",
         "openrouter::gpt-5-4-pro",
         "openrouter::gpt-5-5-pro",
+        "openrouter::gpt-5-6-luna-pro",
+        "openrouter::gpt-5-6-sol-pro",
+        "openrouter::gpt-5-6-terra-pro",
         "openrouter::gpt-5-codex",
+        "openrouter::gpt-5-image",
+        "openrouter::gpt-5-image-mini",
         "openrouter::gpt-5-mini",
         "openrouter::gpt-5-nano",
         "openrouter::gpt-5-pro",
@@ -1933,6 +2468,7 @@
         "openrouter::grok-4-20-multi-agent",
         "openrouter::grok-4-3",
         "openrouter::grok-4-5",
+        "openrouter::hunyuan-a13b-instruct",
         "openrouter::kimi-k2-5",
         "openrouter::kimi-k2-6",
         "openrouter::mercury-2",
@@ -1958,12 +2494,16 @@
         "openrouter::qwen-plus",
         "openrouter::qwen3-14b",
         "openrouter::qwen3-235b-a22b",
+        "openrouter::qwen3-30b-a3b",
         "openrouter::qwen3-32b",
         "openrouter::qwen3-5-122b-a10b",
         "openrouter::qwen3-5-27b",
         "openrouter::qwen3-5-35b-a3b",
         "openrouter::qwen3-5-397b-a17b",
+        "openrouter::qwen3-5-9b",
+        "openrouter::qwen3-5-flash-02-23",
         "openrouter::qwen3-5-plus",
+        "openrouter::qwen3-5-plus-02-15",
         "openrouter::qwen3-6-27b",
         "openrouter::qwen3-6-35b-a3b",
         "openrouter::qwen3-6-flash",
@@ -1972,7 +2512,13 @@
         "openrouter::qwen3-7-max",
         "openrouter::qwen3-7-plus",
         "openrouter::qwen3-8b",
+        "openrouter::qwen3-coder",
+        "openrouter::qwen3-coder-next",
         "openrouter::qwen3-max",
+        "openrouter::qwen3-next-80b-a3b",
+        "openrouter::qwen3-vl-235b-a22b",
+        "openrouter::qwen3-vl-30b-a3b",
+        "openrouter::qwen3-vl-8b",
         "openrouter::seed-1-6",
         "openrouter::sonar-deep-research",
         "openrouter::sonar-reasoning-pro",
@@ -1990,34 +2536,12 @@
         }
       },
       "members": [
-        "openrouter::claude-fable-latest",
-        "openrouter::claude-haiku-latest",
-        "openrouter::claude-opus-4",
-        "openrouter::claude-opus-4-1",
-        "openrouter::claude-opus-4-7-fast",
-        "openrouter::claude-opus-4-8-fast",
-        "openrouter::claude-opus-latest",
-        "openrouter::claude-sonnet-4",
-        "openrouter::claude-sonnet-4-5",
-        "openrouter::claude-sonnet-latest",
         "openrouter::cogito-v2-1-671b",
         "openrouter::deepseek-r1",
         "openrouter::deepseek-r1-distill-llama-70b",
         "openrouter::ernie-4-5-vl-424b-a47b",
         "openrouter::fugu-ultra",
-        "openrouter::gemini-2-5-flash-image",
-        "openrouter::gemini-2-5-pro-preview",
-        "openrouter::gemini-2-5-pro-preview-05-06",
-        "openrouter::gemini-3-1-flash-lite-image",
-        "openrouter::gemini-3-pro-image",
-        "openrouter::gemini-3-pro-image-preview",
-        "openrouter::gemini-pro-latest",
-        "openrouter::gpt-5-6-luna-pro",
-        "openrouter::gpt-5-6-sol-pro",
-        "openrouter::gpt-5-6-terra-pro",
         "openrouter::gpt-5-chat",
-        "openrouter::gpt-5-image",
-        "openrouter::gpt-5-image-mini",
         "openrouter::gpt-latest",
         "openrouter::gpt-mini-latest",
         "openrouter::grok-4-20",
@@ -2025,7 +2549,6 @@
         "openrouter::grok-latest",
         "openrouter::hermes-4-405b",
         "openrouter::hermes-4-70b",
-        "openrouter::hunyuan-a13b-instruct",
         "openrouter::hy3",
         "openrouter::hy3-preview",
         "openrouter::kat-coder-pro-v2",
@@ -2047,50 +2570,6 @@
         "openrouter::solar-pro-3",
         "openrouter::sonar-pro",
         "openrouter::trinity-large"
-      ]
-    },
-    {
-      "behavior": {
-        "none": {
-          "reasoning": {
-            "enabled": false,
-            "exclude": true
-          }
-        },
-        "minimal": {
-          "reasoning": {
-            "enabled": true
-          }
-        },
-        "low": {
-          "reasoning": {
-            "enabled": true
-          }
-        },
-        "medium": {
-          "reasoning": {
-            "enabled": true
-          }
-        },
-        "high": {
-          "reasoning": {
-            "enabled": true
-          }
-        },
-        "xhigh": {
-          "reasoning": {
-            "enabled": true
-          }
-        },
-        "auto": {
-          "reasoning": {
-            "enabled": true
-          }
-        }
-      },
-      "members": [
-        "openrouter::deepseek-chat-v3-1",
-        "openrouter::deepseek-v3-2-exp"
       ]
     },
     {
@@ -2125,6 +2604,11 @@
             "effort": "xhigh"
           }
         },
+        "max": {
+          "reasoning": {
+            "effort": "max"
+          }
+        },
         "auto": {
           "reasoning": {
             "effort": "medium"
@@ -2136,6 +2620,7 @@
         "openrouter::gpt-5-2",
         "openrouter::gpt-5-3-codex",
         "openrouter::gpt-5-4",
+        "openrouter::gpt-5-4-image-2",
         "openrouter::gpt-5-4-mini",
         "openrouter::gpt-5-4-nano",
         "openrouter::gpt-5-5",
@@ -2147,89 +2632,39 @@
     {
       "behavior": {
         "none": {
-          "reasoning": {
-            "effort": "none"
-          }
-        }
-      },
-      "members": [
-        "openrouter::gpt-5-4-image-2"
-      ]
-    },
-    {
-      "behavior": {
-        "none": {
-          "reasoning": {
-            "enabled": false,
-            "exclude": true
-          }
-        },
-        "minimal": {
-          "thinking_budget": 2918
-        },
-        "low": {
-          "thinking_budget": 2918
-        },
-        "medium": {
-          "thinking_budget": 19968
-        },
-        "high": {
-          "thinking_budget": 31334
-        },
-        "xhigh": {
-          "thinking_budget": 35123
-        },
-        "auto": {
-          "thinking_budget": 76800
-        }
-      },
-      "members": [
-        "openrouter::qwen3-30b-a3b",
-        "openrouter::qwen3-next-80b-a3b",
-        "openrouter::qwen3-vl-235b-a22b",
-        "openrouter::qwen3-vl-30b-a3b",
-        "openrouter::qwen3-vl-8b"
-      ]
-    },
-    {
-      "behavior": {
-        "none": {
-          "reasoning": {
-            "enabled": false,
-            "exclude": true
-          }
+          "enable_thinking": false
         },
         "minimal": {
           "enable_thinking": true,
-          "thinking_budget": 2918
+          "thinking_budget": 32768
         },
         "low": {
           "enable_thinking": true,
-          "thinking_budget": 2918
+          "thinking_budget": 32768
         },
         "medium": {
           "enable_thinking": true,
-          "thinking_budget": 19968
+          "thinking_budget": 32768
         },
         "high": {
           "enable_thinking": true,
-          "thinking_budget": 31334
+          "thinking_budget": 32768
         },
         "xhigh": {
           "enable_thinking": true,
-          "thinking_budget": 35123
+          "thinking_budget": 32768
+        },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 32768
         },
         "auto": {
           "enable_thinking": true,
-          "thinking_budget": 76800
+          "thinking_budget": 61440
         }
       },
       "members": [
-        "openrouter::qwen3-5-9b",
-        "openrouter::qwen3-5-flash-02-23",
-        "openrouter::qwen3-5-plus-02-15",
-        "openrouter::qwen3-coder",
-        "openrouter::qwen3-coder-next"
+        "silicon::hunyuan-a13b-instruct"
       ]
     },
     {
@@ -2245,7 +2680,6 @@
         "silicon::qwen3-5-27b",
         "silicon::qwen3-5-35b-a3b",
         "silicon::qwen3-5-397b-a17b",
-        "silicon::qwen3-5-9b",
         "silicon::qwen3-6-35b-a3b"
       ]
     },
@@ -2274,12 +2708,17 @@
           "enable_thinking": true,
           "thinking_budget": 35123
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 76800
         }
       },
       "members": [
+        "silicon::qwen3-5-9b",
         "silicon::qwen3-6-27b"
       ]
     }

@@ -1,6 +1,6 @@
 {
   "rows": 951,
-  "groups": 21,
+  "groups": 24,
   "behaviors": [
     {
       "behavior": {
@@ -107,6 +107,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -126,42 +141,21 @@
       "members": [
         "302ai::claude-haiku-4-5",
         "302ai::claude-opus-4-5",
-        "302ai::claude-sonnet-4",
-        "302ai::claude-sonnet-4-5",
-        "302ai::claude-sonnet-4-6",
         "anthropic::claude-haiku-4-5",
         "anthropic::claude-opus-4-5",
-        "anthropic::claude-sonnet-4",
-        "anthropic::claude-sonnet-4-5",
-        "anthropic::claude-sonnet-4-6",
         "aws-bedrock::claude-haiku-4-5",
         "aws-bedrock::claude-opus-4-5",
         "aws-bedrock::claude-sonnet-4-5",
-        "aws-bedrock::claude-sonnet-4-6",
         "claude-code::claude-haiku-4-5",
         "claude-code::claude-opus-4-5",
-        "claude-code::claude-sonnet-4-5",
-        "claude-code::claude-sonnet-4-6",
         "copilot::claude-haiku-4-5",
         "copilot::claude-opus-4-5",
-        "copilot::claude-sonnet-4",
-        "copilot::claude-sonnet-4-5",
-        "copilot::claude-sonnet-4-6",
         "gateway::claude-haiku-4-5",
         "gateway::claude-opus-4-5",
-        "gateway::claude-sonnet-4",
-        "gateway::claude-sonnet-4-5",
-        "gateway::claude-sonnet-4-6",
         "openrouter::claude-haiku-4-5",
         "openrouter::claude-opus-4-5",
-        "openrouter::claude-sonnet-4",
-        "openrouter::claude-sonnet-4-5",
-        "openrouter::claude-sonnet-4-6",
         "vertexai::claude-haiku-4-5",
-        "vertexai::claude-opus-4-5",
-        "vertexai::claude-sonnet-4",
-        "vertexai::claude-sonnet-4-5",
-        "vertexai::claude-sonnet-4-6"
+        "vertexai::claude-opus-4-5"
       ]
     },
     {
@@ -202,8 +196,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 2572
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 2572
+            }
           },
           "ollama": {
             "think": true
@@ -217,8 +216,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 2572
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 2572
+            }
           },
           "ollama": {
             "think": true
@@ -232,8 +236,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 16512
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 16512
+            }
           },
           "ollama": {
             "think": true
@@ -247,8 +256,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 25804
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 25804
+            }
           },
           "ollama": {
             "think": true
@@ -262,8 +276,33 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 28902
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 28902
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            }
           },
           "ollama": {
             "think": true
@@ -277,8 +316,13 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 62976
-            },
-            "sendReasoning": true
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 62976
+            }
           },
           "ollama": {
             "think": true
@@ -336,10 +380,393 @@
           },
           "anthropic": {
             "thinking": {
-              "type": "enabled",
-              "budgetTokens": 7372
+              "type": "adaptive"
             },
-            "sendReasoning": true
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "medium"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "medium"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "high"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "max"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            },
+            "effort": "max"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-6",
+        "302ai::claude-sonnet-4-6",
+        "anthropic::claude-opus-4-6",
+        "anthropic::claude-opus-4-6-v1",
+        "anthropic::claude-sonnet-4-6",
+        "aws-bedrock::claude-opus-4-6",
+        "aws-bedrock::claude-sonnet-4-6",
+        "claude-code::claude-opus-4-6",
+        "claude-code::claude-sonnet-4-6",
+        "copilot::claude-opus-4-6",
+        "copilot::claude-sonnet-4-6",
+        "gateway::claude-opus-4-6",
+        "gateway::claude-sonnet-4-6",
+        "openrouter::claude-opus-4-6",
+        "openrouter::claude-sonnet-4-6",
+        "vertexai::claude-opus-4-6",
+        "vertexai::claude-sonnet-4-6"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "low"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "medium"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "medium"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "high"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "xhigh"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            },
+            "effort": "xhigh"
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive",
+              "maxReasoningEffort": "max"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "adaptive",
+              "display": "summarized"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "adaptive"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "302ai::claude-opus-4-7",
+        "anthropic::claude-opus-4-7",
+        "anthropic::claude-opus-4-7-fast",
+        "aws-bedrock::claude-opus-4-7",
+        "claude-code::claude-opus-4-7",
+        "copilot::claude-opus-4-7",
+        "gateway::claude-opus-4-7",
+        "openrouter::claude-opus-4-7",
+        "openrouter::claude-opus-4-7-fast",
+        "vertexai::claude-opus-4-7"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            }
           },
           "ollama": {
             "think": true
@@ -352,9 +779,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 7372
-            },
-            "sendReasoning": true
+              "budgetTokens": 4172
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 4172
+            }
           },
           "ollama": {
             "think": true
@@ -367,9 +799,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 64512
-            },
-            "sendReasoning": true
+              "budgetTokens": 32512
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 32512
+            }
           },
           "ollama": {
             "think": true
@@ -382,9 +819,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 102604
-            },
-            "sendReasoning": true
+              "budgetTokens": 51404
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 51404
+            }
           },
           "ollama": {
             "think": true
@@ -397,9 +839,34 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 115302
-            },
-            "sendReasoning": true
+              "budgetTokens": 57702
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 57702
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 64000
+            }
           },
           "ollama": {
             "think": true
@@ -412,9 +879,14 @@
           "anthropic": {
             "thinking": {
               "type": "enabled",
-              "budgetTokens": 254976
-            },
-            "sendReasoning": true
+              "budgetTokens": 126976
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "enabled",
+              "budgetTokens": 126976
+            }
           },
           "ollama": {
             "think": true
@@ -422,25 +894,19 @@
         }
       },
       "members": [
-        "302ai::claude-opus-4-6",
-        "302ai::claude-opus-4-7",
-        "anthropic::claude-opus-4-6",
-        "anthropic::claude-opus-4-6-v1",
-        "anthropic::claude-opus-4-7",
-        "anthropic::claude-opus-4-7-fast",
-        "aws-bedrock::claude-opus-4-6",
-        "aws-bedrock::claude-opus-4-7",
-        "claude-code::claude-opus-4-6",
-        "claude-code::claude-opus-4-7",
-        "copilot::claude-opus-4-6",
-        "copilot::claude-opus-4-7",
-        "gateway::claude-opus-4-6",
-        "gateway::claude-opus-4-7",
-        "openrouter::claude-opus-4-6",
-        "openrouter::claude-opus-4-7",
-        "openrouter::claude-opus-4-7-fast",
-        "vertexai::claude-opus-4-6",
-        "vertexai::claude-opus-4-7"
+        "302ai::claude-sonnet-4",
+        "302ai::claude-sonnet-4-5",
+        "anthropic::claude-sonnet-4",
+        "anthropic::claude-sonnet-4-5",
+        "claude-code::claude-sonnet-4-5",
+        "copilot::claude-sonnet-4",
+        "copilot::claude-sonnet-4-5",
+        "gateway::claude-sonnet-4",
+        "gateway::claude-sonnet-4-5",
+        "openrouter::claude-sonnet-4",
+        "openrouter::claude-sonnet-4-5",
+        "vertexai::claude-sonnet-4",
+        "vertexai::claude-sonnet-4-5"
       ]
     },
     {
@@ -541,6 +1007,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
             },
             "sendReasoning": true
           },
@@ -717,11 +1198,8 @@
         "gateway::step-3-7-flash",
         "gateway::trinity-large",
         "github::deepseek-r1",
-        "github::grok-3-mini",
         "github::mistral-medium",
         "github::mistral-small",
-        "grok::grok-3-mini",
-        "grok::grok-3-mini-fast",
         "grok::grok-4",
         "grok::grok-4-1",
         "grok::grok-4-1-fast",
@@ -1056,6 +1534,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 30720
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1278,6 +1771,27 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24576
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingBudget": 24576
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1302,179 +1816,26 @@
       },
       "members": [
         "302ai::gemini-2-5-flash",
-        "gateway::gemini-2-5-flash",
-        "gateway::gemini-2-5-flash-lite",
-        "gemini::gemini-2-5-flash",
-        "gemini::gemini-2-5-flash-lite",
-        "openrouter::gemini-2-5-flash",
-        "openrouter::gemini-2-5-flash-lite",
-        "vertexai::gemini-2-5-flash",
-        "vertexai::gemini-2-5-flash-lite"
-      ]
-    },
-    {
-      "behavior": {
-        "unset": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "default": {
-          "ollama": {
-            "think": true
-          }
-        },
-        "none": {
-          "openai": {
-            "reasoningEffort": "none"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "disabled"
-            }
-          },
-          "bedrock": {
-            "reasoningConfig": {
-              "type": "disabled"
-            }
-          },
-          "ollama": {
-            "think": false
-          }
-        },
-        "minimal": {
-          "openai": {
-            "reasoningEffort": "minimal"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1228
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "low": {
-          "openai": {
-            "reasoningEffort": "low"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 1228
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "medium": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 12288
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "high": {
-          "openai": {
-            "reasoningEffort": "high"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 19660
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "xhigh": {
-          "openai": {
-            "reasoningEffort": "xhigh"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 22118
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        },
-        "auto": {
-          "openai": {
-            "reasoningEffort": "medium"
-          },
-          "anthropic": {
-            "thinking": {
-              "type": "enabled",
-              "budgetTokens": 49152
-            },
-            "sendReasoning": true
-          },
-          "ollama": {
-            "think": true
-          }
-        }
-      },
-      "members": [
         "302ai::gemini-2-5-flash-image",
-        "302ai::gemini-3-1-flash-image-preview",
-        "302ai::gemini-3-flash-preview",
-        "copilot::gemini-3-5-flash",
-        "copilot::gemini-3-flash-preview",
         "dmxapi::gemini-2-5-flash-image",
-        "dmxapi::gemini-3-1-flash-image-preview",
+        "gateway::gemini-2-5-flash",
         "gateway::gemini-2-5-flash-image",
-        "gateway::gemini-3-1-flash-image",
-        "gateway::gemini-3-1-flash-image-preview",
-        "gateway::gemini-3-1-flash-lite",
+        "gateway::gemini-2-5-flash-lite",
         "gateway::gemini-3-1-flash-lite-image",
-        "gateway::gemini-3-1-flash-lite-preview",
-        "gateway::gemini-3-5-flash",
-        "gateway::gemini-3-flash",
         "gateway::gemini-omni-flash-preview",
+        "gemini::gemini-2-5-flash",
         "gemini::gemini-2-5-flash-image",
         "gemini::gemini-2-5-flash-image-preview",
-        "gemini::gemini-3-1-flash-image",
-        "gemini::gemini-3-1-flash-image-preview",
-        "gemini::gemini-3-1-flash-lite",
+        "gemini::gemini-2-5-flash-lite",
         "gemini::gemini-3-1-flash-lite-image",
-        "gemini::gemini-3-1-flash-lite-preview",
-        "gemini::gemini-3-5-flash",
-        "gemini::gemini-3-flash",
-        "gemini::gemini-3-flash-preview",
         "gemini::gemini-omni-flash-preview",
+        "openrouter::gemini-2-5-flash",
         "openrouter::gemini-2-5-flash-image",
-        "openrouter::gemini-3-1-flash-image",
-        "openrouter::gemini-3-1-flash-image-preview",
-        "openrouter::gemini-3-1-flash-lite",
+        "openrouter::gemini-2-5-flash-lite",
         "openrouter::gemini-3-1-flash-lite-image",
-        "openrouter::gemini-3-1-flash-lite-preview",
-        "openrouter::gemini-3-5-flash",
-        "openrouter::gemini-3-flash-preview",
+        "vertexai::gemini-2-5-flash",
         "vertexai::gemini-2-5-flash-image",
-        "vertexai::gemini-3-1-flash-image",
-        "vertexai::gemini-3-1-flash-lite",
-        "vertexai::gemini-3-1-flash-lite-preview",
-        "vertexai::gemini-3-5-flash",
-        "vertexai::gemini-3-flash-preview"
+        "vertexai::gemini-2-5-flash-lite"
       ]
     },
     {
@@ -1617,6 +1978,27 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32768
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingBudget": 32768
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1641,11 +2023,190 @@
       },
       "members": [
         "302ai::gemini-2-5-pro",
+        "302ai::gemini-3-pro-image-preview",
         "copilot::gemini-2-5-pro",
         "gateway::gemini-2-5-pro",
+        "gateway::gemini-3-pro-image",
         "gemini::gemini-2-5-pro",
+        "gemini::gemini-2-5-pro-preview",
+        "gemini::gemini-2-5-pro-preview-05-06",
+        "gemini::gemini-3-pro-image",
+        "gemini::gemini-3-pro-image-preview",
         "openrouter::gemini-2-5-pro",
-        "vertexai::gemini-2-5-pro"
+        "openrouter::gemini-2-5-pro-preview",
+        "openrouter::gemini-2-5-pro-preview-05-06",
+        "openrouter::gemini-3-pro-image",
+        "openrouter::gemini-3-pro-image-preview",
+        "vertexai::gemini-2-5-pro",
+        "vertexai::gemini-3-pro-image"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1228
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1228
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 12288
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 19660
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 22118
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24576
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 49152
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "302ai::gemini-3-1-flash-image-preview",
+        "302ai::gemini-3-flash-preview",
+        "copilot::gemini-3-5-flash",
+        "copilot::gemini-3-flash-preview",
+        "dmxapi::gemini-3-1-flash-image-preview",
+        "gateway::gemini-3-1-flash-image",
+        "gateway::gemini-3-1-flash-image-preview",
+        "gateway::gemini-3-1-flash-lite",
+        "gateway::gemini-3-1-flash-lite-preview",
+        "gateway::gemini-3-5-flash",
+        "gateway::gemini-3-flash",
+        "gemini::gemini-3-1-flash-image",
+        "gemini::gemini-3-1-flash-image-preview",
+        "gemini::gemini-3-1-flash-lite",
+        "gemini::gemini-3-1-flash-lite-preview",
+        "gemini::gemini-3-5-flash",
+        "gemini::gemini-3-flash",
+        "gemini::gemini-3-flash-preview",
+        "openrouter::gemini-3-1-flash-image",
+        "openrouter::gemini-3-1-flash-image-preview",
+        "openrouter::gemini-3-1-flash-lite",
+        "openrouter::gemini-3-1-flash-lite-preview",
+        "openrouter::gemini-3-5-flash",
+        "openrouter::gemini-3-flash-preview",
+        "vertexai::gemini-3-1-flash-image",
+        "vertexai::gemini-3-1-flash-lite",
+        "vertexai::gemini-3-1-flash-lite-preview",
+        "vertexai::gemini-3-5-flash",
+        "vertexai::gemini-3-flash-preview"
       ]
     },
     {
@@ -1753,6 +2314,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32768
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1770,30 +2346,17 @@
         }
       },
       "members": [
-        "302ai::gemini-3-pro-image-preview",
         "302ai::gemini-3-pro-preview",
         "copilot::gemini-3-1-pro-preview",
         "gateway::gemini-3-1-pro-preview",
-        "gateway::gemini-3-pro-image",
         "gateway::gemini-3-pro-preview",
-        "gemini::gemini-2-5-pro-preview",
-        "gemini::gemini-2-5-pro-preview-05-06",
         "gemini::gemini-3-1-pro-preview",
         "gemini::gemini-3-1-pro-preview-customtools",
-        "gemini::gemini-3-pro-image",
-        "gemini::gemini-3-pro-image-preview",
         "gemini::gemini-3-pro-preview",
-        "gemini::gemini-pro-latest",
-        "openrouter::gemini-2-5-pro-preview",
-        "openrouter::gemini-2-5-pro-preview-05-06",
         "openrouter::gemini-3-1-pro-preview",
         "openrouter::gemini-3-1-pro-preview-customtools",
-        "openrouter::gemini-3-pro-image",
-        "openrouter::gemini-3-pro-image-preview",
-        "openrouter::gemini-pro-latest",
         "vertexai::gemini-3-1-pro-preview",
-        "vertexai::gemini-3-1-pro-preview-customtools",
-        "vertexai::gemini-3-pro-image"
+        "vertexai::gemini-3-1-pro-preview-customtools"
       ]
     },
     {
@@ -1901,6 +2464,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -1993,6 +2571,7 @@
         "openai::gpt-5-3-codex",
         "openai::gpt-5-3-codex-spark",
         "openai::gpt-5-4",
+        "openai::gpt-5-4-image-2",
         "openai::gpt-5-4-mini",
         "openai::gpt-5-4-nano",
         "openai::gpt-5-4-pro",
@@ -2000,9 +2579,14 @@
         "openai::gpt-5-5-pro",
         "openai::gpt-5-6",
         "openai::gpt-5-6-luna",
+        "openai::gpt-5-6-luna-pro",
         "openai::gpt-5-6-sol",
+        "openai::gpt-5-6-sol-pro",
         "openai::gpt-5-6-terra",
+        "openai::gpt-5-6-terra-pro",
         "openai::gpt-5-codex",
+        "openai::gpt-5-image",
+        "openai::gpt-5-image-mini",
         "openai::gpt-5-mini",
         "openai::gpt-5-nano",
         "openai::gpt-5-pro",
@@ -2023,15 +2607,21 @@
         "openrouter::gpt-5-2-pro",
         "openrouter::gpt-5-3-codex",
         "openrouter::gpt-5-4",
+        "openrouter::gpt-5-4-image-2",
         "openrouter::gpt-5-4-mini",
         "openrouter::gpt-5-4-nano",
         "openrouter::gpt-5-4-pro",
         "openrouter::gpt-5-5",
         "openrouter::gpt-5-5-pro",
         "openrouter::gpt-5-6-luna",
+        "openrouter::gpt-5-6-luna-pro",
         "openrouter::gpt-5-6-sol",
+        "openrouter::gpt-5-6-sol-pro",
         "openrouter::gpt-5-6-terra",
+        "openrouter::gpt-5-6-terra-pro",
         "openrouter::gpt-5-codex",
+        "openrouter::gpt-5-image",
+        "openrouter::gpt-5-image-mini",
         "openrouter::gpt-5-mini",
         "openrouter::gpt-5-nano",
         "openrouter::gpt-5-pro",
@@ -2165,6 +2755,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2190,8 +2795,11 @@
         "gateway::grok-4-20-multi-agent-beta",
         "gateway::grok-4-3",
         "gateway::grok-4-5",
+        "github::grok-3-mini",
         "grok-cli::grok-4-3",
         "grok-cli::grok-4-5",
+        "grok::grok-3-mini",
+        "grok::grok-3-mini-fast",
         "grok::grok-4-20-multi-agent",
         "grok::grok-4-20-multi-agent-beta",
         "grok::grok-4-3",
@@ -2299,6 +2907,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 73728
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 81920
             },
             "sendReasoning": true
           },
@@ -2432,6 +3055,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 35123
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 38912
             },
             "sendReasoning": true
           },
@@ -2688,6 +3326,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2840,6 +3493,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 38912
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -2962,6 +3630,21 @@
             },
             "sendReasoning": true,
             "effort": "max"
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
           },
           "ollama": {
             "think": true
@@ -3107,6 +3790,21 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 30720
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -3224,6 +3922,18 @@
             "think": true
           }
         },
+        "max": {
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "anthropic": {
             "thinking": {
@@ -3239,23 +3949,11 @@
       },
       "members": [
         "gateway::gpt-5-chat",
-        "openai::gpt-5-4-image-2",
-        "openai::gpt-5-6-luna-pro",
-        "openai::gpt-5-6-sol-pro",
-        "openai::gpt-5-6-terra-pro",
         "openai::gpt-5-chat",
         "openai::gpt-5-chat-latest",
-        "openai::gpt-5-image",
-        "openai::gpt-5-image-mini",
         "openai::gpt-latest",
         "openai::gpt-mini-latest",
-        "openrouter::gpt-5-4-image-2",
-        "openrouter::gpt-5-6-luna-pro",
-        "openrouter::gpt-5-6-sol-pro",
-        "openrouter::gpt-5-6-terra-pro",
         "openrouter::gpt-5-chat",
-        "openrouter::gpt-5-image",
-        "openrouter::gpt-5-image-mini",
         "openrouter::gpt-latest",
         "openrouter::gpt-mini-latest"
       ]
@@ -3388,6 +4086,27 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 22118
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24576
             },
             "sendReasoning": true
           },
@@ -3569,6 +4288,27 @@
             "think": true
           }
         },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 24576
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingBudget": 24576
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
         "auto": {
           "openai": {
             "reasoningEffort": "medium"
@@ -3594,6 +4334,194 @@
       "members": [
         "gemini::gemini-flash-lite-latest",
         "vertexai::gemini-flash-lite-latest"
+      ]
+    },
+    {
+      "behavior": {
+        "unset": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "default": {
+          "ollama": {
+            "think": true
+          }
+        },
+        "none": {
+          "openai": {
+            "reasoningEffort": "none"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": false,
+              "thinkingLevel": "low"
+            }
+          },
+          "bedrock": {
+            "reasoningConfig": {
+              "type": "disabled"
+            }
+          },
+          "ollama": {
+            "think": false
+          }
+        },
+        "minimal": {
+          "openai": {
+            "reasoningEffort": "minimal"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1760
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "low": {
+          "openai": {
+            "reasoningEffort": "low"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 1760
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "low"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "medium": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16448
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "medium"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "high": {
+          "openai": {
+            "reasoningEffort": "high"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 26240
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "xhigh": {
+          "openai": {
+            "reasoningEffort": "xhigh"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 29504
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "max"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32768
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true,
+              "thinkingLevel": "high"
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "auto": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 65408
+            },
+            "sendReasoning": true
+          },
+          "gemini": {
+            "thinkingConfig": {
+              "includeThoughts": true
+            }
+          },
+          "ollama": {
+            "think": true
+          }
+        }
+      },
+      "members": [
+        "gemini::gemini-pro-latest",
+        "openrouter::gemini-pro-latest"
       ]
     },
     {
@@ -3694,6 +4622,21 @@
             "thinking": {
               "type": "enabled",
               "budgetTokens": 14848
+            },
+            "sendReasoning": true
+          },
+          "ollama": {
+            "think": true
+          }
+        },
+        "max": {
+          "openai": {
+            "reasoningEffort": "medium"
+          },
+          "anthropic": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16384
             },
             "sendReasoning": true
           },

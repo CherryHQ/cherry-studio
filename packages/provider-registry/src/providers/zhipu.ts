@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+  reasoningFormat: { type: 'thinking-type' },
   anthropic: 'https://open.bigmodel.cn/api/anthropic',
   website: {
     apiKey: 'https://open.bigmodel.cn/apikey/platform',

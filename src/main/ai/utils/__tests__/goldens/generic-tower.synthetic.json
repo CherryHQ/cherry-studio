@@ -1009,6 +1009,11 @@
             "type": "enabled"
           }
         },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          }
+        },
         "auto": {
           "thinking": {
             "type": "enabled"
@@ -1082,6 +1087,12 @@
             "type": "enabled"
           },
           "reasoning_effort": "max"
+        },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "high"
         },
         "auto": {
           "thinking": {
@@ -1178,6 +1189,9 @@
         "xhigh": {
           "reasoningEffort": "high"
         },
+        "max": {
+          "reasoningEffort": "high"
+        },
         "auto": {
           "reasoningEffort": "high"
         }
@@ -1225,6 +1239,10 @@
           "enable_thinking": true,
           "thinking_budget": 73728
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 81920
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 163840
@@ -1266,6 +1284,9 @@
         },
         "xhigh": {
           "thinking_budget": 73728
+        },
+        "max": {
+          "thinking_budget": 81920
         },
         "auto": {
           "thinking_budget": 163840
@@ -1310,6 +1331,10 @@
         "xhigh": {
           "enable_thinking": true,
           "thinking_budget": 35123
+        },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
         },
         "auto": {
           "enable_thinking": true,
@@ -1362,6 +1387,10 @@
           "enable_thinking": true,
           "thinking_budget": 73728
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 81920
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 163840
@@ -1401,6 +1430,9 @@
           "enable_thinking": true
         },
         "xhigh": {
+          "enable_thinking": true
+        },
+        "max": {
           "enable_thinking": true
         },
         "auto": {
@@ -1463,6 +1495,13 @@
             }
           }
         },
+        "max": {
+          "extra_body": {
+            "thinking": {
+              "type": "enabled"
+            }
+          }
+        },
         "auto": {
           "extra_body": {
             "thinking": {
@@ -1500,6 +1539,10 @@
           "incremental_output": true
         },
         "xhigh": {
+          "enable_thinking": true,
+          "incremental_output": true
+        },
+        "max": {
           "enable_thinking": true,
           "incremental_output": true
         },
@@ -1548,6 +1591,12 @@
           },
           "reasoning_effort": "max"
         },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "high"
+        },
         "auto": {
           "thinking": {
             "type": "enabled"
@@ -1587,6 +1636,11 @@
           }
         },
         "xhigh": {
+          "chat_template_kwargs": {
+            "thinking": true
+          }
+        },
+        "max": {
           "chat_template_kwargs": {
             "thinking": true
           }
@@ -1635,6 +1689,12 @@
             "thinking_budget": 73728
           }
         },
+        "max": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "thinking_budget": 81920
+          }
+        },
         "auto": {
           "chat_template_kwargs": {
             "enable_thinking": true,
@@ -1672,6 +1732,11 @@
         "xhigh": {
           "chat_template_kwargs": {
             "thinking_budget": 73728
+          }
+        },
+        "max": {
+          "chat_template_kwargs": {
+            "thinking_budget": 81920
           }
         },
         "auto": {
@@ -1715,6 +1780,12 @@
           "chat_template_kwargs": {
             "enable_thinking": true,
             "thinking_budget": 35123
+          }
+        },
+        "max": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "thinking_budget": 38912
           }
         },
         "auto": {
@@ -1766,6 +1837,12 @@
             "thinking_budget": 73728
           }
         },
+        "max": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "thinking_budget": 81920
+          }
+        },
         "auto": {
           "chat_template_kwargs": {
             "enable_thinking": true,
@@ -1805,6 +1882,11 @@
             "enable_thinking": true
           }
         },
+        "max": {
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          }
+        },
         "auto": {
           "chat_template_kwargs": {
             "enable_thinking": true
@@ -1840,6 +1922,9 @@
           "reasoning_effort": "medium"
         },
         "xhigh": {
+          "reasoning_effort": "medium"
+        },
+        "max": {
           "reasoning_effort": "medium"
         },
         "auto": {
@@ -1941,6 +2026,11 @@
             "enabled": true
           }
         },
+        "max": {
+          "reasoning": {
+            "enabled": true
+          }
+        },
         "auto": {
           "reasoning": {
             "enabled": true
@@ -1991,6 +2081,12 @@
           },
           "reasoning_effort": "max"
         },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "high"
+        },
         "auto": {
           "thinking": {
             "type": "enabled"
@@ -2038,6 +2134,9 @@
         "xhigh": {
           "reasoningEffort": "high"
         },
+        "max": {
+          "reasoningEffort": "high"
+        },
         "auto": {
           "reasoningEffort": "high"
         }
@@ -2074,6 +2173,10 @@
           "enable_thinking": true,
           "thinking_budget": 73728
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 81920
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 163840
@@ -2106,6 +2209,9 @@
         },
         "xhigh": {
           "thinking_budget": 73728
+        },
+        "max": {
+          "thinking_budget": 81920
         },
         "auto": {
           "thinking_budget": 163840
@@ -2143,6 +2249,10 @@
           "enable_thinking": true,
           "thinking_budget": 35123
         },
+        "max": {
+          "enable_thinking": true,
+          "thinking_budget": 38912
+        },
         "auto": {
           "enable_thinking": true,
           "thinking_budget": 76800
@@ -2173,6 +2283,9 @@
           "enable_thinking": true
         },
         "xhigh": {
+          "enable_thinking": true
+        },
+        "max": {
           "enable_thinking": true
         },
         "auto": {
@@ -2220,6 +2333,11 @@
         "xhigh": {
           "extra_body": {
             "reasoning_effort": "xhigh"
+          }
+        },
+        "max": {
+          "extra_body": {
+            "reasoning_effort": "max"
           }
         },
         "auto": {
@@ -2271,6 +2389,11 @@
             "reasoning_effort": "xhigh"
           }
         },
+        "max": {
+          "extra_body": {
+            "reasoning_effort": "max"
+          }
+        },
         "auto": {
           "extra_body": {
             "reasoning_effort": "medium"
@@ -2315,6 +2438,9 @@
         "xhigh": {
           "enable_thinking": true
         },
+        "max": {
+          "enable_thinking": true
+        },
         "auto": {
           "enable_thinking": true
         }
@@ -2357,6 +2483,12 @@
           }
         },
         "xhigh": {
+          "reasoningEffort": "high",
+          "reasoning": {
+            "enabled": true
+          }
+        },
+        "max": {
           "reasoningEffort": "high",
           "reasoning": {
             "enabled": true
@@ -2458,6 +2590,11 @@
             "enabled": true
           }
         },
+        "max": {
+          "reasoning": {
+            "enabled": true
+          }
+        },
         "auto": {
           "reasoning": {
             "enabled": true
@@ -2505,6 +2642,12 @@
             "type": "enabled"
           },
           "reasoning_effort": "max"
+        },
+        "max": {
+          "thinking": {
+            "type": "enabled"
+          },
+          "reasoning_effort": "high"
         },
         "auto": {
           "thinking": {

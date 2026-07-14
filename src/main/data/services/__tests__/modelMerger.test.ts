@@ -387,8 +387,10 @@ describe('mergePresetModel — reasoning', () => {
     const model = mergePresetModel(preset, null, 'openai')
 
     expect(model.reasoning).toBeDefined()
-    // type is derived from provider's reasoningFormatType, not from preset — empty when no provider config
-    expect(model.reasoning!.type).toBe('')
+    // type is derived from provider's reasoningFormatType, not from preset —
+    // with no provider config it falls back to 'openai-chat' (#16598: an empty
+    // type made the descriptor unusable, failure mode D)
+    expect(model.reasoning!.type).toBe('openai-chat')
     expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
     expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 32768 })
   })

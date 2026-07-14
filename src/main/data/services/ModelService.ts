@@ -14,7 +14,11 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  inferCustomModelReasoning,
+  mergePresetModel,
+  providerRegistryService
+} from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -34,6 +38,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
+import { inferReasoningFromModelId } from '@shared/utils/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -369,6 +374,23 @@ class ModelService {
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
     }
 
+    // No preset: a custom model. When neither the DTO nor the catalog supplies
+    // a reasoning descriptor but the id/capabilities say the model reasons,
+    // infer the controls from the registry heuristics so custom rows are
+    // descriptor-driven like catalog rows (#16598).
+    if (
+      dtoValues.reasoning == null &&
+      ((dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING) || inferReasoningFromModelId(dto.modelId))
+    ) {
+      const inferred = inferCustomModelReasoning(
+        dto.modelId,
+        dtoValues.endpointTypes ?? undefined,
+        registryData?.reasoningFormatTypes,
+        registryData?.defaultChatEndpoint
+      )
+      if (inferred) dtoValues.reasoning = inferred
+    }
+
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
   }
 
@@ -476,6 +498,9 @@ class ModelService {
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
+    const reasoningOverrideModelIds = new Set(
+      rows.filter((row) => row.userOverrides?.includes('reasoning')).map((row) => row.id)
+    )
 
     // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
     // imageGeneration is preset-only metadata (not stored on user_model).
@@ -496,11 +521,8 @@ class ModelService {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
-        const { presetModel, registryOverride } = providerRegistryService.lookupModel(
-          model.providerId,
-          presetId,
-          reasoningConfigCache
-        )
+        const { presetModel, registryOverride, defaultChatEndpoint, reasoningFormatTypes } =
+          providerRegistryService.lookupModel(model.providerId, presetId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
@@ -514,6 +536,35 @@ class ModelService {
             capabilities.length !== model.capabilities.length ||
             capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
           if (changed) updates.capabilities = capabilities
+        }
+        // Reasoning re-enrichment (#16598): stored reasoning is frozen at
+        // creation, so recompute the descriptor from the CURRENT registry for
+        // preset-backed rows, and infer one for non-catalog rows that reason
+        // but have no descriptor (rows created before ingest-time inference).
+        // Read-time only — nothing is written back; `userOverrides` wins.
+        if (!reasoningOverrideModelIds.has(model.id)) {
+          const capabilities = updates.capabilities ?? model.capabilities
+          let reasoning: RuntimeReasoning | undefined
+          if (presetModel) {
+            reasoning = mergePresetModel(
+              presetModel,
+              registryOverride,
+              model.providerId,
+              reasoningFormatTypes,
+              defaultChatEndpoint
+            ).reasoning
+          } else if (
+            model.reasoning == null &&
+            (capabilities.includes(MODEL_CAPABILITY.REASONING) || inferReasoningFromModelId(model.apiModelId ?? ''))
+          ) {
+            reasoning = inferCustomModelReasoning(
+              model.apiModelId ?? presetId,
+              model.endpointTypes,
+              reasoningFormatTypes,
+              defaultChatEndpoint
+            )
+          }
+          if (reasoning) updates.reasoning = reasoning
         }
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {

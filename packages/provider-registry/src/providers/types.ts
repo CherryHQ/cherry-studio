@@ -8,7 +8,7 @@
  * as `"{name} - AI model provider"`). The GENERATION-only fields below (`modelsDevProvider` / `fetchModels`
  * / `overrides`) drive `provider-models.json` and are NOT emitted to `providers.json`.
  */
-import type { ApiFeatures, ProviderConfig } from '../schemas/provider'
+import type { ApiFeatures, ProviderConfig, ProviderReasoningFormat } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
 /**
@@ -64,10 +64,20 @@ export function openaiCompatible(
     website: ProviderWebsite
     apiFeatures?: Partial<ApiFeatures>
     presetProviderId?: string
+    /**
+     * The chat endpoint's reasoning dialect, when it deviates from plain
+     * `openai-chat` (`enable-thinking` / `thinking-type` / `self-hosted` /
+     * `none` / …). Endpoint-type defaults cover the rest at resolve time.
+     */
+    reasoningFormat?: ProviderReasoningFormat
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
-    'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: p.baseUrl }
+    'openai-chat-completions': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: p.baseUrl,
+      ...(p.reasoningFormat ? { reasoningFormat: p.reasoningFormat } : {})
+    }
   }
   if (p.anthropic) endpointConfigs['anthropic-messages'] = { adapterFamily: 'anthropic', baseUrl: p.anthropic }
   return defineProvider({

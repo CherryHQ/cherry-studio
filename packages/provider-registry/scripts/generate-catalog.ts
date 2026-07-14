@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import type { ZodType } from 'zod'
 
 import { CREATORS } from '../src/creators'
+import { inferReasoningControls } from '../src/patterns/reasoning-heuristics'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import { stripHostReprefix } from '../src/utils/normalize'
@@ -212,10 +213,20 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
   }
+  // Heuristic fill — reasoning-capable models with NO reasoning block at all
+  // (models.dev has no reasoning_options for them) get their controls from the
+  // ID-pattern heuristics (patterns/reasoning-heuristics.ts). Ingest-time only:
+  // the knowledge ships as data, never as a runtime capability source (#16598).
+  for (const m of models.values()) {
+    if (m.reasoning || !(m.capabilities ?? []).includes('reasoning')) continue
+    const controls = inferReasoningControls(m.id)
+    if (controls) m.reasoning = { controls }
+  }
   // Reasoning normalization — `controls` is the source of truth: whenever a
-  // model declares it (upstream ingest or creator hand-list), the legacy pair
-  // (supportedEfforts / thinkingTokenLimits) + defaultEffort are re-derived so
-  // the shipped JSON can never drift (locked by the catalog invariant test).
+  // model declares it (upstream ingest, creator hand-list, or heuristic fill),
+  // the legacy pair (supportedEfforts / thinkingTokenLimits) + defaultEffort
+  // are re-derived so the shipped JSON can never drift (locked by the catalog
+  // invariant test).
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
     if (!controls?.length) continue

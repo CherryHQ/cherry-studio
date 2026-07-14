@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'mimo',
   name: 'Xiaomi MiMo',
   baseUrl: 'https://api.xiaomimimo.com',
+  reasoningFormat: { type: 'thinking-type' },
   anthropic: 'https://api.xiaomimimo.com/anthropic',
   website: {
     apiKey: 'https://platform.xiaomimimo.com/#/console/usage',

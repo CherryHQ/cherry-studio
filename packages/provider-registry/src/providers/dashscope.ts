@@ -11,11 +11,13 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      reasoningFormat: { type: 'dashscope' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+      reasoningFormat: { type: 'dashscope' }
     }
   },
   metadata: {
