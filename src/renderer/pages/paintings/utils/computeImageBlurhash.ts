@@ -4,7 +4,12 @@ import { encode } from 'blurhash'
 
 const logger = loggerService.withContext('paintings/computeImageBlurhash')
 
+// Downscale cap (px, longest edge) before encoding. Blurhash averages colour over
+// a handful of components, so a tiny thumbnail carries all the signal it needs —
+// anything larger just spends more time in drawImage/getImageData for no gain.
 const MAX_BLURHASH_IMAGE_SIZE = 32
+// Blurhash detail: 4 horizontal × 3 vertical DCT components — enough to hint the
+// image's colour regions for the skeleton tint without resolving fine structure.
 const BLURHASH_COMPONENT_X = 4
 const BLURHASH_COMPONENT_Y = 3
 
@@ -31,6 +36,7 @@ export async function computeImageBlurhash(src: string): Promise<ImageBlurhashRe
 
     const context = canvas.getContext('2d', { willReadFrequently: true })
     if (!context) {
+      logger.warn('Failed to acquire 2d canvas context for painting blurhash')
       return null
     }
 

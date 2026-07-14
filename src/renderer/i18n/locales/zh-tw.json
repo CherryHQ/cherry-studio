@@ -4659,6 +4659,7 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "revealing": "正在呈現產生的圖片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",

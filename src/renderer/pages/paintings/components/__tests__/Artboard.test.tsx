@@ -23,9 +23,6 @@ vi.mock('../../utils/computeImageBlurhash', () => ({
 // PaintingImageSkeleton.test.tsx); here we only assert Artboard swaps to it
 // while generating, so a lightweight stand-in keeps this test off the data layer.
 const mockSkeletonProps = vi.hoisted(() => vi.fn())
-// resolveSizeLabel is covered on its own in PaintingImageSkeleton.test.tsx; here it's
-// just the prompt bar's size-text source, so a hoisted stub keeps that assertion simple.
-const mockResolveSizeLabel = vi.hoisted(() => vi.fn(() => undefined as string | undefined))
 vi.mock('../PaintingImageSkeleton', () => ({
   default: (props: {
     blurhash?: string
@@ -50,8 +47,17 @@ vi.mock('../PaintingImageSkeleton', () => ({
         />
       </div>
     )
-  },
-  resolveSizeLabel: mockResolveSizeLabel
+  }
+}))
+
+// usePaintingSizeInfo (aspect ratio + size label) is unit-tested via
+// form/__tests__/paintingSize.test.ts; here it's just the prompt bar's size-text
+// source, so a hoisted stub keeps that assertion simple.
+const mockUsePaintingSizeInfo = vi.hoisted(() =>
+  vi.fn(() => ({ ratio: null as number | null, sizeLabel: undefined as string | undefined }))
+)
+vi.mock('../../hooks/usePaintingSizeInfo', () => ({
+  usePaintingSizeInfo: mockUsePaintingSizeInfo
 }))
 
 const { default: Artboard } = await import('../Artboard')
@@ -99,8 +105,8 @@ describe('Artboard', () => {
   beforeEach(() => {
     mockComputeImageBlurhash.mockReset()
     mockSkeletonProps.mockClear()
-    mockResolveSizeLabel.mockReset()
-    mockResolveSizeLabel.mockReturnValue(undefined)
+    mockUsePaintingSizeInfo.mockReset()
+    mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
   })
 
   it('renders the shimmer skeleton while generating', () => {
@@ -130,6 +136,22 @@ describe('Artboard', () => {
     // The real image URL is already known before blurhash resolves — it's what
     // computeImageBlurhash decodes from, so it never lags behind the blurhash.
     expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', 'file:///tmp/image-1.png')
+  })
+
+  it('withholds the reveal handoff from the skeleton while the blurhash is still pending', () => {
+    mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+    const painting = makePainting({ files: [] })
+    const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
+
+    rerender(<Artboard painting={makePainting()} isLoading={false} />)
+
+    // Pending: the skeleton shows with the image url, but onRevealReady is withheld
+    // until the reveal is ready. Offering it now would flash the image, then the
+    // resolving blurhash would resurrect the skeleton over it (a double reveal).
+    const props = mockSkeletonProps.mock.calls.at(-1)?.[0]
+    expect(props?.imageUrl).toBe('file:///tmp/image-1.png')
+    expect(props?.blurhash).toBeUndefined()
+    expect(props?.onRevealReady).toBeUndefined()
   })
 
   it('keeps the reveal skeleton when loading finishes before the image arrives', async () => {
@@ -162,8 +184,9 @@ describe('Artboard', () => {
     const painting = makePainting({ files: [] })
     const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
 
-    // Without the fix this stays stuck at `{ status: 'awaiting' }` forever — nothing
-    // else changes to escape it, since `files` stays empty after a cancel.
+    // A canceled generation never produces a file, so the reveal machine must
+    // escape `{ status: 'awaiting' }` on the generationStatus change alone —
+    // nothing else changes to escape it, since `files` stays empty after a cancel.
     rerender(<Artboard painting={{ ...painting, generationStatus: 'canceled' }} isLoading={false} />)
 
     expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
@@ -238,25 +261,103 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
+  describe('reveal state isolation across paintings', () => {
+    it('does not strand a newly selected file-less painting in a fake generating skeleton', () => {
+      mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+      // Painting A is generating (no files yet).
+      const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
+      expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
+
+      // Selecting a different, file-less painting B (which is not generating) must
+      // not leak A's loading state and pin B in a permanent "awaiting" skeleton.
+      rerender(<Artboard painting={makePainting({ id: 'B', files: [] })} isLoading={false} />)
+
+      expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
+      expect(document.querySelector('img')).toBeNull()
+    })
+
+    it('shows an already-generated painting immediately instead of replaying a reveal on switch', () => {
+      mockComputeImageBlurhash.mockReturnValue(new Promise(() => {}))
+      const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
+
+      // Switch mid-generation to a different painting that already has files.
+      rerender(<Artboard painting={makePainting({ id: 'C' })} isLoading={false} />)
+
+      // The finished image shows at once — no reveal skeleton, no redundant blurhash pass.
+      expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
+      expect(document.querySelector('img')).not.toBeNull()
+      expect(mockComputeImageBlurhash).not.toHaveBeenCalled()
+    })
+
+    it('drops an in-flight reveal when the painting changes mid-reveal', async () => {
+      mockComputeImageBlurhash.mockResolvedValue({
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        naturalWidth: 512,
+        naturalHeight: 512
+      })
+      const { rerender } = render(<Artboard painting={makePainting({ id: 'A', files: [] })} isLoading={true} />)
+      // A finishes generating and enters its reveal (blurhash resolves).
+      rerender(<Artboard painting={makePainting({ id: 'A' })} isLoading={false} />)
+      await waitFor(() =>
+        expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
+          'data-blurhash',
+          'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        )
+      )
+
+      // Switching to a different, already-generated painting cancels A's reveal.
+      rerender(<Artboard painting={makePainting({ id: 'C' })} isLoading={false} />)
+
+      expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
+      expect(document.querySelector('img')).not.toBeNull()
+    })
+
+    it('shows a plain generating skeleton (no stale reveal) while an already-revealed painting regenerates', async () => {
+      mockComputeImageBlurhash.mockResolvedValue({
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        naturalWidth: 512,
+        naturalHeight: 512
+      })
+      const { rerender } = render(<Artboard painting={makePainting({ files: [] })} isLoading={true} />)
+      rerender(<Artboard painting={makePainting()} isLoading={false} />)
+      await waitFor(() =>
+        expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute(
+          'data-blurhash',
+          'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        )
+      )
+
+      // Regenerating the same painting drops back to a plain generating skeleton —
+      // the previous run's reveal payload never bleeds through while loading.
+      rerender(<Artboard painting={makePainting()} isLoading={true} />)
+
+      expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-blurhash', '')
+    })
+  })
+
   describe('prompt bar', () => {
     // The Tooltip mock renders both the trigger and a `tooltip-content` echo of the
     // same text, so assertions target the visible `.truncate` preview specifically.
     const previewText = () => document.querySelector('.truncate')?.textContent
 
-    it('shows the prompt in full when it is 10 characters or shorter', () => {
+    it('renders a short prompt in full', () => {
       render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={true} />)
 
       expect(previewText()).toBe('a red cat')
     })
 
-    it('truncates prompts longer than 10 characters with an ellipsis', () => {
+    it('keeps the full prompt in the DOM for long prompts, truncating via CSS not JS', () => {
       render(<Artboard painting={makePainting({ prompt: 'a red cat wearing a tiny hat' })} isLoading={true} />)
 
-      expect(previewText()).toBe('a red cat …')
+      const preview = document.querySelector('.truncate') as HTMLElement
+      // The full prompt stays in the DOM (and tooltip); the `.truncate` class clips
+      // it to the available width via CSS rather than a fixed-length JS slice.
+      expect(preview.textContent).toBe('a red cat wearing a tiny hat')
+      expect(preview).toHaveClass('truncate')
     })
 
     it('shows the resolved size label alongside the prompt', () => {
-      mockResolveSizeLabel.mockReturnValue('1024×1024')
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: '1024×1024' })
 
       render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={true} />)
 
@@ -354,8 +455,9 @@ describe('Artboard', () => {
         fireEvent.load(document.querySelector('img') as HTMLImageElement)
 
         const image = document.querySelector('img') as HTMLImageElement
-        // Without the fix this would be 400px (400/1024 scale) — clipping the prompt
-        // bar's 24px against the container instead of reserving space for it.
+        // Contain-fit reserves the prompt bar's 24px first: (400-24)/1024 is the
+        // binding scale → 376px, not the 400px an unreserved container would give
+        // (which would clip the bar).
         expect(image.style.height).toBe('376px')
       })
     })

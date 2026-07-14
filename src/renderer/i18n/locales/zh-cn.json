@@ -4659,6 +4659,7 @@
     "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
     "req_error_token": "请检查令牌有效性",
     "required_field": "必填项",
+    "revealing": "正在呈现生成的图片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "数值越高过滤越宽松，0 最严格，6 最宽松",
     "seed": "随机种子",

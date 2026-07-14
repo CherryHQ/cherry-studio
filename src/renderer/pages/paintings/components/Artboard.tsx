@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { ImageDown, ImageUp, Palette, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
@@ -9,22 +10,19 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { imageGenerationToFields } from '../form/imageGenerationToFields'
-import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
+import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
 import { computeImageBlurhash } from '../utils/computeImageBlurhash'
 import { getPaintingFileUrl } from '../utils/paintingFileUrl'
-import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
-import PaintingImageSkeleton, { resolveSizeLabel } from './PaintingImageSkeleton'
+import PaintingImageSkeleton from './PaintingImageSkeleton'
 
-const PROMPT_PREVIEW_LENGTH = 10
+const logger = loggerService.withContext('paintings/Artboard')
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25
@@ -41,15 +39,14 @@ type ImageDragState = {
 }
 
 type RevealState =
+  // Loading finished before any file exists (e.g. still generating on another
+  // painting) — waiting for a file to arrive before starting the reveal.
   | { status: 'awaiting' }
-  | {
-      blurhash?: string
-      naturalWidth?: number
-      naturalHeight?: number
-      fileId: string
-      imageUrl: string
-      status: 'pending' | 'ready'
-    }
+  // A file exists; the blurhash is still being computed.
+  | { status: 'pending'; fileId: string; imageUrl: string }
+  // The blurhash + natural size are ready to drive the reveal — all present, so
+  // "ready without a blurhash" is unrepresentable.
+  | { status: 'ready'; fileId: string; imageUrl: string; blurhash: string; naturalWidth: number; naturalHeight: number }
 
 export interface ArtboardProps {
   painting: PaintingData
@@ -64,14 +61,15 @@ export interface ArtboardProps {
  * the canvas.
  */
 const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt, sizeLabel }) => {
-  const preview = prompt.length > PROMPT_PREVIEW_LENGTH ? `${prompt.slice(0, PROMPT_PREVIEW_LENGTH)}…` : prompt
-
   return (
     <div className="mb-2 flex items-center justify-between gap-2 text-muted-foreground text-xs">
       <Tooltip content={prompt} placement="bottom" delay={800}>
         <span className="flex min-w-0 items-center gap-1.5">
           <Palette className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{preview}</span>
+          {/* CSS `truncate` clips to the available width responsively — the full
+              prompt stays in the DOM (and in the tooltip) instead of a fixed-length
+              JS slice that shows the same ~10 chars on a wide artboard. */}
+          <span className="truncate">{prompt}</span>
         </span>
       </Tooltip>
       {sizeLabel && <span className="shrink-0">{sizeLabel}</span>}
@@ -115,16 +113,12 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const imageDragRef = useRef<ImageDragState | null>(null)
   const awaitingRevealRef = useRef(false)
   const previousLoadingRef = useRef(isLoading)
+  const paintingIdRef = useRef(painting.id)
   const viewerResizeObserverRef = useRef<ResizeObserver | null>(null)
   const promptBarResizeObserverRef = useRef<ResizeObserver | null>(null)
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
-  const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
-  const configItems = useMemo(
-    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
-    [registrySupport, painting.mode]
-  )
-  const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems), [painting.params, configItems])
+  const { sizeLabel } = usePaintingSizeInfo(painting)
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
   // custom-protocol handler is registered and paintings consume `FileEntry` directly.
   const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
@@ -201,7 +195,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   }, [])
 
   // Explicit contain-fit box for the idle (already-generated) image, mirroring
-  // PaintingSkeleton's lockedSize math. CSS auto-sizing a flex-col wrapper around
+  // PaintingImageSkeleton's lockedSize math. CSS auto-sizing a flex-col wrapper around
   // the image can't be trusted here — ImageViewer nests the `<img>` behind a
   // context-menu wrapper that breaks intrinsic-size propagation, leaving the
   // wrapper (and the prompt bar stretched to it) wider than the rendered photo.
@@ -280,7 +274,21 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   }, [currentFile?.id, resetImageTransform])
 
   useLayoutEffect(() => {
-    const wasLoading = previousLoadingRef.current
+    // A new painting starts with a clean reveal machine. `revealState` and the
+    // loading/awaiting refs live across painting switches (Artboard is not
+    // remounted per painting), so without this reset the previous painting's
+    // in-flight reveal leaks in — stranding a file-less painting in a permanent
+    // fake "generating" skeleton, or replaying a reveal over an already-generated
+    // one. `wasLoading` is forced to this painting's own `isLoading` on a switch
+    // so a not-loading new painting never inherits the previous one's loading.
+    const paintingChanged = paintingIdRef.current !== painting.id
+    paintingIdRef.current = painting.id
+    if (paintingChanged) {
+      awaitingRevealRef.current = false
+      setRevealState(null)
+    }
+
+    const wasLoading = paintingChanged ? isLoading : previousLoadingRef.current
     previousLoadingRef.current = isLoading
 
     if (isLoading) {
@@ -338,7 +346,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
           status: 'ready'
         })
       })
-      .catch(() => {
+      .catch((error) => {
+        logger.warn('Failed to prepare painting image reveal', { error })
         if (active) {
           setRevealState(null)
         }
@@ -347,7 +356,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     return () => {
       active = false
     }
-  }, [currentFile, currentImageUrl, isLoading, painting.generationStatus])
+  }, [painting.id, currentFile, currentImageUrl, isLoading, painting.generationStatus])
 
   const activeReveal = (() => {
     if (isLoading || !revealState) {
@@ -374,7 +383,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
             imageUrl={activeReveal && activeReveal.status !== 'awaiting' ? activeReveal.imageUrl : undefined}
             naturalWidth={activeReveal?.status === 'ready' ? activeReveal.naturalWidth : undefined}
             naturalHeight={activeReveal?.status === 'ready' ? activeReveal.naturalHeight : undefined}
-            onRevealReady={activeReveal && activeReveal.status !== 'awaiting' ? finishReveal : undefined}
+            onRevealReady={activeReveal?.status === 'ready' ? finishReveal : undefined}
             painting={painting}
             topBar={promptBar}
           />
@@ -407,7 +416,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
               )}
               <ImageViewer
                 alt=""
-                className={`max-h-full min-h-0 max-w-full select-none rounded-md object-contain ${
+                className={`max-h-full min-h-0 max-w-full select-none rounded-md bg-secondary object-contain ${
                   isDraggingImage ? 'cursor-grabbing' : 'cursor-grab'
                 }`}
                 draggable={false}

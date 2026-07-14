@@ -12,6 +12,8 @@ type MotionDivProps = {
   [key: string]: unknown
 }
 
+// Mutable so individual tests can flip prefers-reduced-motion on.
+const reduceMotionState = vi.hoisted(() => ({ value: false }))
 vi.mock('motion/react', () => {
   const MotionDiv = ({ children, animate, initial: _initial, transition, ...props }: MotionDivProps) => {
     void _initial
@@ -25,7 +27,7 @@ vi.mock('motion/react', () => {
 
   return {
     motion: { div: MotionDiv },
-    useReducedMotion: () => false
+    useReducedMotion: () => reduceMotionState.value
   }
 })
 
@@ -36,6 +38,7 @@ describe('PaintingSkeletonGrid', () => {
   let observedTarget: Element | undefined
 
   beforeEach(() => {
+    reduceMotionState.value = false
     size = { width: 440, height: 440 }
     resizeCallback = undefined
     observedTarget = undefined
@@ -227,7 +230,7 @@ describe('PaintingSkeletonGrid', () => {
       setTimeoutSpy.mockRestore()
     })
 
-    it('keeps the original ~2.03s onRevealReady delay (Act 2 only) without a real image', async () => {
+    it('uses the ~2.03s onRevealReady delay (Act 2 only) without a real image', async () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
       const onRevealReady = vi.fn()
       render(<PaintingSkeletonGrid blurhash={blurhash} onRevealReady={onRevealReady} />)
@@ -236,6 +239,66 @@ describe('PaintingSkeletonGrid', () => {
 
       const call = setTimeoutSpy.mock.calls.find(([fn]) => fn === onRevealReady)!
       expect(call[1]).toBeCloseTo(2030, 0)
+      setTimeoutSpy.mockRestore()
+    })
+  })
+
+  describe('reveal handoff resilience', () => {
+    it('still schedules the reveal handoff when the blurhash fails to decode', async () => {
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      const onRevealReady = vi.fn()
+      // Too short to be a valid blurhash — decodeCellColors throws, so no tint is
+      // shown, but the reveal must still complete instead of pinning the skeleton
+      // over the finished image forever.
+      render(<PaintingSkeletonGrid blurhash="abc" imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
+
+      await waitFor(() => expect(setTimeoutSpy.mock.calls.some(([fn]) => fn === onRevealReady)).toBe(true))
+
+      const call = setTimeoutSpy.mock.calls.find(([fn]) => fn === onRevealReady)!
+      expect(call[1]).toBeCloseTo(2300, 0)
+      setTimeoutSpy.mockRestore()
+    })
+  })
+
+  describe('prefers-reduced-motion', () => {
+    const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+
+    it('renders a static snapshot with no looping animation', () => {
+      reduceMotionState.value = true
+
+      const { container } = render(<PaintingSkeletonGrid />)
+      const grid = container.firstElementChild!.firstElementChild as HTMLElement
+      const cell = grid.children[0] as HTMLElement
+
+      // A plain div (not the animated motion.div), so no looping opacity keyframes.
+      expect(cell.dataset.animate).toBeUndefined()
+      expect(cell.style.opacity).toBe('0.66')
+    })
+
+    it('applies the decoded tint colour statically when a blurhash is present', () => {
+      reduceMotionState.value = true
+
+      const { container } = render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" />)
+      const grid = container.firstElementChild!.firstElementChild as HTMLElement
+      const cell = grid.children[0] as HTMLElement
+
+      // Still a plain div (no animation), but filled with the decoded colour at the
+      // solid tint opacity rather than the grey baseline.
+      expect(cell.dataset.animate).toBeUndefined()
+      expect(cell.style.opacity).toBe('0.95')
+      expect(cell.style.backgroundColor).not.toBe('')
+    })
+
+    it('hands off immediately without scheduling a reveal-delay timer', async () => {
+      reduceMotionState.value = true
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      const onRevealReady = vi.fn()
+
+      render(<PaintingSkeletonGrid blurhash={blurhash} imageUrl="file:///tmp/real.png" onRevealReady={onRevealReady} />)
+
+      await waitFor(() => expect(onRevealReady).toHaveBeenCalledTimes(1))
+      // Reduced motion skips the animation window — no delayed handoff timer.
+      expect(setTimeoutSpy.mock.calls.some(([fn]) => fn === onRevealReady)).toBe(false)
       setTimeoutSpy.mockRestore()
     })
   })

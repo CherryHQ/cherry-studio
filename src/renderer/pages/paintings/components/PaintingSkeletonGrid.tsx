@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import { decode } from 'blurhash'
 import { motion, useReducedMotion } from 'motion/react'
 import { type CSSProperties, type FC, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
+const logger = loggerService.withContext('paintings/PaintingSkeletonGrid')
 
 /**
  * Skeleton shown while an image generates: a grid of rounded squares with a soft
@@ -70,7 +73,10 @@ function decodeCellColors(blurhash: string | undefined, grid: Grid | null): stri
       colors[i] = `rgb(${px[j]}, ${px[j + 1]}, ${px[j + 2]})`
     }
     return colors
-  } catch {
+  } catch (error) {
+    // Decoration only — the reveal still completes without a tint (see the reveal
+    // handoff effect), but a failing decode shouldn't do so silently.
+    logger.warn('Failed to decode blurhash for skeleton tint', { error })
     return null
   }
 }
@@ -239,12 +245,17 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
     setTinted(Boolean(colors))
   }, [colors])
 
-  // One tinted round later the mosaic has been shown once. With a real image to
-  // chase (Act 3 slice wave + Act 4 gap heal) reveal waits for that longer
-  // sequence instead; without one it hands off right after the tint wave, as
-  // before.
+  // Hand off once the reveal's animation window has elapsed. With a real image to
+  // chase (Act 3 slice wave + Act 4 gap heal) that window is longer; without one
+  // it hands off right after the tint wave. Runs purely on `onRevealReady` being
+  // provided — the artboard wires it only once the reveal is `ready` (a blurhash
+  // has arrived), never during the pending phase, so the timer can't arm before
+  // the blurhash resolves and race a slow computation into a double reveal. It is
+  // deliberately independent of `tinted` (decode success): the tint is decoration,
+  // so a blurhash that fails to *decode* still completes the reveal instead of
+  // pinning the skeleton over the finished image forever.
   useEffect(() => {
-    if (!tinted || !onRevealReady) return
+    if (!onRevealReady) return
     if (reduceMotion) {
       onRevealReady()
       return
@@ -252,7 +263,7 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
     const revealDelay = imageUrl ? REVEAL_DELAY_WITH_IMAGE : TINT_SWEEP + TINT_DUR
     const id = setTimeout(onRevealReady, revealDelay * 1000)
     return () => clearTimeout(id)
-  }, [reduceMotion, tinted, onRevealReady, imageUrl])
+  }, [reduceMotion, onRevealReady, imageUrl])
 
   const gridKey = grid ? `${grid.cols}x${grid.rows}` : null
   // Act 3's per-cell backgroundPosition crops out of one shared canvas the size
@@ -280,12 +291,14 @@ const PaintingSkeletonGrid: FC<{ blurhash?: string; imageUrl?: string; onRevealR
             const r = Math.floor(i / grid.cols)
             const diag = c + (grid.rows - 1 - r) // bottom-left → top-right
             const maxDiag = Math.max(1, grid.cols + grid.rows - 2)
-            // Negative delay pre-advances a *repeating* loop's phase, which mirrors
-            // a positive delay's activation order: giving diag=0 the deepest offset
-            // makes its peak arrive soonest, so the peak reads as gliding from
-            // diag=0 up to diag=maxDiag (bottom-left → top-right) as time passes.
-            // The jitter scatters each cell slightly off its diagonal so the
-            // band's edge shimmers instead of ruling a straight line.
+            // Each cell's start delay is a phase offset that ramps linearly with
+            // its diagonal, so — read modulo the loop's PERIOD — the brightness
+            // peak glides across the diagonals from diag=0 (bottom-left) to
+            // diag=maxDiag (top-right). The base offset is negative only to seed
+            // that phase, so the wave is already mid-sweep at t=0 instead of
+            // waiting a full period first (on an infinite loop -PERIOD is
+            // congruent to 0). The jitter scatters each cell slightly off its
+            // diagonal so the band's edge shimmers instead of ruling a straight line.
             const jitter = (cellNoise(i, 2) - 0.5) * PHASE_JITTER * PERIOD
             const phaseDelay = -((maxDiag - diag) / maxDiag) * PERIOD + jitter
             const tintDelay = (diag / maxDiag) * TINT_SWEEP
