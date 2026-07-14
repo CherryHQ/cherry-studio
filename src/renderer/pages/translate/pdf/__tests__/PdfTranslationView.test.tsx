@@ -58,8 +58,10 @@ describe('PdfTranslationView', () => {
       />
     )
 
-    expect(screen.getByText('translate.pdf.pane.source')).toBeInTheDocument()
+    expect(screen.getByText('paper.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('translate.pdf.pane.source')).not.toBeInTheDocument()
     expect(screen.getByText('translate.pdf.pane.translated')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.pdf.action.close' })).toBeInTheDocument()
     expect(screen.getByTestId('pdf-preview')).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
 
     await waitFor(() => expect(handle).not.toBeNull())
