@@ -119,7 +119,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
-    "selection-hook": "2.0.1",
+    "selection-hook": "2.0.2",
     "sharp": "0.34.5",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",

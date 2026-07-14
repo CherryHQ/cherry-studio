@@ -3,6 +3,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { cn } from '@renderer/utils/style'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -105,16 +106,16 @@ export function PromptEditorField({
         <div
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
-          className={`overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20 ${
-            fill ? 'flex min-h-0 flex-1 flex-col ' : ''
-          }${
+          className={cn(
+            'overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20',
+            fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
               : 'border-border/20 focus-within:border-border/40'
-          }`}>
+          )}>
           {effectiveShowPreview ? (
             <div
-              className={`markdown overflow-auto p-3 text-foreground text-xs${fill ? ' min-h-0 flex-1' : ''}`}
+              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>
