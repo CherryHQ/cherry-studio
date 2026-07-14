@@ -22,3 +22,13 @@ const markdown: MarkdownIt = new MarkdownIt({
 })
 
 export const renderMarkdown = (source: string) => markdown.render(source)
+
+export const renderCode = (source: string, language?: string) => {
+  const escaped = markdown.utils.escapeHtml(source)
+  if (!language || !hljs.getLanguage(language)) return escaped
+  try {
+    return hljs.highlight(source, { language, ignoreIllegals: true }).value
+  } catch {
+    return escaped
+  }
+}

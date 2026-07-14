@@ -3,7 +3,7 @@ import { createPinia, storeToRefs } from 'pinia'
 
 import 'highlight.js/styles/github.css'
 
-import { createWebUiHttpClient } from './service/httpClient'
+import { createWebUiHttpClient, WebUiHttpError } from './service/httpClient'
 import { createWebUiSseClient } from './service/sseClient'
 import { useWebUiChatStore } from './stores/chatStore'
 import type {
@@ -29,7 +29,10 @@ import type {
   WebUiMessagePart,
   WebUiRole,
   WebUiToolCallSnapshot,
-  WebUiToolCallState
+  WebUiToolCallState,
+  WebUiWorkspaceFileEntry,
+  WebUiWorkspaceFilesResponse,
+  WebUiWorkspaceTextPreview
 } from './types/api'
 import {
   buildWebUiAgentStatus,
@@ -39,7 +42,16 @@ import {
   type WebUiAgentSubagent,
   type WebUiAgentTask
 } from './utils/agentStatus'
-import { renderMarkdown } from './utils/renderMarkdown'
+import { renderCode, renderMarkdown } from './utils/renderMarkdown'
+import {
+  buildWorkspaceSearchTree,
+  getWorkspaceCodeLanguage,
+  getWorkspaceFilePreviewKind,
+  getWorkspaceParentPath,
+  getWorkspacePathBasename,
+  resolveWorkspaceRelativeArtifactPath,
+  type WebUiWorkspaceTreeNode
+} from './utils/workspaceFiles'
 
 type WebuiStatus = {
   readonly label: string
@@ -50,6 +62,14 @@ type WebUiDraftAttachment = {
   readonly id: string
   readonly file: File
 }
+
+type WorkspaceFilePreviewState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'loading'; readonly path: string }
+  | { readonly status: 'error'; readonly path: string; readonly message: string }
+  | { readonly status: 'binary'; readonly path: string; readonly name: string }
+  | { readonly status: 'text'; readonly path: string; readonly name: string; readonly content: string }
+  | { readonly status: 'image'; readonly path: string; readonly name: string; readonly url: string }
 
 const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
@@ -126,6 +146,18 @@ const textPacks = {
     contextUsage: 'Context usage',
     runtimeDetails: 'WebUI connection',
     filePreviewPending: 'File preview will be available in a later update.',
+    files: 'Files',
+    searchFiles: 'Search files',
+    refreshFiles: 'Refresh files',
+    loadingFiles: 'Loading files',
+    filesEmpty: 'No workspace files',
+    noSearchResults: 'No matching files',
+    selectFile: 'Select a file to preview',
+    backToFiles: 'Back to files',
+    fileUnavailable: 'This file is unavailable.',
+    fileAuthRequired: 'Configure a WebUI access key to browse workspace files.',
+    fileTooLarge: 'This file is too large to preview.',
+    binaryUnavailable: 'This binary format is not available in the basic preview.',
     statusPending: 'Pending',
     statusRunning: 'In progress',
     statusCompleted: 'Completed',
@@ -218,6 +250,18 @@ const textPacks = {
     contextUsage: '上下文用量',
     runtimeDetails: 'WebUI 连接',
     filePreviewPending: '文件预览将在后续版本中提供。',
+    files: '文件',
+    searchFiles: '搜索文件',
+    refreshFiles: '刷新文件',
+    loadingFiles: '正在加载文件',
+    filesEmpty: '工作区中暂无文件',
+    noSearchResults: '没有匹配的文件',
+    selectFile: '选择文件进行预览',
+    backToFiles: '返回文件列表',
+    fileUnavailable: '无法读取此文件。',
+    fileAuthRequired: '请先配置 WebUI 访问密钥再浏览工作区文件。',
+    fileTooLarge: '文件过大，无法预览。',
+    binaryUnavailable: '基础预览暂不支持此二进制格式。',
     statusPending: '等待中',
     statusRunning: '进行中',
     statusCompleted: '已完成',
@@ -310,6 +354,18 @@ const textPacks = {
     contextUsage: '上下文用量',
     runtimeDetails: 'WebUI 連線',
     filePreviewPending: '檔案預覽將在後續版本中提供。',
+    files: '檔案',
+    searchFiles: '搜尋檔案',
+    refreshFiles: '重新整理檔案',
+    loadingFiles: '正在載入檔案',
+    filesEmpty: '工作區中暫無檔案',
+    noSearchResults: '沒有符合的檔案',
+    selectFile: '選擇檔案進行預覽',
+    backToFiles: '返回檔案清單',
+    fileUnavailable: '無法讀取此檔案。',
+    fileAuthRequired: '請先設定 WebUI 存取金鑰再瀏覽工作區檔案。',
+    fileTooLarge: '檔案過大，無法預覽。',
+    binaryUnavailable: '基礎預覽暫不支援此二進位格式。',
     statusPending: '等待中',
     statusRunning: '進行中',
     statusCompleted: '已完成',
@@ -399,7 +455,8 @@ const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversat
   agentId: session.agentId,
   title: session.name || 'Untitled session',
   updatedAt: session.updatedAt,
-  workspaceLabel: session.workspace?.name ?? session.workspace?.path
+  workspaceLabel: session.workspace?.name ?? session.workspace?.path,
+  ...(session.workspace?.path ? { workspacePath: session.workspace.path } : {})
 })
 
 const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set(['output-available', 'output-error', 'output-denied'])
@@ -484,7 +541,18 @@ const renderGithubIcon = () =>
     })
   )
 
-type ActionIconName = 'send' | 'stop' | 'menu' | 'down' | 'resize' | 'activity' | 'close'
+type ActionIconName =
+  | 'send'
+  | 'stop'
+  | 'menu'
+  | 'down'
+  | 'resize'
+  | 'activity'
+  | 'close'
+  | 'folder'
+  | 'refresh'
+  | 'back'
+  | 'search'
 
 const renderActionIcon = (name: ActionIconName) => {
   const props = {
@@ -505,6 +573,10 @@ const renderActionIcon = (name: ActionIconName) => {
   if (name === 'down') return h('svg', props, [h('path', { d: 'm6 9 6 6 6-6' })])
   if (name === 'activity') return h('svg', props, h('path', { d: 'M3 12h4l2.5-7 5 14 2.5-7h4' }))
   if (name === 'close') return h('svg', props, [h('path', { d: 'm6 6 12 12' }), h('path', { d: 'm18 6-12 12' })])
+  if (name === 'folder') return h('svg', props, h('path', { d: 'M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }))
+  if (name === 'refresh') return h('svg', props, [h('path', { d: 'M20 6v5h-5' }), h('path', { d: 'M4 18v-5h5' }), h('path', { d: 'M6.1 9A7 7 0 0 1 18 6l2 5' }), h('path', { d: 'm4 13 2 5a7 7 0 0 0 11.9-3' })])
+  if (name === 'back') return h('svg', props, [h('path', { d: 'm15 18-6-6 6-6' }), h('path', { d: 'M9 12h10' })])
+  if (name === 'search') return h('svg', props, [h('circle', { cx: 11, cy: 11, r: 7 }), h('path', { d: 'm20 20-4-4' })])
   return h('svg', props, [
     h('path', { d: 'M5 19A14 14 0 0 0 19 5' }),
     h('path', { d: 'M9 19A10 10 0 0 0 19 9' }),
@@ -710,6 +782,15 @@ const App = defineComponent({
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const statusPreviewOpen = ref(false)
     const statusPanelOpen = ref(false)
+    const rightPanelTab = ref<'status' | 'files'>('status')
+    const workspaceDirectoryEntries = ref<Readonly<Record<string, readonly WebUiWorkspaceFileEntry[]>>>({})
+    const workspaceExpandedDirectories = ref<ReadonlySet<string>>(new Set())
+    const workspaceFileSearch = ref('')
+    const workspaceSearchEntries = ref<readonly WebUiWorkspaceFileEntry[]>([])
+    const workspaceFilesLoading = ref(false)
+    const workspaceFilesError = ref('')
+    const selectedWorkspaceFile = ref('')
+    const workspaceFilePreview = ref<WorkspaceFilePreviewState>({ status: 'idle' })
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const modelPickerOpen = ref(false)
     const reasoningPickerOpen = ref(false)
@@ -736,6 +817,9 @@ const App = defineComponent({
     let latestMessageRequest = 0
     let statusPreviewOpenTimer: number | undefined
     let statusPreviewCloseTimer: number | undefined
+    let workspaceFileSearchTimer: number | undefined
+    let workspaceFileRequestGeneration = 0
+    let workspacePreviewRequestGeneration = 0
 
     const selectedConversation = computed(() =>
       conversations.value.find((conversation) => conversation.id === selectedConversationId.value)
@@ -780,6 +864,7 @@ const App = defineComponent({
     const contextUsageCategories = computed(() =>
       (contextUsage.value?.categories ?? []).filter((category) => category.tokens > 0).slice(0, 4)
     )
+    const workspaceSearchTree = computed(() => buildWorkspaceSearchTree(workspaceSearchEntries.value))
     const themeToggleLabel = computed(() => (themeMode.value === 'dark' ? text('switchToLight') : text('switchToDark')))
     const reasoningOptions = computed(() => selectedModel.value?.reasoningOptions ?? [])
     const reasoningConfigurable = computed(() => reasoningOptions.value.length > 0)
@@ -864,6 +949,185 @@ const App = defineComponent({
               : undefined
           ])
         : undefined
+
+    const workspaceApiPath = (route: 'files' | 'file' | 'image', filePath = '', search = '') => {
+      const conversationId = selectedConversationId.value
+      if (!conversationId) return undefined
+      const query = new URLSearchParams()
+      if (filePath) query.set('path', filePath)
+      if (search) query.set('search', search)
+      const suffix = query.size ? `?${query.toString()}` : ''
+      return `/api/agent-sessions/${encodeURIComponent(conversationId)}/workspace/${route}${suffix}`
+    }
+
+    const getWorkspaceFileErrorMessage = (error: unknown) => {
+      if (error instanceof WebUiHttpError) {
+        if (error.payload?.code === 'WEBUI_WORKSPACE_AUTH_REQUIRED') return text('fileAuthRequired')
+        if (error.payload?.code === 'WEBUI_WORKSPACE_FILE_TOO_LARGE') return text('fileTooLarge')
+        if (error.payload?.code === 'WEBUI_WORKSPACE_IMAGE_UNSUPPORTED') return text('binaryUnavailable')
+        if (error.payload?.code?.startsWith('WEBUI_WORKSPACE_')) return text('fileUnavailable')
+      }
+      return localizedErrorMessage(error)
+    }
+
+    const releaseWorkspaceImagePreview = () => {
+      if (workspaceFilePreview.value.status === 'image') URL.revokeObjectURL(workspaceFilePreview.value.url)
+    }
+
+    const resetWorkspaceFiles = () => {
+      workspaceFileRequestGeneration += 1
+      workspacePreviewRequestGeneration += 1
+      if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
+      workspaceFileSearchTimer = undefined
+      releaseWorkspaceImagePreview()
+      workspaceDirectoryEntries.value = {}
+      workspaceExpandedDirectories.value = new Set()
+      workspaceFileSearch.value = ''
+      workspaceSearchEntries.value = []
+      workspaceFilesLoading.value = false
+      workspaceFilesError.value = ''
+      selectedWorkspaceFile.value = ''
+      workspaceFilePreview.value = { status: 'idle' }
+    }
+
+    const loadWorkspaceDirectory = async (directory = '', force = false) => {
+      if (!selectedConversation.value?.workspacePath) {
+        workspaceFilesError.value = text('filesEmpty')
+        return
+      }
+      if (!authRequired.value) {
+        workspaceFilesError.value = text('fileAuthRequired')
+        return
+      }
+      if (!force && workspaceDirectoryEntries.value[directory]) return
+      const apiPath = workspaceApiPath('files', directory)
+      if (!apiPath) return
+
+      const generation = workspaceFileRequestGeneration
+      const conversationId = selectedConversationId.value
+      workspaceFilesLoading.value = true
+      workspaceFilesError.value = ''
+      try {
+        const response = await httpClient.getJson<WebUiWorkspaceFilesResponse>(apiPath)
+        if (generation !== workspaceFileRequestGeneration || conversationId !== selectedConversationId.value) return
+        workspaceDirectoryEntries.value = { ...workspaceDirectoryEntries.value, [directory]: response.entries }
+      } catch (error) {
+        if (generation !== workspaceFileRequestGeneration || conversationId !== selectedConversationId.value) return
+        workspaceFilesError.value = getWorkspaceFileErrorMessage(error)
+      } finally {
+        if (generation === workspaceFileRequestGeneration) workspaceFilesLoading.value = false
+      }
+    }
+
+    const loadWorkspaceSearch = async (query: string) => {
+      const apiPath = workspaceApiPath('files', '', query)
+      if (!apiPath || !selectedConversation.value?.workspacePath || !authRequired.value) {
+        workspaceSearchEntries.value = []
+        if (!authRequired.value) workspaceFilesError.value = text('fileAuthRequired')
+        return
+      }
+
+      const generation = workspaceFileRequestGeneration
+      const conversationId = selectedConversationId.value
+      workspaceFilesLoading.value = true
+      workspaceFilesError.value = ''
+      try {
+        const response = await httpClient.getJson<WebUiWorkspaceFilesResponse>(apiPath)
+        if (
+          generation !== workspaceFileRequestGeneration ||
+          conversationId !== selectedConversationId.value ||
+          query !== workspaceFileSearch.value.trim()
+        ) {
+          return
+        }
+        workspaceSearchEntries.value = response.entries
+      } catch (error) {
+        if (generation !== workspaceFileRequestGeneration || conversationId !== selectedConversationId.value) return
+        workspaceFilesError.value = getWorkspaceFileErrorMessage(error)
+      } finally {
+        if (generation === workspaceFileRequestGeneration) workspaceFilesLoading.value = false
+      }
+    }
+
+    const refreshWorkspaceFiles = () => {
+      const search = workspaceFileSearch.value.trim()
+      workspaceDirectoryEntries.value = {}
+      workspaceSearchEntries.value = []
+      if (search) void loadWorkspaceSearch(search)
+      else void loadWorkspaceDirectory('', true)
+    }
+
+    const toggleWorkspaceDirectory = (directory: string) => {
+      const next = new Set(workspaceExpandedDirectories.value)
+      if (next.has(directory)) {
+        next.delete(directory)
+      } else {
+        next.add(directory)
+        void loadWorkspaceDirectory(directory)
+      }
+      workspaceExpandedDirectories.value = next
+    }
+
+    const closeWorkspaceFilePreview = () => {
+      workspacePreviewRequestGeneration += 1
+      releaseWorkspaceImagePreview()
+      selectedWorkspaceFile.value = ''
+      workspaceFilePreview.value = { status: 'idle' }
+    }
+
+    const openWorkspaceFile = async (filePath: string) => {
+      const previewKind = getWorkspaceFilePreviewKind(filePath)
+      const apiPath = workspaceApiPath(previewKind === 'image' ? 'image' : 'file', filePath)
+      if (!apiPath) return
+
+      releaseWorkspaceImagePreview()
+      selectedWorkspaceFile.value = filePath
+      workspaceFilePreview.value = { status: 'loading', path: filePath }
+      const requestGeneration = ++workspacePreviewRequestGeneration
+      const conversationId = selectedConversationId.value
+      try {
+        if (previewKind === 'image') {
+          const blob = await httpClient.getBlob(apiPath)
+          if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+          workspaceFilePreview.value = {
+            status: 'image',
+            path: filePath,
+            name: getWorkspacePathBasename(filePath),
+            url: URL.createObjectURL(blob)
+          }
+          return
+        }
+
+        const response = await httpClient.getJson<WebUiWorkspaceTextPreview>(apiPath)
+        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+        workspaceFilePreview.value =
+          response.kind === 'text'
+            ? { status: 'text', path: filePath, name: response.name, content: response.content ?? '' }
+            : { status: 'binary', path: filePath, name: response.name }
+      } catch (error) {
+        if (requestGeneration !== workspacePreviewRequestGeneration || conversationId !== selectedConversationId.value) return
+        workspaceFilePreview.value = {
+          status: 'error',
+          path: filePath,
+          message: getWorkspaceFileErrorMessage(error)
+        }
+      }
+    }
+
+    const openFilesPanel = () => {
+      clearStatusPreviewTimers()
+      statusPreviewOpen.value = false
+      statusPanelOpen.value = true
+      rightPanelTab.value = 'files'
+      if (!workspaceDirectoryEntries.value['']) void loadWorkspaceDirectory()
+    }
+
+    const openWorkspaceArtifact = (artifact: WebUiAgentArtifact) => {
+      const relativePath = resolveWorkspaceRelativeArtifactPath(selectedConversation.value?.workspacePath, artifact.path)
+      if (!relativePath) return
+      openFilesPanel()
+      void openWorkspaceFile(relativePath)
+    }
 
     const getAgentStatusLabel = (status: WebUiAgentTask['status'] | WebUiAgentSubagent['status']) => {
       if (status === 'in_progress' || status === 'running') return text('statusRunning')
@@ -978,20 +1242,175 @@ const App = defineComponent({
             h(
               'ul',
               { class: 'agent-status-list agent-artifact-list' },
-              artifacts.map((artifact) =>
-                h('li', { class: 'agent-status-item agent-artifact-item', key: artifact.id, title: text('filePreviewPending') }, [
-                  h('span', { class: 'agent-status-item-icon agent-status-item-icon-artifact' }, renderAgentStatusIcon('artifact')),
-                  h('span', { class: 'agent-status-item-copy' }, [
-                    h('span', { class: 'agent-status-item-title' }, artifact.name),
-                    compact
-                      ? undefined
-                      : h('span', { class: 'agent-status-item-state', title: artifact.path }, artifact.description ?? artifact.path)
-                  ])
-                ])
-              )
+              artifacts.map((artifact) => {
+                const canPreview = Boolean(
+                  resolveWorkspaceRelativeArtifactPath(selectedConversation.value?.workspacePath, artifact.path)
+                )
+                return h('li', { key: artifact.id },
+                  h(
+                    'button',
+                    {
+                      class: 'agent-status-item agent-artifact-item',
+                      type: 'button',
+                      disabled: !canPreview,
+                      title: canPreview ? artifact.path : text('filePreviewPending'),
+                      onClick: () => openWorkspaceArtifact(artifact)
+                    },
+                    [
+                      h('span', { class: 'agent-status-item-icon agent-status-item-icon-artifact' }, renderAgentStatusIcon('artifact')),
+                      h('span', { class: 'agent-status-item-copy' }, [
+                        h('span', { class: 'agent-status-item-title' }, artifact.name),
+                        compact
+                          ? undefined
+                          : h('span', { class: 'agent-status-item-state', title: artifact.path }, artifact.description ?? artifact.path)
+                      ])
+                    ]
+                  )
+                )
+              })
             )
           ])
         : undefined
+
+    function renderWorkspaceTreeNodes(
+      nodes: readonly WebUiWorkspaceTreeNode[],
+      depth = 0,
+      searchMode = false
+    ): ReturnType<typeof h>[] {
+      return nodes.flatMap((node) => {
+        const expanded = searchMode || workspaceExpandedDirectories.value.has(node.path)
+        const children = searchMode
+          ? node.children ?? []
+          : (workspaceDirectoryEntries.value[node.path] ?? []).map((entry) => ({ ...entry }))
+        const row = h(
+          'button',
+          {
+            class: ['workspace-file-row', { 'workspace-file-row-selected': selectedWorkspaceFile.value === node.path }],
+            key: node.path,
+            type: 'button',
+            style: { '--workspace-file-depth': String(depth) },
+            title: node.path,
+            onClick: () => {
+              if (node.isDirectory) toggleWorkspaceDirectory(node.path)
+              else void openWorkspaceFile(node.path)
+            }
+          },
+          [
+            node.isDirectory
+              ? h('span', { class: ['workspace-file-chevron', { 'workspace-file-chevron-expanded': expanded }] }, '›')
+              : h('span', { class: 'workspace-file-chevron workspace-file-chevron-spacer' }),
+            h(
+              'span',
+              { class: ['workspace-file-kind-icon', node.isDirectory ? 'workspace-file-kind-folder' : 'workspace-file-kind-file'] },
+              node.isDirectory ? renderActionIcon('folder') : renderAgentStatusIcon('artifact')
+            ),
+            h('span', { class: 'workspace-file-name' }, node.name)
+          ]
+        )
+        return expanded && children.length ? [row, ...renderWorkspaceTreeNodes(children, depth + 1, searchMode)] : [row]
+      })
+    }
+
+    const renderWorkspaceFilePreview = () => {
+      const preview = workspaceFilePreview.value
+      if (preview.status === 'idle') return undefined
+      const previewKind = getWorkspaceFilePreviewKind(preview.path)
+      return h('section', { class: 'workspace-file-preview' }, [
+        h('header', { class: 'workspace-file-preview-header' }, [
+          h(
+            'button',
+            {
+              class: 'workspace-file-preview-back',
+              type: 'button',
+              title: text('backToFiles'),
+              'aria-label': text('backToFiles'),
+              onClick: closeWorkspaceFilePreview
+            },
+            renderActionIcon('back')
+          ),
+          h('span', { class: 'workspace-file-preview-title' }, getWorkspacePathBasename(preview.path))
+        ]),
+        h('div', { class: ['workspace-file-preview-content', `workspace-file-preview-${preview.status}`] }, [
+          preview.status === 'loading'
+            ? h('p', { class: 'workspace-files-state' }, text('loadingFiles'))
+            : preview.status === 'error'
+              ? h('p', { class: 'workspace-files-state workspace-files-state-error' }, preview.message)
+              : preview.status === 'binary'
+                ? h('p', { class: 'workspace-files-state' }, text('binaryUnavailable'))
+                : preview.status === 'image'
+                  ? h('img', {
+                      class: 'workspace-image-preview',
+                      src: preview.url,
+                      alt: preview.name,
+                      onError: () => {
+                        URL.revokeObjectURL(preview.url)
+                        workspaceFilePreview.value = {
+                          status: 'error',
+                          path: preview.path,
+                          message: text('fileUnavailable')
+                        }
+                      }
+                    })
+                  : previewKind === 'markdown'
+                    ? h('div', { class: 'workspace-markdown-preview markdown-content', innerHTML: renderMarkdown(preview.content) })
+                    : h('pre', { class: 'workspace-code-preview hljs' },
+                        h('code', {
+                          innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
+                        })
+                      )
+        ])
+      ])
+    }
+
+    const renderWorkspaceFilesPanel = () => {
+      const search = workspaceFileSearch.value.trim()
+      const rootEntries = (workspaceDirectoryEntries.value[''] ?? []).map((entry) => ({ ...entry }))
+      const nodes = search ? workspaceSearchTree.value : rootEntries
+      return h('div', { class: 'workspace-files-panel' }, [
+        renderWorkspaceFilePreview() ??
+          h('div', { class: 'workspace-files-browser' }, [
+            h('div', { class: 'workspace-files-toolbar' }, [
+              h('div', { class: 'workspace-file-search-wrap' }, [
+                h('span', { class: 'workspace-file-search-icon', 'aria-hidden': 'true' }, renderActionIcon('search')),
+                h('input', {
+                  class: 'workspace-file-search',
+                  type: 'search',
+                  value: workspaceFileSearch.value,
+                  placeholder: text('searchFiles'),
+                  'aria-label': text('searchFiles'),
+                  onInput: (event: Event) => {
+                    workspaceFileSearch.value = (event.target as HTMLInputElement).value
+                  }
+                })
+              ]),
+              h(
+                'button',
+                {
+                  class: 'workspace-files-refresh',
+                  type: 'button',
+                  title: text('refreshFiles'),
+                  'aria-label': text('refreshFiles'),
+                  onClick: refreshWorkspaceFiles
+                },
+                renderActionIcon('refresh')
+              )
+            ]),
+            h('div', { class: 'workspace-files-root-label' }, [
+              renderActionIcon('folder'),
+              h('span', selectedConversation.value?.workspaceLabel ?? text('files'))
+            ]),
+            h('div', { class: 'workspace-file-tree' }, [
+              workspaceFilesLoading.value && !nodes.length
+                ? h('p', { class: 'workspace-files-state' }, text('loadingFiles'))
+                : workspaceFilesError.value
+                  ? h('p', { class: 'workspace-files-state workspace-files-state-error' }, workspaceFilesError.value)
+                  : !nodes.length
+                    ? h('p', { class: 'workspace-files-state' }, search ? text('noSearchResults') : text('filesEmpty'))
+                    : renderWorkspaceTreeNodes(nodes, 0, Boolean(search))
+            ])
+          ])
+      ])
+    }
 
     const renderAgentStatusBody = (status: WebUiAgentStatus, compact = false) => [
       compact ? undefined : renderTaskList(status.tasks, false),
@@ -1033,8 +1452,13 @@ const App = defineComponent({
     const toggleStatusPanel = () => {
       clearStatusPreviewTimers()
       statusPreviewOpen.value = false
-      statusPanelOpen.value = !statusPanelOpen.value
-      if (statusPanelOpen.value) refreshComposerInfo()
+      if (statusPanelOpen.value && rightPanelTab.value === 'status') {
+        statusPanelOpen.value = false
+        return
+      }
+      statusPanelOpen.value = true
+      rightPanelTab.value = 'status'
+      refreshComposerInfo()
     }
 
     const selectLanguage = (nextLanguage: (typeof webUiLanguages)[number]['id']) => {
@@ -1115,6 +1539,7 @@ const App = defineComponent({
         ) {
           selectedConversationId.value = undefined
           messages.value = []
+          resetWorkspaceFiles()
           messageLoadState.value = 'idle'
           messageLoadMessage.value = text('sessionsChanged')
         }
@@ -1250,9 +1675,11 @@ const App = defineComponent({
         void loadConversationMessages(conversationId, 'refresh')
         refreshComposerInfo(conversationId)
         refreshSlashCommands(conversationId)
+        if (statusPanelOpen.value && rightPanelTab.value === 'files') refreshWorkspaceFiles()
         return
       }
 
+      resetWorkspaceFiles()
       selectedConversationId.value = conversationId
       mobileSidebarOpen.value = false
       messages.value = []
@@ -1635,6 +2062,7 @@ const App = defineComponent({
         void loadConversationMessages(conversationId, 'refresh')
         refreshComposerInfo(conversationId)
         refreshSlashCommands(conversationId)
+        if (statusPanelOpen.value && rightPanelTab.value === 'files') refreshWorkspaceFiles()
       }
     })
     const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
@@ -1660,6 +2088,22 @@ const App = defineComponent({
       reasoningPickerOpen.value = false
     })
 
+    watch(workspaceFileSearch, (value) => {
+      if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
+      workspaceFileSearchTimer = undefined
+      workspaceSearchEntries.value = []
+      if (!statusPanelOpen.value || rightPanelTab.value !== 'files') return
+      const query = value.trim()
+      if (!query) {
+        void loadWorkspaceDirectory()
+        return
+      }
+      workspaceFileSearchTimer = window.setTimeout(() => {
+        workspaceFileSearchTimer = undefined
+        void loadWorkspaceSearch(query)
+      }, 200)
+    })
+
     watch([statusPreviewOpen, statusPanelOpen, activeRunConversationId, selectedConversationId], () => {
       if (contextUsageTimer !== undefined) window.clearInterval(contextUsageTimer)
       contextUsageTimer = undefined
@@ -1677,6 +2121,8 @@ const App = defineComponent({
 
     onBeforeUnmount(() => {
       clearStatusPreviewTimers()
+      if (workspaceFileSearchTimer !== undefined) window.clearTimeout(workspaceFileSearchTimer)
+      releaseWorkspaceImagePreview()
       if (healthTimer) window.clearInterval(healthTimer)
       if (contextUsageTimer) window.clearInterval(contextUsageTimer)
       if (syncTimer) window.clearTimeout(syncTimer)
@@ -1731,7 +2177,18 @@ const App = defineComponent({
             ])
           ])
         :
-      h('main', { class: ['webui-shell', { 'webui-shell-status-open': statusPanelOpen.value }] }, [
+      h(
+        'main',
+        {
+          class: [
+            'webui-shell',
+            {
+              'webui-shell-status-open': statusPanelOpen.value,
+              'webui-shell-files-open': statusPanelOpen.value && rightPanelTab.value === 'files'
+            }
+          ]
+        },
+        [
         mobileSidebarOpen.value
           ? h('button', {
               class: 'mobile-sidebar-backdrop',
@@ -1915,6 +2372,29 @@ const App = defineComponent({
                       )
                     : undefined
                 ]
+              ),
+              h(
+                'button',
+                {
+                  class: [
+                    'agent-status-shortcut',
+                    'workspace-files-shortcut',
+                    { 'agent-status-shortcut-active': statusPanelOpen.value && rightPanelTab.value === 'files' }
+                  ],
+                  type: 'button',
+                  disabled: !selectedConversation.value,
+                  title: text('files'),
+                  'aria-label': text('files'),
+                  'aria-expanded': statusPanelOpen.value && rightPanelTab.value === 'files',
+                  onClick: () => {
+                    if (statusPanelOpen.value && rightPanelTab.value === 'files') {
+                      statusPanelOpen.value = false
+                      return
+                    }
+                    openFilesPanel()
+                  }
+                },
+                renderActionIcon('folder')
               ),
               h('span', {
                 class: ['mobile-bridge-indicator', `mobile-bridge-indicator-${bridgeState.value}`],
@@ -2236,20 +2716,42 @@ const App = defineComponent({
               class: 'agent-status-panel-backdrop',
               type: 'button',
               'aria-label': text('close'),
-              onClick: toggleStatusPanel
+              onClick: () => {
+                statusPanelOpen.value = false
+              }
             })
           : undefined,
         statusPanelOpen.value
           ? h('aside', { class: 'status-panel agent-status-panel', 'aria-label': text('status') }, [
               h('header', { class: 'agent-status-panel-header' }, [
                 h('div', { class: 'agent-status-panel-tabs' }, [
-                  h('span', { class: 'agent-status-panel-tab agent-status-panel-tab-active' }, [
-                    renderActionIcon('activity'),
-                    h('span', text('status')),
-                    incompleteTaskCount.value > 0
-                      ? h('span', { class: 'agent-status-panel-tab-badge' }, String(incompleteTaskCount.value))
-                      : undefined
-                  ])
+                  h(
+                    'button',
+                    {
+                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'status' }],
+                      type: 'button',
+                      onClick: () => {
+                        rightPanelTab.value = 'status'
+                        refreshComposerInfo()
+                      }
+                    },
+                    [
+                      renderActionIcon('activity'),
+                      h('span', text('status')),
+                      incompleteTaskCount.value > 0
+                        ? h('span', { class: 'agent-status-panel-tab-badge' }, String(incompleteTaskCount.value))
+                        : undefined
+                    ]
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: ['agent-status-panel-tab', { 'agent-status-panel-tab-active': rightPanelTab.value === 'files' }],
+                      type: 'button',
+                      onClick: openFilesPanel
+                    },
+                    [renderActionIcon('folder'), h('span', text('files'))]
+                  )
                 ]),
                 h(
                   'button',
@@ -2258,14 +2760,18 @@ const App = defineComponent({
                     type: 'button',
                     title: text('close'),
                     'aria-label': text('close'),
-                    onClick: toggleStatusPanel
+                    onClick: () => {
+                      statusPanelOpen.value = false
+                    }
                   },
                   renderActionIcon('close')
                 )
               ]),
-              h('div', { class: 'agent-status-panel-scroll' }, [
-                ...renderAgentStatusBody(agentStatus.value, false),
-                h('details', { class: 'status-runtime-details' }, [
+              rightPanelTab.value === 'files'
+                ? renderWorkspaceFilesPanel()
+                : h('div', { class: 'agent-status-panel-scroll' }, [
+                    ...renderAgentStatusBody(agentStatus.value, false),
+                    h('details', { class: 'status-runtime-details' }, [
                   h('summary', [
                     h('span', text('runtimeDetails')),
                     h('span', {
@@ -2298,8 +2804,8 @@ const App = defineComponent({
                       )
                     ])
                   ])
-                ])
-              ])
+                    ])
+                  ])
             ])
           : undefined,
         newConversationOpen.value
@@ -2365,7 +2871,8 @@ const App = defineComponent({
               ])
             ])
           : undefined
-      ])
+        ]
+      )
   }
 })
 
@@ -2407,6 +2914,10 @@ style.textContent = `
 
   .webui-shell-status-open {
     grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 340px);
+  }
+
+  .webui-shell-files-open {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(360px, 420px);
   }
 
   .auth-shell {
@@ -2922,7 +3433,10 @@ style.textContent = `
     padding: 0 10px;
     color: #64748b;
     font-size: 13px;
+    background: transparent;
+    border: 0;
     border-radius: 6px;
+    cursor: pointer;
   }
 
   .agent-status-panel-tab-active {
@@ -2958,6 +3472,275 @@ style.textContent = `
     gap: 16px;
     padding: 14px;
     overflow-y: auto;
+  }
+
+  .workspace-files-panel,
+  .workspace-files-browser,
+  .workspace-file-preview {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .workspace-files-browser {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .workspace-files-toolbar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--webui-divider);
+  }
+
+  .workspace-file-search-wrap {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .workspace-file-search-icon {
+    position: absolute;
+    top: 50%;
+    left: 9px;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1;
+    transform: translateY(-52%);
+    pointer-events: none;
+  }
+
+  .workspace-file-search-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .workspace-file-search {
+    width: 100%;
+    height: 32px;
+    padding: 0 9px 0 28px;
+    color: #334155;
+    font-size: 12px;
+    background: #f8fafc;
+    border: 1px solid #dbe1ea;
+    border-radius: 7px;
+    outline: 0;
+  }
+
+  .workspace-file-search:focus {
+    background: #ffffff;
+    border-color: #94a3b8;
+  }
+
+  .workspace-files-refresh,
+  .workspace-file-preview-back {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .workspace-files-refresh:hover,
+  .workspace-files-refresh:focus-visible,
+  .workspace-file-preview-back:hover,
+  .workspace-file-preview-back:focus-visible {
+    color: #111827;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .workspace-files-root-label {
+    display: flex;
+    min-width: 0;
+    height: 34px;
+    gap: 7px;
+    align-items: center;
+    padding: 0 12px;
+    color: #64748b;
+    font-size: 11px;
+    border-bottom: 1px solid var(--webui-divider);
+  }
+
+  .workspace-files-root-label svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .workspace-files-root-label span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-file-tree {
+    min-height: 0;
+    padding: 6px;
+    overflow: auto;
+  }
+
+  .workspace-file-row {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    height: 29px;
+    gap: 5px;
+    align-items: center;
+    padding: 0 7px 0 calc(6px + var(--workspace-file-depth) * 13px);
+    color: #64748b;
+    font-size: 12px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .workspace-file-row:hover,
+  .workspace-file-row:focus-visible,
+  .workspace-file-row-selected {
+    color: #1f2937;
+    background: #f1f5f9;
+    outline: 0;
+  }
+
+  .workspace-file-chevron {
+    display: grid;
+    width: 11px;
+    flex: 0 0 auto;
+    place-items: center;
+    color: #94a3b8;
+    font-size: 18px;
+    line-height: 1;
+    transform: rotate(0deg);
+    transition: transform 120ms ease;
+  }
+
+  .workspace-file-chevron-expanded {
+    transform: rotate(90deg);
+  }
+
+  .workspace-file-chevron-spacer {
+    visibility: hidden;
+  }
+
+  .workspace-file-kind-icon {
+    display: grid;
+    width: 16px;
+    height: 18px;
+    flex: 0 0 auto;
+    place-items: center;
+  }
+
+  .workspace-file-kind-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .workspace-file-kind-folder {
+    color: #64748b;
+  }
+
+  .workspace-file-kind-file {
+    color: #94a3b8;
+  }
+
+  .workspace-file-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-files-state {
+    margin: 0;
+    padding: 18px 10px;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  .workspace-files-state-error {
+    color: #dc2626;
+  }
+
+  .workspace-file-preview {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    background: #ffffff;
+  }
+
+  .workspace-file-preview-header {
+    display: flex;
+    height: 44px;
+    gap: 7px;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--webui-divider);
+  }
+
+  .workspace-file-preview-title {
+    min-width: 0;
+    overflow: hidden;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-file-preview-content {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .workspace-file-preview-loading,
+  .workspace-file-preview-error,
+  .workspace-file-preview-binary {
+    display: grid;
+    place-items: center;
+  }
+
+  .workspace-image-preview {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 14px;
+    object-fit: contain;
+  }
+
+  .workspace-markdown-preview {
+    padding: 16px;
+    font-size: 13px;
+  }
+
+  .workspace-code-preview {
+    min-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 14px;
+    color: #334155;
+    font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.65;
+    background: #f8fafc;
+    white-space: pre;
+    tab-size: 2;
+  }
+
+  .workspace-code-preview code {
+    font: inherit;
   }
 
   .agent-status-section {
@@ -3094,7 +3877,10 @@ style.textContent = `
   }
 
   .agent-artifact-item {
-    cursor: default;
+    width: 100%;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
 
   .context-usage-content {
@@ -4315,6 +5101,29 @@ style.textContent = `
     color: #e2e8f0;
     background: #475569;
     box-shadow: 0 0 0 2px #111827;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-file-search,
+  :root[data-webui-theme='dark'] .workspace-file-preview,
+  :root[data-webui-theme='dark'] .workspace-code-preview {
+    color: #e5e7eb;
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-file-search:focus,
+  :root[data-webui-theme='dark'] .workspace-file-row:hover,
+  :root[data-webui-theme='dark'] .workspace-file-row:focus-visible,
+  :root[data-webui-theme='dark'] .workspace-file-row-selected,
+  :root[data-webui-theme='dark'] .workspace-files-refresh:hover,
+  :root[data-webui-theme='dark'] .workspace-file-preview-back:hover {
+    color: #f8fafc;
+    background: #334155;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-file-preview-title,
+  :root[data-webui-theme='dark'] .workspace-file-row {
+    color: #cbd5e1;
   }
 
   :root[data-webui-theme='light'] {

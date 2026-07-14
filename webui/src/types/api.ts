@@ -6,6 +6,28 @@ export type WebUiConversationSummary = {
   readonly title: string
   readonly updatedAt: string
   readonly workspaceLabel?: string
+  readonly workspacePath?: string
+}
+
+export type WebUiWorkspaceFileEntry = {
+  readonly path: string
+  readonly name: string
+  readonly isDirectory: boolean
+}
+
+export type WebUiWorkspaceFilesResponse = {
+  readonly workspaceName: string
+  readonly directory: string
+  readonly entries: readonly WebUiWorkspaceFileEntry[]
+  readonly search: string
+}
+
+export type WebUiWorkspaceTextPreview = {
+  readonly kind: 'text' | 'binary'
+  readonly path: string
+  readonly name: string
+  readonly size: number
+  readonly content?: string
 }
 
 export type WebUiContextUsage = {

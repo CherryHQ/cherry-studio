@@ -65,8 +65,31 @@ export const createWebUiHttpClient = ({
     }
   }
 
+  const requestBlob = async (path: string): Promise<Blob> => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetchImpl(`${baseUrl}${path}`, {
+        headers: {
+          Accept: 'image/*',
+          ...(authKey ? { 'X-Cherry-Webui-Key': authKey } : {})
+        },
+        signal: controller.signal
+      })
+      if (!response.ok) {
+        const payload = await readJson(response).catch(() => undefined)
+        throw new WebUiHttpError(response.status, isApiError(payload) ? payload : undefined)
+      }
+      return response.blob()
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
+
   return {
     getJson: <TResponse>(path: string) => requestJson<TResponse>(path),
+    getBlob: (path: string) => requestBlob(path),
     postJson: <TResponse>(path: string, body: unknown) =>
       requestJson<TResponse>(path, {
         body: JSON.stringify(body),
